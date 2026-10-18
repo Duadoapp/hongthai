@@ -18,12 +18,14 @@ JSON 格式是和網頁的契約，見下面「輸出」；欄位名稱與型別
 
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
-| 模式（0–120 小時） | ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s 機率」、ECMWF HRES 10 米陣風與 10 米風、GFS 地面陣風與 10 米風 | EC ≥ 25 m/s 機率 ≥ 30%、或 HRES／GFS 陣風 ≥ 25 m/s → 高；EC ≥ 15 m/s 機率 ≥ 50%、或任一模式陣風 ≥ 15 m/s → 中；其他低 |
+| 模式（0–120 小時） | ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s 機率」、ECMWF HRES 10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風 | EC ≥ 25 m/s 機率 ≥ 30%、或 HRES／GFS 陣風 ≥ 25 m/s → 高；EC ≥ 15 m/s 機率 ≥ 50%、或任一模式陣風 ≥ 15 m/s → 中；其他低 |
 | 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報 | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；TAF 陣風 ≥ 45 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 30 節 → 中 |
 | 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS 的 10 米風向配各自的陣風 | 含陣風側風 ≥ 35 節 → 高、≥ 25 節 → 中；和上面的陣風規則**取較高的等級** |
 
 - 側風分量＝含陣風的風速（有陣風用陣風，沒有用平均風）× |sin(風向 − 跑道方位)|，每條跑道兩個方向取小的，
   再取所有跑道裡**最小**的（還有一條能用就不算停飛）；風向可變（VRB）或沒有風向時側風＝風速本身
+- HRES 的 10 米風只抓 00／06／12／18Z 的時間點（H10，減少下載量），每個陣風區間配**結束時間往後最近**
+  的那個時間點的風向
 - 0–30 小時以官方為準；官方與模式不同級標 `gap: true`
 - `agreement`：HRES 與 GFS 的陣風落在同一級＝`agree`
 - `confirmed.json` 人工填的已確認停飛時段 → 該格 `level: "confirmed"`
@@ -46,14 +48,22 @@ pytest -q && ruff check . && ruff format --check .
 共 42 個 1–2 KB 的小檔約 110 秒、航班快照五個機場約 20 秒），下載大小與耗時印在 log，
 也寫進 `data` 分支的 `history/timing/`（見下面「輸出」）。
 
+H10（2026-10-18）之後：
+- ECMWF HRES 一報約 82 MB（原本約 112 MB）：陣風每個步長只有一個參數（0–90 小時 `10fg`、93–144 小時
+  `10fg3`、150 小時以後 `10fg`），全部步長都抓；`10u`／`10v` 只抓 6 小時整的步長，分兩個請求下載。
+  ECMWF 入口實測 0.5–1.4 MB/s，所以預算放寬到 300 秒
+- GFS 改從 AWS 開放資料鏡像（`noaa-gfs-bdp-pds`）抓：每個步長先讀 `.idx`，用 HTTP `Range` 只抓
+  `GUST`、`UGRD`、`VGRD` 三筆（全球 0.25°，每個步長約 2.5 MB、21 個步長共約 50 MB）；AWS 失敗才退回
+  NOMADS GRIB filter（2026-10-18 12:42Z 起 NOMADS 對 Actions 回 403）。從哪裡抓的記在 `sources.gfs.mirror`
+
 #### 時間預算與逾時（H7）
 
 每個來源在自己的執行緒裡跑，有各自的時間預算（秒，`src/hongthai/build.py` 開頭的 `BUDGET_S`）：
 
 | 來源 | 預算 | 2026-10-18 實測 |
 | --- | --- | --- |
-| ecmwf（HRES＋系集，含鏡像切換） | 240 | 約 90＋10 |
-| gfs | 180 | 約 110 |
+| ecmwf（HRES＋系集，含鏡像切換） | 300 | 約 90–240（入口速度不穩；H10 前 HRES 約 112 MB，之後約 82 MB）＋10 |
+| gfs（AWS 鏡像，NOMADS 備援） | 180 | 約 110（NOMADS）|
 | taf（含 METAR） | 45 | 幾秒 |
 | hko、smg | 各 30 | 幾秒 |
 | cwa | 45 | 幾秒 |
@@ -62,16 +72,19 @@ pytest -q && ruff check . && ruff format --check .
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和約 12 分鐘，Actions「產生 latest.json」那一步上限 15 分鐘、整個 job 25 分鐘
+- 總和 750 秒（12.5 分鐘），Actions「產生 latest.json」那一步上限 15 分鐘、整個 job 25 分鐘
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
   重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
   下載先試 AWS 鏡像，那一報還沒同步到或失敗再回 ECMWF 入口，再失敗試 Google；實際從哪裡下載記在
   `sources.ecmwf.mirror`。從 AWS 下載不重試：S3 不收多段 range、一報要一百多個請求，2026-10-18
   實測約三成回 `503 Slow Down`，重試會把預算耗光，所以第一個 503 就換 ECMWF 入口
-- `ecmwf` 或 `gfs` 失敗（逾時、429 用盡、格式錯……）時沿用上一份 `latest.json`（先找 `--archive`，
-  沒有就從 Pages 抓）同一機場、同一格的 `model.ec`／`model.gfs`，等級照常算；`sources.<名稱>.ok`
-  仍是 `false`，另加 `reusedFrom`，`runs` 是上一份的（舊預報的真實時次）。模式時次離現在超過
-  24 小時就不沿用（系集與 HRES 各自算），照缺資料處理。TAF、METAR、警報不沿用
+- `ecmwf` 或 `gfs` 失敗（逾時、429 用盡、403、格式錯……）時沿用「最近一份有該模式資料」的結果
+  同一機場、同一格的 `model.ec`／`model.gfs`，等級照常算。哪一份（H10 起往前找）：`--archive` 的
+  `history/<時間>.json` 由新到舊，第一份 `sources.<名稱>.ok` 是 `true`（自己也在沿用的不算）而且
+  `runs.ecmwf`／`runs.gfs` 離現在 24 小時內的；archive 裡找不到才退回上一份 `latest.json`（先找
+  `--archive`，沒有就從 Pages 抓）。`sources.<名稱>.ok` 仍是 `false`，另加 `reusedFrom`（那一份的
+  `generatedAt`），`runs` 是那一份的（舊預報的真實時次）。模式時次離現在超過 24 小時就不沿用
+  （系集與 HRES 各自算），照缺資料處理。TAF、METAR、警報不沿用
 
 ### 檔案
 
@@ -93,8 +106,8 @@ pytest -q && ruff check . && ruff format --check .
 - `data` 分支（Actions 自動推）：同樣的結果，加上原始快照
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg}.json`（SMG 是 `{"c": XML, "e": XML}`）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
-  原始航班資料不存），以及每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`。
-  這三樣都不進 GitHub Pages、不進 `latest.json`
+  原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`，以及
+  每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`。這些都不進 GitHub Pages、不進 `latest.json`
 
 `history/timing/<YYYY-MM>.jsonl`：一行一筆 JSON，每個來源一跑完就 append（不等全部結束），所以
 「產生 latest.json」被 Actions 砍掉時已經寫的行也會推上去。`run` 和那次的 `generatedAt` 相同：
@@ -102,14 +115,15 @@ pytest -q && ruff check . && ruff format --check .
 ```json
 {"run": "2026-10-18T09:28:00Z", "source": "start", "ok": true, "seconds": 0, "commit": "a59b42d"}
 {"run": "2026-10-18T09:28:00Z", "source": "ecmwf", "ok": false, "error": "timeout", "seconds": 240.0, "bytes": 0, "mirror": "aws"}
-{"run": "2026-10-18T09:28:00Z", "source": "gfs", "ok": true, "error": null, "seconds": 108.3, "bytes": 61234}
+{"run": "2026-10-18T09:28:00Z", "source": "gfs", "ok": true, "error": null, "seconds": 108.3, "bytes": 61234, "mirror": "nomads"}
 {"run": "2026-10-18T09:28:00Z", "source": "done", "ok": true, "seconds": 371.2}
 ```
 
 - `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`flights`、`done`（照執行順序）
 - `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`；`bytes`：下載量（逾時的是到那時為止，
   ecmwf 只算下載完的檔）；
-  `mirror`：只有 ecmwf 有，實際下載（逾時或失敗時是最後在試）的 source，還沒開始下載是 `null`
+  `mirror`：ecmwf 與 gfs 有（gfs 是 H10 起），實際下載（逾時或失敗時是最後在試）的 source，
+  還沒開始是 `null`；ecmwf 是 `aws`／`ecmwf`／`google`，gfs 是 `aws`／`nomads`
 - `start` 的 `commit` 是 `GITHUB_SHA` 前 7 碼（本機跑是 `null`）；`done` 的 `ok` 是這次有沒有產出新的
   `latest.json`。**沒有 `done` 那行就表示那次被砍了**
 
@@ -130,12 +144,23 @@ pytest -q && ruff check . && ruff format --check .
 - 依**表定**時間歸格（當地時間用 `airports.json` 的 `tz` 轉 UTC）；出發、抵達分開；不含貨機；
   共掛班號與重複的列只算一班
 - `cancelled`：狀態是取消；`delayed`：狀態是延誤，或預計／實際時間比表定晚 60 分鐘以上（取消的不重複算）；
-  `other`：看不懂的狀態（仍算進 `total`，log 印出字串）。三者互斥，其餘是正常或還沒有狀態
+  `other`：看不懂的狀態（仍算進 `total`，log 印出字串，並記進 `unknown-statuses.json`）。三者互斥，
+  其餘是正常或還沒有狀態
 - `asOf`：算出這筆的跑次時間
 - 合併：每次 build 把算出來的格合併進對應日期的檔（一次可能動到兩三個日期）。同 `airport`＋`from`
   已有紀錄時新的覆蓋舊的，但新的 `dep.total + arr.total` 比舊的少就留舊的（來源換日後看不到前一天的班機，
   不能把昨天的統計洗成 0）；沒有的就加
 - 各機場的狀態用語對照表、共掛怎麼認、沒有日期的時間怎麼補，寫在 `src/hongthai/cancellations.py` 開頭
+
+`history/cancellations/unknown-statuses.json`（H10）：每次 build 把各機場對照表沒列的狀態字串合併進來，
+讓主對話看得到要補哪些用語。只存狀態字串與次數，不存班號、時間、航點：
+
+```json
+{ "VMMC": { "SOME STATUS": { "count": 3, "firstSeen": "2026-10-18T14:33:00Z", "lastSeen": "2026-10-18T20:25:00Z" } } }
+```
+
+- `count`：累計每次 build 看到幾班（同一班在多次 build 都看到會重複算）；`firstSeen`／`lastSeen`：
+  第一次與最近一次看到的 build 時間。這次都看得懂也會建出檔（`{}`）
 
 `latest.json` 範例（時間一律 UTC ISO 8601 加 `Z`）：
 
@@ -181,8 +206,9 @@ pytest -q && ruff check . && ruff format --check .
   `sources.flights`
 - `sources.<名稱>.error` 多一個值 `"timeout"`：超過時間預算被放棄（這時 `seconds` 是預算）
 - `sources.ecmwf.mirror`：HRES 實際從哪裡下載，`"aws"`／`"ecmwf"`／`"google"`
-- `sources.ecmwf.reusedFrom`、`sources.gfs.reusedFrom`：這次失敗、模式資料沿用上一份時，上一份的
-  `generatedAt`（`ok` 仍是 `false`，網頁照樣顯示「這次沒讀到」）
+- `sources.gfs.mirror`（H10）：GFS 最後從哪裡下載，`"aws"`（AWS 開放資料鏡像）／`"nomads"`
+- `sources.ecmwf.reusedFrom`、`sources.gfs.reusedFrom`：這次失敗、模式資料沿用之前的結果時，抄的
+  那一份的 `generatedAt`（`ok` 仍是 `false`，網頁照樣顯示「這次沒讀到」）
 - `sources.flights.statsError`：航班取消／延誤統計算不出來或寫檔失敗時才有，`"<機場>:<訊息>"`
   （多個用 `; ` 接）；不影響 `latest.json` 其他內容
 - `warnings[].code`（天文台／SMG 信號代碼，例如 `TC8NE`、`TC3`）、`warnings[].detail`（氣象署警戒區原文、
@@ -206,8 +232,8 @@ pytest -q && ruff check . && ruff format --check .
 
 | 來源 | 內容 | 授權 |
 | --- | --- | --- |
-| [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data)（經 AWS／Google 鏡像） | HRES 10 米陣風（`10fg`／`10fg3`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`） | CC BY 4.0，© ECMWF |
-| [NOAA GFS](https://nomads.ncep.noaa.gov/)（NOMADS GRIB filter） | 地面陣風 `GUST` | 美國政府公有領域 |
+| [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data)（經 AWS／Google 鏡像） | HRES 10 米陣風（`10fg`／`10fg3`）與 10 米風（`10u`／`10v`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`） | CC BY 4.0，© ECMWF |
+| NOAA GFS（[AWS 開放資料鏡像 `noaa-gfs-bdp-pds`](https://registry.opendata.aws/noaa-gfs-bdp-pds/)，[NOMADS](https://nomads.ncep.noaa.gov/) 備援） | 地面陣風 `GUST`、10 米風 `UGRD`／`VGRD` | 美國政府公有領域 |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
 | [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報） | 海上／陸上颱風警報與警戒區 | [政府資料開放授權條款](https://data.gov.tw/license) |

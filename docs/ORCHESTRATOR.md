@@ -105,7 +105,7 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 | 來源 | 用途 | 授權 |
 | --- | --- | --- |
 | ECMWF 開放資料（經 AWS／Google 鏡像） | HRES 10 米陣風與 10 米風（側風的風向）、系集陣風機率 | CC BY 4.0（要標示 © ECMWF） |
-| NOAA GFS（NOMADS GRIB filter） | 地面陣風、10 米風 | 美國政府公有領域 |
+| NOAA GFS（AWS 開放資料鏡像 `noaa-gfs-bdp-pds`，NOMADS 備援；H10） | 地面陣風、10 米風 | 美國政府公有領域 |
 | AviationWeather.gov Data API | 五個機場的 TAF、METAR | 美國政府公有領域 |
 | 中央氣象署開放資料（`W-C0034-001`） | 颱風警報（桃園、松山、高雄） | 政府資料開放授權條款；要授權碼 |
 | 香港天文台開放數據（warnsum） | 熱帶氣旋信號（香港） | data.gov.hk 使用條款 |
@@ -131,6 +131,8 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 - 模式陣風：≥ 25 m/s 高、≥ 15 m/s 中；EC 系集 ≥ 25 m/s 機率 ≥ 30% 高、≥ 15 m/s 機率 ≥ 50% 中
 - TAF：陣風 ≥ 45 節或平均風 ≥ 35 節高、陣風 ≥ 30 節中
 - 側風：含陣風側風 ≥ 35 節高、≥ 25 節中；用陣風（不是平均風）算側風；沒有風向時側風＝風速本身
+- HRES 的 10 米風只抓 00／06／12／18Z 的時間點（H10，減少下載量），每個 3 小時陣風區間配結束時間往後
+  最近的那個時間點的風向（最多差 3 小時）
 - 跑道方位用真北（風向都是真北）；所有跑道取最小側風（假設最好的那條跑道都能用，沒算跑道關閉、
   長度、機型限制）
 - 目前生效的警報只套用到開始時間早於「現在 + 12 小時」的格（警報本身沒有預報時段）
@@ -140,12 +142,19 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 
 ### 來源逾時與沿用（H7，2026-10-18 build #4 被 ECMWF 429 卡到被砍之後）
 
-- 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 240、gfs 180、taf 45、hko 30、smg 30、
-  cwa 45、flights 120 秒），超過記 `error: "timeout"` 繼續跑下一個；Actions 那一步 15 分鐘、job 25 分鐘
+- 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 300（H10 起，原 240）、gfs 180、taf 45、hko 30、
+  smg 30、cwa 45、flights 120 秒，總和 12.5 分鐘），超過記 `error: "timeout"` 繼續跑下一個；
+  Actions 那一步 15 分鐘、job 25 分鐘
 - ECMWF 重試最多 3 次、間隔 10 秒、不照 Retry-After；找最新一報先問入口、下載先試 AWS 鏡像
   （→ 入口 → Google；AWS 下載不重試，S3 的 503 Slow Down 一來就換），`sources.ecmwf.mirror` 記實際來源。`ecmwf-opendata` 最低 0.3.34（有重試參數）
-- `ecmwf`／`gfs` 失敗時沿用上一份 `latest.json` 同機場同格的 `model.ec`／`model.gfs`，等級照常算；
-  `ok` 維持 `false`、加 `reusedFrom`，`runs` 是上一份的。模式時次超過 24 小時不沿用（系集各自算），
+- GFS（H10）：先 AWS 開放資料鏡像（`.idx`＋HTTP `Range` 只抓三筆），失敗才 NOMADS（2026-10-18 12:42Z 起
+  NOMADS 對 Actions 回 403）；`sources.gfs.mirror` 與 timing 的 gfs 那行記 `aws`／`nomads`
+- ECMWF HRES（H10）：每個步長只有一個陣風參數（`10fg` 或 `10fg3`，不能只抓 `10fg3`）；`10u`／`10v`
+  只抓 6 小時整的步長，一報從約 112 MB 降到約 82 MB（目標 70 MB 沒達到，見 PR 說明）
+- `ecmwf`／`gfs` 失敗時沿用「最近一份有該模式資料」的同機場同格 `model.ec`／`model.gfs`，等級照常算。
+  H10 起往前找：`data` 分支 `history/<時間>.json` 由新到舊，第一份 `sources.<名稱>.ok` 是 `true` 而且
+  模式時次在 24 小時內的；找不到才退回上一份 `latest.json`。`ok` 維持 `false`、加 `reusedFrom`
+  （那一份的 `generatedAt`），`runs` 是那一份的。模式時次超過 24 小時不沿用（系集各自算），
   所以連續失敗時 24 小時後自然停。TAF、METAR、警報不沿用
 - 預算是用一天的實測抓的初版，之後看 `history/timing/` 調整：
   `git show data:history/timing/2026-10.jsonl`（沒有 `done` 那行＝那次被砍）
@@ -159,6 +168,8 @@ Actions 自動推，不要手動改。內容：
 - `history/cancellations/<日期>.json`：每機場每 UTC 6 小時格的航班取消／延誤統計（之後回測停飛用；
   H6 起，原始航班資料不再存）。日期是格的 UTC 日期；每次 build 合併進去，同一格新的覆蓋舊的，
   但新的總班數比舊的少就留舊的。格式與規則見 README「輸出」、`src/hongthai/cancellations.py` 開頭
+- `history/cancellations/unknown-statuses.json`：各機場航班狀態對照表沒列的字串、累計次數、第一次與最近一次
+  看到的時間（H10 起；只存字串與次數）。看到新字串就補進 `cancellations.py` 的對照表
 - `history/timing/<YYYY-MM>.jsonl`：每次 build 每個來源的耗時（H7 起）。一行一筆，`start`、各來源、
   `done`；每個來源一跑完就寫，所以被 Actions 砍掉也留得下來，沒有 `done` 就是那次被砍了。
   欄位見 README「輸出」

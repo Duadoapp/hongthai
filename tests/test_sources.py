@@ -175,9 +175,35 @@ def test_ecmwf_hres_parse(airports):
     assert g[0].end - g[0].start == timedelta(hours=1)
     assert g[2].end - g[2].start == timedelta(hours=3)
     assert g[2].gust_ms == pytest.approx(9.08, abs=0.01)
-    # 10u／10v 配到同一步長的風向（東北季風）
-    assert g[2].wdir == pytest.approx(46, abs=1)
-    assert pts["RCTP"][0].wdir == pytest.approx(55, abs=1)
+    # 10u／10v 配區間結束時間往後最近的 6 小時步長（fixture 18Z 起報：87、90 → 90；93、96 → 96）
+    assert [round(x.wdir) for x in g] == [42, 42, 2, 2]
+    assert pts["RCTP"][0].wdir == pytest.approx(48, abs=1)
+
+
+def test_ecmwf_hres_parse_wind_from_separate_file(airports, tmp_path):
+    """陣風與 10 米風分兩個檔下載時一樣配得起來（風檔只有 6 小時整的步長）。"""
+    import eccodes
+
+    gust, wind = tmp_path / "gust.grib2", tmp_path / "wind.grib2"
+    with (
+        open(FIXTURES / "ecmwf_oper_subregion.grib2", "rb") as src,
+        gust.open("wb") as g_out,
+        wind.open("wb") as w_out,
+    ):
+        while (h := eccodes.codes_grib_new_from_file(src)) is not None:
+            short, step = eccodes.codes_get(h, "shortName"), eccodes.codes_get(h, "endStep")
+            if short in ecmwf.HRES_GUST_PARAMS:
+                g_out.write(eccodes.codes_get_message(h))
+            elif step % 6 == 0:
+                w_out.write(eccodes.codes_get_message(h))
+            eccodes.codes_release(h)
+    run, pts = ecmwf.parse_hres(gust, airports, wind)
+    _, same = ecmwf.parse_hres(FIXTURES / "ecmwf_oper_subregion.grib2", airports)
+    assert run == utc(2026, 10, 17, 18)
+    for icao in pts:
+        assert [(x.end, x.gust_ms, x.wdir) for x in pts[icao]] == [
+            (x.end, x.gust_ms, x.wdir) for x in same[icao]
+        ]
 
 
 def test_ecmwf_ens_parse(airports):
@@ -193,6 +219,21 @@ def test_ecmwf_step_helpers():
     assert ecmwf.hres_steps(6, 144)[-1] == 126
     assert ecmwf.hres_steps(36, 240)[-4:] == [141, 144, 150, 156]  # 144 以後只有每 6 小時
     assert ecmwf.hres_steps(36, 144)[-1] == 144
+    # 10 米風只抓 6 小時整的步長；陣風區間配結束時間往後最近的那個
+    assert [ecmwf.wind_step(s) for s in (3, 6, 9, 87, 90, 93, 144, 150)] == [
+        6,
+        6,
+        12,
+        90,
+        90,
+        96,
+        144,
+        150,
+    ]
+    steps = ecmwf.hres_steps(6, 144)
+    assert len(steps) == 40
+    assert ecmwf.wind_steps(steps) == list(range(12, 127, 6))
+    assert ecmwf.wind_steps(ecmwf.hres_steps(36, 240))[-3:] == [144, 150, 156]
     assert ecmwf.ens_windows(0)[:2] == ["0-24", "12-36"]
     assert ecmwf.ens_windows(18)[0] == "0-24"
 
@@ -214,6 +255,7 @@ class FakeClient:
 
     def retrieve(self, target, **request):
         self.calls.append(("retrieve", self.source, request["stream"]))
+        self.plan.setdefault("requests", []).append((self.source, request))
         # AWS 下載不重試（S3 的 503 Slow Down 一來就換下一個）
         assert self.retry == ({"maximum_retries": 1} if self.source == "aws" else {})
         if self.source not in self.plan["retrieve"]:
@@ -245,8 +287,9 @@ def test_ecmwf_latest_from_ecmwf_download_falls_back_from_aws(monkeypatch, airpo
     data = ecmwf.fetch(airports, utc(2026, 10, 18, 6), tmp_path)
     assert calls == [
         ("latest", "ecmwf", "oper"),
-        ("retrieve", "aws", "oper"),
+        ("retrieve", "aws", "oper"),  # 陣風：aws 沒有 → ecmwf
         ("retrieve", "ecmwf", "oper"),
+        ("retrieve", "ecmwf", "oper"),  # 10 米風先試陣風成功的 ecmwf
         ("latest", "ecmwf", "enfo"),
         ("retrieve", "aws", "enfo"),
         ("retrieve", "ecmwf", "enfo"),
@@ -255,6 +298,13 @@ def test_ecmwf_latest_from_ecmwf_download_falls_back_from_aws(monkeypatch, airpo
     assert (data.mirror, data.ens_mirror, data.ens_error) == ("ecmwf", "ecmwf", None)
     assert data.bytes_downloaded > 0
     assert data.points["VHHH"].hres and data.points["VHHH"].ens
+    # HRES 分兩個請求：陣風（10fg／10fg3）全部步長、10 米風只有 6 小時整的步長
+    oper = [r for src, r in plan["requests"] if src == "ecmwf" and r["stream"] == "oper"]
+    gust_req, wind_req = oper
+    assert gust_req["param"] == ["10fg", "10fg3"]
+    assert gust_req["step"] == ecmwf.hres_steps(12, 144)  # 18Z 起報、slot0 06Z → rel0=12
+    assert wind_req["param"] == ["10u", "10v"]
+    assert wind_req["step"] == list(range(18, 133, 6))
 
 
 def test_ecmwf_latest_429_switches_to_aws(monkeypatch, airports, tmp_path):
@@ -272,6 +322,7 @@ def test_ecmwf_latest_429_switches_to_aws(monkeypatch, airports, tmp_path):
     assert calls == [
         ("latest", "ecmwf", "oper"),
         ("latest", "aws", "oper"),
+        ("retrieve", "aws", "oper"),
         ("retrieve", "aws", "oper"),
         ("latest", "ecmwf", "enfo"),
         ("latest", "aws", "enfo"),
@@ -353,6 +404,159 @@ def test_gfs_parse_file_with_wind(airports):
 def test_gfs_names():
     assert gfs.file_name(utc(2026, 10, 18, 6), 12) == "gfs.t06z.pgrb2.0p25.f012"
     assert gfs.run_dir(utc(2026, 10, 18, 6)) == "/gfs.20261018/06/atmos"
+
+
+# 2026-10-18 實測 S3 `gfs.t06z.pgrb2.0p25.f120.idx` 的幾行（其他行省略；byte 起點是真的）
+REAL_IDX = """\
+13:5292860:d=2026101806:VIS:surface:120 hour fcst:
+14:5891123:d=2026101806:GUST:surface:120 hour fcst:
+15:6503070:d=2026101806:HGT:0.01 mb:120 hour fcst:
+587:421612095:d=2026101806:TMP:2 m above ground:120 hour fcst:
+588:422538109:d=2026101806:UGRD:10 m above ground:120 hour fcst:
+589:423505789:d=2026101806:VGRD:10 m above ground:120 hour fcst:
+590:424452587:d=2026101806:ICEG:10 m above mean sea level:120 hour fcst:
+"""
+
+
+def test_gfs_idx_byte_ranges():
+    # GUST 單獨一段；UGRD、VGRD 相鄰併成一段；都到下一筆起點的前一個 byte
+    assert gfs.byte_ranges(REAL_IDX) == [(5891123, 6503069), (422538109, 424452586)]
+    # 要的那筆是最後一筆：到檔尾（None）
+    tail = "1:0:d=x:GUST:surface:6 hour fcst:\n2:10:d=x:UGRD:10 m above ground:6 hour fcst:\n"
+    tail += "3:25:d=x:VGRD:10 m above ground:6 hour fcst:\n"
+    assert gfs.byte_ranges(tail) == [(0, None)]
+    with pytest.raises(gfs.GfsError) as e:
+        gfs.byte_ranges(REAL_IDX.replace("GUST", "XXXX"))
+    assert e.value.code == "bad_idx"
+
+
+def _grib_messages(path: Path) -> list[bytes]:
+    b = path.read_bytes()
+    out, i = [], 0
+    while i < len(b):
+        n = int.from_bytes(b[i + 8 : i + 16], "big")  # GRIB2 第 0 段的總長度
+        out.append(b[i : i + n])
+        i += n
+    return out
+
+
+class FakeResponse:
+    def __init__(self, status_code: int, content: bytes = b""):
+        self.status_code, self.content = status_code, content
+        self.text = content.decode("utf-8", "replace")
+
+
+class FakeNoaa:
+    """假的 `http_get`：S3 照 `Range` 回假的全球檔片段（真的 GRIB 訊息夾在別的資料中間），
+    NOMADS filter 回 fixture 的小檔。`aws`／`nomads` 是各自的行為：
+    `"ok"`、`"403"`、`"not_grib"`。"""
+
+    def __init__(self, aws="ok", nomads="ok", aws_ok_steps=None, s3_runs=None):
+        self.aws, self.nomads = aws, nomads
+        self.aws_ok_steps = aws_ok_steps  # 只有這些步長 AWS 正常（None＝全部）
+        self.s3_runs = s3_runs  # S3 上有哪些時次（None＝全部）
+        self.calls: list[str] = []
+        gust, u, v = _grib_messages(FIXTURES / "gfs_tw_f006.grb2")
+        self.full = b"P" * 100 + gust + b"H" * 50 + u + v + b"I" * 30
+        self.idx = (
+            "1:0:d=x:PRMSL:mean sea level:6 hour fcst:\n"
+            "2:100:d=x:GUST:surface:6 hour fcst:\n"
+            f"3:{100 + len(gust)}:d=x:HGT:0.01 mb:6 hour fcst:\n"
+            f"4:{150 + len(gust)}:d=x:UGRD:10 m above ground:6 hour fcst:\n"
+            f"5:{150 + len(gust) + len(u)}:d=x:VGRD:10 m above ground:6 hour fcst:\n"
+            f"6:{150 + len(gust) + len(u) + len(v)}:d=x:ICEG:10 m above msl:6 hour fcst:\n"
+        )
+
+    def __call__(self, url, *, params=None, headers=None, ok_404=False, error=None, **kw):
+        host = "aws" if url.startswith(gfs.S3_URL) else "nomads"
+        kind = "idx" if url.endswith(".idx") else "range" if headers else "filter"
+        self.calls.append(f"{host}:{kind}")
+        mode = self.aws if host == "aws" else self.nomads
+        fh = int(url.rsplit(".f", 1)[1][:3]) if host == "aws" or kind == "idx" else None
+        if host == "aws" and self.aws_ok_steps is not None and fh not in self.aws_ok_steps:
+            mode = "not_grib"
+        if mode == "403":
+            raise error("HTTP 403", "http_403")
+        if kind == "idx":
+            if (
+                self.s3_runs is not None
+                and host == "aws"
+                and not any(f"{r}/atmos" in url for r in self.s3_runs)
+            ):
+                return FakeResponse(404)
+            return FakeResponse(200, self.idx.encode())
+        if kind == "range":
+            if mode == "not_grib":
+                return FakeResponse(200, b"<html>SlowDown</html>")
+            a, b = headers["Range"].removeprefix("bytes=").split("-")
+            return FakeResponse(206, self.full[int(a) : int(b) + 1 if b else None])
+        name = "hkmo" if float(params["leftlon"]) < 115 else "tw"
+        return FakeResponse(200, (FIXTURES / f"gfs_{name}_f006.grb2").read_bytes())
+
+
+def _fake_noaa(monkeypatch, **kw) -> FakeNoaa:
+    fake = FakeNoaa(**kw)
+    monkeypatch.setattr(gfs, "http_get", fake)
+    monkeypatch.setattr(gfs.time, "sleep", lambda s: None)
+    return fake
+
+
+def test_gfs_find_latest_run_aws_then_nomads(monkeypatch):
+    now, slot0 = utc(2026, 10, 18, 14, 33), utc(2026, 10, 18, 12)
+    # S3 還沒有 12Z → 往前一報 06Z（在 S3 找到）
+    fake = _fake_noaa(monkeypatch, s3_runs=["06"])
+    assert gfs.find_latest_run(now, slot0) == (utc(2026, 10, 18, 6), "aws")
+    assert fake.calls == ["aws:idx", "aws:idx"]
+    # S3 403 → 改看 NOMADS
+    fake = _fake_noaa(monkeypatch, aws="403")
+    assert gfs.find_latest_run(now, slot0) == (utc(2026, 10, 18, 12), "nomads")
+    assert fake.calls == ["aws:idx", "nomads:idx"]
+    # 兩邊都 403 → 丟最後一個的代碼
+    _fake_noaa(monkeypatch, aws="403", nomads="403")
+    with pytest.raises(gfs.GfsError) as e:
+        gfs.find_latest_run(now, slot0)
+    assert e.value.code == "http_403"
+
+
+def test_gfs_fetch_from_aws(monkeypatch, airports, tmp_path):
+    fake = _fake_noaa(monkeypatch)
+    data = gfs.fetch(airports, utc(2026, 10, 18, 8, 10), utc(2026, 10, 18, 6), tmp_path)
+    assert (data.run, data.mirror) == (utc(2026, 10, 18, 6), "aws")
+    assert "nomads" not in "".join(fake.calls)
+    # 每個步長：.idx 一個、GUST 一段、UGRD＋VGRD 一段
+    assert fake.calls[1:5] == ["aws:idx", "aws:range", "aws:range", "aws:idx"]
+    assert fake.calls.count("aws:range") == 2 * 21
+    (gust, u, v) = _grib_messages(FIXTURES / "gfs_tw_f006.grb2")
+    assert data.bytes_downloaded == 21 * (len(gust) + len(u) + len(v))
+    pts = data.points["RCTP"]
+    assert len(pts) == 21
+    # fixture 是 f006 的檔，每個步長都回它；值與 NOMADS 小檔解析的一樣
+    assert pts[0].gust_ms == pytest.approx(2.8, abs=0.01)
+    assert pts[0].wdir == pytest.approx(355.5, abs=0.1)
+
+
+def test_gfs_fetch_aws_failure_falls_back_to_nomads(monkeypatch, airports, tmp_path):
+    """AWS 第三個步長回的不是 GRIB → 那個步長起改 NOMADS，之後不回 AWS。"""
+    fake = _fake_noaa(monkeypatch, aws_ok_steps={0, 6})
+    data = gfs.fetch(airports, utc(2026, 10, 18, 8, 10), utc(2026, 10, 18, 6), tmp_path)
+    assert data.mirror == "nomads"
+    i = fake.calls.index("nomads:filter")
+    assert fake.calls[:i] == ["aws:idx"] + ["aws:idx", "aws:range", "aws:range"] * 2 + [
+        "aws:idx",
+        "aws:range",
+    ]
+    assert set(fake.calls[i:]) == {"nomads:filter"}
+    assert fake.calls[i:].count("nomads:filter") == 2 * 19  # 兩個框 × 剩下的 19 個步長
+    assert all(len(data.points[a.icao]) == 21 for a in airports)
+    assert data.points["VMMC"][-1].gust_ms == pytest.approx(5.6, abs=0.01)
+
+
+def test_gfs_fetch_nomads_when_aws_down(monkeypatch, airports, tmp_path):
+    fake = _fake_noaa(monkeypatch, aws="403")
+    data = gfs.fetch(airports, utc(2026, 10, 18, 8, 10), utc(2026, 10, 18, 6), tmp_path)
+    assert data.mirror == "nomads"
+    assert fake.calls[:3] == ["aws:idx", "nomads:idx", "nomads:filter"]
+    assert "aws" not in "".join(fake.calls[1:])
 
 
 # ---- 澳門 SMG ----

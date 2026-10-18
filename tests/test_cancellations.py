@@ -137,6 +137,64 @@ def test_mfm_statuses():
     }
 
 
+def _mfm_arrival(status, at="18-10 16:20"):
+    row = {"time": at, "flightNo": "NX001", "origin": "Taipei", "status": status}
+    return {"departure": [], "arrival": [{**row, "date": "18-10-2026"}]}
+
+
+def test_mfm_chinese_landed_is_normal_arrival():
+    """英文端點回中文狀態：`航班著陸 16:23` 是已降落、正常（不是取消、延誤、other）。"""
+    stats = cancellations.airport_stats("VMMC", _mfm_arrival("航班著陸 16:23"), "Asia/Macau", NOW)
+    assert by_slot(stats) == {"2026-10-18T06:00:00Z": (counts(), counts(1))}
+    flights_ = cancellations.flights_of("VMMC", _mfm_arrival("航班著陸 16:23"), "Asia/Macau", NOW)
+    assert cancellations.unknown_statuses(flights_) == {}
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("航班著陸 17:30", counts(1, delayed=1)),  # 時間拿來算延誤：晚 70 分
+        ("航班起飛 16:25", counts(1)),
+        ("著陸", counts(1)),
+        ("已著陸", counts(1)),
+        ("起飛", counts(1)),
+        ("已起飛", counts(1)),
+        ("航班取消", counts(1, cancelled=1)),
+        ("延遲起飛", counts(1, delayed=1)),  # 不能因為有「起飛」就當正常
+        ("航班改降", counts(1, other=1)),
+    ],
+)
+def test_mfm_chinese_keywords(status, expected):
+    stats = cancellations.airport_stats("VMMC", _mfm_arrival(status), "Asia/Macau", NOW)
+    assert stats[0]["arr"] == expected
+
+
+def test_unknown_statuses_merged_into_file(tmp_path):
+    rows = load_json("khh_intdep.json")[:3]
+    rows[0] = {**rows[0], "airFlyStatus": "改降"}
+    rows[1] = {**rows[1], "airFlyStatus": " 改降 "}
+    parsed = cancellations.flights_of("RCKH", {"intlDeparture": rows}, TPE_TZ, NOW)
+    first = {"RCKH": cancellations.unknown_statuses(parsed), "VHHH": {}}
+    path = cancellations.store_unknown(tmp_path, first, NOW)
+    assert path == tmp_path / "cancellations" / "unknown-statuses.json"
+    t1 = "2026-10-18T08:55:00Z"
+    assert json.loads(path.read_text("utf-8")) == {
+        "RCKH": {"改降": {"count": 2, "firstSeen": t1, "lastSeen": t1}},
+        "VHHH": {},
+    }
+    later = utc(2026, 10, 18, 14, 33)
+    cancellations.store_unknown(tmp_path, {"RCKH": {"改降": 1}, "VMMC": {"SOME STATUS": 3}}, later)
+    t2 = "2026-10-18T14:33:00Z"
+    data = json.loads(path.read_text("utf-8"))
+    assert data == {
+        "RCKH": {"改降": {"count": 3, "firstSeen": t1, "lastSeen": t2}},
+        "VHHH": {},
+        "VMMC": {"SOME STATUS": {"count": 3, "firstSeen": t2, "lastSeen": t2}},
+    }
+    # 只有狀態字串與次數，沒有班號、時間、航點
+    assert "NX" not in path.read_text("utf-8") and "flight" not in path.read_text("utf-8")
+
+
 def test_unknown_status_goes_to_other_and_logs_once(caplog):
     rows = load_json("khh_intdep.json")[:3]
     rows[0] = {**rows[0], "airFlyStatus": "改降"}

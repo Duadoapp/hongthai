@@ -286,7 +286,11 @@ def test_flight_stats_written_to_archive_only(workspace, monkeypatch):
     rows = json.loads(day.read_text("utf-8"))
     assert {r["airport"] for r in rows} == {"VHHH", "RCTP", "RCSS", "RCKH"}
     assert not list((workspace / "public").rglob("*cancellations*"))
+    assert not list((workspace / "public").rglob("unknown-statuses.json"))
     assert not (workspace / "data" / "history" / "flights").exists()
+    # 看不懂的狀態：fixture 都看得懂，檔案照樣建出來（`{}` 或只有機場→狀態→次數）
+    unknown = workspace / "data" / "history" / "cancellations" / "unknown-statuses.json"
+    assert isinstance(json.loads(unknown.read_text("utf-8")), dict)
 
 
 def test_flight_fetch_error_reported(workspace, monkeypatch):
@@ -467,6 +471,89 @@ def test_gfs_failure_reuses_previous_gfs(workspace, monkeypatch, airports):
     assert all(s["model"]["gfs"]["gustMs"] is None for s in slots if s is not s12)
 
 
+def _write_hist(workspace, doc, ok=None):
+    """寫一份 `history/<時間>.json`；`ok` 是 `{來源: ok}`。"""
+    doc = {**doc, "sources": {n: {"ok": v} for n, v in (ok or {}).items()}}
+    stamp = doc["generatedAt"].replace("-", "").replace(":", "")[:13] + "Z"
+    path = workspace / "data" / "history" / f"{stamp}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc), "utf-8")
+    return doc
+
+
+def test_reuse_searches_back_to_last_good_run(workspace, monkeypatch, airports):
+    """上一份 gfs 也失敗（runs.gfs 是 null）、再上一份有 → 從再上一份沿用。"""
+    ec, *_ = sample_inputs(airports)
+    good = _write_hist(
+        workspace,
+        _prev(
+            "2026-10-17T20:10:00Z",
+            {"ecmwf": None, "ecmwfEns": None, "gfs": "2026-10-17T12:00:00Z"},  # 20 小時前
+            gfs_v={"gustMs": 16.0, "crosswindKt": 20.0},
+            slot_from="2026-10-21T06:00:00Z",
+        ),
+        ok={"gfs": True},
+    )
+    # 兩份之間有一份「自己也在沿用」的（ok false，runs 是舊的）：不能從它抄
+    _write_hist(
+        workspace,
+        _prev(
+            "2026-10-18T00:10:00Z",
+            {"ecmwf": None, "ecmwfEns": None, "gfs": "2026-10-17T12:00:00Z"},
+            gfs_v={"gustMs": 99.0, "crosswindKt": 99.0},
+            slot_from="2026-10-21T06:00:00Z",
+        ),
+        ok={"gfs": False},
+    )
+    last = _write_hist(
+        workspace,
+        _prev("2026-10-18T02:10:00Z", {"ecmwf": None, "ecmwfEns": None, "gfs": None}),
+        ok={"gfs": False},
+    )
+    _write_prev(workspace, last)
+    _fail_all_but(monkeypatch, ecmwf=lambda *a, **k: ec)
+    assert (
+        build.find_reuse_source(workspace / "data", "gfs", NOW)["generatedAt"]
+        == (good["generatedAt"])
+    )
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    src = out["sources"]["gfs"]
+    assert (src["ok"], src["reusedFrom"]) == (False, "2026-10-17T20:10:00Z")
+    assert out["runs"]["gfs"] == "2026-10-17T12:00:00Z"
+    s12 = out["airports"][3]["slots"][12]
+    assert s12["from"] == "2026-10-21T06:00:00Z"
+    assert s12["model"]["gfs"] == {"gustMs": 16.0, "crosswindKt": 20.0}
+
+
+def test_reuse_search_all_older_than_24h(workspace, monkeypatch, airports):
+    """archive 裡有資料的那份超過 24 小時、上一份也沒資料 → 不沿用。"""
+    ec, *_ = sample_inputs(airports)
+    _write_hist(
+        workspace,
+        _prev(
+            "2026-10-17T05:10:00Z",
+            {"ecmwf": None, "ecmwfEns": None, "gfs": "2026-10-17T00:00:00Z"},  # 32 小時前
+            gfs_v={"gustMs": 16.0, "crosswindKt": 20.0},
+            slot_from="2026-10-21T06:00:00Z",
+        ),
+        ok={"gfs": True},
+    )
+    last = _write_hist(
+        workspace,
+        _prev("2026-10-18T02:10:00Z", {"ecmwf": None, "ecmwfEns": None, "gfs": None}),
+        ok={"gfs": False},
+    )
+    _write_prev(workspace, last)
+    _fail_all_but(monkeypatch, ecmwf=lambda *a, **k: ec)
+    assert build.find_reuse_source(workspace / "data", "gfs", NOW) is None
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert "reusedFrom" not in out["sources"]["gfs"]
+    assert out["runs"]["gfs"] is None
+    assert all(s["model"]["gfs"]["gustMs"] is None for s in out["airports"][3]["slots"])
+
+
 def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     _, gf, *_ = sample_inputs(airports)
     seen_during_gfs = []
@@ -504,8 +591,9 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     assert set(ec_line) == {"run", "source", "ok", "error", "seconds", "bytes", "mirror"}
     assert (ec_line["ok"], ec_line["error"], ec_line["mirror"]) == (False, "timeout", None)
     gfs_line = lines[2]
-    assert set(gfs_line) == {"run", "source", "ok", "error", "seconds", "bytes"}
+    assert set(gfs_line) == {"run", "source", "ok", "error", "seconds", "bytes", "mirror"}
     assert (gfs_line["ok"], gfs_line["error"], gfs_line["bytes"]) == (True, None, 0)
+    assert gfs_line["mirror"] is None  # 假的 fetch 沒有記 mirror
     assert lines[5]["error"] == "no_api_key"
     assert lines[-1]["ok"] is True and isinstance(lines[-1]["seconds"], float)
 
