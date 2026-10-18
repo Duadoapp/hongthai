@@ -1,6 +1,6 @@
 # HongThai
 
-台灣、華東、華南・港澳、沖繩、日本、韓國六個地區 41 個機場（下面「機場」）未來 5 天的
+台灣、華東、華南・港澳、沖繩、日本、韓國、越南、菲律賓、關島・帛琉九個地區 51 個機場（下面「機場」）未來 5 天的
 **強風停飛風險**等級（含分跑道的側風）。
 每天四次抓氣象資料，輸出一份 `latest.json`，用 GitHub Pages 發布：
 
@@ -14,8 +14,9 @@ JSON 格式是和網頁的契約，見下面「輸出」；欄位名稱與型別
 
 ## 機場
 
-第三階段（H9，2026-10-19）起 41 個，分六個地區；名單是 Shawn 指定的（台灣有定期直飛），ICAO／IATA
-逐一對過 OurAirports（2026-10-18 的資料，41 個都一致）。`latest.json` 的 `regions` 與 `airports[]` 照下表的順序：
+第三階段（H9，2026-10-19）起 41 個、分六個地區，HD3 再加三個地區十個機場，共 **51 個、九個地區**；
+名單是 Shawn 指定的（台灣有定期直飛），ICAO／IATA 逐一對過 OurAirports（H9 的 41 個是 2026-10-18 的資料、
+HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 的 `regions` 與 `airports[]` 照下表的順序：
 
 | 地區 id | 地區 | 機場 |
 | --- | --- | --- |
@@ -25,13 +26,18 @@ JSON 格式是和網頁的契約，見下面「輸出」；欄位名稱與型別
 | `okinawa` | 沖繩 | 那霸 ROAH/OKA、石垣 ROIG/ISG、宮古 ROMY/MMY |
 | `japan` | 日本 | 鹿兒島 RJFK/KOJ、福岡 RJFF/FUK、關西 RJBB/KIX、中部 RJGG/NGO、羽田 RJTT/HND、成田 RJAA/NRT、新千歲 RJCC/CTS、仙台 RJSS/SDJ |
 | `korea` | 韓國 | 濟州 RKPC/CJU、釜山 RKPK/PUS、仁川 RKSI/ICN、金浦 RKSS/GMP |
+| `vietnam` | 越南 | 河內 VVNB/HAN、胡志明 VVTS/SGN、峴港 VVDN/DAD、芽莊（金蘭）VVCR/CXR、富國島 VVPQ/PQC |
+| `philippines` | 菲律賓 | 馬尼拉 RPLL/MNL、宿霧 RPVM/CEB、克拉克 RPLC/CRK |
+| `guam-palau` | 關島・帛琉 | 關島 PGUM/GUM、帛琉 PTRO/ROR |
 
-- 41 個都用全球資料：ECMWF、GFS、TAF／METAR（有的話）、跑道側風
-- 官方警報：台灣十個看中央氣象署、香港看天文台、澳門看 SMG；其他 29 個還沒接（日本、韓國之後另外的 HD
-  補，中國官方颱風預警先不接），`airports[].official.warnings` 是 `false`、`warnings` 是 `[]`
+- 51 個都用全球資料：ECMWF、GFS、TAF／METAR（有的話）、跑道側風
+- 官方警報：台灣十個看中央氣象署、香港看天文台、澳門看 SMG、關島看美國國家氣象局（NWS，HD3）；其他 38 個
+  還沒接（日本、韓國之後另外的 HD 補；中國官方颱風預警、越南、菲律賓先不接；帛琉 NWS 查不到，見下面
+  「資料來源與授權」），`airports[].official.warnings` 是 `false`、`warnings` 是 `[]`
 - **沒有 TAF 的機場**（2026-10-18 實測 AviationWeather）：花蓮 RCYU、金門 RCBS、馬祖 RCFG、溫州 ZSWZ、
   泉州 ZSQZ、珠海 ZGSD、宮古 ROMY。這幾個 `taf: null`，官方層只剩 METAR（只有宮古有）與警報，
-  0–30 小時沒有警報的格以模式為準。宮古以外的六個 METAR 也沒有（`metar: null`）
+  0–30 小時沒有警報的格以模式為準。宮古以外的六個 METAR 也沒有（`metar: null`）。HD3 加的十個
+  （越南、菲律賓、關島、帛琉）2026-10-18 18Z 一次請求 51 站實測都有 TAF 與 METAR
 - 航班取消／延誤統計（`cancellations.py`）只有桃園、松山、高雄、香港、澳門五個機場有來源
 
 ## 怎麼算
@@ -44,12 +50,14 @@ JSON 格式是和網頁的契約，見下面「輸出」；欄位名稱與型別
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
 | 模式（0–120 小時） | ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF HRES 10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風 | HRES 或 GFS 陣風 ≥ 48 節、或系集陣風 ≥ 49 節（25 m/s）機率 ≥ 30% → 高；HRES 或 GFS 陣風 ≥ 37 節 → 中（**中級不用系集**，見下面）；其他低 |
-| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報 | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中 |
+| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視 | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中 |
 | 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS 的 10 米風向配各自的陣風 | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級** |
 
 - 門檻依據：陣風（TAF 與模式同一套）是桃園機場空橋規則——最大瞬間風速 37 節（蒲福 8 級）啟動空橋防護、
   48 節（10 級）空橋停用、55 節以上全部綁死；側風是窄體客機常見作業限制——737-800 濕跑道起飛約 27 節、
   乾跑道約 33 節。所有機場先用同一套，之後找到個別機場的作業標準再在 `airports.json` 覆寫
+- NWS 的對等級（Shawn 2026-10-19 定案）：Warning 是確定會有（Tropical Storm Warning＝36 小時內持續
+  34–63 節，等同天文台 8 號、也超過 TAF 平均風 ≥ 35 節＝高的規則），Watch 是可能會有
 - 系集：ECMWF 開放資料的機率產品只有 ≥ 10／15／25 m/s，沒有 37 節的，所以中級只看確定性陣風
   （HRES／GFS／TAF ≥ 37 節）；高級是系集 `p49Kt` ≥ 30%，或確定性陣風 ≥ 48 節。`p29Kt` 只輸出、不進規則；
   `p37Kt` 一律 `null`（之後另一支 HD 用 GEFS 系集成員自己算）
@@ -72,7 +80,7 @@ JSON 格式是和網頁的契約，見下面「輸出」；欄位名稱與型別
 - 系集：陣風 ≥ 25 m/s（≈ 48.6 節，`p49Kt`）機率 ≥ 30% 高；中級不用系集（沒有 37 節的機率）
 - 側風：含陣風側風 ≥ 33 節高、≥ 27 節中；用陣風（不是平均風）算側風；沒有風向時側風＝風速本身
 - 跑道方位用真北；所有跑道取最小側風（假設最好的那條都能用，沒算跑道關閉、長度、機型限制）；
-  沒有跑道方位的機場（目前是石垣）側風是 `null`，只看陣風
+  HD3 補上石垣之後 51 個機場都有跑道方位（沒有跑道方位的機場側風是 `null`，只看陣風）
 - 中國機場的 TAF／METAR 風速是 `MPS`，AviationWeather 解碼成節時乘 2（實際 1.94），比實際高約 3%，偏保守
 - 系集機率是 24 小時窗，6 小時格取包住它的窗的最小值；目前生效的警報只套到「現在 + 12 小時」以前開始的格
 
@@ -102,6 +110,14 @@ H9（41 個機場）之後：
 - 2026-10-18 17:26Z 本機實跑 41 個機場（沒設 `CWA_API_KEY`）：ecmwf 75.6 秒（AWS，92 MB）、gfs 24.7 秒
   （AWS，45 MB）、taf 0.6 秒、hko 4.3 秒、smg 16.9 秒、flights 36.4 秒，全部 158.7 秒；`latest.json` 515 KB
 
+HD3（51 個機場）之後：
+- TAF、METAR 各一個請求帶 51 個 ICAO（`ids` 254 字元）；NWS 一個請求（關島 `GUZ001`），約 12 KB
+- GFS 的 NOMADS 備援框自動變大成北緯 6.37–43.77°、東經 102.99–145.80°（帛琉到新千歲、富國島到關島），
+  2026-10-18 實測 12Z f120 一檔 113 KB（H9 約 64 KB），21 個步長約 2.4 MB，51 個機場都解析得到
+- 2026-10-18 18:01Z 本機實跑 51 個機場（沒設 `CWA_API_KEY`）：ecmwf 89.1 秒（ECMWF 入口，93 MB）、gfs 26.0 秒
+  （AWS，45 MB）、taf 3.3 秒、hko 4.1 秒、smg 25.9 秒、nws 0.6 秒、flights 70.9 秒，全部 219.9 秒；
+  `latest.json` 642 KB（H9 是 515 KB）
+
 H10（2026-10-18）之後：
 - ECMWF HRES 一報約 82 MB（原本約 112 MB）：陣風每個步長只有一個參數（0–90 小時 `10fg`、93–144 小時
   `10fg3`、150 小時以後 `10fg`），全部步長都抓；`10u`／`10v` 只抓 6 小時整的步長，分兩個請求下載。
@@ -121,12 +137,13 @@ H10（2026-10-18）之後：
 | taf（含 METAR） | 45 | 幾秒 |
 | hko、smg | 各 30 | 幾秒 |
 | cwa | 45 | 幾秒 |
+| nws（HD3，關島） | 30 | 不到 1 秒 |
 | flights（抓＋統計＋寫檔） | 120 | 約 20 |
 
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和 750 秒（12.5 分鐘），Actions「產生 latest.json」那一步上限 15 分鐘、整個 job 25 分鐘
+- 總和 780 秒（13 分鐘；HD3 加 nws 30 秒），Actions「產生 latest.json」那一步上限 15 分鐘、整個 job 25 分鐘
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
   重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
   下載先試 AWS 鏡像，那一報還沒同步到或失敗再回 ECMWF 入口，再失敗試 Google；實際從哪裡下載記在
@@ -146,20 +163,22 @@ H10（2026-10-18）之後：
   - `regions[]`：`id`、`name`（四語），照顯示順序
   - `airports[]`：照 `regions` 的順序、地區內照顯示順序（讀的時候會檢查，順序不對、ICAO 重複、`region` 不在
     `regions` 裡、`tz` 不是 IANA 時區、跑道方位不在 0–360 都會報錯）。每個機場：ICAO、IATA、`tz`、`region`、
-    四語名稱（短名、不加「機場」）、座標（機場參考點；現有五個沿用，新的 36 個取 OurAirports）、跑道、
-    看哪些官方警報、氣象署警戒區關鍵字、門檻
+    四語名稱（短名、不加「機場」）、座標（機場參考點；現有五個沿用，H9 的 36 個與 HD3 的 10 個取
+    OurAirports）、跑道、看哪些官方警報、氣象署警戒區關鍵字、NWS zone、門檻
   - `runways[].headings`：跑道兩個方向的**真北**方位（度）。提示詞寫的是磁方位，但 METAR／TAF 與模式的風向
     都是真北，用磁方位會差 3–5°，所以算側風用真北；磁方位（只有 AIP 的五個）記在 `runways[].magnetic` 備查
     （下面「跑道方位」）。`runways: []` 的機場側風是 `null`
-  - `runwaySource`：跑道方位從哪裡來，`"aip"`（現有五個）或 `"ourairports"`（其他 36 個）；只在這裡，不進
-    `latest.json`
-  - `warningSources`：`cwa`（台灣十個機場）、`hko`（香港）、`smg`（澳門）；其他機場是 `[]`
+  - `runwaySource`：跑道方位從哪裡來，`"aip"`（現有五個）、`"ourairports"`（其他 45 個）或 `"computed"`
+    （石垣，用跑道兩端跑道頭座標算，HD3）；只在這裡，不進 `latest.json`
+  - `warningSources`：`cwa`（台灣十個機場）、`hko`（香港）、`smg`（澳門）、`nws`（關島，HD3）；其他機場是 `[]`
+  - `nwsZone`：看 NWS 警報的機場要有（HD3），NWS 的 zone 代碼，關島 `GUZ001`（`/points/13.485,144.7973`
+    的 `forecastZone`）。`warningSources` 有 `nws` 但沒有 `nwsZone`（或格式不是 `GUZ001` 這種）讀的時候會報錯
   - `cwaAreas`：氣象署警戒區關鍵字，每個台灣機場一組：桃園、松山「北部」「桃園」「臺北」「台北」「新北」；
     高雄「南部」「高雄」；台中「中部」「臺中」「台中」；台南「南部」「臺南」「台南」；花蓮「東部」「花蓮」；
     台東「東部」「臺東」「台東」；澎湖「澎湖」；金門「金門」；馬祖「馬祖」「連江」。對過 `W-C0034-001` 的
     用語：`areaDesc` 是「臺中市」「臺南市」「花蓮縣」「臺東縣」「澎湖縣」「金門縣」「連江縣」，警戒區文字寫
     「馬祖」，都比得到
-  - `thresholds`：每個機場可覆寫的門檻，**省略就用預設**（目前 41 個都省略）。HD2 起全部用節；預設值在
+  - `thresholds`：每個機場可覆寫的門檻，**省略就用預設**（目前 51 個都省略）。HD2 起全部用節；預設值在
     `src/hongthai/config.py` 的 `Thresholds`：
     `modelMediumGustKt`（37）、`modelHighGustKt`（48）、`tafMediumGustKt`（37）、`tafHighGustKt`（48）、
     `tafHighWindKt`（35）、`crosswindMediumKt`（27）、`crosswindHighKt`（33）、`ecP49High`（0.3，系集陣風
@@ -173,10 +192,11 @@ H10（2026-10-18）之後：
 ### 輸出
 
 - GitHub Pages（`public/`）：`latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（歷次結果，**只放最近 7 天**：
-  H9 起一份約 515 KB（2026-10-18 實測），`publish()` 只複製檔名時間（＝`generatedAt`）在 7 天內的，Pages 上更舊的刪掉；
+  H9 起一份約 515 KB、HD3 起約 642 KB（2026-10-18 實測），`publish()` 只複製檔名時間（＝`generatedAt`）在 7 天內的，Pages 上更舊的刪掉；
   `data` 分支照舊全部保留）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
-  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg}.json`（SMG 是 `{"c": XML, "e": XML}`）與航班的
+  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
+  `/alerts/active` 的原始回應，HD3 起）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
   原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`，以及
   每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`。這些都不進 GitHub Pages、不進 `latest.json`
@@ -191,7 +211,7 @@ H10（2026-10-18）之後：
 {"run": "2026-10-18T09:28:00Z", "source": "done", "ok": true, "seconds": 371.2}
 ```
 
-- `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`flights`、`done`（照執行順序）
+- `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`nws`（HD3 起）、`flights`、`done`（照執行順序）
 - `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`；`bytes`：下載量（逾時的是到那時為止，
   ecmwf 只算下載完的檔）；
   `mirror`：ecmwf 與 gfs 有（gfs 是 H10 起），實際下載（逾時或失敗時是最後在試）的 source，
@@ -281,12 +301,24 @@ H10（2026-10-18）之後：
 
 - 頂層 `regions`：陣列，照顯示順序，每個 `{ "id", "name": { "zh-TW", "zh-HK", "zh-CN", "en" } }`。六個：
   `taiwan` 台灣、`east-china` 華東、`south-china-hkmo` 華南・港澳、`okinawa` 沖繩、`japan` 日本、
-  `korea` 韓國（之後 HD3 加 `vietnam`、`philippines`、`guam-palau`）
+  `korea` 韓國（HD3 加三個，見下面）
 - `airports[].region`：地區 id；`airports[]` 照 `regions` 的順序排，同一地區的機場連在一起
 - `airports[].official`：物件，目前只有 `{ "warnings": true|false }`——這個機場有沒有接官方警報來源
   （`airports.json` 的 `warningSources` 非空）。`false` 的機場網頁顯示「官方警報：尚未提供」，`warnings`
   一定是 `[]`。和每格的 `slots[].official`（官方層的判讀）是不同層
 - `airports[]` 從 5 個變 41 個；沒有 TAF／METAR 的機場 `taf`／`metar` 是 `null`（見上面「機場」）
+
+HD3（2026-10-19）加的（只加值、不加欄位，既有欄位不改名、不改型別；要進 Duado spec 第 16 節）：
+
+- `regions` 加三個（接在 `korea` 之後，共九個）：`vietnam` 越南、`philippines` 菲律賓（zh-CN「菲律宾」）、
+  `guam-palau` 關島・帛琉（zh-CN「关岛・帕劳」，en「Guam & Palau」）
+- `airports[]` 從 41 個變 51 個（見上面「機場」）；關島 `official.warnings` 是 `true`，越南、菲律賓、帛琉是 `false`
+- `warnings[].source` 多 `"nws"`（美國國家氣象局關島分處），`kind` 是 `typhoon_warning`／`typhoon_watch`／
+  `ts_warning`／`ts_watch`，`code` 是 NWS 的 `event`（例如 `Typhoon Warning`），`detail` 是 NWS 的
+  `NWSheadline`（例如 `TYPHOON WARNING REMAINS IN EFFECT`），`text.en` 是 NWS 的 `headline`、中文三語是固定
+  句型（「颱風警報生效中（美國國家氣象局）」；zh-HK 用「警告」「戒備」），`issuedAt` 是那一則的 `sent`
+  （NWS 每次更新都重發，所以是最近一次更新的時間）；`slots[].official.warnings` 裡是同一個 `kind`
+- `sources.nws`
 
 規格以外加的欄位與值（網頁可以忽略）：
 
@@ -332,7 +364,9 @@ H10（2026-10-18）之後：
 | [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data)（經 AWS／Google 鏡像） | HRES 10 米陣風（`10fg`／`10fg3`）與 10 米風（`10u`／`10v`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`） | CC BY 4.0，© ECMWF |
 | NOAA GFS（[AWS 開放資料鏡像 `noaa-gfs-bdp-pds`](https://registry.opendata.aws/noaa-gfs-bdp-pds/)，[NOMADS](https://nomads.ncep.noaa.gov/) 備援） | 地面陣風 `GUST`、10 米風 `UGRD`／`VGRD` | 美國政府公有領域 |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
-| [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 36 個機場的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
+| [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 46 個機場（H9 的 36 個、HD3 的 10 個）的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
+| [OpenStreetMap](https://www.openstreetmap.org/way/114511749)（跑道 way 114511749 的兩端座標，HD3） | 石垣跑道真北方位（用座標算出的一個數字） | © OpenStreetMap contributors，[ODbL](https://www.openstreetmap.org/copyright) |
+| [美國國家氣象局 api.weather.gov](https://www.weather.gov/documentation/services-web-api)（`/alerts/active?zone=GUZ001`，HD3） | 關島的颱風／熱帶風暴警報與守視（NWS 關島分處 Tiyan 發布） | 美國政府公有領域 |
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
 | [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報） | 海上／陸上颱風警報與警戒區（台灣十個機場） | [政府資料開放授權條款](https://data.gov.tw/license) |
 | [澳門地球物理氣象局 XML](https://xml.smg.gov.mo/)（`c_typhoon.xml`／`e_typhoon.xml`；data.gov.mo 資料集[「熱帶氣旋信號」](https://data.gov.mo/Detail?id=15044781-1752-4f98-b87e-508208d70408)） | 熱帶氣旋信號 | [澳門政府數據開放平台使用條款](https://data.gov.mo/)：免費使用與再發布，須註明「澳門特別行政區政府數據開放平台」與取得日期 |
@@ -341,6 +375,17 @@ H10（2026-10-18）之後：
 | 松山機場即時航班（data.gov.tw [37242](https://data.gov.tw/dataset/37242)／[37248](https://data.gov.tw/dataset/37248)／[37317](https://data.gov.tw/dataset/37317)／[37319](https://data.gov.tw/dataset/37319)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 高雄機場即時航班（data.gov.tw [33656](https://data.gov.tw/dataset/33656)／[33655](https://data.gov.tw/dataset/33655)／[33651](https://data.gov.tw/dataset/33651)／[33649](https://data.gov.tw/dataset/33649)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 澳門民航局航班資訊（data.gov.mo [離港（英文）](https://data.gov.mo/Detail?id=f910cf2e-5e30-45c3-9e62-3eb6bf912db3)／[抵港（英文）](https://data.gov.mo/Detail?id=44b62bd1-6c84-421f-b571-52ab184c7df3)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 澳門政府數據開放平台使用條款 |
+
+NWS（關島、帛琉，HD3，2026-10-18 查）：
+- 關島：`/zones?area=GU` 有 `GUZ001`（public／fire，名稱 Guam，`cwa` 是 GUM＝NWS 關島分處）；PGUM 的
+  `/points/13.485,144.7973` 的 `forecastZone` 是 `GUZ001`。`/alerts?zone=GUZ001` 查得到超強颱風 Champi（29W）
+  期間的 `Typhoon Watch`（10-15 起）與 `Typhoon Warning`（10-16 發布、10-18 17:51 ChST 解除，每次更新
+  `messageType` 是 `Update`、解除是 `Cancel`），格式和美國本土一樣 → **接了**（`src/hongthai/sources/nws.py`）
+- 帛琉：`/zones?area=PW` 有 `PWZ001`–`PWZ008`（PTRO 在 Airai＝`PWZ003`；`cwa` 是 `PQW`，但 `/offices/PQW`
+  回 404，`/points/7.367,134.5441` 回 500；zone 2026-04-16 才生效）。`/alerts?area=PW` 自 2026-04-01 起
+  一筆警報都沒有（`/alerts/active?zone=PWZ003` 是空的 FeatureCollection），Champi 期間也沒有；TC 本地聲明
+  （HLS）的地點只有 `PQ2`（關島與北馬里亞納）。看不出 NWS 會在這個端點發帛琉的颱風警報 → **先不接**
+  （`warningSources: []`，`official.warnings: false`），之後看到帛琉的警報再接（加 `nwsZone: "PWZ003"`）
 
 航班：澳門機場官網只有伺服器端產生的 HTML（不爬），改用 data.gov.mo 上民航局的開放 API；它要一個
 `Authorization: APPCODE …` 標頭，值是平台發給所有匿名使用者的公開共用碼，程式每次從資料集說明 API 取，
@@ -361,13 +406,32 @@ H10（2026-10-18）之後：
 
 台灣 AIP 只列真北方位；同方位的平行跑道記一組。
 
-其餘 36 個（`runwaySource: "ourairports"`）取自 OurAirports `runways.csv`（2026-10-18 下載）的
+H9 的其餘 36 個（`runwaySource: "ourairports"`；石垣 HD3 改成 `"computed"`）取自 OurAirports `runways.csv`（2026-10-18 下載）的
 `le_heading_degT`／`he_heading_degT`（真北），抽查上海浦東、羽田、仁川、那霸、台中五個的跑道號碼和
 維基百科一致。整理規則：
 - 關閉的跑道（`closed=1`）不要；比該機場最長跑道短一半以上的不要（仙台 12/30，1,200 m，客機不用）
 - 方位差 1° 以內的平行跑道記一組（例如浦東 16L/34R、16R/34L、17L/35R、17R/35L 都是 162°）
 - 沒有方位、但有兩端跑道頭座標的，用座標算真北方位（溫州 03/21、廣州 01L/19R、珠海 05/23、海口 10/28、
   福岡 16R/34L）；兩端方位對不起來的也改用座標（羽田 05/23 寫 57°／223°，座標算是 042.4°）
-- 方位與座標都沒有的跑道不要（浦東 15/33，其他跑道還有）；整個機場都沒有的 `runways: []`（石垣）
+- 方位與座標都沒有的跑道不要（浦東 15/33，其他跑道還有）；整個機場都沒有的 `runways: []`（H9 時的石垣，
+  HD3 補上了，見下面）
+
+HD3 的十個（2026-10-18 18Z 下載的 OurAirports）照同樣的規則：
+- 平行跑道併組：河內 11L/29R、11R/29L（107°）、胡志明 07L/25R、07R/25L（069°）、峴港 17L/35R、17R/35L（172°）、
+  富國島 10L/28R、10R/28L（096°）、關島 06L/24R、06R/24L（065°）、宿霧 04L/22R（044°）、04R/22L（045°）記一組，
+  方位取最長那條（04R/22L）的；芽莊 02R/20L 沒有方位，用跑道頭座標算是 018.7°，和 02L/20R 的 019° 差不到
+  1°，併成一組 019°
+- 馬尼拉 06/24（060.3°，3,737 m）與 13/31（134.8°，2,258 m）是兩組（13/31 比最長跑道的一半長）
+- 克拉克 02L/20R 關閉（`closed=1`），只留 02R/20L（021.1°）；帛琉只有一條 09/27（091°）
+- 有方位的也都用跑道頭座標驗算過，差都在 1° 以內
+
+石垣（`runwaySource: "computed"`，HD3）：新石垣機場只有一條跑道 04/22（2,000 m）。日本 AIP（AIS Japan）要註冊
+登入，沙盒連不上（`aisjapan.mlit.go.jp` 被擋），所以用 OpenStreetMap 跑道 way 114511749（2026-03-23 版）兩端
+節點的座標算：南端 24.3891577°N 124.2393589°E、北端 24.4037497°N 124.2508788°E，兩端距離 1,998 m（和跑道長
+2,000 m 吻合），大圓起始方位 04 向 035.7°、22 向 215.7°（真北）。磁方位沒有官方數字，省略：
+
+| 機場 | 跑道 | 真北（`headings`） | 磁方位（`magnetic`） | 來源 |
+| --- | --- | --- | --- | --- |
+| 石垣 ROIG | 04/22 | 035.7° / 215.7° | （省略） | OpenStreetMap way 114511749 兩端座標算（大圓起始方位，兩個方向各算一次） |
 
 程式碼以 [MIT](LICENSE) 授權。

@@ -1,0 +1,392 @@
+{
+ "@context": [
+  "https://geojson.org/geojson-ld/geojson-context.jsonld",
+  {
+   "@version": "1.1",
+   "wx": "https://api.weather.gov/ontology#",
+   "@vocab": "https://api.weather.gov/ontology#"
+  }
+ ],
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e45c43cdf22bc5e22e9e9e488eac770866bf398c.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e45c43cdf22bc5e22e9e9e488eac770866bf398c.001.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.e45c43cdf22bc5e22e9e9e488eac770866bf398c.001.1",
+    "areaDesc": "Guam",
+    "geocode": {
+     "SAME": [
+      "066010"
+     ],
+     "UGC": [
+      "GUZ001"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.8f96da8543860aa3cc71d31b3156d80289ac78dd.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.8f96da8543860aa3cc71d31b3156d80289ac78dd.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T03:01:00+10:00"
+     },
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.f85c1cb2776ac5a31a0748a0fd7609ce3ffc26c7.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.f85c1cb2776ac5a31a0748a0fd7609ce3ffc26c7.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T09:38:00+10:00"
+     },
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e048915f876016bb415d43a6a114bbf10de92154.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.e048915f876016bb415d43a6a114bbf10de92154.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T12:02:00+10:00"
+     }
+    ],
+    "sent": "2026-10-18T15:01:00+10:00",
+    "effective": "2026-10-18T15:01:00+10:00",
+    "onset": "2026-10-18T15:01:00+10:00",
+    "expires": "2026-10-18T23:15:00+10:00",
+    "ends": null,
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Extreme",
+    "certainty": "Likely",
+    "urgency": "Immediate",
+    "event": "Typhoon Warning",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "Typhoon Warning issued October 18 at 3:01PM ChST by NWS Tiyan GU",
+    "description": "...SUPER TYPHOON CHAMPI CONTINUES WEST, AWAY FROM GUAM WATERS...\n\n.NEW INFORMATION...\nNone.\n\n.AREAS AFFECTED...\nThis local statement provides important information and\nrecommended actions for people in Guam and the Northern Marianas.\n\n.Watches/Warnings...\nA Typhoon Warning continues for Guam and Rot…",
+    "instruction": "As frequent damaging tropical storm-force gusts continue, do not\ngo outside to check for damage or to implement temporary repairs,\neven as sustained winds diminish through the next few hours.\nOccasional strong tropical storm-force gusts will maintain\ndangerous conditions outdoors. Do not open the do…",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "HLSPQ2"
+     ],
+     "WMOidentifier": [
+      "WTPQ82 PGUM 180501"
+     ],
+     "NWSheadline": [
+      "TYPHOON WARNING REMAINS IN EFFECT"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "EAS-ORG": [
+      "WXR"
+     ],
+     "VTEC": [
+      "/O.CON.PGUM.TY.W.4029.000000T0000Z-000000T0000Z/"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "HUW"
+     ],
+     "NationalWeatherService": [
+      "TYW"
+     ]
+    },
+    "replacedBy": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.6a4c70032732efa864b8e6c3c38d169382bb7360.001.1",
+    "replacedAt": "2026-10-18T17:51:00+10:00"
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.b5cb625f12b9fc5bb56b6921e3b6c379d542f776.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.b5cb625f12b9fc5bb56b6921e3b6c379d542f776.001.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.b5cb625f12b9fc5bb56b6921e3b6c379d542f776.001.1",
+    "areaDesc": "Guam; Rota; Tinian; Saipan",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100",
+      "069120",
+      "069110"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001",
+      "MPZ002",
+      "MPZ003"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001",
+     "https://api.weather.gov/zones/forecast/MPZ002",
+     "https://api.weather.gov/zones/forecast/MPZ003"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.7ee54195408d51ce99aac452db39965fc69c8133.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.7ee54195408d51ce99aac452db39965fc69c8133.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-16T03:01:00+10:00"
+     }
+    ],
+    "sent": "2026-10-16T08:50:00+10:00",
+    "effective": "2026-10-16T08:50:00+10:00",
+    "onset": "2026-10-16T08:50:00+10:00",
+    "expires": "2026-10-16T18:00:00+10:00",
+    "ends": null,
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Possible",
+    "urgency": "Future",
+    "event": "Typhoon Watch",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "Typhoon Watch issued October 16 at 8:50AM ChST by NWS Tiyan GU",
+    "description": "...TROPICAL STORM CHAMPI CONTINUES WEST-NORTHWEST TOWARD THE\nMARIANAS...\n\n.NEW INFORMATION...\nNone.\n\n.AREAS AFFECTED...\nThis local statement provides important information and recommended\nactions for people in Guam and the Northern Marianas.\n\n.WATCHES/WARNINGS...\nA Typhoon Watch continues for Guam, …",
+    "instruction": "Stay calm and keep informed. Comply with any evacuation orders that\nare issued for your area. If you live in a metal roof or container\nhome, or you live in a surge zone or any location prone to flooding,\nevacuate to a designated shelter or ride out the storm in the sturdy\nhome of family or friends o…",
+    "response": "Prepare",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "HLSPQ2"
+     ],
+     "WMOidentifier": [
+      "WTPQ82 PGUM 152250"
+     ],
+     "NWSheadline": [
+      "TYPHOON WATCH REMAINS IN EFFECT"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "EAS-ORG": [
+      "WXR"
+     ],
+     "VTEC": [
+      "/O.CON.PGUM.TY.A.4029.000000T0000Z-000000T0000Z/"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "HUA"
+     ],
+     "NationalWeatherService": [
+      "TYA"
+     ]
+    },
+    "replacedBy": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e048915f876016bb415d43a6a114bbf10de92154.003.2",
+    "replacedAt": "2026-10-18T12:02:00+10:00"
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.6a4c70032732efa864b8e6c3c38d169382bb7360.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.6a4c70032732efa864b8e6c3c38d169382bb7360.001.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.6a4c70032732efa864b8e6c3c38d169382bb7360.001.1",
+    "areaDesc": "Guam",
+    "geocode": {
+     "SAME": [
+      "066010"
+     ],
+     "UGC": [
+      "GUZ001"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e048915f876016bb415d43a6a114bbf10de92154.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.e048915f876016bb415d43a6a114bbf10de92154.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T12:02:00+10:00"
+     },
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e45c43cdf22bc5e22e9e9e488eac770866bf398c.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.e45c43cdf22bc5e22e9e9e488eac770866bf398c.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T15:01:00+10:00"
+     }
+    ],
+    "sent": "2026-10-18T17:51:00+10:00",
+    "effective": "2026-10-18T17:51:00+10:00",
+    "onset": "2026-10-18T17:51:00+10:00",
+    "expires": "2026-10-18T18:07:05+10:00",
+    "ends": null,
+    "status": "Actual",
+    "messageType": "Cancel",
+    "category": "Met",
+    "severity": "Minor",
+    "certainty": "Observed",
+    "urgency": "Past",
+    "event": "Typhoon Warning",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "The Typhoon Warning has been cancelled.",
+    "description": "The Typhoon Warning has been cancelled and is no longer in effect.",
+    "instruction": "Remain in suitable shelter until the all clear has been given.\nPassing showers may still produce sudden, gale-force wind gusts.\n\nPay attention for possible road closures and stay away from\ndowned power lines. Listen for any boil water alerts.\n\nMariners should check the latest coastal waters forecast…",
+    "response": "AllClear",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "HLSPQ2"
+     ],
+     "WMOidentifier": [
+      "WTPQ82 PGUM 180751"
+     ],
+     "NWSheadline": [
+      "TYPHOON WARNING IS CANCELLED"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM"
+     ],
+     "EAS-ORG": [
+      "WXR"
+     ],
+     "VTEC": [
+      "/O.CAN.PGUM.TY.W.4029.000000T0000Z-000000T0000Z/"
+     ],
+     "WEAHandling": [
+      "Imminent Threat"
+     ],
+     "CMAMtext": [
+      "NWS: TYPHOON WARNING this area. Check media and local authorities."
+     ],
+     "CMAMlongtext": [
+      "National Weather Service: A TYPHOON WARNING is in effect for this area for dangerous and damaging winds. This warning is issued up to 36 hours before hazardous conditions begin. Urgently complete efforts to protect life and property. Have food, water, cash, fuel, and medications for 3+ days. FOLLOW INSTRUCTIONS FROM LOCAL OFFICIALS."
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "HUW"
+     ],
+     "NationalWeatherService": [
+      "TYW"
+     ]
+    }
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.2b6e8b062198b9bbe051562c8f478edfab710a7c.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.2b6e8b062198b9bbe051562c8f478edfab710a7c.001.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.2b6e8b062198b9bbe051562c8f478edfab710a7c.001.1",
+    "areaDesc": "Guam; Rota",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a56cdf023271a7438c881266db8b934ca1078963.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.a56cdf023271a7438c881266db8b934ca1078963.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T15:59:00+10:00"
+     }
+    ],
+    "sent": "2026-10-19T03:40:00+10:00",
+    "effective": "2026-10-19T03:40:00+10:00",
+    "onset": "2026-10-19T03:40:00+10:00",
+    "expires": "2026-10-19T04:45:00+10:00",
+    "ends": "2026-10-19T04:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Possible",
+    "urgency": "Future",
+    "event": "Flood Watch",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "Flood Watch issued October 19 at 3:40AM ChST until October 19 at 4:00AM ChST by NWS Tiyan GU",
+    "description": "The Flood Watch will expire for Guam, Rota.\n\nThe flooding threat has ended as Typhoon Champi moves away.\nTherefore, the Flood Watch will expire at 4 AM ChST early this\nmorning.",
+    "instruction": null,
+    "response": "Prepare",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "FFAGUM"
+     ],
+     "WMOidentifier": [
+      "WGMY60 PGUM 181740"
+     ],
+     "NWSheadline": [
+      "FLOOD WATCH WILL EXPIRE AT 4 AM CHST EARLY THIS MORNING"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "EAS-ORG": [
+      "WXR"
+     ],
+     "VTEC": [
+      "/O.EXP.PGUM.FA.A.0008.000000T0000Z-261018T1800Z/"
+     ],
+     "eventEndingTime": [
+      "2026-10-19T04:00:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "FFA"
+     ],
+     "NationalWeatherService": [
+      "FAA"
+     ]
+    }
+   }
+  }
+ ],
+ "title": "Current watches, warnings, and advisories for Guam (GUZ001) GU",
+ "updated": "2026-10-18T05:05:00+00:00"
+}

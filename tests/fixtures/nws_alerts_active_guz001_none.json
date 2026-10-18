@@ -1,0 +1,416 @@
+{
+ "@context": [
+  "https://geojson.org/geojson-ld/geojson-context.jsonld",
+  {
+   "@version": "1.1",
+   "wx": "https://api.weather.gov/ontology#",
+   "@vocab": "https://api.weather.gov/ontology#"
+  }
+ ],
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.5058451e831ad56ed382f6ac8dffba7c84a01f66.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.5058451e831ad56ed382f6ac8dffba7c84a01f66.001.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.5058451e831ad56ed382f6ac8dffba7c84a01f66.001.1",
+    "areaDesc": "Guam; Rota; Tinian; Saipan",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100",
+      "069120",
+      "069110"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001",
+      "MPZ002",
+      "MPZ003"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001",
+     "https://api.weather.gov/zones/forecast/MPZ002",
+     "https://api.weather.gov/zones/forecast/MPZ003"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.53e0dd66181e935eea49b00da8b978600dcc35e2.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.53e0dd66181e935eea49b00da8b978600dcc35e2.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T12:19:00+10:00"
+     },
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.8318d9d2301954d295c8f2fa6c634433cc1124e6.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.8318d9d2301954d295c8f2fa6c634433cc1124e6.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T18:08:00+10:00"
+     },
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.8318d9d2301954d295c8f2fa6c634433cc1124e6.002.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.8318d9d2301954d295c8f2fa6c634433cc1124e6.002.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T18:08:00+10:00"
+     }
+    ],
+    "sent": "2026-10-19T03:47:00+10:00",
+    "effective": "2026-10-19T03:47:00+10:00",
+    "onset": "2026-10-19T03:47:00+10:00",
+    "expires": "2026-10-19T05:00:00+10:00",
+    "ends": "2026-10-19T04:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Moderate",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Wind Advisory",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "Wind Advisory issued October 19 at 3:47AM ChST until October 19 at 4:00AM ChST by NWS Tiyan GU",
+    "description": "Winds are diminishing as Typhoon Champi moves further away from the\nMarianas. Winds will continue to gradually diminish through the day\ntoday.",
+    "instruction": null,
+    "response": "Execute",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "NPWGUM"
+     ],
+     "WMOidentifier": [
+      "WWMY70 PGUM 181747"
+     ],
+     "NWSheadline": [
+      "WIND ADVISORY WILL EXPIRE AT 4 AM CHST EARLY THIS MORNING"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.EXP.PGUM.WI.Y.0009.000000T0000Z-261018T1800Z/"
+     ],
+     "eventEndingTime": [
+      "2026-10-19T04:00:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "WIY"
+     ]
+    }
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.2b6e8b062198b9bbe051562c8f478edfab710a7c.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.2b6e8b062198b9bbe051562c8f478edfab710a7c.001.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.2b6e8b062198b9bbe051562c8f478edfab710a7c.001.1",
+    "areaDesc": "Guam; Rota",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a56cdf023271a7438c881266db8b934ca1078963.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.a56cdf023271a7438c881266db8b934ca1078963.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T15:59:00+10:00"
+     }
+    ],
+    "sent": "2026-10-19T03:40:00+10:00",
+    "effective": "2026-10-19T03:40:00+10:00",
+    "onset": "2026-10-19T03:40:00+10:00",
+    "expires": "2026-10-19T04:45:00+10:00",
+    "ends": "2026-10-19T04:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Possible",
+    "urgency": "Future",
+    "event": "Flood Watch",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "Flood Watch issued October 19 at 3:40AM ChST until October 19 at 4:00AM ChST by NWS Tiyan GU",
+    "description": "The Flood Watch will expire for Guam, Rota.\n\nThe flooding threat has ended as Typhoon Champi moves away.\nTherefore, the Flood Watch will expire at 4 AM ChST early this\nmorning.",
+    "instruction": null,
+    "response": "Prepare",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "FFAGUM"
+     ],
+     "WMOidentifier": [
+      "WGMY60 PGUM 181740"
+     ],
+     "NWSheadline": [
+      "FLOOD WATCH WILL EXPIRE AT 4 AM CHST EARLY THIS MORNING"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "EAS-ORG": [
+      "WXR"
+     ],
+     "VTEC": [
+      "/O.EXP.PGUM.FA.A.0008.000000T0000Z-261018T1800Z/"
+     ],
+     "eventEndingTime": [
+      "2026-10-19T04:00:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "FFA"
+     ],
+     "NationalWeatherService": [
+      "FAA"
+     ]
+    }
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.92a6350de71a6933188b2646d0f960fa714f799a.001.2",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.92a6350de71a6933188b2646d0f960fa714f799a.001.2",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.92a6350de71a6933188b2646d0f960fa714f799a.001.2",
+    "areaDesc": "Guam; Rota; Tinian; Saipan",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100",
+      "069120",
+      "069110"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001",
+      "MPZ002",
+      "MPZ003"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001",
+     "https://api.weather.gov/zones/forecast/MPZ002",
+     "https://api.weather.gov/zones/forecast/MPZ003"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.df1eac139d63bdf17a9b6aac1e2a573bfb896cb1.001.4",
+      "identifier": "urn:oid:2.49.0.1.840.0.df1eac139d63bdf17a9b6aac1e2a573bfb896cb1.001.4",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T12:00:00+10:00"
+     },
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.001.4",
+      "identifier": "urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.001.4",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T17:53:00+10:00"
+     },
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.002.2",
+      "identifier": "urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.002.2",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T17:53:00+10:00"
+     }
+    ],
+    "sent": "2026-10-18T19:07:00+10:00",
+    "effective": "2026-10-18T19:07:00+10:00",
+    "onset": "2026-10-18T19:07:00+10:00",
+    "expires": "2026-10-19T09:15:00+10:00",
+    "ends": "2026-10-19T16:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Moderate",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Rip Current Statement",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "Rip Current Statement issued October 18 at 7:07PM ChST until October 19 at 4:00PM ChST by NWS Tiyan GU",
+    "description": "* WHAT...For the High Surf Advisory, large breaking waves of 10 to\n14 feet in the surf zone. For the High Rip Current Risk, dangerous\nrip currents.\n\n* WHERE...South and west facing reefs of the Marianas.\n\n* WHEN...Until 4 PM ChST Monday.\n\n* IMPACTS...Dangerous swimming and surfing conditions and\nloc…",
+    "instruction": "Rip currents will be life threatening. Inexperienced swimmers\nshould remain out of the water due to dangerous surf conditions.\n\nRip currents will be life threatening. If caught in a rip\ncurrent, relax and float. Don't swim against the current. If\nable, swim in a direction following the shoreline. If…",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "CFWGUM"
+     ],
+     "WMOidentifier": [
+      "WHMY40 PGUM 180907"
+     ],
+     "NWSheadline": [
+      "HIGH SURF ADVISORY NOW IN EFFECT UNTIL 4 PM CHST MONDAY... ...HIGH RIP CURRENT RISK NOW IN EFFECT THROUGH MONDAY AFTERNOON"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.EXT.PGUM.RP.S.0023.000000T0000Z-261019T0600Z/"
+     ],
+     "eventEndingTime": [
+      "2026-10-19T16:00:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "RPS"
+     ]
+    }
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.92a6350de71a6933188b2646d0f960fa714f799a.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.92a6350de71a6933188b2646d0f960fa714f799a.001.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.92a6350de71a6933188b2646d0f960fa714f799a.001.1",
+    "areaDesc": "Guam; Rota; Tinian; Saipan",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100",
+      "069120",
+      "069110"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001",
+      "MPZ002",
+      "MPZ003"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001",
+     "https://api.weather.gov/zones/forecast/MPZ002",
+     "https://api.weather.gov/zones/forecast/MPZ003"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.df1eac139d63bdf17a9b6aac1e2a573bfb896cb1.001.3",
+      "identifier": "urn:oid:2.49.0.1.840.0.df1eac139d63bdf17a9b6aac1e2a573bfb896cb1.001.3",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T12:00:00+10:00"
+     },
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.001.3",
+      "identifier": "urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.001.3",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T17:53:00+10:00"
+     },
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.002.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.002.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-18T17:53:00+10:00"
+     }
+    ],
+    "sent": "2026-10-18T19:07:00+10:00",
+    "effective": "2026-10-18T19:07:00+10:00",
+    "onset": "2026-10-18T19:07:00+10:00",
+    "expires": "2026-10-19T09:15:00+10:00",
+    "ends": "2026-10-19T16:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Minor",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "High Surf Advisory",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "High Surf Advisory issued October 18 at 7:07PM ChST until October 19 at 4:00PM ChST by NWS Tiyan GU",
+    "description": "* WHAT...For the High Surf Advisory, large breaking waves of 10 to\n14 feet in the surf zone. For the High Rip Current Risk, dangerous\nrip currents.\n\n* WHERE...South and west facing reefs of the Marianas.\n\n* WHEN...Until 4 PM ChST Monday.\n\n* IMPACTS...Dangerous swimming and surfing conditions and\nloc…",
+    "instruction": "Rip currents will be life threatening. Inexperienced swimmers\nshould remain out of the water due to dangerous surf conditions.\n\nRip currents will be life threatening. If caught in a rip\ncurrent, relax and float. Don't swim against the current. If\nable, swim in a direction following the shoreline. If…",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "CFWGUM"
+     ],
+     "WMOidentifier": [
+      "WHMY40 PGUM 180907"
+     ],
+     "NWSheadline": [
+      "HIGH SURF ADVISORY NOW IN EFFECT UNTIL 4 PM CHST MONDAY... ...HIGH RIP CURRENT RISK NOW IN EFFECT THROUGH MONDAY AFTERNOON"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.EXT.PGUM.SU.Y.0058.000000T0000Z-261019T0600Z/"
+     ],
+     "eventEndingTime": [
+      "2026-10-19T16:00:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "SUY"
+     ]
+    }
+   }
+  }
+ ],
+ "title": "Current watches, warnings, and advisories for Guam (GUZ001) GU",
+ "updated": "2026-10-18T17:53:32+00:00"
+}
