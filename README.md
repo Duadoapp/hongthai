@@ -364,11 +364,17 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 
 - 內容（Duado 晨光風格：底色 `#EDF1F4`、文字 `#263038`，大圓角色塊，不用框線與陰影，不做深色版；
   不放 logo、地圖）：
-  - 左上 IATA 大字（Fraunces 160 px），其下機場名 zh-TW（芫荽 56 px）與 en（Fraunces 36 px）
+  - 左上 IATA 大字（Fraunces opsz 144，160 px），其下機場名 zh-TW（芫荽 56 px）與 en（Fraunces 36 px）
   - 右上燈號：300×110、圓角 28 的色塊，裡面寫等級字。顏色：低 `#C2DCC6`、中 `#F3E3A5`、高 `#F7C9A9`、
     已確認 `#263038`（字用 `#EDF1F4`）、資料不足 `#D8DEE3`（`og.LEVEL_COLORS`）
   - 色塊下一行小字；左下「更新 2026-10-19 02:15（當地時間）」（機場時區的 `generatedAt`）；
     右下「HongThai　機場停飛風險」與「duado.app/hongthai」
+  - 時間軸（HD4，網頁時間軸的縮小版）：機場名下方、更新時間上方，未來 5 天 20 格照 `slots` 的順序各一個
+    小圓角色塊（高 28、圓角 8、間隔 6，寬度依可用空間算、最多 48；色塊裡不寫字），顏色和燈號同一套
+    （`og.LEVEL_COLORS`；沒有等級當資料不足）。寬度和左側文字區對齊；三顆燈時左側太窄，改放到燈號
+    下方整排橫跨（1200 − 2×64 以內）。每天第一格下方標當地日期 `M/D`（Fraunces 20 px）：一格的日期以
+    它的 `from` 換成機場當地時間為準，第一格一定標（就算不是當地那天的第一格），之後當地日期變了就標，
+    最多 6 個；兩個標籤太近時後一個往右推、超出時間軸右邊就往左收。不標時刻
 - 燈號是這個機場**未來 5 天（20 格）裡最高的等級**，小字寫第一個達到那個等級的格的當地日期時段：
   - 「最高：高　10/23 14–20 時」；結束在當地午夜寫「18–24 時」；跨午夜寫兩個日期「10/23 20 時–10/24 02 時」
     （UTC+8 的機場每天有一格這樣）
@@ -378,13 +384,15 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 - 三顆燈：`og.render(airport, generated_at, lights, out_path)` 吃 `lights: list[Light(label, level, note)]`，
   現在只傳一顆規則燈（`label=None`，不畫標籤）。AI 對決那支多傳兩顆（標籤「規則」「Claude」「Gemini」），
   色塊會並排、寬度自動縮，小字放各自色塊下面
-- PNG 用固定調色盤（品牌色＋反鋸齒的中間色）＋`optimize=True`：每張約 15–19 KB，51 張約 0.9 MB；
-  本機畫 51 張約 3 秒（2026-10-19 用 Pages 上 18:15Z 那份 `latest.json` 實測 893 KB、3.2 秒）
+- PNG 用固定調色盤（品牌色＋反鋸齒的中間色）＋`optimize=True`：每張約 17–20 KB，51 張約 0.9 MB；
+  本機畫 51 張約 3.5 秒（HD4 加了時間軸後，2026-10-19 用 Pages 上 19:02Z 那份 `latest.json` 實測
+  943 KB、3.5 秒；HD1 時是 893 KB、3.2 秒）
 - 在 `publish()` 之後、Pages 上傳之前畫（`build.draw_og`），寫到 `public/og/`；整次 build 失敗改發布上一份
   `latest.json` 時，也用那一份畫。畫圖失敗只 log、不讓 build 失敗；預算 60 秒（`BUDGET_S["og"]`）；
   `history/timing/` 多一行 `source: "og"`（`ok`、`seconds`、`bytes` 是全部圖的總大小）
 - 字型（`assets/fonts/`，都是 SIL OFL 1.1，只放子集，各附 `OFL-*.txt`）：ASCII 與數字用 **Fraunces**
-  （SOFT 100、wght 600 的靜態檔），其他字用 **芫荽 Iansui**，芫荽缺的字才用 **Noto Sans TC**（目前一個都沒缺）。
+  （SOFT 100、wght 600 的靜態檔，兩個子集：IATA 大字用 opsz 144 的 `Fraunces-Soft600-Display.subset.ttf`，
+  其他小字用 opsz 9 的 `Fraunces-Soft600.subset.ttf`，授權檔共用），其他字用 **芫荽 Iansui**，芫荽缺的字才用 **Noto Sans TC**（目前一個都沒缺）。
   Pillow 不會自動補字，所以逐字分段、各段用自己的字型畫。來源、版本、子集大小見 `assets/fonts/README.md`
 - **加了機場或改了機場名之後要重做子集**：`python tools/make_font_subset.py`（下載完整字型到暫存目錄、
   取子集寫回 `assets/fonts/`）。沒重做的話 `tests/test_og.py` 的涵蓋檢查會紅
