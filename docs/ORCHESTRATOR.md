@@ -21,10 +21,11 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
 - 給他的指令一律完整可貼（他用 Windows cmd）。這個 repo 幾乎沒有本機指令：部署是 Actions，
   他只在 GitHub 網頁按 Run workflow、設 Secrets
 - 每個功能一個 PR。主對話寫提示詞放 `docs/prompts/<日期>-<代號>-<名稱>.md`（只放文字，不放截圖內容、
-  個資、金鑰），開新的雲端對話貼「照 docs/prompts/<檔名> 做」。**H 編號兩個 repo 共用**（H1、H4、H6、H7、
-  H9、H10 在這裡，H2、H3、H5、H8 在 Duado）：**開新 H 號前先看 Duado 的 `docs/prompts/` 和 `docs/spec.md`
-  第 16 節，已經在 spec 寫好的號碼（例如 H9＝41 個機場）不能拿去用在別的功能**；不確定就問 Shawn。
-  提示詞最後都要有
+  個資、金鑰），開新的雲端對話貼「照 docs/prompts/<檔名> 做」。**編號規則（2026-10-18 定案）**：H 系列不再兩個
+  repo 共用。已經命名的維持原樣、不改檔名：H1–H10（H1、H4、H6、H7 在這裡；H8 是 Duado 網頁的分地區；H9 是這裡
+  41 個機場的資料端；H10 是這裡修 GFS／ECMWF 來源）。從下一支起，hongthai 這邊的提示詞用 **HD** 字頭（Data），
+  從 HD1 開始自己往下排，不用再看 Duado；Duado 那邊的 HongThai 網頁用 **HW** 字頭（Web）。提到對方的工作時
+  寫 HD／HW 編號。提示詞最後都要有
   「開 PR 之後：gh pr checks --watch 等 CI，紅了自己修到綠（最多三輪）」
 - 主對話審 PR 不等 CI：他給號碼就審，審完回「可以合併」，他再開 auto-merge
   - 已設（2026-10-18）：`main` 的 ruleset 要求 PR、必要檢查 `ci`、禁止 force push；Allow auto-merge 已開。
@@ -59,6 +60,10 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
     官方警報逐國補：日本先、韓國再來；中國官方颱風預警先不接。台灣機場的氣象署警戒區關鍵字每個機場一組。
     沒有官方警報來源的機場要在 `latest.json` 標出來，讓網頁顯示「官方警報：尚未提供」。
     要等 H10 合併並成功跑過一次 build 才開工
+  - **HD1（Duado #374 定案，排在 H9 之後、可在 AI 對決之前）：分享預覽圖**——每報跑完用 Pillow 畫每個機場一張
+    1200×630 的分享預覽圖，發布到 Pages 的 `og/<iata>.png`（iata 小寫）。內容：IATA 大字、機場名（zh-TW＋en）、
+    燈號（AI 上線前一顆規則燈，上線後自動變三顆）、更新時間、HongThai 字樣。字型由 hongthai 自備（OFL 授權的
+    中日韓字型放在 repo，附授權檔）；Duado 用 Pages Function 轉送這張圖
   - **第四階段：AI 對決「三顆燈」（2026-10-18 定案）**——規則（現有等級）、Claude Opus 5.5、Gemini 4 Argon
     各一顆燈。兩個 AI 各自讀該機場的全部數據，給自己的等級＋一段短評（像評論員）；數據照舊全部保留給讀者。
     只請 AI 評「未來 5 天有任一時段 ≥ 中、或等級有變」的機場，其他機場兩個 AI 燈直接寫「沒看到明顯風險」、
