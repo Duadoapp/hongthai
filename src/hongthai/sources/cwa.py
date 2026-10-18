@@ -10,6 +10,11 @@
 `urgency`、`effective`、`expires`、`description.section[]`（`title`／`value`，其中
 `警戒區域及事項` 是警戒區文字）、`description["typhoon-info"]`（颱風名稱）、
 `area[].areaDesc`（縣市或海面名稱）。
+
+警戒區判斷每個機場一組關鍵字（`airports.json` 的 `cwaAreas`，例如桃園、松山是「北部」「桃園」
+「臺北」「台北」「新北」，高雄是「南部」「高雄」）：陸上的 `areaDesc` 含任一關鍵字（海面、海峽、
+海域不算），或警戒區文字含任一關鍵字（後面接「海面」的不算，例如「北部海面」）。關鍵字是字串比對，
+「東北部」也會比到「北部」——偏保守。
 """
 
 from __future__ import annotations
@@ -28,7 +33,8 @@ HEADLINE_SEA = "海上颱風警報"
 HEADLINE_LAND = "海上陸上颱風警報"
 STALE_AFTER = timedelta(hours=6)  # 過了 expires 6 小時還沒更新就當作過期
 _SEA_AREA = re.compile(r"海面|海峽|海域")
-_NORTH_LAND = re.compile(r"北部(?!海面)")
+TAOYUAN_AREAS = ("北部", "桃園", "臺北", "台北", "新北")
+TAOYUAN_NAME = {"zh-TW": "桃園", "zh-HK": "桃園", "zh-CN": "桃园", "en": "Taoyuan"}
 
 
 class CwaError(SourceError):
@@ -36,10 +42,24 @@ class CwaError(SourceError):
 
 
 @dataclass
+class CwaBulletin:
+    """一則生效中的颱風警報（還沒對到機場）。"""
+
+    land: bool  # 海上陸上颱風警報
+    zh_name: str
+    en_name: str
+    area_descs: list[str]
+    zone: str  # 原文的警戒區域及事項（只有繁中）
+    issued_at: str | None
+
+
+@dataclass
 class CwaWarning:
+    """對到某個機場的警報。"""
+
     kind: str  # typhoon_land／typhoon_sea
     level: str
-    in_zone: bool  # 桃園在（陸上）警戒區
+    in_zone: bool  # 機場在（陸上）警戒區
     text: dict[str, str]
     detail: str  # 原文的警戒區域及事項（只有繁中）
     issued_at: str | None
@@ -47,7 +67,7 @@ class CwaWarning:
 
 @dataclass
 class CwaData:
-    warnings: list[CwaWarning]
+    bulletins: list[CwaBulletin]
     raw: object
 
 
@@ -67,20 +87,27 @@ def _typhoon_names(info: dict) -> tuple[str, str]:
     return "", ""
 
 
-def taoyuan_in_zone(info: dict) -> bool:
-    """陸上警戒區含桃園。
+def _area_descs(info: dict) -> list[str]:
+    return [a.get("areaDesc", "") for a in info.get("area") or [] if isinstance(a, dict)]
 
-    陸上的 areaDesc 有「桃園」，或警戒區文字有「桃園」或「北部」（不算「北部海面」）。
-    """
-    for a in info.get("area") or []:
-        desc = a.get("areaDesc", "") if isinstance(a, dict) else ""
-        if "桃園" in desc and not _SEA_AREA.search(desc):
+
+def in_zone(area_descs: list[str], zone: str, keywords: tuple[str, ...]) -> bool:
+    """陸上警戒區含這組關鍵字的任一個（見模組說明）。"""
+    for desc in area_descs:
+        if not _SEA_AREA.search(desc) and any(k in desc for k in keywords):
             return True
+    return any(re.search(re.escape(k) + r"(?!海面)", zone) for k in keywords)
+
+
+def taoyuan_in_zone(info: dict) -> bool:
+    """陸上警戒區含桃園（第一階段的介面，留給測試與相容）。"""
     zone = _sections(info).get("警戒區域及事項", "")
-    return "桃園" in zone or bool(_NORTH_LAND.search(zone))
+    return in_zone(_area_descs(info), zone, TAOYUAN_AREAS)
 
 
-def _text(land: bool, in_zone: bool, zh_name: str, en_name: str) -> dict[str, str]:
+def _text(
+    land: bool, in_zone: bool, zh_name: str, en_name: str, place: dict[str, str]
+) -> dict[str, str]:
     zh = f"（{zh_name}颱風）" if zh_name else ""
     en = f" (Typhoon {en_name})" if en_name else ""
     cn = f"（{en_name}）" if en_name else ""
@@ -92,10 +119,10 @@ def _text(land: bool, in_zone: bool, zh_name: str, en_name: str) -> dict[str, st
             "en": f"CWA sea and land typhoon warning{en}",
         }
         if in_zone:
-            t["zh-TW"] += "，桃園在警戒區"
-            t["zh-HK"] += "，桃園在警戒區"
-            t["zh-CN"] += "，桃园在警戒区"
-            t["en"] += "; Taoyuan is in the warning area"
+            t["zh-TW"] += f"，{place['zh-TW']}在警戒區"
+            t["zh-HK"] += f"，{place['zh-HK']}在警戒區"
+            t["zh-CN"] += f"，{place['zh-CN']}在警戒区"
+            t["en"] += f"; {place['en']} is in the warning area"
         return t
     return {
         "zh-TW": f"中央氣象署海上颱風警報{zh}",
@@ -105,7 +132,7 @@ def _text(land: bool, in_zone: bool, zh_name: str, en_name: str) -> dict[str, st
     }
 
 
-def parse_warnings(data: dict, now: datetime) -> list[CwaWarning]:
+def parse_bulletins(data: dict, now: datetime) -> list[CwaBulletin]:
     records = data.get("records") or {}
     infos = records.get("info") if isinstance(records, dict) else None
     if infos is None:
@@ -122,20 +149,48 @@ def parse_warnings(data: dict, now: datetime) -> list[CwaWarning]:
         expires = parse_time(info.get("expires"))
         if expires is not None and expires + STALE_AFTER < now:
             continue
-        land = headline == HEADLINE_LAND
-        in_zone = land and taoyuan_in_zone(info)
         zh_name, en_name = _typhoon_names(info)
         out.append(
-            CwaWarning(
-                kind="typhoon_land" if land else "typhoon_sea",
-                level="high" if in_zone else "medium",
-                in_zone=in_zone,
-                text=_text(land, in_zone, zh_name, en_name),
-                detail=_sections(info).get("警戒區域及事項", ""),
+            CwaBulletin(
+                land=headline == HEADLINE_LAND,
+                zh_name=zh_name,
+                en_name=en_name,
+                area_descs=_area_descs(info),
+                zone=_sections(info).get("警戒區域及事項", ""),
                 issued_at=iso(parse_time(info.get("effective") or info.get("onset"))),
             )
         )
     return out
+
+
+def for_airport(
+    bulletins: list[CwaBulletin], keywords: tuple[str, ...], place: dict[str, str]
+) -> list[CwaWarning]:
+    """把警報對到一個機場：陸上警報且機場在警戒區 → 高，其他（海上、或陸上但不在警戒區）→ 中。"""
+    out = []
+    for b in bulletins:
+        hit = b.land and in_zone(b.area_descs, b.zone, keywords)
+        out.append(
+            CwaWarning(
+                kind="typhoon_land" if b.land else "typhoon_sea",
+                level="high" if hit else "medium",
+                in_zone=hit,
+                text=_text(b.land, hit, b.zh_name, b.en_name, place),
+                detail=b.zone,
+                issued_at=b.issued_at,
+            )
+        )
+    return out
+
+
+def parse_warnings(
+    data: dict,
+    now: datetime,
+    keywords: tuple[str, ...] = TAOYUAN_AREAS,
+    place: dict[str, str] = TAOYUAN_NAME,
+) -> list[CwaWarning]:
+    """`parse_bulletins` ＋ `for_airport`（預設桃園）。"""
+    return for_airport(parse_bulletins(data, now), keywords, place)
 
 
 def fetch(api_key: str | None, now: datetime) -> CwaData:
@@ -150,4 +205,4 @@ def fetch(api_key: str | None, now: datetime) -> CwaData:
         raise CwaError("氣象署回傳不是 JSON", "bad_json") from e
     if str(data.get("success")).lower() != "true":
         raise CwaError("氣象署回傳 success 不是 true", "api_error")
-    return CwaData(parse_warnings(data, now), data)
+    return CwaData(parse_bulletins(data, now), data)

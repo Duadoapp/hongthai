@@ -11,6 +11,9 @@
   系集機率 00Z ≈ 08:00、12Z ≈ 20:00。
 
 所以 HRES 用最新一報（四個時次都可以），系集機率用最新的 00／12Z，`runs` 分開記。
+
+側風（第二階段）：HRES 多抓 10 米風 `10u`／`10v`（瞬時值，和陣風同一組步長），每個陣風區間配上
+區間結束那個步長的風向（真北）。全球檔每個參數每個步長約 0.5–1 MB，所以 HRES 下載量約變三倍。
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ..config import Airport
-from ..grib import read_points
+from ..grib import read_points, wind_dir_from_uv
 from ..timeutil import hours_between
 from . import SourceError
 
@@ -43,6 +46,7 @@ class GustInterval:
     start: datetime
     end: datetime
     gust_ms: float | None
+    wdir: float | None = None  # 區間結束時的 10 米風向（度，真北）；沒有 10u／10v 時 None
 
 
 @dataclass
@@ -71,6 +75,8 @@ class EcmwfData:
     bytes_downloaded: int = 0
 
 
+HRES_GUST_PARAMS = ("10fg", "10fg3")
+HRES_WIND_PARAMS = ("10u", "10v")
 ENS_PARAMS = ("10fgg10", "10fgg15", "10fgg25")
 ENS_WINDOW_H = 24
 ENS_STRIDE_H = 12
@@ -112,13 +118,21 @@ def parse_hres(path: str | Path, airports: list[Airport]) -> tuple[datetime, dic
     run = None
     out: dict[str, list[GustInterval]] = {}
     for icao, series in pts.items():
+        uv: dict[str, dict[float, float | None]] = {
+            k: dict(zip(series[k].steps, series[k].values, strict=True))
+            for k in HRES_WIND_PARAMS
+            if k in series
+        }
         intervals = []
         for short, s in series.items():
+            if short not in HRES_GUST_PARAMS:
+                continue
             run = s.run
             for step, v in zip(s.steps, s.values, strict=True):
                 end = s.run + timedelta(hours=step)
                 start = end - timedelta(hours=hres_interval_hours(short, step))
-                intervals.append(GustInterval(start, end, v))
+                wdir = wind_dir_from_uv(uv.get("10u", {}).get(step), uv.get("10v", {}).get(step))
+                intervals.append(GustInterval(start, end, v, wdir))
         out[icao] = sorted(intervals, key=lambda g: g.end)
     if run is None:
         raise EcmwfError("HRES GRIB 裡沒有陣風資料", "empty")
@@ -194,7 +208,7 @@ def fetch(airports: list[Airport], slot0: datetime, workdir: str | Path | None =
         time=run.hour,
         stream="oper",
         type="fc",
-        param=["10fg", "10fg3"],
+        param=[*HRES_GUST_PARAMS, *HRES_WIND_PARAMS],
         step=steps,
     )
     hres_run, hres = parse_hres(tmp / "hres.grib2", airports)

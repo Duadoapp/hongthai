@@ -3,7 +3,8 @@
 目錄：
 - `--archive`（預設 `data/`，Actions 裡是 `data` 分支的 checkout）：長期保存
   - `latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（每次的結果）
-  - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署原始回應）
+  - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署、SMG 原始回應；
+    SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON）
   - `history/flights/<YYYY-MM-DD>/<機場>-<HHMM>.json.gz`（航班快照）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與 `history/*.json`
   （只放結果，不放原始快照與航班）
@@ -30,14 +31,14 @@ import requests
 
 from . import assess
 from .config import Airport, ConfirmedPeriod, load_airports, load_confirmed
-from .sources import cwa, ecmwf, flights, gfs, hko, taf
+from .sources import cwa, ecmwf, flights, gfs, hko, smg, taf
 from .timeutil import floor_6h, iso, slot_bounds, utcnow
 
 log = logging.getLogger("hongthai")
 
 SCHEMA = 1
 PAGES_URL = "https://duadoapp.github.io/hongthai/latest.json"
-SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa")
+SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa", "smg")
 
 
 def _dump(path: Path, obj: object) -> None:
@@ -63,14 +64,24 @@ def _call(name: str, fn: Callable[[], object], status: dict) -> object | None:
 
 
 def collect_warnings(
-    airport: Airport, hko_data: hko.HkoData | None, cwa_data: cwa.CwaData | None
+    airport: Airport,
+    hko_data: hko.HkoData | None,
+    cwa_data: cwa.CwaData | None,
+    smg_data: smg.SmgData | None = None,
 ) -> list[assess.ActiveWarning]:
     out: list[assess.ActiveWarning] = []
     if "hko" in airport.warning_sources and hko_data and hko_data.signal:
         s = hko_data.signal
         out.append(assess.ActiveWarning("hko", "tc_signal", s.level, s.text, s.issued_at, s.code))
+    if "smg" in airport.warning_sources and smg_data and smg_data.signal:
+        s = smg_data.signal
+        out.append(
+            assess.ActiveWarning(
+                "smg", "tc_signal", s.level, s.text, s.issued_at, s.code, s.detail or None
+            )
+        )
     if "cwa" in airport.warning_sources and cwa_data:
-        for w in cwa_data.warnings:
+        for w in cwa.for_airport(cwa_data.bulletins, airport.cwa_areas, airport.name):
             out.append(
                 assess.ActiveWarning(
                     "cwa", w.kind, w.level, w.text, w.issued_at, detail=w.detail or None
@@ -132,15 +143,17 @@ def assemble(
     tf: taf.TafData | None,
     hk: hko.HkoData | None,
     cw: cwa.CwaData | None,
+    sm: smg.SmgData | None = None,
 ) -> dict:
     """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。"""
     slots = slot_bounds(now)
     window_start, window_end = slots[0][0], slots[-1][1]
     out_airports = []
     for a in airports:
-        warns = collect_warnings(a, hk, cw)
+        warns = collect_warnings(a, hk, cw, sm)
         mine = [c for c in confirmed if c.airport == a.icao]
         taf_info = tf.tafs.get(a.icao) if tf else None
+        metar = tf.metars.get(a.icao) if tf else None
         slot_list = assess.assess_slots(
             now=now,
             slots=slots,
@@ -150,6 +163,8 @@ def assemble(
             taf_periods=taf_info.periods if taf_info else None,
             warnings=warns,
             confirmed=mine,
+            runways=a.runways,
+            metar=metar,
         )
         out_airports.append(
             {
@@ -158,7 +173,7 @@ def assemble(
                 "tz": a.tz,
                 "name": a.name,
                 "warnings": [warning_json(w) for w in warns],
-                "metar": metar_json(tf.metars.get(a.icao) if tf else None),
+                "metar": metar_json(metar),
                 "taf": taf_json(taf_info),
                 "slots": slot_list,
                 "confirmed": [
@@ -208,6 +223,7 @@ def run(
     tf = _call("taf", lambda: taf.fetch(airports), status)
     hk = _call("hko", hko.fetch, status)
     cw = _call("cwa", lambda: cwa.fetch(api_key, now), status)
+    sm = _call("smg", smg.fetch, status)
 
     history = archive / "history"
     status["flights"] = {"ok": True}
@@ -226,6 +242,7 @@ def run(
         tf=tf,
         hk=hk,
         cw=cw,
+        sm=sm,
     )
 
     stamp = f"{now:%Y%m%dT%H%M}Z"
@@ -237,6 +254,8 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-hko.json", hk.raw)
     if cw is not None:
         _dump(raw_dir / f"{now:%H%M}Z-cwa.json", cw.raw)
+    if sm is not None:
+        _dump(raw_dir / f"{now:%H%M}Z-smg.json", sm.raw)
     _dump(history / f"{stamp}.json", latest)
     _dump(archive / "latest.json", latest)
     return latest
