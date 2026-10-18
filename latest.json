@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "generatedAt": "2026-10-18T12:42:00Z",
+ "generatedAt": "2026-10-18T14:33:00Z",
  "runs": {
   "ecmwf": "2026-10-18T06:00:00Z",
   "ecmwfEns": "2026-10-18T00:00:00Z",
@@ -8,33 +8,35 @@
  },
  "sources": {
   "ecmwf": {
-   "ok": true,
-   "seconds": 133.0,
-   "bytes": 121609786
+   "ok": false,
+   "error": "timeout",
+   "seconds": 240.0,
+   "reusedFrom": "2026-10-18T12:42:00Z"
   },
   "gfs": {
    "ok": false,
    "error": "http_403",
-   "seconds": 0.4
+   "seconds": 0.3
   },
   "taf": {
    "ok": true,
-   "seconds": 6.6
+   "seconds": 1.7
   },
   "hko": {
    "ok": true,
-   "seconds": 3.5
+   "seconds": 3.0
   },
   "cwa": {
    "ok": true,
-   "seconds": 1.2
+   "seconds": 1.5
   },
   "smg": {
    "ok": true,
-   "seconds": 3.7
+   "seconds": 3.6
   },
   "flights": {
-   "ok": true
+   "ok": true,
+   "seconds": 24.6
   }
  },
  "airports": [
@@ -50,11 +52,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T12:30:00Z",
+    "observedAt": "2026-10-18T14:30:00Z",
     "windDirDeg": 70,
-    "windKt": 13,
+    "windKt": 12,
     "gustKt": null,
-    "raw": "METAR RCTP 181230Z 07013KT 9999 FEW015 28/24 Q1015 NOSIG RMK A3000"
+    "raw": "METAR RCTP 181430Z 07012KT 9999 FEW015 27/23 Q1015 NOSIG RMK A3000"
    },
    "taf": {
     "issuedAt": "2026-10-18T11:00:00Z",
@@ -73,7 +75,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 4.6,
+      "crosswindKt": 4.3,
       "warnings": []
      },
      "model": {
@@ -573,11 +575,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T12:30:00Z",
-    "windDirDeg": 80,
-    "windKt": 11,
+    "observedAt": "2026-10-18T14:00:00Z",
+    "windDirDeg": 90,
+    "windKt": 12,
     "gustKt": null,
-    "raw": "METAR RCSS 181230Z 08011KT 9999 FEW020 27/25 Q1016 NOSIG RMK A3002"
+    "raw": "METAR RCSS 181400Z 09012KT 9999 FEW020 27/24 Q1016 NOSIG RMK A3003"
    },
    "taf": {
     "issuedAt": "2026-10-18T11:00:00Z",
@@ -1089,11 +1091,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T12:30:00Z",
-    "windDirDeg": 280,
-    "windKt": 6,
+    "observedAt": "2026-10-18T14:00:00Z",
+    "windDirDeg": 250,
+    "windKt": 5,
     "gustKt": null,
-    "raw": "METAR RCKH 181230Z 28006KT 250V320 9999 FEW020 SCT130 28/23 Q1015 NOSIG RMK A2999"
+    "raw": "METAR RCKH 181400Z 25005KT 220V280 9999 FEW018 SCT110 28/23 Q1016 NOSIG RMK A3001"
    },
    "taf": {
     "issuedAt": "2026-10-18T11:00:00Z",
@@ -1612,17 +1614,17 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T12:30:00Z",
-    "windDirDeg": 100,
-    "windKt": 9,
+    "observedAt": "2026-10-18T14:30:00Z",
+    "windDirDeg": 120,
+    "windKt": 5,
     "gustKt": null,
-    "raw": "METAR VHHH 181230Z 10009KT CAVOK 29/22 Q1016 NOSIG"
+    "raw": "METAR VHHH 181430Z 12005KT 090V170 CAVOK 28/22 Q1016 NOSIG"
    },
    "taf": {
-    "issuedAt": "2026-10-18T11:00:00Z",
-    "validFrom": "2026-10-18T12:00:00Z",
-    "validTo": "2026-10-19T18:00:00Z",
-    "raw": "TAF VHHH 181100Z 1812/1918 10010KT 9999 FEW025 TX32/1906Z TN27/1822Z TEMPO 1820/1824 VRB05KT BECMG 1903/1905 27010KT BECMG 1909/1911 10010KT"
+    "issuedAt": "2026-10-18T14:00:00Z",
+    "validFrom": "2026-10-18T15:00:00Z",
+    "validTo": "2026-10-19T21:00:00Z",
+    "raw": "TAF VHHH 181400Z 1815/1921 10010KT 9999 FEW025 TX32/1906Z TN27/1822Z TEMPO 1820/1824 VRB05KT BECMG 1903/1905 27010KT BECMG 1909/1911 10010KT"
    },
    "slots": [
     {
@@ -1779,8 +1781,15 @@
      "from": "2026-10-19T18:00:00Z",
      "to": "2026-10-20T00:00:00Z",
      "level": "low",
-     "basis": "model",
-     "official": null,
+     "basis": "official",
+     "official": {
+      "windKt": 10,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 4.9,
+      "warnings": []
+     },
      "model": {
       "ec": {
        "p10": 0.76,
@@ -2135,11 +2144,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T12:30:00Z",
+    "observedAt": "2026-10-18T14:30:00Z",
     "windDirDeg": 110,
     "windKt": 8,
     "gustKt": null,
-    "raw": "METAR VMMC 181230Z 11008KT CAVOK 28/23 Q1016 NOSIG"
+    "raw": "METAR VMMC 181430Z 11008KT 090V150 CAVOK 28/24 Q1016 NOSIG"
    },
    "taf": {
     "issuedAt": "2026-10-18T11:00:00Z",
