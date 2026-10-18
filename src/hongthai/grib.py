@@ -5,6 +5,7 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from math import atan2, degrees, hypot
 from pathlib import Path
 
 import numpy as np
@@ -54,3 +55,10 @@ def read_points(
                     series.values.append(None if np.isnan(v) else float(v))
         ds.close()
     return out
+
+
+def wind_dir_from_uv(u: float | None, v: float | None) -> float | None:
+    """風的 u／v 分量（m/s）→ 風向（風「吹來」的方向，度，真北）；沒資料或無風時回 None。"""
+    if u is None or v is None or hypot(u, v) < 0.1:
+        return None
+    return degrees(atan2(-u, -v)) % 360

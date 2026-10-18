@@ -19,6 +19,16 @@ class Thresholds:
     taf_high_gust_kt: float = 45
     taf_high_wind_kt: float = 35
     taf_medium_gust_kt: float = 30
+    crosswind_high_kt: float = 35
+    crosswind_medium_kt: float = 25
+
+
+@dataclass(frozen=True)
+class Runway:
+    """一條跑道（實體跑道，同方位的平行跑道記一組）；`headings` 是兩個方向的方位（度，真北）。"""
+
+    id: str
+    headings: tuple[float, ...]
 
 
 @dataclass(frozen=True)
@@ -31,6 +41,8 @@ class Airport:
     lon: float
     warning_sources: tuple[str, ...]
     thresholds: Thresholds
+    runways: tuple[Runway, ...] = ()
+    cwa_areas: tuple[str, ...] = ()  # 氣象署警戒區關鍵字（`airports.json` 的 `cwaAreas`）
 
 
 @dataclass(frozen=True)
@@ -49,6 +61,8 @@ _THRESHOLD_KEYS = {
     "tafHighGustKt": "taf_high_gust_kt",
     "tafHighWindKt": "taf_high_wind_kt",
     "tafMediumGustKt": "taf_medium_gust_kt",
+    "crosswindHighKt": "crosswind_high_kt",
+    "crosswindMediumKt": "crosswind_medium_kt",
 }
 
 
@@ -67,6 +81,11 @@ def load_airports(path: str | Path) -> list[Airport]:
                 lon=float(a["lon"]),
                 warning_sources=tuple(a.get("warningSources", [])),
                 thresholds=Thresholds(**th),
+                runways=tuple(
+                    Runway(r["id"], tuple(float(h) for h in r["headings"]))
+                    for r in a.get("runways", [])
+                ),
+                cwa_areas=tuple(a.get("cwaAreas", [])),
             )
         )
     return airports
