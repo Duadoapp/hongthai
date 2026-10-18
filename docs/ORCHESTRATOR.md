@@ -79,6 +79,10 @@
     1200×630 的分享預覽圖，發布到 Pages 的 `og/<iata>.png`（iata 小寫）。內容：IATA 大字、機場名（zh-TW＋en）、
     燈號（AI 上線前一顆規則燈，上線後自動變三顆）、更新時間、HongThai 字樣。字型由 hongthai 自備（OFL 授權的
     中日韓字型放在 repo，附授權檔）；Duado 用 Pages Function 轉送這張圖。提示詞 `docs/prompts/2026-10-19-HD1-og-image.md`
+    做完的結果（HD1 PR）：`src/hongthai/og.py`，網址 `https://duadoapp.github.io/hongthai/og/<iata 小寫>.png`；
+    燈號＝未來 5 天最高等級＋第一個達到那級的格（當地時間，跨午夜寫兩個日期），有已確認的格時顯示「已確認」；
+    字型芫荽（中文）＋Fraunces SOFT 100／wght 600（ASCII）＋Noto Sans TC（備援，目前沒用到）的子集放
+    `assets/fonts/`，加機場要跑 `tools/make_font_subset.py`（測試會擋）；51 張約 0.9 MB、本機約 3 秒，預算 60 秒
   - **第四階段：AI 對決「三顆燈」（2026-10-18 定案）**——規則（現有等級）、Claude Opus 5.5、Gemini 4 Argon
     各一顆燈。兩個 AI 各自讀該機場的全部數據，給自己的等級＋一段短評（像評論員）；數據照舊全部保留給讀者。
     只請 AI 評「未來 5 天有任一時段 ≥ 中、或等級有變」的機場，其他機場兩個 AI 燈直接寫「沒看到明顯風險」、
@@ -125,7 +129,8 @@
 2. `ci`（`.github/workflows/ci.yml`）：ruff check、ruff format --check、pytest；全部不連網（用 `tests/fixtures/`）
 3. 主對話審 PR → 回 Shawn「可以合併」→ Shawn 合併（或開 auto-merge）
 4. `build`（`.github/workflows/build.yml`）排程每天 UTC 01:05、08:25、13:05、20:25 跑
-   `python -m hongthai.build`，結果推 `data` 分支、發布 GitHub Pages
+   `python -m hongthai.build`，結果推 `data` 分支、發布 GitHub Pages；`publish()` 之後畫 51 張分享預覽圖
+   `public/og/<iata>.png`（HD1，只在 Pages、不進 `data` 分支；畫不出來只 log，`history/timing/` 有 `og` 那行）
 5. 改了來源或格式的 PR，合併後請 Shawn 到 **Actions → build → Run workflow** 手動跑一次，
    然後開 latest.json 確認
 
@@ -146,6 +151,7 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 | 香港天文台開放數據（warnsum） | 熱帶氣旋信號（香港） | data.gov.hk 使用條款 |
 | 澳門地球物理氣象局 SMG（`xml.smg.gov.mo`，data.gov.mo 資料集「熱帶氣旋信號」） | 熱帶氣旋信號（澳門） | 澳門政府數據開放平台使用條款（須註明平台與取得日期） |
 | 航班狀態（香港機管局、桃園機場、松山／高雄／澳門見 README） | 算每 6 小時格的取消／延誤統計（不存原始資料），之後回測 | 各自條款，見 README |
+| 芫荽 Iansui、Fraunces、Noto Sans TC（子集，`assets/fonts/`；HD1） | 分享預覽圖的字型 | SIL OFL 1.1（各附 `OFL-*.txt`） |
 
 NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權」與 `src/hongthai/sources/nws.py` 開頭）：
 - 關島：`/zones?area=GU` → `GUZ001`（PGUM 的 `/points` 的 `forecastZone`）；`/alerts?zone=GUZ001` 有超強颱風
@@ -225,5 +231,5 @@ Actions 自動推，不要手動改。內容：
 - `history/flights/2026-10-18/`：H6 之前存的一天份航班快照（gz），留著不管
 
 GitHub Pages（`public/`）只放 `latest.json` 與**最近 7 天**的 `history/<時間>.json`（H9 起，一份約 515 KB；HD3 起約 642 KB，2026-10-18 實測；
-`build.py` 的 `PAGES_HISTORY_DAYS`，Shawn 確認中），不放原始快照與航班統計。`data` 分支的
-`history/<時間>.json` 照舊全部保留。
+`build.py` 的 `PAGES_HISTORY_DAYS`，Shawn 確認中），以及分享預覽圖 `og/<iata 小寫>.png`（HD1，每報重畫，
+不留歷史），不放原始快照與航班統計。`data` 分支的 `history/<時間>.json` 照舊全部保留；`og/` 不進 `data` 分支。

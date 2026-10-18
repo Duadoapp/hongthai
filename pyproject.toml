@@ -16,6 +16,8 @@ dependencies = [
     "eccodes>=2.37",
     "numpy>=1.26",
     "requests>=2.31",
+    "pillow>=10.4",  # 分享預覽圖（HD1）
+    "fonttools>=4.53",  # 分享預覽圖的字型 cmap、tools/make_font_subset.py
 ]
 
 [project.optional-dependencies]

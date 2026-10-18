@@ -11,10 +11,12 @@
   - `history/cancellations/unknown-statuses.json`（航班狀態對照表沒列的字串與次數，見
     `cancellations.store_unknown`）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
-  `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計）
+  `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
+  以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）
 
 失敗處理：單一來源失敗記在 `sources.<名稱>`，其他照出。整個流程失敗（例外沒接到）時不產生新的
 `latest.json`，改用上一份（先找 `--archive` 裡的，沒有就從 Pages 網址抓）重新發布，並回傳非 0。
+預覽圖在 `publish()` 之後畫（`draw_og`，改發布上一份時也用那一份畫），畫不出來只 log，不影響回傳值。
 
 時間預算（H7）：每個來源（含航班）在 daemon 執行緒裡跑，最多等 `BUDGET_S` 秒；超過就記
 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`、不等它，繼續下一個來源
@@ -45,7 +47,7 @@ from pathlib import Path
 
 import requests
 
-from . import assess, budget, cancellations
+from . import assess, budget, cancellations, og
 from .config import (
     Airport,
     ConfirmedPeriod,
@@ -66,7 +68,7 @@ SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa", "smg", "nws")
 
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
 # 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。
-# 總和 780 秒（13 分鐘，HD3 加 nws 30 秒），`build.yml` 那一步的上限是 15 分鐘。
+# 總和 840 秒（14 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒），`build.yml` 那一步的上限是 15 分鐘。
 BUDGET_S: dict[str, float] = {
     "ecmwf": 300,  # HRES＋系集，含鏡像切換
     "gfs": 180,
@@ -76,6 +78,7 @@ BUDGET_S: dict[str, float] = {
     "cwa": 45,
     "nws": 30,  # HD3：關島的颱風警報，一個請求
     "flights": 120,  # 抓＋統計＋寫檔
+    "og": 60,  # HD1：51 張分享預覽圖，publish() 之後畫（本機約 3 秒）
 }
 
 REUSE_MAX_AGE = timedelta(hours=24)
@@ -107,6 +110,7 @@ class Timing:
     已經寫進去的行也會推上去；沒有 `done` 那行就表示那次被砍了。欄位名固定（主對話直接看這個檔）：
     - 開始：`{"run", "source": "start", "ok": true, "seconds": 0, "commit"}`
     - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf 與 gfs 多 `mirror`
+    - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
     - 結束：`{"run", "source": "done", "ok": <有沒有產出 latest.json>, "seconds": <總秒數>}`
     """
 
@@ -620,6 +624,20 @@ def publish(out: Path, archive: Path, latest: dict | None, now: datetime) -> Non
         shutil.copy2(archive / "history" / name, hist_out / name)
 
 
+def draw_og(out: Path, latest: dict, timing: Timing | None = None) -> None:
+    """在 `BUDGET_S["og"]` 秒內畫 `out/og/<iata>.png`（HD1）；失敗或超時只 log、寫一行耗時紀錄
+    （`source: "og"`，`bytes` 是全部圖的總大小），不丟例外。"""
+    status: dict[str, dict] = {}  # 不進 latest.json（已經發布了）
+    try:
+        _call("og", lambda: og.render_all(latest, out / "og"), status, timing, lambda r: r)
+        st = status["og"]
+        log.info(
+            "預覽圖：%s 張，%s bytes，%.1f 秒", st.get("count"), st.get("bytes"), st["seconds"]
+        )
+    except Exception:  # 保險：預覽圖不能讓 build 失敗或改發布上一份
+        log.exception("預覽圖畫不出來")
+
+
 def previous_latest(archive: Path, pages_url: str) -> dict | None:
     p = archive / "latest.json"
     if p.exists():
@@ -672,6 +690,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         produced = True
         publish(args.out, args.archive, latest, now)
+        draw_og(args.out, latest, timing)
         ok = {k: v.get("ok") for k, v in latest["sources"].items()}
         log.info("完成，%.1f 秒；來源：%s", time.monotonic() - t0, ok)
         return 0
@@ -681,6 +700,7 @@ def main(argv: list[str] | None = None) -> int:
         if prev is None:
             return 2
         publish(args.out, args.archive, prev, now)
+        draw_og(args.out, prev, timing)
         return 1
     finally:
         # 被放棄的來源執行緒是 daemon，不 join，程式照常結束
