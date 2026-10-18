@@ -1,42 +1,43 @@
 {
  "schema": 1,
- "generatedAt": "2026-10-18T14:33:00Z",
+ "generatedAt": "2026-10-18T16:15:00Z",
  "runs": {
   "ecmwf": "2026-10-18T06:00:00Z",
   "ecmwfEns": "2026-10-18T00:00:00Z",
-  "gfs": null
+  "gfs": "2026-10-18T12:00:00Z"
  },
  "sources": {
   "ecmwf": {
-   "ok": false,
-   "error": "timeout",
-   "seconds": 240.0,
-   "reusedFrom": "2026-10-18T12:42:00Z"
+   "ok": true,
+   "seconds": 97.5,
+   "bytes": 91979975,
+   "mirror": "aws"
   },
   "gfs": {
-   "ok": false,
-   "error": "http_403",
-   "seconds": 0.3
+   "ok": true,
+   "seconds": 39.2,
+   "bytes": 45476851,
+   "mirror": "aws"
   },
   "taf": {
    "ok": true,
-   "seconds": 1.7
+   "seconds": 3.1
   },
   "hko": {
    "ok": true,
-   "seconds": 3.0
+   "seconds": 3.4
   },
   "cwa": {
    "ok": true,
-   "seconds": 1.5
+   "seconds": 1.9
   },
   "smg": {
    "ok": true,
-   "seconds": 3.6
+   "seconds": 5.3
   },
   "flights": {
    "ok": true,
-   "seconds": 24.6
+   "seconds": 14.8
   }
  },
  "airports": [
@@ -52,11 +53,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T14:30:00Z",
-    "windDirDeg": 70,
+    "observedAt": "2026-10-18T16:00:00Z",
+    "windDirDeg": 80,
     "windKt": 12,
     "gustKt": null,
-    "raw": "METAR RCTP 181430Z 07012KT 9999 FEW015 27/23 Q1015 NOSIG RMK A3000"
+    "raw": "METAR RCTP 181600Z 08012KT 9999 FEW015 27/23 Q1015 NOSIG RMK A2998"
    },
    "taf": {
     "issuedAt": "2026-10-18T11:00:00Z",
@@ -75,7 +76,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 4.3,
+      "crosswindKt": 6.2,
       "warnings": []
      },
      "model": {
@@ -84,14 +85,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 11.6,
-       "crosswindKt": 11.7
+       "crosswindKt": 13.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.5,
+       "crosswindKt": 7.3
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -114,14 +115,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 4.3,
-       "crosswindKt": 7.4
+       "crosswindKt": 6.3
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.5,
+       "crosswindKt": 7.3
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -144,14 +145,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 6.4,
-       "crosswindKt": 4.2
+       "crosswindKt": 3.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 3.8,
+       "crosswindKt": 5.8
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -174,14 +175,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 10.2,
-       "crosswindKt": 10.0
+       "crosswindKt": 11.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 3.5,
+       "crosswindKt": 5.8
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -207,11 +208,11 @@
        "crosswindKt": 6.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 3.5,
+       "crosswindKt": 5.8
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -227,14 +228,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 4.1,
-       "crosswindKt": 4.4
+       "crosswindKt": 3.8
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 1.6,
+       "crosswindKt": 2.6
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -253,11 +254,11 @@
        "crosswindKt": 14.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 2.9,
+       "crosswindKt": 5.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -273,14 +274,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 5.7,
-       "crosswindKt": 9.8
+       "crosswindKt": 5.5
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 3.3,
+       "crosswindKt": 5.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -296,14 +297,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 6.3,
-       "crosswindKt": 5.0
+       "crosswindKt": 5.1
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.3,
+       "crosswindKt": 4.7
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -322,11 +323,11 @@
        "crosswindKt": 3.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 10.4,
+       "crosswindKt": 4.4
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -345,11 +346,11 @@
        "crosswindKt": 4.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 11.5,
+       "crosswindKt": 2.5
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -365,14 +366,14 @@
        "p15": 0.78,
        "p25": 0.0,
        "hresGustMs": 14.2,
-       "crosswindKt": 1.5
+       "crosswindKt": 0.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 11.5,
+       "crosswindKt": 1.5
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -388,14 +389,14 @@
        "p15": 0.78,
        "p25": 0.0,
        "hresGustMs": 12.7,
-       "crosswindKt": 5.9
+       "crosswindKt": 7.5
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 11.4,
+       "crosswindKt": 1.5
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -411,14 +412,14 @@
        "p15": 0.78,
        "p25": 0.0,
        "hresGustMs": 12.7,
-       "crosswindKt": 0.5
+       "crosswindKt": 0.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 10.7,
+       "crosswindKt": 6.2
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -437,11 +438,11 @@
        "crosswindKt": 5.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 12.4,
+       "crosswindKt": 6.2
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "disagree"
      },
      "gap": false
     },
@@ -457,14 +458,14 @@
        "p15": 0.81,
        "p25": 0.01,
        "hresGustMs": 15.9,
-       "crosswindKt": 2.6
+       "crosswindKt": 3.3
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 12.4,
+       "crosswindKt": 5.6
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "disagree"
      },
      "gap": false
     },
@@ -483,11 +484,11 @@
        "crosswindKt": 7.8
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 10.1,
+       "crosswindKt": 5.6
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "disagree"
      },
      "gap": false
     },
@@ -506,11 +507,11 @@
        "crosswindKt": 15.3
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 17.0,
+       "crosswindKt": 3.1
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -529,11 +530,11 @@
        "crosswindKt": 15.5
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 22.9,
+       "crosswindKt": 3.9
       },
       "level": "high",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -552,11 +553,11 @@
        "crosswindKt": 21.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 29.7,
+       "crosswindKt": 26.1
       },
       "level": "high",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     }
@@ -575,11 +576,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T14:00:00Z",
+    "observedAt": "2026-10-18T16:00:00Z",
     "windDirDeg": 90,
-    "windKt": 12,
+    "windKt": 11,
     "gustKt": null,
-    "raw": "METAR RCSS 181400Z 09012KT 9999 FEW020 27/24 Q1016 NOSIG RMK A3003"
+    "raw": "METAR RCSS 181600Z 09011KT 9999 FEW020 27/23 Q1015 NOSIG RMK A3000"
    },
    "taf": {
     "issuedAt": "2026-10-18T11:00:00Z",
@@ -607,14 +608,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 9.8,
-       "crosswindKt": 4.1
+       "crosswindKt": 5.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.7,
+       "crosswindKt": 4.8
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -640,11 +641,11 @@
        "crosswindKt": 1.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.4,
+       "crosswindKt": 4.8
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -670,11 +671,11 @@
        "crosswindKt": 4.1
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.5,
+       "crosswindKt": 2.6
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -697,14 +698,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 11.6,
-       "crosswindKt": 1.5
+       "crosswindKt": 2.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.1,
+       "crosswindKt": 4.7
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -720,14 +721,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 6.4,
-       "crosswindKt": 0.3
+       "crosswindKt": 0.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.1,
+       "crosswindKt": 4.7
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -746,11 +747,11 @@
        "crosswindKt": 2.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 2.8,
+       "crosswindKt": 3.4
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -766,14 +767,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 8.5,
-       "crosswindKt": 3.6
+       "crosswindKt": 2.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 2.8,
+       "crosswindKt": 2.6
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -789,14 +790,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 7.4,
-       "crosswindKt": 3.6
+       "crosswindKt": 3.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.4,
+       "crosswindKt": 2.7
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -812,14 +813,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 6.3,
-       "crosswindKt": 2.5
+       "crosswindKt": 0.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.7,
+       "crosswindKt": 2.7
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -838,11 +839,11 @@
        "crosswindKt": 5.1
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.0,
+       "crosswindKt": 5.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -858,14 +859,14 @@
        "p15": 0.04,
        "p25": 0.0,
        "hresGustMs": 11.3,
-       "crosswindKt": 10.0
+       "crosswindKt": 6.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 8.8,
+       "crosswindKt": 9.0
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -884,11 +885,11 @@
        "crosswindKt": 8.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 9.6,
+       "crosswindKt": 11.9
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -904,14 +905,14 @@
        "p15": 0.04,
        "p25": 0.0,
        "hresGustMs": 8.7,
-       "crosswindKt": 11.8
+       "crosswindKt": 7.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 9.6,
+       "crosswindKt": 11.9
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -927,14 +928,14 @@
        "p15": 0.04,
        "p25": 0.0,
        "hresGustMs": 7.7,
-       "crosswindKt": 7.1
+       "crosswindKt": 6.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.8,
+       "crosswindKt": 10.2
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -950,14 +951,14 @@
        "p15": 0.16,
        "p25": 0.0,
        "hresGustMs": 10.5,
-       "crosswindKt": 16.3
+       "crosswindKt": 16.9
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 9.2,
+       "crosswindKt": 11.2
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -973,14 +974,14 @@
        "p15": 0.16,
        "p25": 0.0,
        "hresGustMs": 8.4,
-       "crosswindKt": 12.9
+       "crosswindKt": 11.9
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 9.2,
+       "crosswindKt": 11.2
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -999,11 +1000,11 @@
        "crosswindKt": 15.3
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 8.9,
+       "crosswindKt": 10.9
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1022,11 +1023,11 @@
        "crosswindKt": 26.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 14.0,
+       "crosswindKt": 18.5
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "disagree"
      },
      "gap": false
     },
@@ -1045,11 +1046,11 @@
        "crosswindKt": 28.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 21.4,
+       "crosswindKt": 18.5
       },
       "level": "high",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1065,14 +1066,14 @@
        "p15": 0.94,
        "p25": 0.42,
        "hresGustMs": 28.3,
-       "crosswindKt": 33.5
+       "crosswindKt": 29.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 26.1,
+       "crosswindKt": 16.3
       },
       "level": "high",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     }
@@ -1091,11 +1092,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T14:00:00Z",
-    "windDirDeg": 250,
-    "windKt": 5,
+    "observedAt": "2026-10-18T16:00:00Z",
+    "windDirDeg": 300,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR RCKH 181400Z 25005KT 220V280 9999 FEW018 SCT110 28/23 Q1016 NOSIG RMK A3001"
+    "raw": "METAR RCKH 181600Z 30004KT 270V330 9999 FEW012 SCT020 BKN030 28/24 Q1015 NOSIG RMK A2999"
    },
    "taf": {
     "issuedAt": "2026-10-18T11:00:00Z",
@@ -1123,14 +1124,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 5.0,
-       "crosswindKt": 5.0
+       "crosswindKt": 7.9
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 1.2,
+       "crosswindKt": 1.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1156,11 +1157,11 @@
        "crosswindKt": 7.9
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 1.2,
+       "crosswindKt": 1.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1186,11 +1187,11 @@
        "crosswindKt": 5.9
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.2,
+       "crosswindKt": 4.7
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1213,14 +1214,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 5.8,
-       "crosswindKt": 8.8
+       "crosswindKt": 10.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.2,
+       "crosswindKt": 4.7
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1243,14 +1244,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 3.1,
-       "crosswindKt": 4.4
+       "crosswindKt": 5.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 1.5,
+       "crosswindKt": 1.7
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1266,14 +1267,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 2.8,
-       "crosswindKt": 4.9
+       "crosswindKt": 4.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 1.4,
+       "crosswindKt": 2.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1292,11 +1293,11 @@
        "crosswindKt": 8.9
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.4,
+       "crosswindKt": 3.0
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1312,14 +1313,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 6.4,
-       "crosswindKt": 8.3
+       "crosswindKt": 12.1
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.4,
+       "crosswindKt": 3.0
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1338,11 +1339,11 @@
        "crosswindKt": 6.8
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 1.3,
+       "crosswindKt": 2.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1361,11 +1362,11 @@
        "crosswindKt": 11.3
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 2.4,
+       "crosswindKt": 4.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1384,11 +1385,11 @@
        "crosswindKt": 12.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 2.6,
+       "crosswindKt": 4.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1404,14 +1405,14 @@
        "p15": 0.01,
        "p25": 0.0,
        "hresGustMs": 9.4,
-       "crosswindKt": 15.2
+       "crosswindKt": 3.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.1,
+       "crosswindKt": 2.4
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1427,14 +1428,14 @@
        "p15": 0.01,
        "p25": 0.0,
        "hresGustMs": 3.8,
-       "crosswindKt": 1.9
+       "crosswindKt": 1.8
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.1,
+       "crosswindKt": 4.6
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1453,11 +1454,11 @@
        "crosswindKt": 16.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.6,
+       "crosswindKt": 10.9
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1476,11 +1477,11 @@
        "crosswindKt": 15.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.6,
+       "crosswindKt": 10.9
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1496,14 +1497,14 @@
        "p15": 0.4,
        "p25": 0.01,
        "hresGustMs": 14.5,
-       "crosswindKt": 27.9
+       "crosswindKt": 28.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.7,
+       "crosswindKt": 9.1
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1522,11 +1523,11 @@
        "crosswindKt": 26.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.1,
+       "crosswindKt": 11.9
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1545,11 +1546,11 @@
        "crosswindKt": 39.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 11.5,
+       "crosswindKt": 22.4
       },
       "level": "high",
-      "agreement": null
+      "agreement": "disagree"
      },
      "gap": false
     },
@@ -1568,11 +1569,11 @@
        "crosswindKt": 45.8
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 17.8,
+       "crosswindKt": 34.6
       },
       "level": "high",
-      "agreement": null
+      "agreement": "disagree"
      },
      "gap": false
     },
@@ -1588,14 +1589,14 @@
        "p15": 0.87,
        "p25": 0.66,
        "hresGustMs": 32.5,
-       "crosswindKt": 53.4
+       "crosswindKt": 50.5
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 30.7,
+       "crosswindKt": 50.5
       },
       "level": "high",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     }
@@ -1614,11 +1615,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T14:30:00Z",
-    "windDirDeg": 120,
-    "windKt": 5,
+    "observedAt": "2026-10-18T16:00:00Z",
+    "windDirDeg": 110,
+    "windKt": 6,
     "gustKt": null,
-    "raw": "METAR VHHH 181430Z 12005KT 090V170 CAVOK 28/22 Q1016 NOSIG"
+    "raw": "METAR VHHH 181600Z 11006KT 090V150 CAVOK 28/22 Q1016 NOSIG"
    },
    "taf": {
     "issuedAt": "2026-10-18T14:00:00Z",
@@ -1646,14 +1647,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 7.5,
-       "crosswindKt": 9.4
+       "crosswindKt": 10.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.6,
+       "crosswindKt": 8.8
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1676,14 +1677,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 3.8,
-       "crosswindKt": 4.2
+       "crosswindKt": 4.1
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 3.6,
+       "crosswindKt": 4.4
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1709,11 +1710,11 @@
        "crosswindKt": 14.5
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.1,
+       "crosswindKt": 10.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1736,14 +1737,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 10.3,
-       "crosswindKt": 14.4
+       "crosswindKt": 10.9
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.4,
+       "crosswindKt": 10.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1766,14 +1767,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 8.1,
-       "crosswindKt": 7.7
+       "crosswindKt": 4.5
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 8.0,
+       "crosswindKt": 7.0
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1799,11 +1800,11 @@
        "crosswindKt": 3.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 8.0,
+       "crosswindKt": 5.2
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1822,11 +1823,11 @@
        "crosswindKt": 14.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.1,
+       "crosswindKt": 7.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1842,14 +1843,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 8.5,
-       "crosswindKt": 11.8
+       "crosswindKt": 2.8
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.4,
+       "crosswindKt": 7.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1865,14 +1866,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 3.0,
-       "crosswindKt": 3.3
+       "crosswindKt": 0.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.8,
+       "crosswindKt": 7.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1891,11 +1892,11 @@
        "crosswindKt": 11.1
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.2,
+       "crosswindKt": 8.2
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1914,11 +1915,11 @@
        "crosswindKt": 16.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.2,
+       "crosswindKt": 8.2
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1934,14 +1935,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 7.3,
-       "crosswindKt": 13.8
+       "crosswindKt": 4.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.4,
+       "crosswindKt": 3.2
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1957,14 +1958,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 9.1,
-       "crosswindKt": 11.8
+       "crosswindKt": 13.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.7,
+       "crosswindKt": 2.8
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -1983,11 +1984,11 @@
        "crosswindKt": 17.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.0,
+       "crosswindKt": 11.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2003,14 +2004,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 10.5,
-       "crosswindKt": 19.4
+       "crosswindKt": 18.8
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.0,
+       "crosswindKt": 11.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2026,14 +2027,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 9.9,
-       "crosswindKt": 8.0
+       "crosswindKt": 18.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.3,
+       "crosswindKt": 8.3
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2052,11 +2053,11 @@
        "crosswindKt": 15.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.3,
+       "crosswindKt": 4.8
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2075,11 +2076,11 @@
        "crosswindKt": 23.5
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.7,
+       "crosswindKt": 14.9
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2098,11 +2099,11 @@
        "crosswindKt": 27.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 11.0,
+       "crosswindKt": 19.6
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2118,14 +2119,14 @@
        "p15": 0.51,
        "p25": 0.0,
        "hresGustMs": 11.6,
-       "crosswindKt": 21.6
+       "crosswindKt": 22.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 11.0,
+       "crosswindKt": 20.5
       },
       "level": "medium",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     }
@@ -2144,11 +2145,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T14:30:00Z",
+    "observedAt": "2026-10-18T16:00:00Z",
     "windDirDeg": 110,
-    "windKt": 8,
+    "windKt": 9,
     "gustKt": null,
-    "raw": "METAR VMMC 181430Z 11008KT 090V150 CAVOK 28/24 Q1016 NOSIG"
+    "raw": "METAR VMMC 181600Z 11009KT CAVOK 28/24 Q1016 NOSIG"
    },
    "taf": {
     "issuedAt": "2026-10-18T11:00:00Z",
@@ -2167,7 +2168,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 6.2,
+      "crosswindKt": 7.0,
       "warnings": []
      },
      "model": {
@@ -2176,14 +2177,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 4.5,
-       "crosswindKt": 4.8
+       "crosswindKt": 4.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.9,
+       "crosswindKt": 6.7
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2209,11 +2210,11 @@
        "crosswindKt": 2.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 3.0,
+       "crosswindKt": 3.0
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2236,14 +2237,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 7.7,
-       "crosswindKt": 14.9
+       "crosswindKt": 10.5
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.7,
+       "crosswindKt": 5.9
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2266,14 +2267,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 8.5,
-       "crosswindKt": 5.8
+       "crosswindKt": 7.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.4,
+       "crosswindKt": 8.0
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2296,14 +2297,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 4.4,
-       "crosswindKt": 5.5
+       "crosswindKt": 7.8
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.4,
+       "crosswindKt": 9.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2322,11 +2323,11 @@
        "crosswindKt": 9.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 6.1,
+       "crosswindKt": 10.6
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2342,14 +2343,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 8.5,
-       "crosswindKt": 12.0
+       "crosswindKt": 9.9
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.5,
+       "crosswindKt": 10.6
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2365,14 +2366,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 7.8,
-       "crosswindKt": 6.8
+       "crosswindKt": 5.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 4.0,
+       "crosswindKt": 6.1
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2388,14 +2389,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 2.4,
-       "crosswindKt": 2.1
+       "crosswindKt": 2.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 3.7,
+       "crosswindKt": 2.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2411,14 +2412,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 3.7,
-       "crosswindKt": 2.0
+       "crosswindKt": 1.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 2.5,
+       "crosswindKt": 0.6
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2437,11 +2438,11 @@
        "crosswindKt": 15.2
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.5,
+       "crosswindKt": 8.9
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2457,14 +2458,14 @@
        "p15": 0.01,
        "p25": 0.0,
        "hresGustMs": 10.5,
-       "crosswindKt": 12.0
+       "crosswindKt": 20.0
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.8,
+       "crosswindKt": 11.2
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2480,14 +2481,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 10.2,
-       "crosswindKt": 16.0
+       "crosswindKt": 12.4
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.8,
+       "crosswindKt": 11.2
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2506,11 +2507,11 @@
        "crosswindKt": 8.5
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.8,
+       "crosswindKt": 9.4
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2526,14 +2527,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 10.7,
-       "crosswindKt": 12.5
+       "crosswindKt": 9.9
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 5.8,
+       "crosswindKt": 5.9
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2549,14 +2550,14 @@
        "p15": 0.0,
        "p25": 0.0,
        "hresGustMs": 8.9,
-       "crosswindKt": 4.0
+       "crosswindKt": 4.3
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.5,
+       "crosswindKt": 5.9
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2575,11 +2576,11 @@
        "crosswindKt": 2.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 7.5,
+       "crosswindKt": 3.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2598,11 +2599,11 @@
        "crosswindKt": 1.6
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 9.3,
+       "crosswindKt": 3.5
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2621,11 +2622,11 @@
        "crosswindKt": 8.1
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 9.6,
+       "crosswindKt": 3.4
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     },
@@ -2641,14 +2642,14 @@
        "p15": 0.02,
        "p25": 0.0,
        "hresGustMs": 10.6,
-       "crosswindKt": 1.5
+       "crosswindKt": 0.7
       },
       "gfs": {
-       "gustMs": null,
-       "crosswindKt": null
+       "gustMs": 12.2,
+       "crosswindKt": 3.4
       },
       "level": "low",
-      "agreement": null
+      "agreement": "agree"
      },
      "gap": false
     }

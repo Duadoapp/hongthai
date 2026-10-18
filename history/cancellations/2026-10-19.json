@@ -1,9 +1,117 @@
 [
   {
+    "airport": "RCKH",
+    "from": "2026-10-19T00:00:00Z",
+    "to": "2026-10-19T06:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 36,
+      "cancelled": 1,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 32,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "RCKH",
+    "from": "2026-10-19T06:00:00Z",
+    "to": "2026-10-19T12:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 38,
+      "cancelled": 2,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 32,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "RCKH",
+    "from": "2026-10-19T12:00:00Z",
+    "to": "2026-10-19T18:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 3,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 28,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "RCSS",
+    "from": "2026-10-19T00:00:00Z",
+    "to": "2026-10-19T06:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 30,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 26,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "RCSS",
+    "from": "2026-10-19T06:00:00Z",
+    "to": "2026-10-19T12:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 31,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 32,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "RCSS",
+    "from": "2026-10-19T12:00:00Z",
+    "to": "2026-10-19T18:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 1,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 13,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
     "airport": "RCTP",
     "from": "2026-10-19T00:00:00Z",
     "to": "2026-10-19T06:00:00Z",
-    "asOf": "2026-10-18T14:33:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
     "dep": {
       "total": 126,
       "cancelled": 0,
@@ -39,16 +147,142 @@
     "airport": "RCTP",
     "from": "2026-10-19T12:00:00Z",
     "to": "2026-10-19T18:00:00Z",
-    "asOf": "2026-10-18T14:33:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
     "dep": {
-      "total": 37,
+      "total": 45,
       "cancelled": 0,
       "delayed": 0,
       "other": 0
     },
     "arr": {
-      "total": 76,
+      "total": 89,
       "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "RCTP",
+    "from": "2026-10-19T18:00:00Z",
+    "to": "2026-10-20T00:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 58,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 42,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "VHHH",
+    "from": "2026-10-19T00:00:00Z",
+    "to": "2026-10-19T06:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 174,
+      "cancelled": 1,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 116,
+      "cancelled": 1,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "VHHH",
+    "from": "2026-10-19T06:00:00Z",
+    "to": "2026-10-19T12:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 136,
+      "cancelled": 0,
+      "delayed": 1,
+      "other": 0
+    },
+    "arr": {
+      "total": 156,
+      "cancelled": 0,
+      "delayed": 1,
+      "other": 0
+    }
+  },
+  {
+    "airport": "VHHH",
+    "from": "2026-10-19T12:00:00Z",
+    "to": "2026-10-19T18:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 77,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 106,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "VMMC",
+    "from": "2026-10-19T00:00:00Z",
+    "to": "2026-10-19T06:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 25,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 23,
+      "cancelled": 0,
+      "delayed": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "VMMC",
+    "from": "2026-10-19T06:00:00Z",
+    "to": "2026-10-19T12:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 33,
+      "cancelled": 2,
+      "delayed": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 38,
+      "cancelled": 2,
+      "delayed": 1,
+      "other": 0
+    }
+  },
+  {
+    "airport": "VMMC",
+    "from": "2026-10-19T12:00:00Z",
+    "to": "2026-10-19T18:00:00Z",
+    "asOf": "2026-10-18T16:15:00Z",
+    "dep": {
+      "total": 5,
+      "cancelled": 0,
+      "delayed": 1,
+      "other": 0
+    },
+    "arr": {
+      "total": 8,
+      "cancelled": 2,
       "delayed": 0,
       "other": 0
     }
