@@ -43,8 +43,35 @@ pytest -q && ruff check . && ruff format --check .
 `sources.cwa.ok=false, error="no_api_key"`，其他照出。**不要把授權碼寫進程式或 repo。**
 
 整個流程約 4–5 分鐘（2026-10-18 實測 262 秒：ECMWF HRES 約 113 MB／90 秒、系集約 10 MB、GFS 兩個框
-共 42 個 1–2 KB 的小檔約 110 秒、航班快照五個機場約 20 秒），下載大小與耗時印在 log；
-Actions 那一步的上限是 10 分鐘。
+共 42 個 1–2 KB 的小檔約 110 秒、航班快照五個機場約 20 秒），下載大小與耗時印在 log，
+也寫進 `data` 分支的 `history/timing/`（見下面「輸出」）。
+
+#### 時間預算與逾時（H7）
+
+每個來源在自己的執行緒裡跑，有各自的時間預算（秒，`src/hongthai/build.py` 開頭的 `BUDGET_S`）：
+
+| 來源 | 預算 | 2026-10-18 實測 |
+| --- | --- | --- |
+| ecmwf（HRES＋系集，含鏡像切換） | 240 | 約 90＋10 |
+| gfs | 180 | 約 110 |
+| taf（含 METAR） | 45 | 幾秒 |
+| hko、smg | 各 30 | 幾秒 |
+| cwa | 45 | 幾秒 |
+| flights（抓＋統計＋寫檔） | 120 | 約 20 |
+
+- 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
+  繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
+  GRIB 解析有全域鎖），程式結束時不等它
+- 總和約 12 分鐘，Actions「產生 latest.json」那一步上限 15 分鐘、整個 job 25 分鐘
+- ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
+  重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
+  下載先試 AWS 鏡像，那一報還沒同步到或失敗再回 ECMWF 入口，再失敗試 Google；實際從哪裡下載記在
+  `sources.ecmwf.mirror`。從 AWS 下載不重試：S3 不收多段 range、一報要一百多個請求，2026-10-18
+  實測約三成回 `503 Slow Down`，重試會把預算耗光，所以第一個 503 就換 ECMWF 入口
+- `ecmwf` 或 `gfs` 失敗（逾時、429 用盡、格式錯……）時沿用上一份 `latest.json`（先找 `--archive`，
+  沒有就從 Pages 抓）同一機場、同一格的 `model.ec`／`model.gfs`，等級照常算；`sources.<名稱>.ok`
+  仍是 `false`，另加 `reusedFrom`，`runs` 是上一份的（舊預報的真實時次）。模式時次離現在超過
+  24 小時就不沿用（系集與 HRES 各自算），照缺資料處理。TAF、METAR、警報不沿用
 
 ### 檔案
 
@@ -66,7 +93,25 @@ Actions 那一步的上限是 10 分鐘。
 - `data` 分支（Actions 自動推）：同樣的結果，加上原始快照
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg}.json`（SMG 是 `{"c": XML, "e": XML}`）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
-  原始航班資料不存）。這兩樣都不進 GitHub Pages、不進 `latest.json`
+  原始航班資料不存），以及每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`。
+  這三樣都不進 GitHub Pages、不進 `latest.json`
+
+`history/timing/<YYYY-MM>.jsonl`：一行一筆 JSON，每個來源一跑完就 append（不等全部結束），所以
+「產生 latest.json」被 Actions 砍掉時已經寫的行也會推上去。`run` 和那次的 `generatedAt` 相同：
+
+```json
+{"run": "2026-10-18T09:28:00Z", "source": "start", "ok": true, "seconds": 0, "commit": "a59b42d"}
+{"run": "2026-10-18T09:28:00Z", "source": "ecmwf", "ok": false, "error": "timeout", "seconds": 240.0, "bytes": 0, "mirror": "aws"}
+{"run": "2026-10-18T09:28:00Z", "source": "gfs", "ok": true, "error": null, "seconds": 108.3, "bytes": 61234}
+{"run": "2026-10-18T09:28:00Z", "source": "done", "ok": true, "seconds": 371.2}
+```
+
+- `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`flights`、`done`（照執行順序）
+- `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`；`bytes`：下載量（逾時的是到那時為止，
+  ecmwf 只算下載完的檔）；
+  `mirror`：只有 ecmwf 有，實際下載（逾時或失敗時是最後在試）的 source，還沒開始下載是 `null`
+- `start` 的 `commit` 是 `GITHUB_SHA` 前 7 碼（本機跑是 `null`）；`done` 的 `ok` 是這次有沒有產出新的
+  `latest.json`。**沒有 `done` 那行就表示那次被砍了**
 
 `history/cancellations/<日期>.json`：日期是格的 UTC 日期，一天一個檔，內容是陣列、依 `airport`、`from`
 排序（兩個空白縮排）。每個元素是一個機場的一個 UTC 6 小時格（和 `latest.json` 一樣對齊 00／06／12／18Z）：
@@ -134,6 +179,10 @@ Actions 那一步的上限是 10 分鐘。
 - `runs.ecmwfEns`：系集機率那一報（只有 00／12Z 有，可能比 HRES 早一報）
 - `sources.<名稱>.seconds`、`bytes`；`sources.ecmwf.ensembleOk`／`ensembleError`（只有系集失敗時）；
   `sources.flights`
+- `sources.<名稱>.error` 多一個值 `"timeout"`：超過時間預算被放棄（這時 `seconds` 是預算）
+- `sources.ecmwf.mirror`：HRES 實際從哪裡下載，`"aws"`／`"ecmwf"`／`"google"`
+- `sources.ecmwf.reusedFrom`、`sources.gfs.reusedFrom`：這次失敗、模式資料沿用上一份時，上一份的
+  `generatedAt`（`ok` 仍是 `false`，網頁照樣顯示「這次沒讀到」）
 - `sources.flights.statsError`：航班取消／延誤統計算不出來或寫檔失敗時才有，`"<機場>:<訊息>"`
   （多個用 `; ` 接）；不影響 `latest.json` 其他內容
 - `warnings[].code`（天文台／SMG 信號代碼，例如 `TC8NE`、`TC3`）、`warnings[].detail`（氣象署警戒區原文、
@@ -157,7 +206,7 @@ Actions 那一步的上限是 10 分鐘。
 
 | 來源 | 內容 | 授權 |
 | --- | --- | --- |
-| [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data) | HRES 10 米陣風（`10fg`／`10fg3`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`） | CC BY 4.0，© ECMWF |
+| [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data)（經 AWS／Google 鏡像） | HRES 10 米陣風（`10fg`／`10fg3`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`） | CC BY 4.0，© ECMWF |
 | [NOAA GFS](https://nomads.ncep.noaa.gov/)（NOMADS GRIB filter） | 地面陣風 `GUST` | 美國政府公有領域 |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |

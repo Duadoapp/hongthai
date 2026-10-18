@@ -7,11 +7,21 @@
     SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON）
   - `history/cancellations/<YYYY-MM-DD>.json`（每機場每 6 小時格的航班取消／延誤統計，日期是格的
     UTC 日期；合併規則見 `cancellations.py`。原始航班資料不存）
+  - `history/timing/<YYYY-MM>.jsonl`（每次 build 每個來源的耗時，一行一筆，見 `Timing`）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與 `history/*.json`
   （只放結果，不放原始快照與航班統計）
 
 失敗處理：單一來源失敗記在 `sources.<名稱>`，其他照出。整個流程失敗（例外沒接到）時不產生新的
 `latest.json`，改用上一份（先找 `--archive` 裡的，沒有就從 Pages 網址抓）重新發布，並回傳非 0。
+
+時間預算（H7）：每個來源（含航班）在 daemon 執行緒裡跑，最多等 `BUDGET_S` 秒；超過就記
+`sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`、不等它，繼續下一個來源
+（被放棄的執行緒怎麼收尾見 `budget.py`）。
+
+模式沿用（H7）：`ecmwf` 或 `gfs` 失敗時，從上一份 `latest.json` 把同一機場、同一 `from` 的
+`model.ec`／`model.gfs` 抄過來，等級照常算（`reuse_models`）。`sources.<名稱>.ok` 維持 `false`，另加
+`reusedFrom`；`runs` 用上一份的（舊預報的真實時次）。上一份的模式時次離現在超過
+`REUSE_MAX_AGE`（24 小時）就不沿用，所以連續失敗時 24 小時後自然停掉。TAF、METAR、警報不沿用。
 """
 
 from __future__ import annotations
@@ -25,15 +35,15 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
 
-from . import assess, cancellations
-from .config import Airport, ConfirmedPeriod, load_airports, load_confirmed
+from . import assess, budget, cancellations
+from .config import Airport, ConfirmedPeriod, Thresholds, load_airports, load_confirmed
 from .sources import cwa, ecmwf, flights, gfs, hko, smg, taf
-from .timeutil import floor_6h, iso, slot_bounds, utcnow
+from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
 
 log = logging.getLogger("hongthai")
 
@@ -41,27 +51,194 @@ SCHEMA = 1
 PAGES_URL = "https://duadoapp.github.io/hongthai/latest.json"
 SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa", "smg")
 
+# 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90＋10（HRES＋系集）、gfs 約 110、
+# flights 約 20、其他幾秒。總和約 12 分鐘，`build.yml` 那一步的上限是 15 分鐘。
+BUDGET_S: dict[str, float] = {
+    "ecmwf": 240,  # HRES＋系集，含鏡像切換
+    "gfs": 180,
+    "taf": 45,  # TAF 與 METAR 同一個來源，各一個請求
+    "hko": 30,
+    "smg": 30,
+    "cwa": 45,
+    "flights": 120,  # 抓＋統計＋寫檔
+}
+
+REUSE_MAX_AGE = timedelta(hours=24)
+# 模式來源 → (`model` 裡的鍵, [(`runs` 的鍵, 那一報決定的欄位)])；系集與 HRES 的時次各自判斷期限
+REUSE_FIELDS: dict[str, tuple[str, tuple[tuple[str, tuple[str, ...]], ...]]] = {
+    "ecmwf": (
+        "ec",
+        (("ecmwf", ("hresGustMs", "crosswindKt")), ("ecmwfEns", ("p10", "p15", "p25"))),
+    ),
+    "gfs": ("gfs", (("gfs", ("gustMs", "crosswindKt")),)),
+}
+
 
 def _dump(path: Path, obj: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
 
-def _call(name: str, fn: Callable[[], object], status: dict) -> object | None:
-    """跑一個來源；失敗記成 `ok=false`＋原因，回傳 None。"""
-    t0 = time.monotonic()
-    try:
-        result = fn()
-        status[name] = {"ok": True}
-        return result
-    except Exception as e:  # 任何來源出事都不能讓整份輸出失敗
+class Timing:
+    """`history/timing/<YYYY-MM>.jsonl`：每個來源一跑完就 append 一行並關檔，不等全部結束。
+
+    `build.yml` 的「推 data 分支」是 `if: always()`，所以「產生 latest.json」被 Actions 砍掉時，
+    已經寫進去的行也會推上去；沒有 `done` 那行就表示那次被砍了。欄位名固定（主對話直接看這個檔）：
+    - 開始：`{"run", "source": "start", "ok": true, "seconds": 0, "commit"}`
+    - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf 多 `mirror`
+    - 結束：`{"run", "source": "done", "ok": <有沒有產出 latest.json>, "seconds": <總秒數>}`
+    """
+
+    def __init__(self, archive: Path, now: datetime):
+        self.path = archive / "history" / "timing" / f"{now:%Y-%m}.jsonl"
+        self.run = iso(now)
+
+    def write(self, **fields: object) -> None:
+        line = json.dumps({"run": self.run, **fields}, ensure_ascii=False)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except OSError as e:  # 耗時紀錄寫不了不能讓 build 失敗
+            log.warning("耗時紀錄寫不進 %s：%s", self.path, e)
+
+    def source(self, name: str, st: dict, ctx: budget.Context) -> None:
+        fields: dict[str, object] = {
+            "source": name,
+            "ok": st["ok"],
+            "error": None if st["ok"] else st.get("error"),
+            "seconds": st["seconds"],
+            "bytes": st.get("bytes", ctx.bytes),
+        }
+        if name == "ecmwf":
+            fields["mirror"] = st.get("mirror", ctx.notes.get("mirror"))
+        self.write(**fields)
+
+
+def _call(
+    name: str,
+    fn: Callable[[], object],
+    status: dict,
+    timing: Timing | None = None,
+    extra: Callable[[object], dict] | None = None,
+) -> object | None:
+    """在 `BUDGET_S[name]` 秒內跑一個來源；失敗或超時記成 `ok=false`＋原因，回傳 None。
+
+    成功時 `extra(結果)` 回傳的欄位併進 `sources.<名稱>`。跑完立刻寫一行耗時紀錄。
+    """
+    limit = BUDGET_S[name]
+    out = budget.run(name, fn, limit)
+    result = None
+    if out.timed_out:
+        log.warning("來源 %s 超過 %s 秒的預算，放棄、繼續下一個", name, limit)
+        status[name] = {"ok": False, "error": "timeout", "seconds": float(limit)}
+    elif out.error is not None:
+        e = out.error
         code = getattr(e, "code", None) or e.__class__.__name__
-        log.warning("來源 %s 失敗（%s）：%s", name, code, e, exc_info=not hasattr(e, "code"))
-        status[name] = {"ok": False, "error": code}
-        return None
-    finally:
-        if name in status:
-            status[name]["seconds"] = round(time.monotonic() - t0, 1)
+        log.warning(
+            "來源 %s 失敗（%s）：%s",
+            name,
+            code,
+            e,
+            exc_info=None if hasattr(e, "code") else (type(e), e, e.__traceback__),
+        )
+        status[name] = {"ok": False, "error": code, "seconds": round(out.seconds, 1)}
+    else:
+        result = out.result
+        status[name] = {"ok": True, "seconds": round(out.seconds, 1)}
+        if extra is not None:
+            status[name].update(extra(result))
+    if timing is not None:
+        timing.source(name, status[name], out.context)
+    return result
+
+
+def _ecmwf_extra(ec: ecmwf.EcmwfData) -> dict:
+    d: dict[str, object] = {}
+    if ec.ens_error:
+        d["ensembleOk"] = False
+        d["ensembleError"] = ec.ens_error
+    d["bytes"] = ec.bytes_downloaded
+    if ec.mirror:
+        d["mirror"] = ec.mirror
+    return d
+
+
+def _is_num(v: object) -> bool:
+    return isinstance(v, int | float) and not isinstance(v, bool)
+
+
+def _rescore(slot: dict, th: Thresholds) -> None:
+    """模式值換掉之後重算模式層等級、一致性、落差與整格等級（和 `assess.assess_slots` 同一套規則；
+    官方層與已確認不受模式影響，維持原樣）。"""
+    m = slot["model"]
+    m["level"] = assess.model_level(m["ec"], m["gfs"], th)
+    m["agreement"] = assess.agreement(m["ec"], m["gfs"], th)
+    if slot["basis"] in ("model", "none"):
+        slot["level"], slot["basis"] = (m["level"], "model") if m["level"] else ("unknown", "none")
+    off = slot["official"]
+    slot["gap"] = off is not None and m["level"] is not None and off["level"] != m["level"]
+
+
+def reuse_models(
+    latest: dict, prev: dict | None, failed: list[str], now: datetime, airports: list[Airport]
+) -> None:
+    """失敗的模式來源（`ecmwf`／`gfs`）從上一份 `latest.json` 抄同一機場、同一 `from` 的值。
+
+    `runs.<鍵>` 離 `now` 超過 `REUSE_MAX_AGE` 的那一報不抄（系集與 HRES 各自判斷）；有抄到的
+    才把 `runs` 換成上一份的、在 `sources.<名稱>` 加 `reusedFrom`。`ok`／`error` 不動。
+    """
+    if not prev or not isinstance(prev.get("generatedAt"), str):
+        return
+    prev_runs = prev.get("runs") if isinstance(prev.get("runs"), dict) else {}
+    prev_slots: dict[tuple[object, object], dict] = {}
+    for a in prev.get("airports") or []:
+        for s in (a.get("slots") or []) if isinstance(a, dict) else []:
+            if isinstance(s, dict) and isinstance(s.get("model"), dict):
+                prev_slots[(a.get("icao"), s.get("from"))] = s["model"]
+
+    # 先算好要改什麼，再一次套用（上一份格式怪也不會改到一半）
+    updates: list[tuple[str, dict, str, str, float]] = []
+    runs: dict[str, str] = {}
+    for name in failed:
+        key, parts = REUSE_FIELDS[name]
+        for run_key, fields in parts:
+            run = prev_runs.get(run_key)
+            try:
+                run_t = parse_time(run) if isinstance(run, str) else None
+            except ValueError:
+                run_t = None
+            if run_t is None or now - run_t > REUSE_MAX_AGE:
+                log.info("上一份的 runs.%s=%s 超過 24 小時或沒有，不沿用", run_key, run)
+                continue
+            n = 0
+            for a in latest["airports"]:
+                for s in a["slots"]:
+                    old = prev_slots.get((a["icao"], s["from"]), {}).get(key)
+                    if not isinstance(old, dict):
+                        continue
+                    for f in fields:
+                        if _is_num(old.get(f)):
+                            updates.append((a["icao"], s, key, f, old[f]))
+                            n += 1
+            if n:
+                runs[run_key] = iso(run_t)
+    if not updates:
+        return
+
+    th = {a.icao: a.thresholds for a in airports}
+    touched: dict[int, tuple[dict, str]] = {}
+    for icao, s, key, f, v in updates:
+        s["model"][key][f] = v
+        touched[id(s)] = (s, icao)
+    for s, icao in touched.values():
+        _rescore(s, th[icao])
+    latest["runs"].update(runs)
+    for name in failed:
+        key, parts = REUSE_FIELDS[name]
+        if any(rk in runs for rk, _ in parts):
+            latest["sources"][name]["reusedFrom"] = prev["generatedAt"]
+            log.info("%s 失敗，沿用 %s 那份的模式資料（runs：%s）", name, prev["generatedAt"], runs)
 
 
 def collect_warnings(
@@ -218,6 +395,7 @@ def flight_stats(
         except Exception as e:  # 某個機場格式突然變了，其他照算
             log.warning("航班統計 %s 失敗：%s", icao, e, exc_info=True)
             errors[icao] = f"{e.__class__.__name__}: {e}"[:120]
+    budget.check_cancelled()  # 超過預算被放棄了就不寫檔
     try:
         for p in cancellations.store(history, stats):
             log.info("航班統計 → %s", p)
@@ -237,28 +415,40 @@ def run(
     confirmed_path: Path,
     api_key: str | None,
     workdir: Path,
+    pages_url: str = PAGES_URL,
+    timing: Timing | None = None,
 ) -> dict:
     airports = load_airports(airports_path)
     confirmed = load_confirmed(confirmed_path)
     slot0 = floor_6h(now)
     status: dict[str, dict] = {}
-
-    ec = _call("ecmwf", lambda: ecmwf.fetch(airports, slot0, workdir / "ecmwf"), status)
-    if ec is not None:
-        if ec.ens_error:
-            status["ecmwf"]["ensembleOk"] = False
-            status["ecmwf"]["ensembleError"] = ec.ens_error
-        status["ecmwf"]["bytes"] = ec.bytes_downloaded
-    gf = _call("gfs", lambda: gfs.fetch(airports, now, slot0, workdir / "gfs"), status)
-    if gf is not None:
-        status["gfs"]["bytes"] = gf.bytes_downloaded
-    tf = _call("taf", lambda: taf.fetch(airports), status)
-    hk = _call("hko", hko.fetch, status)
-    cw = _call("cwa", lambda: cwa.fetch(api_key, now), status)
-    sm = _call("smg", smg.fetch, status)
-
     history = archive / "history"
-    status["flights"] = flight_stats(flights.fetch(now), airports, now, history)
+
+    ec = _call(
+        "ecmwf",
+        lambda: ecmwf.fetch(airports, slot0, workdir / "ecmwf"),
+        status,
+        timing,
+        _ecmwf_extra,
+    )
+    gf = _call(
+        "gfs",
+        lambda: gfs.fetch(airports, now, slot0, workdir / "gfs"),
+        status,
+        timing,
+        lambda g: {"bytes": g.bytes_downloaded},
+    )
+    tf = _call("taf", lambda: taf.fetch(airports), status, timing)
+    hk = _call("hko", hko.fetch, status, timing)
+    cw = _call("cwa", lambda: cwa.fetch(api_key, now), status, timing)
+    sm = _call("smg", smg.fetch, status, timing)
+    _call(
+        "flights",
+        lambda: flight_stats(flights.fetch(now), airports, now, history),
+        status,
+        timing,
+        lambda r: r,
+    )
 
     latest = assemble(
         now=now,
@@ -272,6 +462,9 @@ def run(
         cw=cw,
         sm=sm,
     )
+    failed = [n for n, d in (("ecmwf", ec), ("gfs", gf)) if d is None]
+    if failed:
+        reuse_models(latest, previous_latest(archive, pages_url), failed, now, airports)
 
     stamp = f"{now:%Y%m%dT%H%M}Z"
     raw_dir = history / "raw" / f"{now:%Y-%m-%d}"
@@ -333,8 +526,13 @@ def main(argv: list[str] | None = None) -> int:
 
     t0 = time.monotonic()
     now = utcnow().replace(second=0, microsecond=0)
+    timing = Timing(args.archive, now)
+    commit = (os.environ.get("GITHUB_SHA") or "")[:7] or None
+    timing.write(source="start", ok=True, seconds=0, commit=commit)
+    produced = False
     try:
-        with tempfile.TemporaryDirectory(prefix="hongthai-") as tmp:
+        # 超時被放棄的來源執行緒可能還在往暫存目錄寫檔，清不乾淨就算了
+        with tempfile.TemporaryDirectory(prefix="hongthai-", ignore_cleanup_errors=True) as tmp:
             latest = run(
                 now=now,
                 archive=args.archive,
@@ -342,7 +540,10 @@ def main(argv: list[str] | None = None) -> int:
                 confirmed_path=args.confirmed,
                 api_key=os.environ.get("CWA_API_KEY") or None,
                 workdir=Path(tmp),
+                pages_url=args.pages_url,
+                timing=timing,
             )
+        produced = True
         publish(args.out, args.archive, latest)
         ok = {k: v.get("ok") for k, v in latest["sources"].items()}
         log.info("完成，%.1f 秒；來源：%s", time.monotonic() - t0, ok)
@@ -354,6 +555,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         publish(args.out, args.archive, prev)
         return 1
+    finally:
+        # 被放棄的來源執行緒是 daemon，不 join，程式照常結束
+        timing.write(source="done", ok=produced, seconds=round(time.monotonic() - t0, 1))
 
 
 if __name__ == "__main__":

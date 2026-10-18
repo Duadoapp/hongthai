@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+import threading
+import time
 
 import pytest
 from conftest import FIXTURES, ROOT, load_json, utc
 
-from hongthai import build
+from hongthai import budget, build, grib
 from hongthai.config import ConfirmedPeriod
 from hongthai.sources import cwa, ecmwf, gfs, hko, smg, taf
 from hongthai.sources.gfs import GfsData, GustPoint
@@ -177,6 +179,11 @@ def workspace(tmp_path, monkeypatch):
     (tmp_path / "airports.json").write_text((ROOT / "airports.json").read_text("utf-8"), "utf-8")
     (tmp_path / "confirmed.json").write_text("[]", "utf-8")
     monkeypatch.setattr(build.flights, "fetch", lambda now: build.flights.FlightsData({}, {}))
+
+    def no_network(*a, **k):  # 模式失敗時會去 Pages 抓上一份；測試不連網
+        raise build.requests.ConnectionError("測試不連網")
+
+    monkeypatch.setattr(build.requests, "get", no_network)
     return tmp_path
 
 
@@ -291,4 +298,224 @@ def test_flight_fetch_error_reported(workspace, monkeypatch):
     monkeypatch.setattr(build.flights, "fetch", lambda now: fl)
     assert build.main([]) == 0
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
-    assert out["sources"]["flights"] == {"ok": False, "error": "VMMC:timeout"}
+    fl = out["sources"]["flights"]
+    assert isinstance(fl.pop("seconds"), float)
+    assert fl == {"ok": False, "error": "VMMC:timeout"}
+
+
+# ---- 時間預算、模式沿用、耗時紀錄 ----
+
+
+def _fail_all_but(monkeypatch, **fetches):
+    for name in ("ecmwf", "gfs", "taf", "hko", "smg"):
+        monkeypatch.setattr(getattr(build, name), "fetch", fetches.get(name, _boom))
+    monkeypatch.delenv("CWA_API_KEY", raising=False)
+    monkeypatch.setattr(build, "utcnow", lambda: NOW)
+
+
+def _timing_lines(workspace):
+    path = workspace / "data" / "history" / "timing" / "2026-10.jsonl"
+    return [json.loads(line) for line in path.read_text("utf-8").splitlines()]
+
+
+def test_budget_timeout_recorded_and_next_sources_run(workspace, monkeypatch, airports):
+    _, gf, *_ = sample_inputs(airports)
+
+    def slow(*a, **k):
+        time.sleep(2)
+        raise AssertionError("不該等到這裡")
+
+    _fail_all_but(monkeypatch, ecmwf=slow, gfs=lambda *a, **k: gf)
+    monkeypatch.setitem(build.BUDGET_S, "ecmwf", 0.2)
+    t0 = time.monotonic()
+    assert build.main([]) == 0
+    assert time.monotonic() - t0 < 1.5  # 沒有等 slow 跑完
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["sources"]["ecmwf"] == {"ok": False, "error": "timeout", "seconds": 0.2}
+    assert out["sources"]["gfs"]["ok"] is True
+    assert out["sources"]["taf"]["error"] == "timeout"  # _boom 的代碼，表示有跑到
+    assert out["sources"]["cwa"]["error"] == "no_api_key"
+    assert out["sources"]["flights"]["ok"] is True
+    assert out["runs"]["gfs"] == "2026-10-18T00:00:00Z"
+
+
+def test_abandoned_thread_stops_before_parsing():
+    """超時被放棄的執行緒下載完要解析前看到 cancelled 旗標就結束，不碰 eccodes。"""
+    done = threading.Event()
+    seen = []
+
+    def fn():
+        time.sleep(0.3)
+        try:
+            grib.read_points(FIXTURES / "gfs_hkmo_f006.grb2", {"VHHH": (22.3, 113.9)})
+            seen.append("parsed")
+        except budget.Cancelled:
+            seen.append("cancelled")
+        finally:
+            done.set()
+
+    out = budget.run("test", fn, 0.05)
+    assert out.timed_out and out.context.cancelled.is_set()
+    assert done.wait(5) and seen == ["cancelled"]
+    # 主執行緒（沒有預算 context）照常解析
+    assert grib.read_points(FIXTURES / "gfs_hkmo_f006.grb2", {"VHHH": (22.3, 113.9)})["VHHH"]
+
+
+def _prev(generated_at, runs, ec=None, gfs_v=None, slot_from="2026-10-18T06:00:00Z"):
+    model = {"level": "low", "agreement": None}
+    model["ec"] = ec or dict.fromkeys(("p10", "p15", "p25", "hresGustMs", "crosswindKt"))
+    model["gfs"] = gfs_v or {"gustMs": None, "crosswindKt": None}
+    return {
+        "schema": 1,
+        "generatedAt": generated_at,
+        "runs": runs,
+        "sources": {},
+        "airports": [
+            {"icao": "VHHH", "slots": [{"from": slot_from, "model": model}]},
+            # 對不到的格（上一份比較早的格）不影響
+            {"icao": "RCTP", "slots": [{"from": "2026-10-18T00:00:00Z", "model": model}]},
+        ],
+    }
+
+
+def _write_prev(workspace, prev):
+    (workspace / "data").mkdir(exist_ok=True)
+    (workspace / "data" / "latest.json").write_text(json.dumps(prev), "utf-8")
+
+
+def test_ecmwf_failure_reuses_previous_model(workspace, monkeypatch):
+    ec = {"p10": 0.9, "p15": 0.6, "p25": 0.1, "hresGustMs": 26.0, "crosswindKt": 12.5}
+    prev = _prev(
+        "2026-10-18T02:10:00Z",
+        # HRES 8 小時前（沿用）；系集 32 小時前（超過 24 小時，不沿用）
+        {"ecmwf": "2026-10-18T00:00:00Z", "ecmwfEns": "2026-10-17T00:00:00Z", "gfs": None},
+        ec=ec,
+        gfs_v={"gustMs": 30.0, "crosswindKt": 40.0},
+    )
+    _write_prev(workspace, prev)
+    _fail_all_but(monkeypatch)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    src = out["sources"]["ecmwf"]
+    assert src["ok"] is False and src["error"] == "timeout"
+    assert src["reusedFrom"] == "2026-10-18T02:10:00Z"
+    assert out["runs"] == {"ecmwf": "2026-10-18T00:00:00Z", "ecmwfEns": None, "gfs": None}
+    # gfs 也失敗了，但上一份的 runs.gfs 是 null → 不沿用
+    assert "reusedFrom" not in out["sources"]["gfs"]
+    by = {a["icao"]: a for a in out["airports"]}
+    s0 = by["VHHH"]["slots"][0]
+    assert s0["model"]["ec"] == {
+        "p10": None,
+        "p15": None,
+        "p25": None,
+        "hresGustMs": 26.0,
+        "crosswindKt": 12.5,
+    }
+    assert s0["model"]["gfs"] == {"gustMs": None, "crosswindKt": None}
+    # 等級照常用抄來的值算：HRES 26 m/s → 高
+    assert (s0["level"], s0["basis"], s0["model"]["level"]) == ("high", "model", "high")
+    assert s0["model"]["agreement"] is None
+    assert by["VHHH"]["slots"][1]["level"] == "unknown"
+    assert all(s["level"] == "unknown" for s in by["RCTP"]["slots"])
+    # data/latest.json 換成這次的
+    assert json.loads((workspace / "data" / "latest.json").read_text("utf-8")) == out
+
+
+def test_reuse_expires_after_24h(workspace, monkeypatch):
+    ec = {"p10": 0.9, "p15": 0.6, "p25": 0.1, "hresGustMs": 26.0, "crosswindKt": 12.5}
+    prev = _prev(
+        "2026-10-17T13:10:00Z",
+        {"ecmwf": "2026-10-17T06:00:00Z", "ecmwfEns": "2026-10-17T00:00:00Z", "gfs": None},
+        ec=ec,
+    )
+    _write_prev(workspace, prev)
+    _fail_all_but(monkeypatch)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    src = out["sources"]["ecmwf"]
+    assert (src["ok"], src["error"]) == (False, "timeout") and "reusedFrom" not in src
+    assert out["runs"] == {"ecmwf": None, "ecmwfEns": None, "gfs": None}
+    s0 = out["airports"][3]["slots"][0]
+    assert s0["model"]["ec"]["hresGustMs"] is None
+    assert (s0["level"], s0["model"]["level"]) == ("unknown", None)
+
+
+def test_gfs_failure_reuses_previous_gfs(workspace, monkeypatch, airports):
+    ec, *_ = sample_inputs(airports)
+    prev = _prev(
+        "2026-10-18T02:10:00Z",
+        {"ecmwf": None, "ecmwfEns": None, "gfs": "2026-10-17T18:00:00Z"},
+        gfs_v={"gustMs": 16.0, "crosswindKt": 20.0},
+        slot_from="2026-10-21T06:00:00Z",  # fixture 的 HRES 有涵蓋的格
+    )
+    _write_prev(workspace, prev)
+    _fail_all_but(monkeypatch, ecmwf=lambda *a, **k: ec)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["sources"]["gfs"]["reusedFrom"] == "2026-10-18T02:10:00Z"
+    assert out["sources"]["gfs"]["ok"] is False
+    assert "reusedFrom" not in out["sources"]["ecmwf"]
+    assert out["runs"]["gfs"] == "2026-10-17T18:00:00Z"
+    slots = out["airports"][3]["slots"]
+    s12 = slots[12]
+    assert s12["from"] == "2026-10-21T06:00:00Z"
+    assert s12["model"]["gfs"] == {"gustMs": 16.0, "crosswindKt": 20.0}
+    assert isinstance(s12["model"]["ec"]["hresGustMs"], float)
+    # 兩個模式都有了，一致性照常算
+    assert s12["model"]["agreement"] in ("agree", "disagree")
+    assert s12["model"]["level"] in ("medium", "high")  # GFS 16 m/s ≥ 15 → 至少中
+    assert all(s["model"]["gfs"]["gustMs"] is None for s in slots if s is not s12)
+
+
+def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
+    _, gf, *_ = sample_inputs(airports)
+    seen_during_gfs = []
+
+    def gfs_fetch(*a, **k):
+        seen_during_gfs.extend(_timing_lines(workspace))
+        return gf
+
+    _fail_all_but(monkeypatch, gfs=gfs_fetch)
+    monkeypatch.setenv("GITHUB_SHA", "0123456789abcdef")
+    assert build.main([]) == 0
+    # gfs 跑的時候，start 與 ecmwf 那兩行已經寫進去了
+    assert [r["source"] for r in seen_during_gfs] == ["start", "ecmwf"]
+    lines = _timing_lines(workspace)
+    assert [r["source"] for r in lines] == [
+        "start",
+        "ecmwf",
+        "gfs",
+        "taf",
+        "hko",
+        "cwa",
+        "smg",
+        "flights",
+        "done",
+    ]
+    assert {r["run"] for r in lines} == {"2026-10-18T08:10:00Z"}
+    assert lines[0] == {
+        "run": "2026-10-18T08:10:00Z",
+        "source": "start",
+        "ok": True,
+        "seconds": 0,
+        "commit": "0123456",
+    }
+    ec_line = lines[1]
+    assert set(ec_line) == {"run", "source", "ok", "error", "seconds", "bytes", "mirror"}
+    assert (ec_line["ok"], ec_line["error"], ec_line["mirror"]) == (False, "timeout", None)
+    gfs_line = lines[2]
+    assert set(gfs_line) == {"run", "source", "ok", "error", "seconds", "bytes"}
+    assert (gfs_line["ok"], gfs_line["error"], gfs_line["bytes"]) == (True, None, 0)
+    assert lines[5]["error"] == "no_api_key"
+    assert lines[-1]["ok"] is True and isinstance(lines[-1]["seconds"], float)
+
+
+def test_timing_done_false_when_pipeline_crashes(workspace, monkeypatch):
+    monkeypatch.setattr(build, "run", lambda **kw: (_ for _ in ()).throw(RuntimeError("bug")))
+    monkeypatch.setattr(build, "previous_latest", lambda archive, url: None)
+    monkeypatch.setattr(build, "utcnow", lambda: NOW)
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    assert build.main([]) == 2
+    lines = _timing_lines(workspace)
+    assert [(r["source"], r["ok"]) for r in lines] == [("start", True), ("done", False)]
+    assert lines[0]["commit"] is None

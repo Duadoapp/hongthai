@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
+import requests
 from conftest import FIXTURES, load_json, utc
 
 from hongthai.sources import cwa, ecmwf, flights, gfs, hko, smg, taf
@@ -193,6 +195,132 @@ def test_ecmwf_step_helpers():
     assert ecmwf.hres_steps(36, 144)[-1] == 144
     assert ecmwf.ens_windows(0)[:2] == ["0-24", "12-36"]
     assert ecmwf.ens_windows(18)[0] == "0-24"
+
+
+class FakeClient:
+    """假的 `ecmwf.opendata.Client`：照 `plan` 決定每個 source 的 `latest()`／`retrieve()` 結果。"""
+
+    def __init__(self, source, plan, calls, retry):
+        self.source, self.plan, self.calls, self.retry = source, plan, calls, retry
+
+    def latest(self, **request):
+        self.calls.append(("latest", self.source, request["stream"]))
+        r = self.plan["latest"][request["stream"]].get(self.source)
+        if isinstance(r, Exception):
+            raise r
+        if r is None:
+            raise ValueError("Cannot establish latest date")
+        return r.replace(tzinfo=None)  # ecmwf-opendata 回的是 naive datetime
+
+    def retrieve(self, target, **request):
+        self.calls.append(("retrieve", self.source, request["stream"]))
+        # AWS 下載不重試（S3 的 503 Slow Down 一來就換下一個）
+        assert self.retry == ({"maximum_retries": 1} if self.source == "aws" else {})
+        if self.source not in self.plan["retrieve"]:
+            resp = requests.Response()
+            resp.status_code = 404
+            raise requests.HTTPError("404 Not Found", response=resp)
+        fixture = "ecmwf_oper_subregion" if request["stream"] == "oper" else "ecmwf_ep_subregion"
+        Path(target).write_bytes((FIXTURES / f"{fixture}.grib2").read_bytes())
+
+
+def _fake_clients(monkeypatch, plan):
+    calls = []
+    monkeypatch.setattr(
+        ecmwf, "_client", lambda source, **retry: FakeClient(source, plan, calls, retry)
+    )
+    return calls
+
+
+def test_ecmwf_latest_from_ecmwf_download_falls_back_from_aws(monkeypatch, airports, tmp_path):
+    """ecmwf 的 latest() 成功；aws 還沒有那一報（404）→ 回 ecmwf 下載。"""
+    plan = {
+        "latest": {
+            "oper": {"ecmwf": utc(2026, 10, 17, 18), "aws": utc(2026, 10, 17, 12)},
+            "enfo": {"ecmwf": utc(2026, 10, 17, 12)},
+        },
+        "retrieve": {"ecmwf"},
+    }
+    calls = _fake_clients(monkeypatch, plan)
+    data = ecmwf.fetch(airports, utc(2026, 10, 18, 6), tmp_path)
+    assert calls == [
+        ("latest", "ecmwf", "oper"),
+        ("retrieve", "aws", "oper"),
+        ("retrieve", "ecmwf", "oper"),
+        ("latest", "ecmwf", "enfo"),
+        ("retrieve", "aws", "enfo"),
+        ("retrieve", "ecmwf", "enfo"),
+    ]
+    assert (data.run, data.ens_run) == (utc(2026, 10, 17, 18), utc(2026, 10, 17, 12))
+    assert (data.mirror, data.ens_mirror, data.ens_error) == ("ecmwf", "ecmwf", None)
+    assert data.bytes_downloaded > 0
+    assert data.points["VHHH"].hres and data.points["VHHH"].ens
+
+
+def test_ecmwf_latest_429_switches_to_aws(monkeypatch, airports, tmp_path):
+    """ecmwf 的 latest() 一直 429（重試用盡）→ 改問 aws 的 latest()，從 aws 下載。"""
+    too_many = ecmwf.EcmwfError("HTTP 429", "http_429")
+    plan = {
+        "latest": {
+            "oper": {"ecmwf": too_many, "aws": utc(2026, 10, 17, 18)},
+            "enfo": {"ecmwf": too_many, "aws": utc(2026, 10, 17, 12)},
+        },
+        "retrieve": {"aws", "ecmwf"},
+    }
+    calls = _fake_clients(monkeypatch, plan)
+    data = ecmwf.fetch(airports, utc(2026, 10, 18, 6), tmp_path)
+    assert calls == [
+        ("latest", "ecmwf", "oper"),
+        ("latest", "aws", "oper"),
+        ("retrieve", "aws", "oper"),
+        ("latest", "ecmwf", "enfo"),
+        ("latest", "aws", "enfo"),
+        ("retrieve", "aws", "enfo"),
+    ]
+    assert (data.mirror, data.ens_mirror) == ("aws", "aws")
+
+
+def test_ecmwf_all_sources_fail(monkeypatch, airports, tmp_path):
+    too_many = ecmwf.EcmwfError("HTTP 429", "http_429")
+    plan = {"latest": {"oper": {"ecmwf": too_many, "aws": too_many}}, "retrieve": set()}
+    _fake_clients(monkeypatch, plan)
+    with pytest.raises(ecmwf.EcmwfError) as e:
+        ecmwf.fetch(airports, utc(2026, 10, 18, 6), tmp_path)
+    assert e.value.code == "http_429"
+
+    plan = {"latest": {"oper": {"ecmwf": utc(2026, 10, 17, 18)}}, "retrieve": set()}
+    calls = _fake_clients(monkeypatch, plan)
+    with pytest.raises(ecmwf.EcmwfError) as e:
+        ecmwf.fetch(airports, utc(2026, 10, 18, 6), tmp_path)
+    assert e.value.code == "http_404"
+    assert [c[1] for c in calls if c[0] == "retrieve"] == ["aws", "ecmwf", "google"]
+
+
+def test_ecmwf_client_bounded_retries(monkeypatch):
+    """真的 Client：重試上限 3 次、不照伺服器的 Retry-After；用盡後還是 429 就丟 http_429。"""
+    import multiurl.retry
+
+    sleeps = []
+    monkeypatch.setattr(multiurl.retry, "_logged_sleep", sleeps.append)
+    client = ecmwf._client("ecmwf")
+    assert (client.maximum_retries, client.retry_after) == (3, 10)
+    assert client.use_server_retry_after is False
+
+    heads = []
+
+    def head(url, **kwargs):
+        heads.append(url)
+        r = requests.Response()
+        r.status_code = 429
+        r.headers["Retry-After"] = "3600"
+        return r
+
+    monkeypatch.setattr(client.session, "head", head)
+    with pytest.raises(ecmwf.EcmwfError) as e:
+        client.latest(stream="oper", type="fc", param="10fg3", step=144)
+    assert e.value.code == "http_429"
+    assert len(heads) == 3 and sleeps == [10, 10]
+    assert ecmwf._client("aws", **ecmwf.DOWNLOAD_RETRY["aws"]).maximum_retries == 1
 
 
 def test_gfs_groups_two_boxes(airports):

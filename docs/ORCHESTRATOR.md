@@ -71,7 +71,7 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 
 | 來源 | 用途 | 授權 |
 | --- | --- | --- |
-| ECMWF 開放資料 | HRES 10 米陣風與 10 米風（側風的風向）、系集陣風機率 | CC BY 4.0（要標示 © ECMWF） |
+| ECMWF 開放資料（經 AWS／Google 鏡像） | HRES 10 米陣風與 10 米風（側風的風向）、系集陣風機率 | CC BY 4.0（要標示 © ECMWF） |
 | NOAA GFS（NOMADS GRIB filter） | 地面陣風、10 米風 | 美國政府公有領域 |
 | AviationWeather.gov Data API | 五個機場的 TAF、METAR | 美國政府公有領域 |
 | 中央氣象署開放資料（`W-C0034-001`） | 颱風警報（桃園、松山、高雄） | 政府資料開放授權條款；要授權碼 |
@@ -105,6 +105,18 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 - EC 系集機率是 24 小時窗，6 小時格取包住它的窗的最小值
 - 0–30 小時以官方為準；METAR 只算進現在那一格的側風
 
+### 來源逾時與沿用（H7，2026-10-18 build #4 被 ECMWF 429 卡到被砍之後）
+
+- 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 240、gfs 180、taf 45、hko 30、smg 30、
+  cwa 45、flights 120 秒），超過記 `error: "timeout"` 繼續跑下一個；Actions 那一步 15 分鐘、job 25 分鐘
+- ECMWF 重試最多 3 次、間隔 10 秒、不照 Retry-After；找最新一報先問入口、下載先試 AWS 鏡像
+  （→ 入口 → Google；AWS 下載不重試，S3 的 503 Slow Down 一來就換），`sources.ecmwf.mirror` 記實際來源。`ecmwf-opendata` 最低 0.3.34（有重試參數）
+- `ecmwf`／`gfs` 失敗時沿用上一份 `latest.json` 同機場同格的 `model.ec`／`model.gfs`，等級照常算；
+  `ok` 維持 `false`、加 `reusedFrom`，`runs` 是上一份的。模式時次超過 24 小時不沿用（系集各自算），
+  所以連續失敗時 24 小時後自然停。TAF、METAR、警報不沿用
+- 預算是用一天的實測抓的初版，之後看 `history/timing/` 調整：
+  `git show data:history/timing/2026-10.jsonl`（沒有 `done` 那行＝那次被砍）
+
 ## `data` 分支
 
 Actions 自動推，不要手動改。內容：
@@ -114,6 +126,9 @@ Actions 自動推，不要手動改。內容：
 - `history/cancellations/<日期>.json`：每機場每 UTC 6 小時格的航班取消／延誤統計（之後回測停飛用；
   H6 起，原始航班資料不再存）。日期是格的 UTC 日期；每次 build 合併進去，同一格新的覆蓋舊的，
   但新的總班數比舊的少就留舊的。格式與規則見 README「輸出」、`src/hongthai/cancellations.py` 開頭
+- `history/timing/<YYYY-MM>.jsonl`：每次 build 每個來源的耗時（H7 起）。一行一筆，`start`、各來源、
+  `done`；每個來源一跑完就寫，所以被 Actions 砍掉也留得下來，沒有 `done` 就是那次被砍了。
+  欄位見 README「輸出」
 - `history/flights/2026-10-18/`：H6 之前存的一天份航班快照（gz），留著不管
 
 GitHub Pages（`public/`）只放 `latest.json` 與 `history/*.json`，不放原始快照與航班統計。
