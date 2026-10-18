@@ -24,8 +24,8 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
   個資、金鑰），開新的雲端對話貼「照 docs/prompts/<檔名> 做」。提示詞最後都要有
   「開 PR 之後：gh pr checks --watch 等 CI，紅了自己修到綠（最多三輪）」
 - 主對話審 PR 不等 CI：他給號碼就審，審完回「可以合併」，他再開 auto-merge
-  - 還沒設：Settings → Branches 對 `main` 開 branch protection、必要檢查 `ci`；
-    Settings → General 開 Allow auto-merge
+  - 已設（2026-10-18）：`main` 的 ruleset 要求 PR、必要檢查 `ci`、禁止 force push；Allow auto-merge 已開。
+    `ci.yml` 的 job 名稱就是 `ci`（必要檢查比對的是 job 名稱，不是 workflow 名稱），不要改名
   - 雲端對話用不了 GitHub GraphQL，這類操作走 REST
 - 金鑰（`CWA_API_KEY` 等）只由他自己放進 Actions secrets，不貼進對話、PR、截圖；程式只從環境變數讀
 
