@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "generatedAt": "2026-10-18T16:15:00Z",
+ "generatedAt": "2026-10-18T16:27:00Z",
  "runs": {
   "ecmwf": "2026-10-18T06:00:00Z",
   "ecmwfEns": "2026-10-18T00:00:00Z",
@@ -9,35 +9,35 @@
  "sources": {
   "ecmwf": {
    "ok": true,
-   "seconds": 97.5,
+   "seconds": 85.4,
    "bytes": 91979975,
    "mirror": "aws"
   },
   "gfs": {
    "ok": true,
-   "seconds": 39.2,
+   "seconds": 23.0,
    "bytes": 45476851,
    "mirror": "aws"
   },
   "taf": {
    "ok": true,
-   "seconds": 3.1
+   "seconds": 0.2
   },
   "hko": {
    "ok": true,
-   "seconds": 3.4
+   "seconds": 3.0
   },
   "cwa": {
    "ok": true,
-   "seconds": 1.9
+   "seconds": 2.0
   },
   "smg": {
    "ok": true,
-   "seconds": 5.3
+   "seconds": 4.2
   },
   "flights": {
    "ok": true,
-   "seconds": 14.8
+   "seconds": 23.3
   }
  },
  "airports": [
@@ -53,11 +53,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T16:00:00Z",
-    "windDirDeg": 80,
-    "windKt": 12,
+    "observedAt": "2026-10-18T16:19:00Z",
+    "windDirDeg": 70,
+    "windKt": 9,
     "gustKt": null,
-    "raw": "METAR RCTP 181600Z 08012KT 9999 FEW015 27/23 Q1015 NOSIG RMK A2998"
+    "raw": "SPECI RCTP 181619Z 07009KT 9999 FEW015 27/23 Q1014 WS R05R NOSIG RMK A2997"
    },
    "taf": {
     "issuedAt": "2026-10-18T11:00:00Z",
@@ -76,7 +76,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 6.2,
+      "crosswindKt": 3.2,
       "warnings": []
      },
      "model": {
