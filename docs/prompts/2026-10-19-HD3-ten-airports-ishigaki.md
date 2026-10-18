@@ -50,9 +50,10 @@ H9 時 OurAirports 沒有石垣的跑道方位，側風一直是 `null`；石垣
   （WFO GUM 的 zone 代碼以 `GU` 開頭，請從 `/zones?area=GU` 之類的端點查出 PGUM 所在的 zone），以及帛琉
   （`/zones?area=PW`，或 WFO GUM 的產品裡是否有帛琉的 TC 警報）
 - 若 alerts 端點有關島，接成新的來源 `src/hongthai/sources/nws.py`：抓 `/alerts/active?zone=...`，只看
-  `event` 是 Typhoon Warning／Typhoon Watch／Tropical Storm Warning／Tropical Storm Watch 的；對等級：
-  Typhoon Warning → 高，Typhoon Watch／Tropical Storm Warning → 中，Tropical Storm Watch → 中
-  （和 HKO 8 號＝高、3 號＝中的精神一致；這是主對話先定的預設，Shawn 會確認）。`warnings[].source` 用 `"nws"`、
+  `event` 是 Typhoon Warning／Typhoon Watch／Tropical Storm Warning／Tropical Storm Watch 的；對等級
+  （Shawn 2026-10-19 定案）：**Typhoon Warning、Tropical Storm Warning → 高；Typhoon Watch、Tropical Storm
+  Watch → 中**。理由：Warning 是確定會有（Tropical Storm Warning＝36 小時內持續 34–63 節，等同天文台 8 號、
+  也超過 TAF 平均風 ≥ 35 節＝高的規則），Watch 是可能會有。`warnings[].source` 用 `"nws"`、
   `kind` 用 `typhoon_warning`／`typhoon_watch`／`ts_warning`／`ts_watch`，`code` 放 NWS 的 `event`，
   `text` 四語（英文用 NWS `headline`，中文三語由程式用固定句型翻，例如「颱風警報生效中」）。
   `sources.nws`、`history/raw/<日期>/<HHMM>Z-nws.json`、時間預算 30 秒、timing 一行，都照現有來源的樣子
