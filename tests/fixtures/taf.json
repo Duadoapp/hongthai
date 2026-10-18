@@ -96,5 +96,142 @@
     "wgst": null
    }
   ]
+ },
+ {
+  "icaoId": "RCSS",
+  "issueTime": "2026-10-17T23:00:00.000Z",
+  "validTimeFrom": 1792281600,
+  "validTimeTo": 1792368000,
+  "rawTAF": "TAF RCSS 172300Z 1800/1824 09005KT 9999 FEW015 BKN032 TEMPO 1800/1804 13005KT TEMPO 1804/1808 30005KT BECMG 1808/1810 09010KT",
+  "fcsts": [
+   {
+    "timeFrom": 1792281600,
+    "timeTo": 1792310400,
+    "timeBec": null,
+    "fcstChange": null,
+    "probability": null,
+    "wdir": 90,
+    "wspd": 5,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792281600,
+    "timeTo": 1792296000,
+    "timeBec": null,
+    "fcstChange": "TEMPO",
+    "probability": null,
+    "wdir": 130,
+    "wspd": 5,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792296000,
+    "timeTo": 1792310400,
+    "timeBec": null,
+    "fcstChange": "TEMPO",
+    "probability": null,
+    "wdir": 300,
+    "wspd": 5,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792310400,
+    "timeTo": 1792368000,
+    "timeBec": 1792317600,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 90,
+    "wspd": 10,
+    "wgst": null
+   }
+  ]
+ },
+ {
+  "icaoId": "RCKH",
+  "issueTime": "2026-10-17T23:00:00.000Z",
+  "validTimeFrom": 1792281600,
+  "validTimeTo": 1792389600,
+  "rawTAF": "TAF RCKH 172300Z 1800/1906 04005KT 9999 FEW015 BKN032 BECMG 1801/1803 33005KT TEMPO 1803/1809 27010KT BECMG 1817/1819 06005KT TEMPO 1818/1824 5000 BR BECMG 1901/1903 33005KT",
+  "fcsts": [
+   {
+    "timeFrom": 1792281600,
+    "timeTo": 1792285200,
+    "timeBec": null,
+    "fcstChange": null,
+    "probability": null,
+    "wdir": 40,
+    "wspd": 5,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792285200,
+    "timeTo": 1792342800,
+    "timeBec": 1792292400,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 330,
+    "wspd": 5,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792292400,
+    "timeTo": 1792314000,
+    "timeBec": null,
+    "fcstChange": "TEMPO",
+    "probability": null,
+    "wdir": 270,
+    "wspd": 10,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792342800,
+    "timeTo": 1792371600,
+    "timeBec": 1792350000,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 60,
+    "wspd": 5,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792346400,
+    "timeTo": 1792368000,
+    "timeBec": null,
+    "fcstChange": "TEMPO",
+    "probability": null,
+    "wdir": null,
+    "wspd": null,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792371600,
+    "timeTo": 1792389600,
+    "timeBec": 1792378800,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 330,
+    "wspd": 5,
+    "wgst": null
+   }
+  ]
+ },
+ {
+  "icaoId": "VMMC",
+  "issueTime": "2026-10-17T23:00:00.000Z",
+  "validTimeFrom": 1792281600,
+  "validTimeTo": 1792389600,
+  "rawTAF": "TAF VMMC 172300Z 1800/1906 10008KT 9999 FEW015 SCT025",
+  "fcsts": [
+   {
+    "timeFrom": 1792281600,
+    "timeTo": 1792389600,
+    "timeBec": null,
+    "fcstChange": null,
+    "probability": null,
+    "wdir": 100,
+    "wspd": 8,
+    "wgst": null
+   }
+  ]
  }
 ]

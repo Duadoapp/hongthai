@@ -75,7 +75,7 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 | AviationWeather.gov Data API | 五個機場的 TAF、METAR | 美國政府公有領域 |
 | 中央氣象署開放資料（`W-C0034-001`） | 颱風警報（桃園、松山、高雄） | 政府資料開放授權條款；要授權碼 |
 | 香港天文台開放數據（warnsum） | 熱帶氣旋信號（香港） | data.gov.hk 使用條款 |
-| 澳門地球物理氣象局 SMG（`xml.smg.gov.mo`） | 熱帶氣旋信號（澳門） | 見 README |
+| 澳門地球物理氣象局 SMG（`xml.smg.gov.mo`，data.gov.mo 資料集「熱帶氣旋信號」） | 熱帶氣旋信號（澳門） | 澳門政府數據開放平台使用條款（須註明平台與取得日期） |
 | 航班快照（香港機管局、桃園機場、松山／高雄見 README） | 只存檔，之後回測 | 各自條款，見 README |
 
 ## `latest.json` 是契約
