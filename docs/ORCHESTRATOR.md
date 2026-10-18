@@ -35,6 +35,10 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
 
 - 名稱 HongThai，只放 duado.app/hongthai/ 網頁、不進 App；網頁在 Duado 私人 repo（`site/hongthai/`），
   本 repo 只產資料
+- 定位（2026-10-18）：**純資訊網頁**，不給「下一步該怎麼做」、不做通知、公開給大家看；跟 Duado App 接排到很後期。
+  名字維持 HongThai，副標「機場停飛風險」，加了雨雪霧之後仍用這個名字。語言維持四語（zh-TW、zh-HK、zh-CN、en），
+  不加日文、韓文；機場名稱與 AI 短評都只出這四語。網頁會做分享預覽卡與每個機場的獨立網址（Duado 總指揮排）；
+  資料端要多給什麼（例如每個機場一句摘要）由那邊再提
 - `latest.json` 的格式是和網頁的契約，以 Duado `docs/spec.md` 第 16 節為準：既有欄位不改名、不改型別，
   只能加；要改就兩邊同時改，先跟 Duado 的主對話說（經 Shawn 轉）
 - 分階段：
