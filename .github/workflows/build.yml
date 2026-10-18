@@ -1,0 +1,93 @@
+name: build
+
+on:
+  schedule:
+    # 依實測的出爐時間（2026-10-17／18，UTC）排：
+    # - ECMWF 開放資料 HRES（全部步長）：00Z ≈ 07:35、06Z ≈ 12:30、12Z ≈ 19:35、18Z ≈ 00:30
+    # - ECMWF 系集機率（10fgg*，只有 00／12Z）：00Z ≈ 08:00、12Z ≈ 20:00
+    # - GFS 到 f120（NOMADS）：00Z ≈ 03:40、06Z ≈ 09:40、12Z ≈ 15:40、18Z ≈ 21:40
+    # GitHub 排程常延遲 5–30 分鐘，所以抓在出爐後約 20–30 分鐘、避開整點。
+    - cron: "25 8 * * *" # EC 00Z（HRES＋系集）、GFS 00Z
+    - cron: "5 13 * * *" # EC 06Z HRES＋00Z 系集、GFS 06Z
+    - cron: "25 20 * * *" # EC 12Z（HRES＋系集）、GFS 12Z
+    - cron: "5 1 * * *" # EC 18Z HRES＋12Z 系集、GFS 18Z
+  workflow_dispatch:
+
+permissions:
+  contents: write # 把歷史紀錄推到 data 分支
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 裝 eccodes
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libeccodes-dev
+
+      - name: 裝套件
+        run: pip install .
+
+      - name: 取出 data 分支（歷史紀錄與上一份 latest.json）
+        run: |
+          if git ls-remote --exit-code --heads origin data > /dev/null; then
+            git fetch --depth=1 origin data:data
+            git worktree add data data
+          else
+            git worktree add --orphan -b data data
+          fi
+          du -sh data
+
+      - name: 產生 latest.json
+        id: build
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+        run: python -m hongthai.build --out public --archive data
+
+      - name: 推 data 分支
+        if: always()
+        working-directory: data
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "沒有新檔案"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "data: $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push origin data
+
+      - name: 上傳 Pages artifact
+        if: hashFiles('public/latest.json') != ''
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: 發布到 GitHub Pages
+        id: deploy
+        if: hashFiles('public/latest.json') != ''
+        uses: actions/deploy-pages@v4
+
+      - name: 流程失敗時標紅
+        if: steps.build.outcome != 'success'
+        run: |
+          echo "::error::python -m hongthai.build 失敗（已改發布上一份 latest.json，或沒有可發布的）"
+          exit 1

@@ -1,0 +1,100 @@
+[
+ {
+  "icaoId": "RCTP",
+  "issueTime": "2026-10-17T23:00:00.000Z",
+  "validTimeFrom": 1792281600,
+  "validTimeTo": 1792389600,
+  "rawTAF": "TAF RCTP 172300Z 1800/1906 17005KT 9999 FEW015 BKN032 BECMG 1802/1804 34005KT BECMG 1810/1812 09010KT TEMPO 1820/1901 12005KT BECMG 1904/1906 01005KT",
+  "fcsts": [
+   {
+    "timeFrom": 1792281600,
+    "timeTo": 1792288800,
+    "timeBec": null,
+    "fcstChange": null,
+    "probability": null,
+    "wdir": 170,
+    "wspd": 5,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792288800,
+    "timeTo": 1792317600,
+    "timeBec": 1792296000,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 340,
+    "wspd": 5,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792317600,
+    "timeTo": 1792382400,
+    "timeBec": 1792324800,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 90,
+    "wspd": 10,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792353600,
+    "timeTo": 1792371600,
+    "timeBec": null,
+    "fcstChange": "TEMPO",
+    "probability": null,
+    "wdir": 120,
+    "wspd": 5,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792382400,
+    "timeTo": 1792389600,
+    "timeBec": 1792389600,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 10,
+    "wspd": 5,
+    "wgst": null
+   }
+  ]
+ },
+ {
+  "icaoId": "VHHH",
+  "issueTime": "2026-10-18T02:00:00.000Z",
+  "validTimeFrom": 1792292400,
+  "validTimeTo": 1792400400,
+  "rawTAF": "TAF VHHH 180200Z 1803/1909 10010KT 9999 FEW020 TX32/1806Z TX32/1906Z TN27/1822Z TEMPO 1805/1809 27010KT BECMG 1903/1905 27010KT",
+  "fcsts": [
+   {
+    "timeFrom": 1792292400,
+    "timeTo": 1792378800,
+    "timeBec": null,
+    "fcstChange": null,
+    "probability": null,
+    "wdir": 100,
+    "wspd": 10,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792299600,
+    "timeTo": 1792314000,
+    "timeBec": null,
+    "fcstChange": "TEMPO",
+    "probability": null,
+    "wdir": 270,
+    "wspd": 10,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792378800,
+    "timeTo": 1792400400,
+    "timeBec": 1792386000,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 270,
+    "wspd": 10,
+    "wgst": null
+   }
+  ]
+ }
+]
