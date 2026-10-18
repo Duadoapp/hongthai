@@ -7,7 +7,7 @@ TAF 用回傳裡的 `fcsts`：每段有 `timeFrom`／`timeTo`（epoch 秒）、`
 `FM`、`BECMG`、`TEMPO`）、`probability`（30／40）、`wdir`、`wspd`、`wgst`（節）。
 沒有陣風時 `wgst` 是 null；`wdir` 可能是 `"VRB"`。
 
-H9（41 個機場）：一次請求帶全部 ICAO（`ids` 逗號分隔，41 個約 200 字元，網址不到 300 字元）。
+H9（41 個機場）起一次請求帶全部 ICAO（`ids` 逗號分隔；HD3 的 51 個是 254 字元，網址約 330 字元）。
 沒有 TAF 或 METAR 的站回應裡就沒有那一站（該機場 `taf`／`metar` 是 null）；一站都沒有時 API 回
 `204`、內容是空的，當成空陣列。2026-10-18 實測沒有 TAF 的：花蓮 RCYU、金門 RCBS、馬祖 RCFG、
 溫州 ZSWZ、泉州 ZSQZ、珠海 ZGSD、宮古 ROMY（宮古有 METAR，其他六個 METAR 也沒有）。

@@ -3,12 +3,14 @@
 `airports.json`（H9 起）是 `{"regions": [...], "airports": [...]}`：`regions` 是地區（顯示順序），
 `airports` 照地區順序排、地區內照顯示順序。讀的時候檢查：ICAO 唯一、地區 id 唯一、每個機場的
 `region` 在 `regions` 裡、`airports` 依 `regions` 的順序分段（同一地區的機場連在一起）、`tz` 是
-合法的 IANA 時區、跑道方位在 0–360。不對就丟 `ValueError`。
+合法的 IANA 時區、跑道方位在 0–360、看 NWS 警報（`warningSources` 有 `nws`，HD3）的機場有合法的
+`nwsZone`（例如 `GUZ001`）。不對就丟 `ValueError`。
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -60,6 +62,7 @@ class Airport:
     runways: tuple[Runway, ...] = ()
     cwa_areas: tuple[str, ...] = ()  # 氣象署警戒區關鍵字（`airports.json` 的 `cwaAreas`）
     region: str = ""  # 地區 id（`Region.id`）
+    nws_zone: str = ""  # NWS 的 zone（`airports.json` 的 `nwsZone`，HD3），例如關島 GUZ001
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,8 @@ class ConfirmedPeriod:
     end: datetime
     note: dict[str, str]
 
+
+_NWS_ZONE = re.compile(r"^[A-Z]{2}Z\d{3}$")
 
 _THRESHOLD_KEYS = {
     "modelMediumGustKt": "model_medium_gust_kt",
@@ -125,6 +130,7 @@ def load_airports(path: str | Path) -> list[Airport]:
                 ),
                 cwa_areas=tuple(a.get("cwaAreas", [])),
                 region=a["region"],
+                nws_zone=a.get("nwsZone", ""),
             )
         )
     _check(_regions(raw), airports)
@@ -151,6 +157,11 @@ def _check(regions: list[Region], airports: list[Airport]) -> None:
                 raise ValueError(
                     f"airports.json {a.icao} 跑道 {r.id} 的方位不在 0–360：{r.headings}"
                 )
+        if "nws" in a.warning_sources and not _NWS_ZONE.match(a.nws_zone):
+            raise ValueError(
+                f"airports.json {a.icao} 看 NWS 警報但 nwsZone {a.nws_zone!r} 不是 zone 代碼"
+                "（例如 GUZ001）"
+            )
     # 照地區順序分段：機場的地區順序不能往回跳
     order = [ids.index(a.region) for a in airports]
     if order != sorted(order):

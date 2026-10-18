@@ -7,7 +7,8 @@
   機率產品只有 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節），沒有 37 節的（`p37Kt` 一律 `null`，
   之後用 GEFS 系集成員自己算）；`p29Kt`（＝`p15`）只輸出、不進規則
 - 官方（只看 0–30 小時）：天文台／SMG 8 號或以上 → 高，3 號 → 中；氣象署陸上颱風警報且機場在警戒區
-  → 高，海上警報 → 中；TAF 該時段陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高，陣風 ≥ 37 節 → 中
+  → 高，海上警報 → 中；NWS（關島，HD3）Typhoon／Tropical Storm Warning → 高、Watch → 中
+  （對照在 `sources/nws.py`）；TAF 該時段陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高，陣風 ≥ 37 節 → 中
 - 陣風門檻（TAF 與模式同一套）的依據：桃園機場空橋規則，最大瞬間風速 37 節（蒲福 8 級）啟動
   空橋防護、48 節（10 級）空橋停用、55 節以上全部綁死
 - 0–30 小時以官方為準；官方與模式差一級以上標「落差」（`gap`）
@@ -18,8 +19,8 @@
 
 本模組自己的約定（規格沒寫死的地方）：
 - 「0–30 小時」：格的開始時間早於「現在 + 30 小時」
-- 目前生效的警報（天文台信號、氣象署颱風警報）套用到開始時間早於「現在 + 12 小時」的格
-  （`WARNING_HORIZON_H`；警報本身沒有預報時段，先保守地只套前兩三格）
+- 目前生效的警報（天文台／SMG 信號、氣象署颱風警報、NWS 警報）套用到開始時間早於
+  「現在 + 12 小時」的格（`WARNING_HORIZON_H`；警報本身沒有預報時段，先保守地只套前兩三格）
 - EC 系集機率是 24 小時窗：一格的機率取「完整包住這一格的所有窗」的最小值（6 小時內的機率
   不會超過任何包住它的 24 小時窗，所以是上界，偏保守）
 - HRES 陣風：一格取結束時間落在 (from, to] 的所有區間最大值；GFS 是瞬時值，取 [from, to] 的時間點
@@ -62,14 +63,15 @@ METAR_MAX_AGE_H = 3
 
 @dataclass(frozen=True)
 class ActiveWarning:
-    """目前生效的官方警報（天文台信號或氣象署颱風警報），給判讀與輸出用。"""
+    """目前生效的官方警報（天文台／SMG 信號、氣象署颱風警報、NWS 警報），給判讀與輸出用。"""
 
-    source: str  # hko／cwa
-    kind: str  # tc_signal／typhoon_land／typhoon_sea
+    source: str  # hko／cwa／smg／nws
+    # tc_signal／typhoon_land／typhoon_sea／typhoon_warning／typhoon_watch／ts_warning／ts_watch
+    kind: str
     level: str
     text: dict[str, str]
     issued_at: str | None
-    code: str | None = None  # 天文台信號代碼，例如 TC8NE
+    code: str | None = None  # 天文台／SMG 信號代碼（例如 TC8NE）、NWS 的 event
     detail: str | None = None
 
 

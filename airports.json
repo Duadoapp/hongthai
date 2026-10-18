@@ -5,7 +5,10 @@
     {"id": "south-china-hkmo", "name": {"zh-TW": "華南・港澳", "zh-HK": "華南・港澳", "zh-CN": "华南・港澳", "en": "South China, Hong Kong & Macau"}},
     {"id": "okinawa", "name": {"zh-TW": "沖繩", "zh-HK": "沖繩", "zh-CN": "冲绳", "en": "Okinawa"}},
     {"id": "japan", "name": {"zh-TW": "日本", "zh-HK": "日本", "zh-CN": "日本", "en": "Japan"}},
-    {"id": "korea", "name": {"zh-TW": "韓國", "zh-HK": "韓國", "zh-CN": "韩国", "en": "Korea"}}
+    {"id": "korea", "name": {"zh-TW": "韓國", "zh-HK": "韓國", "zh-CN": "韩国", "en": "Korea"}},
+    {"id": "vietnam", "name": {"zh-TW": "越南", "zh-HK": "越南", "zh-CN": "越南", "en": "Vietnam"}},
+    {"id": "philippines", "name": {"zh-TW": "菲律賓", "zh-HK": "菲律賓", "zh-CN": "菲律宾", "en": "Philippines"}},
+    {"id": "guam-palau", "name": {"zh-TW": "關島・帛琉", "zh-HK": "關島・帛琉", "zh-CN": "关岛・帕劳", "en": "Guam & Palau"}}
   ],
   "airports": [
     {
@@ -406,8 +409,10 @@
       "lat": 24.3964,
       "lon": 124.245,
       "warningSources": [],
-      "runways": [],
-      "runwaySource": "ourairports"
+      "runways": [
+        {"id": "04/22", "headings": [35.7, 215.7]}
+      ],
+      "runwaySource": "computed"
     },
     {
       "icao": "ROMY",
@@ -591,6 +596,148 @@
       "warningSources": [],
       "runways": [
         {"id": "14L/32R、14R/32L", "headings": [135, 315]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "VVNB",
+      "iata": "HAN",
+      "tz": "Asia/Ho_Chi_Minh",
+      "region": "vietnam",
+      "name": {"zh-TW": "河內", "zh-HK": "河內", "zh-CN": "河内", "en": "Hanoi"},
+      "lat": 21.2212,
+      "lon": 105.807,
+      "warningSources": [],
+      "runways": [
+        {"id": "11L/29R、11R/29L", "headings": [107, 287]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "VVTS",
+      "iata": "SGN",
+      "tz": "Asia/Ho_Chi_Minh",
+      "region": "vietnam",
+      "name": {"zh-TW": "胡志明", "zh-HK": "胡志明", "zh-CN": "胡志明", "en": "Ho Chi Minh City"},
+      "lat": 10.8188,
+      "lon": 106.652,
+      "warningSources": [],
+      "runways": [
+        {"id": "07L/25R、07R/25L", "headings": [69, 249]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "VVDN",
+      "iata": "DAD",
+      "tz": "Asia/Ho_Chi_Minh",
+      "region": "vietnam",
+      "name": {"zh-TW": "峴港", "zh-HK": "峴港", "zh-CN": "岘港", "en": "Da Nang"},
+      "lat": 16.0439,
+      "lon": 108.199,
+      "warningSources": [],
+      "runways": [
+        {"id": "17L/35R、17R/35L", "headings": [172, 352]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "VVCR",
+      "iata": "CXR",
+      "tz": "Asia/Ho_Chi_Minh",
+      "region": "vietnam",
+      "name": {"zh-TW": "芽莊", "zh-HK": "芽莊", "zh-CN": "芽庄", "en": "Nha Trang (Cam Ranh)"},
+      "lat": 11.9982,
+      "lon": 109.219,
+      "warningSources": [],
+      "runways": [
+        {"id": "02L/20R、02R/20L", "headings": [19, 199]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "VVPQ",
+      "iata": "PQC",
+      "tz": "Asia/Ho_Chi_Minh",
+      "region": "vietnam",
+      "name": {"zh-TW": "富國島", "zh-HK": "富國島", "zh-CN": "富国岛", "en": "Phu Quoc"},
+      "lat": 10.1698,
+      "lon": 103.9935,
+      "warningSources": [],
+      "runways": [
+        {"id": "10L/28R、10R/28L", "headings": [96, 276]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "RPLL",
+      "iata": "MNL",
+      "tz": "Asia/Manila",
+      "region": "philippines",
+      "name": {"zh-TW": "馬尼拉", "zh-HK": "馬尼拉", "zh-CN": "马尼拉", "en": "Manila"},
+      "lat": 14.5086,
+      "lon": 121.02,
+      "warningSources": [],
+      "runways": [
+        {"id": "06/24", "headings": [60.3, 240.3]},
+        {"id": "13/31", "headings": [134.8, 314.8]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "RPVM",
+      "iata": "CEB",
+      "tz": "Asia/Manila",
+      "region": "philippines",
+      "name": {"zh-TW": "宿霧", "zh-HK": "宿霧", "zh-CN": "宿雾", "en": "Cebu"},
+      "lat": 10.3093,
+      "lon": 123.9797,
+      "warningSources": [],
+      "runways": [
+        {"id": "04L/22R、04R/22L", "headings": [45, 225]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "RPLC",
+      "iata": "CRK",
+      "tz": "Asia/Manila",
+      "region": "philippines",
+      "name": {"zh-TW": "克拉克", "zh-HK": "克拉克", "zh-CN": "克拉克", "en": "Clark"},
+      "lat": 15.186,
+      "lon": 120.56,
+      "warningSources": [],
+      "runways": [
+        {"id": "02R/20L", "headings": [21.1, 201.1]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "PGUM",
+      "iata": "GUM",
+      "tz": "Pacific/Guam",
+      "region": "guam-palau",
+      "name": {"zh-TW": "關島", "zh-HK": "關島", "zh-CN": "关岛", "en": "Guam"},
+      "lat": 13.485,
+      "lon": 144.7973,
+      "warningSources": ["nws"],
+      "nwsZone": "GUZ001",
+      "runways": [
+        {"id": "06L/24R、06R/24L", "headings": [65, 245]}
+      ],
+      "runwaySource": "ourairports"
+    },
+    {
+      "icao": "PTRO",
+      "iata": "ROR",
+      "tz": "Pacific/Palau",
+      "region": "guam-palau",
+      "name": {"zh-TW": "帛琉", "zh-HK": "帛琉", "zh-CN": "帕劳", "en": "Palau"},
+      "lat": 7.367,
+      "lon": 134.5441,
+      "warningSources": [],
+      "runways": [
+        {"id": "09/27", "headings": [91, 271]}
       ],
       "runwaySource": "ourairports"
     }

@@ -5,8 +5,9 @@
 
 ## 這個 repo 做什麼
 
-用公開氣象資料，每天四次算 **41 個機場、六個地區**（台灣 10、華東 8、華南・港澳 8、沖繩 3、日本 8、
-韓國 4；H9 起，名單見 README「機場」）未來 120 小時、每 6 小時一格的**強風停飛風險**（低／中／高），
+用公開氣象資料，每天四次算 **51 個機場、九個地區**（台灣 10、華東 8、華南・港澳 8、沖繩 3、日本 8、
+韓國 4、越南 5、菲律賓 3、關島・帛琉 2；H9 起 41 個、HD3 起 51 個，名單見 README「機場」）未來 120 小時、
+每 6 小時一格的**強風停飛風險**（低／中／高），
 輸出一份 `latest.json` 發布在 GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
 
 - 只產資料。網頁 <https://duado.app/hongthai/> 在 Duado 的私人 repo（`site/hongthai/`），不在這裡
@@ -49,7 +50,7 @@
   - 第二階段（H4）：側風分跑道、松山／高雄／澳門
   - 第二階段之後的來源與統計修正（不算一個階段）：H6 航班統計、H7 來源預算、H10 GFS 鏡像與 ECMWF 瘦身
     （見 `docs/prompts/`）
-  - **第三階段（2026-10-18 定案，Duado spec 第 16 節的第三階段；資料端代號 H9）：機場擴成 41 個，分六個地區**，每個機場多一個地區欄位（網頁依此分組）：
+  - **第三階段（2026-10-18 定案，Duado spec 第 16 節的第三階段；資料端代號 H9）：機場擴成 41 個，分六個地區**（HD3 起 **51 個、九個地區**，見下面 HD3），每個機場多一個地區欄位（網頁依此分組）：
     台灣（10）：桃園、松山、高雄、台中、台南、花蓮、台東、澎湖、金門、馬祖南竿；
     華東（8）：上海浦東、虹橋、杭州、寧波、溫州、福州、廈門、泉州；
     華南・港澳（8）：潮汕、深圳、廣州、香港、澳門、珠海、海口、三亞；
@@ -69,7 +70,11 @@
     胡志明、峴港、芽莊（金蘭）、富國島；菲律賓（3）：馬尼拉、宿霧、克拉克；關島・帛琉（2）：關島、帛琉。
     名單 Shawn 指定（台灣有定期直飛）。越南、菲律賓官方警報先不接；關島、帛琉要評估 NWS Guam 的開放資料，
     能接就接。同一支順便補石垣的跑道（OurAirports 沒有，用日本 AIP 或跑道頭座標算）。
-    提示詞 `docs/prompts/2026-10-19-HD3-ten-airports-ishigaki.md`
+    提示詞 `docs/prompts/2026-10-19-HD3-ten-airports-ishigaki.md`。
+    做完的結果（HD3 PR）：**機場共 51 個、九個地區**；關島接 NWS（`api.weather.gov` 的
+    `/alerts/active?zone=GUZ001`，Typhoon／Tropical Storm Warning → 高、Watch → 中，Shawn 2026-10-19 定案）；
+    帛琉查不到 NWS 的警報（zone `PWZ001`–`PWZ008` 存在但 2026-04 起一筆警報都沒有），先不接；
+    石垣跑道 04/22 用 OpenStreetMap 跑道頭座標算出真北 035.7°／215.7°（日本 AIP 沙盒連不上）
   - **HD1（Duado #374 定案，排在 H9 之後、可在 AI 對決之前）：分享預覽圖**——每報跑完用 Pillow 畫每個機場一張
     1200×630 的分享預覽圖，發布到 Pages 的 `og/<iata>.png`（iata 小寫）。內容：IATA 大字、機場名（zh-TW＋en）、
     燈號（AI 上線前一顆規則燈，上線後自動變三顆）、更新時間、HongThai 字樣。字型由 hongthai 自備（OFL 授權的
@@ -108,6 +113,11 @@
   `okinawa`、`japan`、`korea`）、`airports[].region`（地區 id）、`airports[].official.warnings`（布林，
   有沒有接官方警報來源；`false` 顯示「官方警報：尚未提供」）。沒有 TAF／METAR 的機場 `taf`／`metar` 是
   `null`（原本就是可空）
+- HD3（51 個機場）要經 Shawn 轉給 Duado 總指揮、進 Duado `docs/spec.md` 第 16 節的（只加值，不加欄位）：
+  `regions` 多 `vietnam`（越南）、`philippines`（菲律賓／菲律宾）、`guam-palau`（關島・帛琉／关岛・帕劳／
+  Guam & Palau），接在 `korea` 之後；`airports[]` 變 51 個；`warnings[].source` 多 `"nws"`（關島），`kind` 是
+  `typhoon_warning`／`typhoon_watch`／`ts_warning`／`ts_watch`，`code` 是 NWS 的 event；`sources.nws`。
+  關島 `official.warnings: true`，越南、菲律賓、帛琉 `false`
 
 ## 流程
 
@@ -128,12 +138,21 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 | --- | --- | --- |
 | ECMWF 開放資料（經 AWS／Google 鏡像） | HRES 10 米陣風與 10 米風（側風的風向）、系集陣風機率 | CC BY 4.0（要標示 © ECMWF） |
 | NOAA GFS（AWS 開放資料鏡像 `noaa-gfs-bdp-pds`，NOMADS 備援；H10） | 地面陣風、10 米風 | 美國政府公有領域 |
-| AviationWeather.gov Data API | 41 個機場的 TAF、METAR（一個請求帶全部；7 個沒有 TAF，見 README「機場」） | 美國政府公有領域 |
-| OurAirports（`airports.csv`、`runways.csv`；H9） | 新增 36 個機場的座標與跑道真北方位 | 公有領域（Unlicense） |
+| AviationWeather.gov Data API | 51 個機場的 TAF、METAR（一個請求帶全部；7 個沒有 TAF，見 README「機場」；HD3 的十個都有） | 美國政府公有領域 |
+| OurAirports（`airports.csv`、`runways.csv`；H9、HD3） | 新增 46 個機場的座標與跑道真北方位 | 公有領域（Unlicense） |
+| OpenStreetMap（跑道 way 114511749；HD3） | 石垣跑道兩端座標（算真北方位） | ODbL，© OpenStreetMap contributors |
+| 美國國家氣象局 api.weather.gov（`/alerts/active?zone=GUZ001`；HD3） | 颱風／熱帶風暴警報與守視（關島）。帛琉查過不接，見下面 | 美國政府公有領域 |
 | 中央氣象署開放資料（`W-C0034-001`） | 颱風警報（台灣十個機場，每個機場一組警戒區關鍵字） | 政府資料開放授權條款；要授權碼 |
 | 香港天文台開放數據（warnsum） | 熱帶氣旋信號（香港） | data.gov.hk 使用條款 |
 | 澳門地球物理氣象局 SMG（`xml.smg.gov.mo`，data.gov.mo 資料集「熱帶氣旋信號」） | 熱帶氣旋信號（澳門） | 澳門政府數據開放平台使用條款（須註明平台與取得日期） |
 | 航班狀態（香港機管局、桃園機場、松山／高雄／澳門見 README） | 算每 6 小時格的取消／延誤統計（不存原始資料），之後回測 | 各自條款，見 README |
+
+NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權」與 `src/hongthai/sources/nws.py` 開頭）：
+- 關島：`/zones?area=GU` → `GUZ001`（PGUM 的 `/points` 的 `forecastZone`）；`/alerts?zone=GUZ001` 有超強颱風
+  Champi（29W）期間的 Typhoon Watch／Warning（10-15～10-18，更新是 `Update`、解除是 `Cancel`）→ 接了
+- 帛琉：`/zones?area=PW` 有 `PWZ001`–`PWZ008`（PTRO 在 Airai＝`PWZ003`，2026-04-16 生效），但 `/alerts?area=PW`
+  自 2026-04-01 起零筆、Champi 期間也沒有；`/offices/PQW` 404、`/points/7.367,134.5441` 500；HLS 只有 `PQ2`
+  （馬里亞納）→ 不接，`warningSources: []`。之後看到帛琉的警報再加 `nws`＋`nwsZone: "PWZ003"`
 
 ## `latest.json` 是契約
 
@@ -145,7 +164,8 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 
 - `src/hongthai/assess.py`：所有規則與本 repo 自己的約定（開頭的 docstring 寫齊了）
 - `airports.json` 的 `thresholds`：每個機場可覆寫的門檻（預設值在 `src/hongthai/config.py` 的 `Thresholds`）
-- 官方警報對機場：`airports.json` 的 `warningSources`（`cwa`／`hko`／`smg`）與 `cwaAreas`（氣象署警戒區關鍵字）
+- 官方警報對機場：`airports.json` 的 `warningSources`（`cwa`／`hko`／`smg`／`nws`）、`cwaAreas`（氣象署警戒區
+  關鍵字）與 `nwsZone`（NWS 的 zone，關島 `GUZ001`；HD3）
 
 ## 已知的保守假設與待校準的參數
 
@@ -171,7 +191,7 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 ### 來源逾時與沿用（H7，2026-10-18 build #4 被 ECMWF 429 卡到被砍之後）
 
 - 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 300（H10 起，原 240）、gfs 180、taf 45、hko 30、
-  smg 30、cwa 45、flights 120 秒，總和 12.5 分鐘），超過記 `error: "timeout"` 繼續跑下一個；
+  smg 30、cwa 45、nws 30（HD3）、flights 120 秒，總和 13 分鐘），超過記 `error: "timeout"` 繼續跑下一個；
   Actions 那一步 15 分鐘、job 25 分鐘
 - ECMWF 重試最多 3 次、間隔 10 秒、不照 Retry-After；找最新一報先問入口、下載先試 AWS 鏡像
   （→ 入口 → Google；AWS 下載不重試，S3 的 503 Slow Down 一來就換），`sources.ecmwf.mirror` 記實際來源。`ecmwf-opendata` 最低 0.3.34（有重試參數）
@@ -192,7 +212,8 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 Actions 自動推，不要手動改。內容：
 
 - `latest.json`、`history/<YYYYMMDDTHHMM>Z.json`：每次的結果
-- `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg}.json`：官方來源原始回應（SMG 是 XML 原文包在 JSON 裡）
+- `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws}.json`：官方來源原始回應（SMG 是 XML 原文包在 JSON 裡；
+  NWS 是 HD3 起）
 - `history/cancellations/<日期>.json`：每機場每 UTC 6 小時格的航班取消／延誤統計（之後回測停飛用；
   H6 起，原始航班資料不再存）。日期是格的 UTC 日期；每次 build 合併進去，同一格新的覆蓋舊的，
   但新的總班數比舊的少就留舊的。格式與規則見 README「輸出」、`src/hongthai/cancellations.py` 開頭
@@ -203,6 +224,6 @@ Actions 自動推，不要手動改。內容：
   欄位見 README「輸出」
 - `history/flights/2026-10-18/`：H6 之前存的一天份航班快照（gz），留著不管
 
-GitHub Pages（`public/`）只放 `latest.json` 與**最近 7 天**的 `history/<時間>.json`（H9 起，一份約 515 KB，2026-10-18 實測；
+GitHub Pages（`public/`）只放 `latest.json` 與**最近 7 天**的 `history/<時間>.json`（H9 起，一份約 515 KB；HD3 起約 642 KB，2026-10-18 實測；
 `build.py` 的 `PAGES_HISTORY_DAYS`，Shawn 確認中），不放原始快照與航班統計。`data` 分支的
 `history/<時間>.json` 照舊全部保留。

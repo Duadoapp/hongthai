@@ -3,7 +3,7 @@
 目錄：
 - `--archive`（預設 `data/`，Actions 裡是 `data` 分支的 checkout）：長期保存
   - `latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（每次的結果）
-  - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署、SMG 原始回應；
+  - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署、SMG、NWS 原始回應；
     SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON）
   - `history/cancellations/<YYYY-MM-DD>.json`（每機場每 6 小時格的航班取消／延誤統計，日期是格的
     UTC 日期；合併規則見 `cancellations.py`。原始航班資料不存）
@@ -55,18 +55,18 @@ from .config import (
     load_confirmed,
     load_regions,
 )
-from .sources import cwa, ecmwf, flights, gfs, hko, smg, taf
+from .sources import cwa, ecmwf, flights, gfs, hko, nws, smg, taf
 from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
 
 log = logging.getLogger("hongthai")
 
 SCHEMA = 1
 PAGES_URL = "https://duadoapp.github.io/hongthai/latest.json"
-SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa", "smg")
+SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa", "smg", "nws")
 
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
 # 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。
-# 總和 750 秒（12.5 分鐘），`build.yml` 那一步的上限是 15 分鐘。
+# 總和 780 秒（13 分鐘，HD3 加 nws 30 秒），`build.yml` 那一步的上限是 15 分鐘。
 BUDGET_S: dict[str, float] = {
     "ecmwf": 300,  # HRES＋系集，含鏡像切換
     "gfs": 180,
@@ -74,6 +74,7 @@ BUDGET_S: dict[str, float] = {
     "hko": 30,
     "smg": 30,
     "cwa": 45,
+    "nws": 30,  # HD3：關島的颱風警報，一個請求
     "flights": 120,  # 抓＋統計＋寫檔
 }
 
@@ -332,6 +333,7 @@ def collect_warnings(
     hko_data: hko.HkoData | None,
     cwa_data: cwa.CwaData | None,
     smg_data: smg.SmgData | None = None,
+    nws_data: nws.NwsData | None = None,
 ) -> list[assess.ActiveWarning]:
     out: list[assess.ActiveWarning] = []
     if "hko" in airport.warning_sources and hko_data and hko_data.signal:
@@ -349,6 +351,13 @@ def collect_warnings(
             out.append(
                 assess.ActiveWarning(
                     "cwa", w.kind, w.level, w.text, w.issued_at, detail=w.detail or None
+                )
+            )
+    if "nws" in airport.warning_sources and nws_data:
+        for w in nws.for_zone(nws_data.alerts, airport.nws_zone):
+            out.append(
+                assess.ActiveWarning(
+                    "nws", w.kind, w.level, w.text, w.issued_at, w.code, w.detail or None
                 )
             )
     return out
@@ -409,13 +418,14 @@ def assemble(
     hk: hko.HkoData | None,
     cw: cwa.CwaData | None,
     sm: smg.SmgData | None = None,
+    nw: nws.NwsData | None = None,
 ) -> dict:
     """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。"""
     slots = slot_bounds(now)
     window_start, window_end = slots[0][0], slots[-1][1]
     out_airports = []
     for a in airports:
-        warns = collect_warnings(a, hk, cw, sm)
+        warns = collect_warnings(a, hk, cw, sm, nw)
         mine = [c for c in confirmed if c.airport == a.icao]
         taf_info = tf.tafs.get(a.icao) if tf else None
         metar = tf.metars.get(a.icao) if tf else None
@@ -539,6 +549,8 @@ def run(
     hk = _call("hko", hko.fetch, status, timing)
     cw = _call("cwa", lambda: cwa.fetch(api_key, now), status, timing)
     sm = _call("smg", smg.fetch, status, timing)
+    nws_zones = [a.nws_zone for a in airports if "nws" in a.warning_sources]
+    nw = _call("nws", lambda: nws.fetch(nws_zones), status, timing)
     _call(
         "flights",
         lambda: flight_stats(flights.fetch(now), airports, now, history),
@@ -559,6 +571,7 @@ def run(
         hk=hk,
         cw=cw,
         sm=sm,
+        nw=nw,
     )
     failed = [n for n, d in (("ecmwf", ec), ("gfs", gf)) if d is None]
     if failed:
@@ -579,6 +592,8 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-cwa.json", cw.raw)
     if sm is not None:
         _dump(raw_dir / f"{now:%H%M}Z-smg.json", sm.raw)
+    if nw is not None:
+        _dump(raw_dir / f"{now:%H%M}Z-nws.json", nw.raw)
     _dump(history / f"{stamp}.json", latest)
     _dump(archive / "latest.json", latest)
     return latest

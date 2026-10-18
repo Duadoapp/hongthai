@@ -14,8 +14,11 @@
 - `taf.json`、`metar.json` 後面三筆（RCSS、RCKH、VMMC）是 2026-10-18 04:50Z 抓的
 - `taf.json` 再後面四筆（ZSPD、ROAH、RJTT、RKSI）與 `metar.json` 再後面五筆（同四站＋ROMY，宮古只有 METAR）
   是 H9 一次請求 41 站時（2026-10-18 17:1xZ）抓的；ZSPD 是 `MPS` 的 TAF
-- `gfs_all_f120.grb2`：H9 的 NOMADS 一個框（17.3–43.8°N、108.4–142.7°E，2026-10-18 12Z f120，GUST＋10 米風，
-  約 64 KB），41 個機場都在框內
+- `gfs_all_f120.grb2`：NOMADS 一個框（HD3 換成 51 個機場的框：6.37–43.77°N、102.99–145.80°E，2026-10-18 12Z
+  f120，GUST＋10 米風，113 KB；H9 原本是 41 個機場的框、約 64 KB），51 個機場都在框內
+- `nws_alerts_active_guz001_none.json`：NWS `/alerts/active?zone=GUZ001`（2026-10-18 17:53Z，關島當時只有
+  Wind Advisory、Flood Watch、Rip Current Statement、High Surf Advisory，沒有颱風的；`description`／`instruction`
+  截到 300 字、去掉 `expiredReferences`）
 - `smg_{c,e}_typhoon_none.xml`：SMG 熱帶氣旋信號 XML（當時沒有信號）
 - `tsa_intl_departure.json`、`khh_intdep.json`、`mfm_departure_en.json`：松山、高雄、澳門航班（各前 5 筆）
 - `hkg_arrival.json`：香港機管局航班資訊（每天只留 3 筆）
@@ -32,6 +35,12 @@
   [Mark-MTR/weather-warnings-archive](https://github.com/Mark-MTR/weather-warnings-archive)（MIT；存的是 SMG 網站後端
   `new-api.smg.gov.mo` 把同一份 XML 轉成的 JSON），照 `c_typhoon.xml` 的元素順序轉回 XML。8 號以上沒有真實樣本，
   測試裡把 3 號的 `Inforce` 改成 `8ne`
+
+真實警報、組成 active 的格式：
+- `nws_alerts_active_guz001_typhoon.json`：超強颱風 Champi（29W）期間 `/alerts?zone=GUZ001` 的三則真實警報——
+  Typhoon Warning 更新（2026-10-18 15:01 ChST）、Typhoon Watch 更新（10-16 08:50 ChST，涵蓋 GUZ001 與北馬
+  MPZ001–003）、Typhoon Warning 解除（10-18 17:51 ChST，`messageType: Cancel`）——加上上面那份的 Flood Watch，
+  包成 `/alerts/active` 的 FeatureCollection（同時生效的組合是拼的；欄位同上截短）
 
 合成樣本（目前沒有颱風，照真實格式改出來）：
 - `hko_warnsum_tc8ne_{tc,en,sc}.json`：依天文台 API 文件的回應範例格式，8 號東北信號

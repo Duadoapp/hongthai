@@ -14,10 +14,10 @@ from conftest import FIXTURES, ROOT, load_json, utc
 
 from hongthai import budget, build, grib
 from hongthai.config import ConfirmedPeriod, Thresholds, load_airports, load_regions
-from hongthai.sources import cwa, ecmwf, gfs, hko, smg, taf
+from hongthai.sources import cwa, ecmwf, gfs, hko, nws, smg, taf
 from hongthai.sources.gfs import GfsData, GustPoint
 
-# 地區與機場的顯示順序（H9，Duado spec 第 16 節）
+# 地區與機場的顯示順序（H9；HD3 加越南、菲律賓、關島・帛琉；Duado spec 第 16 節）
 REGIONS = {
     "taiwan": ["RCTP", "RCSS", "RCKH", "RCMQ", "RCNN", "RCYU", "RCFN", "RCQC", "RCBS", "RCFG"],
     "east-china": ["ZSPD", "ZSSS", "ZSHC", "ZSNB", "ZSWZ", "ZSFZ", "ZSAM", "ZSQZ"],
@@ -25,6 +25,9 @@ REGIONS = {
     "okinawa": ["ROAH", "ROIG", "ROMY"],
     "japan": ["RJFK", "RJFF", "RJBB", "RJGG", "RJTT", "RJAA", "RJCC", "RJSS"],
     "korea": ["RKPC", "RKPK", "RKSI", "RKSS"],
+    "vietnam": ["VVNB", "VVTS", "VVDN", "VVCR", "VVPQ"],
+    "philippines": ["RPLL", "RPVM", "RPLC"],
+    "guam-palau": ["PGUM", "PTRO"],
 }
 ICAOS = [i for icaos in REGIONS.values() for i in icaos]
 TAIWAN = REGIONS["taiwan"]
@@ -68,12 +71,13 @@ def sample_inputs(airports):
     sm = smg.SmgData(
         smg.parse_signal({"c": (FIXTURES / "smg_c_typhoon_sig3.xml").read_text("utf-8")}), {}
     )
-    return ec, gf, tf, hk, cw, sm
+    nw = nws.NwsData(nws.parse_alerts(load_json("nws_alerts_active_guz001_typhoon.json")), {})
+    return ec, gf, tf, hk, cw, sm, nw
 
 
 @pytest.fixture
 def latest(airports):
-    ec, gf, tf, hk, cw, sm = sample_inputs(airports)
+    ec, gf, tf, hk, cw, sm, nw = sample_inputs(airports)
     regions = load_regions(ROOT / "airports.json")
     status = {n: {"ok": True} for n in build.SOURCE_NAMES}
     status["cwa"] = {"ok": False, "error": "timeout"}
@@ -92,6 +96,7 @@ def latest(airports):
         hk=hk,
         cw=cw,
         sm=sm,
+        nw=nw,
     )
     # 確認可以序列化成 JSON，並用序列化後的結果檢查
     return json.loads(json.dumps(out))
@@ -103,7 +108,7 @@ def test_top_level(latest):
     assert set(latest["runs"]) >= {"ecmwf", "gfs"}
     for v in latest["runs"].values():
         assert v is None or ISO_Z.match(v)
-    assert set(latest["sources"]) >= {"ecmwf", "gfs", "taf", "hko", "cwa", "smg"}
+    assert set(latest["sources"]) >= {"ecmwf", "gfs", "taf", "hko", "cwa", "smg", "nws"}
     for s in latest["sources"].values():
         assert isinstance(s["ok"], bool)
         if not s["ok"]:
@@ -130,7 +135,7 @@ def test_airport_shape(latest):
         assert set(a["official"]) == {"warnings"} and isinstance(a["official"]["warnings"], bool)
         assert "runwaySource" not in a
         for w in a["warnings"]:
-            assert w["source"] in ("hko", "cwa", "smg")
+            assert w["source"] in ("hko", "cwa", "smg", "nws")
             assert isinstance(w["kind"], str)
             assert w["level"] in ("low", "medium", "high")
             assert set(w["text"]) == LANGS
@@ -197,7 +202,7 @@ def test_content_from_samples(latest):
         assert [w["kind"] for w in by[icao]["warnings"]] == ["typhoon_land"]
     assert "松山在警戒區" in by["RCSS"]["warnings"][0]["text"]["zh-TW"]
     # 沒有官方警報來源的機場：warnings 是空的、official.warnings 是 false（網頁顯示「尚未提供」）
-    with_sources = set(TAIWAN) | {"VHHH", "VMMC"}
+    with_sources = set(TAIWAN) | {"VHHH", "VMMC", "PGUM"}
     for a in latest["airports"]:
         assert a["official"]["warnings"] is (a["icao"] in with_sources)
         if a["icao"] not in with_sources:
@@ -209,16 +214,29 @@ def test_content_from_samples(latest):
     ]
     assert vmmc["slots"][0]["official"]["warnings"] == ["tc_signal"]
     assert vmmc["slots"][0]["level"] == "medium"
+    # NWS（HD3）只給關島：颱風警報高、守視中，解除的那一則不算；帛琉沒接
+    pgum = by["PGUM"]
+    assert [(w["source"], w["kind"], w["level"], w["code"]) for w in pgum["warnings"]] == [
+        ("nws", "typhoon_warning", "high", "Typhoon Warning"),
+        ("nws", "typhoon_watch", "medium", "Typhoon Watch"),
+    ]
+    assert pgum["warnings"][0]["text"]["zh-TW"] == "颱風警報生效中（美國國家氣象局）"
+    assert pgum["warnings"][0]["text"]["en"].startswith("Typhoon Warning issued October 18")
+    assert pgum["warnings"][0]["detail"] == "TYPHOON WARNING REMAINS IN EFFECT"
+    assert pgum["warnings"][0]["issuedAt"] == "2026-10-18T05:01:00Z"
+    assert pgum["slots"][0]["official"]["warnings"] == ["typhoon_warning", "typhoon_watch"]
+    assert (pgum["slots"][0]["level"], pgum["slots"][0]["basis"]) == ("high", "official")
+    assert by["PTRO"]["official"]["warnings"] is False and by["PTRO"]["warnings"] == []
     # 側風：GFS 40 節、120° → 對香港 070.9° 的跑道差 49°
     xw = vhhh["slots"][0]["model"]["gfs"]["crosswindKt"]
     assert xw == pytest.approx(40 * 0.755, abs=0.2)
-    # 有跑道的機場都算得出側風；石垣 OurAirports 沒有跑道方位 → 側風一律 null
+    # 51 個機場都有跑道（石垣 HD3 補上），都算得出側風
     for a in latest["airports"]:
         xws = [s["model"]["ec"]["crosswindKt"] for s in a["slots"][12:14]]
-        if a["icao"] == "ROIG":
-            assert xws == [None, None]
-        else:
-            assert all(isinstance(x, float) for x in xws)
+        assert all(isinstance(x, float) for x in xws), a["icao"]
+    # 石垣 04/22（035.7°）：GFS 40 節、120° → 差 84.3°
+    roig = by["ROIG"]["slots"][0]["model"]["gfs"]["crosswindKt"]
+    assert roig == pytest.approx(40 * 0.995, abs=0.1)
     s0 = vhhh["slots"][0]
     assert (s0["level"], s0["basis"]) == ("high", "official")
     assert s0["official"]["warnings"] == ["tc_signal"]
@@ -231,7 +249,7 @@ def test_content_from_samples(latest):
 
 
 def test_airports_thresholds_in_knots(airports, tmp_path):
-    # 41 個機場目前都用預設門檻（節），airports.json 不寫 thresholds
+    # 51 個機場目前都用預設門檻（節），airports.json 不寫 thresholds
     assert all(a.thresholds == Thresholds() for a in airports)
     raw = json.loads((ROOT / "airports.json").read_text("utf-8"))
     assert not any("thresholds" in a for a in raw["airports"])
@@ -248,39 +266,50 @@ def test_airports_thresholds_in_knots(airports, tmp_path):
 
 
 def test_airports_json_structure():
-    """`airports.json`（H9）：41 個機場、六個地區，順序和 Duado spec 第 16 節一致。"""
+    """`airports.json`（H9、HD3）：51 個機場、九個地區，順序和 Duado spec 第 16 節一致。"""
     raw = json.loads((ROOT / "airports.json").read_text("utf-8"))
     assert [r["id"] for r in raw["regions"]] == list(REGIONS)
     assert all(set(r["name"]) == LANGS for r in raw["regions"])
     aps = raw["airports"]
-    assert len(aps) == 41 and [a["icao"] for a in aps] == ICAOS
-    assert len({a["icao"] for a in aps}) == 41 and len({a["iata"] for a in aps}) == 41
+    assert len(raw["regions"]) == 9
+    assert len(aps) == 51 and [a["icao"] for a in aps] == ICAOS
+    assert len({a["icao"] for a in aps}) == 51 and len({a["iata"] for a in aps}) == 51
     for a in aps:
         assert a["icao"] in REGIONS[a["region"]]
         assert re.fullmatch(r"[A-Z]{4}", a["icao"]) and re.fullmatch(r"[A-Z]{3}", a["iata"])
         ZoneInfo(a["tz"])
         assert set(a["name"]) == LANGS and "機場" not in a["name"]["zh-TW"]
         assert -90 <= a["lat"] <= 90 and -180 <= a["lon"] <= 180
-        assert a["runwaySource"] in ("aip", "ourairports")
+        assert a["runwaySource"] in ("aip", "ourairports", "computed")
+        assert a["runways"], a["icao"]  # HD3 起每個機場都有跑道
         for r in a["runways"]:
             assert len(r["headings"]) == 2 and all(0 <= h <= 360 for h in r["headings"])
             assert abs((r["headings"][1] - r["headings"][0]) % 360 - 180) < 0.05
-        # 官方警報：台灣看氣象署（每個機場一組警戒區關鍵字）、香港天文台、澳門 SMG，其他還沒有
+        # 官方警報：台灣看氣象署（每個機場一組警戒區關鍵字）、香港天文台、澳門 SMG、
+        # 關島 NWS（HD3），其他還沒有（越南、菲律賓先不接；帛琉 NWS 查不到）
         want = (
             ["cwa"]
             if a["region"] == "taiwan"
-            else {"VHHH": ["hko"], "VMMC": ["smg"]}.get(a["icao"], [])
+            else {"VHHH": ["hko"], "VMMC": ["smg"], "PGUM": ["nws"]}.get(a["icao"], [])
         )
         assert a["warningSources"] == want
         assert bool(a.get("cwaAreas")) == (a["region"] == "taiwan")
+        assert a.get("nwsZone") == ("GUZ001" if a["icao"] == "PGUM" else None)
     aip = [a["icao"] for a in aps if a["runwaySource"] == "aip"]
     assert sorted(aip) == ["RCKH", "RCSS", "RCTP", "VHHH", "VMMC"]
+    assert [a["icao"] for a in aps if a["runwaySource"] == "computed"] == ["ROIG"]
+    roig = next(a for a in aps if a["icao"] == "ROIG")
+    assert roig["runways"] == [{"id": "04/22", "headings": [35.7, 215.7]}]
 
 
 def _write_airports(tmp_path, raw):
     p = tmp_path / "airports.json"
     p.write_text(json.dumps(raw, ensure_ascii=False), "utf-8")
     return p
+
+
+def _pgum(raw):
+    return next(a for a in raw["airports"] if a["icao"] == "PGUM")
 
 
 @pytest.mark.parametrize(
@@ -292,6 +321,8 @@ def _write_airports(tmp_path, raw):
         (lambda raw: raw["airports"][0]["runways"][0].update(headings=[49, 400]), "0–360"),
         (lambda raw: raw["airports"].insert(0, raw["airports"].pop(-1)), "順序"),
         (lambda raw: raw["regions"].append(dict(raw["regions"][0])), "地區 id 重複"),
+        (lambda raw: _pgum(raw).pop("nwsZone"), "nwsZone"),
+        (lambda raw: _pgum(raw).update(nwsZone="Guam"), "nwsZone"),
     ],
 )
 def test_airports_json_rejected(tmp_path, change, message):
@@ -318,6 +349,7 @@ def workspace(tmp_path, monkeypatch):
     (tmp_path / "airports.json").write_text((ROOT / "airports.json").read_text("utf-8"), "utf-8")
     (tmp_path / "confirmed.json").write_text("[]", "utf-8")
     monkeypatch.setattr(build.flights, "fetch", lambda now: build.flights.FlightsData({}, {}))
+    monkeypatch.setattr(build.nws, "fetch", lambda zones: build.nws.NwsData([], {}))
 
     def no_network(*a, **k):  # 模式失敗時會去 Pages 抓上一份；測試不連網
         raise build.requests.ConnectionError("測試不連網")
@@ -335,7 +367,7 @@ def _boom(*a, **k):
 
 
 def test_all_sources_fail_still_outputs(workspace, monkeypatch):
-    for mod in (build.ecmwf, build.gfs, build.taf, build.hko, build.smg):
+    for mod in (build.ecmwf, build.gfs, build.taf, build.hko, build.smg, build.nws):
         monkeypatch.setattr(mod, "fetch", _boom)
     monkeypatch.delenv("CWA_API_KEY", raising=False)
     assert build.main([]) == 0
@@ -352,20 +384,24 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
 
 
 def test_full_build_from_fixtures(workspace, monkeypatch, airports):
-    """整個 `build.main` 用 fixtures 跑一次：41 個機場都有 20 格，原始快照都寫了。"""
-    ec, gf, tf, hk, cw, sm = sample_inputs(airports)
+    """整個 `build.main` 用 fixtures 跑一次：51 個機場都有 20 格，原始快照都寫了。"""
+    ec, gf, tf, hk, cw, sm, nw = sample_inputs(airports)
     gf = GfsData(utc(2026, 10, 18, 12), gfs.parse_file(FIXTURES / "gfs_all_f120.grb2", airports))
     tf.raw.update(taf=load_json("taf.json"), metar=load_json("metar.json"))
     hk.raw.update(tc={})
     sm.raw.update(c=(FIXTURES / "smg_c_typhoon_sig3.xml").read_text("utf-8"))
+    nw.raw.update(load_json("nws_alerts_active_guz001_typhoon.json"))
+    zones_asked = []
     monkeypatch.setattr(build.ecmwf, "fetch", lambda *a, **k: ec)
     monkeypatch.setattr(build.gfs, "fetch", lambda *a, **k: gf)
     monkeypatch.setattr(build.taf, "fetch", lambda *a, **k: tf)
     monkeypatch.setattr(build.hko, "fetch", lambda: hk)
     monkeypatch.setattr(build.cwa, "fetch", lambda *a: cw)
     monkeypatch.setattr(build.smg, "fetch", lambda: sm)
+    monkeypatch.setattr(build.nws, "fetch", lambda zones: zones_asked.extend(zones) or nw)
     monkeypatch.setattr(build, "utcnow", lambda: NOW)
     assert build.main([]) == 0
+    assert zones_asked == ["GUZ001"]
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     assert all(s["ok"] for k, s in out["sources"].items())
     assert [a["icao"] for a in out["airports"]] == ICAOS
@@ -375,7 +411,7 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     assert [r["id"] for r in out["regions"]] == list(REGIONS)
     raw = workspace / "data" / "history" / "raw" / "2026-10-18"
     assert sorted(p.name for p in raw.iterdir()) == [
-        f"0810Z-{n}.json" for n in ("cwa", "hko", "metar", "smg", "taf")
+        f"0810Z-{n}.json" for n in ("cwa", "hko", "metar", "nws", "smg", "taf")
     ]
 
 
@@ -452,7 +488,7 @@ def test_flight_fetch_error_reported(workspace, monkeypatch):
 
 
 def _fail_all_but(monkeypatch, **fetches):
-    for name in ("ecmwf", "gfs", "taf", "hko", "smg"):
+    for name in ("ecmwf", "gfs", "taf", "hko", "smg", "nws"):
         monkeypatch.setattr(getattr(build, name), "fetch", fetches.get(name, _boom))
     monkeypatch.delenv("CWA_API_KEY", raising=False)
     monkeypatch.setattr(build, "utcnow", lambda: NOW)
@@ -724,6 +760,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "hko",
         "cwa",
         "smg",
+        "nws",
         "flights",
         "done",
     ]

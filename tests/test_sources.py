@@ -10,7 +10,7 @@ import pytest
 import requests
 from conftest import FIXTURES, load_json, utc
 
-from hongthai.sources import cwa, ecmwf, flights, gfs, hko, smg, taf
+from hongthai.sources import cwa, ecmwf, flights, gfs, hko, nws, smg, taf
 from hongthai.units import KT_PER_MS
 
 # ---- TAF／METAR ----
@@ -66,8 +66,8 @@ def test_taf_fetch_one_request_for_all_and_204(monkeypatch, airports):
     data = taf.fetch(airports)
     assert len(calls) == 2
     ids = calls[0][1]["ids"].split(",")
-    assert ids == [a.icao for a in airports] and len(ids) == 41
-    assert len(calls[0][1]["ids"]) < 250  # 網址長度沒問題
+    assert ids == [a.icao for a in airports] and len(ids) == 51
+    assert len(calls[0][1]["ids"]) < 300  # 網址長度沒問題
     assert data.metars == {} and data.raw["metar"] == []
     assert "RCYU" not in data.tafs and "RCTP" in data.tafs
 
@@ -458,18 +458,18 @@ def test_ecmwf_client_bounded_retries(monkeypatch):
 
 
 def test_gfs_nomads_one_box(airports):
-    """NOMADS 備援（H9）：一個框涵蓋全部 41 個機場（外接框 ±1°）。"""
+    """NOMADS 備援（H9）：一個框涵蓋全部 51 個機場（外接框 ±1°；HD3 起框變大）。"""
     box = gfs.subregion(airports)
-    assert float(box["bottomlat"]) == pytest.approx(17.30)  # 三亞 18.30
+    assert float(box["bottomlat"]) == pytest.approx(6.37)  # 帛琉 7.367
     assert float(box["toplat"]) == pytest.approx(43.77)  # 新千歲 42.77
-    assert float(box["leftlon"]) == pytest.approx(108.41)  # 三亞 109.41
-    assert float(box["rightlon"]) == pytest.approx(142.69)  # 新千歲 141.69
-    assert 17 <= float(box["bottomlat"]) and float(box["toplat"]) <= 44
-    assert 107 <= float(box["leftlon"]) and float(box["rightlon"]) <= 147
+    assert float(box["leftlon"]) == pytest.approx(102.99)  # 富國島 103.9935
+    assert float(box["rightlon"]) == pytest.approx(145.80)  # 關島 144.7973
+    assert 6 <= float(box["bottomlat"]) and float(box["toplat"]) <= 44
+    assert 102 <= float(box["leftlon"]) and float(box["rightlon"]) <= 146
 
 
 def test_gfs_parse_one_box_all_airports(airports):
-    """2026-10-18 實測 NOMADS 一個框（12Z f120，約 64 KB）：41 個機場都在框內、都解析得到。"""
+    """2026-10-18 實測 NOMADS 一個框（12Z f120，113 KB）：51 個機場都在框內、都解析得到。"""
     pts = gfs.parse_file(FIXTURES / "gfs_all_f120.grb2", airports)
     assert set(pts) == {a.icao for a in airports}
     for icao, ps in pts.items():
@@ -717,6 +717,114 @@ def test_smg_bad_xml():
     with pytest.raises(smg.SmgError) as e:
         smg.parse_signal({"c": "<html>"})
     assert e.value.code == "bad_xml"
+
+
+# ---- NWS（關島，HD3） ----
+
+
+def test_nws_no_tc_alert_real_sample():
+    """2026-10-18 17:5xZ 的 `/alerts/active?zone=GUZ001`：只有 Wind Advisory 等，沒有颱風的。"""
+    doc = load_json("nws_alerts_active_guz001_none.json")
+    assert {f["properties"]["event"] for f in doc["features"]} >= {"Wind Advisory", "Flood Watch"}
+    assert nws.parse_alerts(doc) == []
+
+
+def test_nws_typhoon_real_sample():
+    """Champi（29W）期間的真實警報：颱風警報（更新）、颱風守視、颱風警報解除、Flood Watch。"""
+    alerts = nws.parse_alerts(load_json("nws_alerts_active_guz001_typhoon.json"))
+    assert [(a.kind, a.level, a.code) for a in alerts] == [
+        ("typhoon_warning", "high", "Typhoon Warning"),
+        ("typhoon_watch", "medium", "Typhoon Watch"),
+    ]  # 解除（messageType Cancel）與 Flood Watch 不算
+    w = alerts[0]
+    assert w.zones == ("GUZ001",)
+    assert w.issued_at == "2026-10-18T05:01:00Z"  # sent 15:01 ChST（+10:00）
+    assert w.detail == "TYPHOON WARNING REMAINS IN EFFECT"
+    assert w.text == {
+        "zh-TW": "颱風警報生效中（美國國家氣象局）",
+        "zh-HK": "颱風警告生效中（美國國家氣象局）",
+        "zh-CN": "台风警报生效中（美国国家气象局）",
+        "en": "Typhoon Warning issued October 18 at 3:01PM ChST by NWS Tiyan GU",
+    }
+    assert [a.kind for a in nws.for_zone(alerts, "GUZ001")] == ["typhoon_warning", "typhoon_watch"]
+    assert [a.kind for a in nws.for_zone(alerts, "MPZ001")] == ["typhoon_watch"]  # 守視涵蓋北馬
+    assert nws.for_zone(alerts, "PWZ003") == []
+
+
+@pytest.mark.parametrize(
+    ("event", "kind", "level"),
+    [
+        ("Typhoon Warning", "typhoon_warning", "high"),
+        ("Tropical Storm Warning", "ts_warning", "high"),
+        ("Typhoon Watch", "typhoon_watch", "medium"),
+        ("Tropical Storm Watch", "ts_watch", "medium"),
+    ],
+)
+def test_nws_event_levels(event, kind, level):
+    doc = load_json("nws_alerts_active_guz001_typhoon.json")
+    f = doc["features"][0]
+    f["properties"].update(event=event, headline=f"{event} issued by NWS Tiyan GU")
+    (a,) = nws.parse_alerts({"features": [f]})
+    assert (a.kind, a.level, a.code, a.text["en"]) == (
+        kind,
+        level,
+        event,
+        f"{event} issued by NWS Tiyan GU",
+    )
+    assert a.text["zh-TW"].endswith("生效中（美國國家氣象局）")
+
+
+def test_nws_skips_test_messages_and_keeps_latest():
+    f = load_json("nws_alerts_active_guz001_typhoon.json")["features"][0]
+    old = json.loads(json.dumps(f))
+    old["properties"].update(sent="2026-10-18T12:02:00+10:00", headline="older")
+    exercise = json.loads(json.dumps(f))
+    exercise["properties"]["status"] = "Exercise"
+    alerts = nws.parse_alerts({"features": [old, f, exercise]})
+    assert len(alerts) == 2  # 演習的不算
+    (a,) = nws.for_zone(alerts, "guz001")  # 同一種取 sent 最新的；zone 不分大小寫
+    assert a.issued_at == "2026-10-18T05:01:00Z"
+    # 沒有 geocode 時從 affectedZones 取 zone
+    del f["properties"]["geocode"]
+    assert nws.parse_alerts({"features": [f]})[0].zones == ("GUZ001",)
+
+
+def test_nws_bad_format():
+    with pytest.raises(nws.NwsError) as e:
+        nws.parse_alerts({"title": "no features"})
+    assert e.value.code == "bad_format"
+
+
+def test_nws_fetch_one_request_for_all_zones(monkeypatch):
+    calls = []
+
+    def fake_get(url, *, params=None, headers=None, error=None, **kw):
+        calls.append((url, params, headers, error))
+        return _Resp(200, (FIXTURES / "nws_alerts_active_guz001_typhoon.json").read_bytes())
+
+    monkeypatch.setattr(nws, "http_get", fake_get)
+    data = nws.fetch(["GUZ001", "guz001", "PWZ003"])
+    assert calls == [
+        (nws.URL, {"zone": "GUZ001,PWZ003"}, {"Accept": "application/geo+json"}, nws.NwsError)
+    ]
+    assert [a.kind for a in data.alerts] == ["typhoon_warning", "typhoon_watch"]
+    assert data.raw["title"].startswith("Current watches")
+
+
+def test_nws_fetch_without_zone(monkeypatch):
+    monkeypatch.setattr(nws, "http_get", lambda *a, **k: pytest.fail("不該連網"))
+    with pytest.raises(nws.NwsError) as e:
+        nws.fetch([])
+    assert e.value.code == "no_zone"
+    with pytest.raises(nws.NwsError):
+        nws.fetch(["", ""])
+
+
+def test_nws_fetch_not_json(monkeypatch):
+    monkeypatch.setattr(nws, "http_get", lambda *a, **k: _Resp(200, b"<html>"))
+    with pytest.raises(nws.NwsError) as e:
+        nws.fetch(["GUZ001"])
+    assert e.value.code == "bad_json"
 
 
 # ---- 航班 ----
