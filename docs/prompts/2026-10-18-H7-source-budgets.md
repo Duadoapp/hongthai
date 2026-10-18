@@ -61,8 +61,13 @@
 先找 `--archive` 裡的，沒有就從 Pages 抓）把**同一個機場、同一個 `from`** 的 `slots[].model.ec`（ecmwf 失敗時）
 或 `slots[].model.gfs`（gfs 失敗時）抄過來，等級照常用抄來的值算。沒有對到的格維持 `null`。
 
-- `runs.ecmwf`／`runs.ecmwfEns`／`runs.gfs` 用上一份的值；`sources.<名稱>` 保持 `ok:false`＋原本的 `error`，
-  另外加 `reusedFrom: "<上一份的 generatedAt>"`（規格以外的欄位）
+- **`sources.<名稱>.ok` 一定維持 `false`**＋原本的 `error`，另外加 `reusedFrom: "<上一份的 generatedAt>"`
+  （規格以外的欄位）。網頁靠 `ok:false` 顯示「這次沒讀到」，沿用的資料不能看起來像這次新抓的
+- `runs.ecmwf`／`runs.ecmwfEns`／`runs.gfs` 用上一份的值（這是舊預報的真實時次，不要改成現在）
+- **沿用有期限：24 小時**。用上一份的 `runs.<名稱>`（模式時次）判斷：`現在 − runs.<名稱>` 超過 24 小時就不沿用，
+  那段 `model.ec`／`model.gfs` 留 `null`、`runs.<名稱>` 留 `null`、不加 `reusedFrom`，照現有缺資料的規則處理
+  （`model.level` 為 `null`、`agreement` 為 `null`、都沒資料的格 `level: "unknown"`）。因為沿用時 `runs` 帶的是
+  舊時次，連續失敗時會自然在 24 小時後停掉，不會一直拿舊預報當新的；系集（`runs.ecmwfEns`）各自算
 - 只有模式層這樣做；TAF、METAR、警報是官方即時資料，失敗就空著，不沿用
 - 上一份也沒有（第一次跑、或 Pages 抓不到）就照現在的行為
 
@@ -89,7 +94,7 @@
   「資料來源與授權」ECMWF 那列補「經 AWS／Google 鏡像」（授權不變，仍是 CC BY 4.0，© ECMWF）
 - `docs/ORCHESTRATOR.md`：「`data` 分支」那節加 `history/timing/`；「已知的保守假設」下面加一段「來源逾時與沿用」
 - 測試：`tests/test_build.py` 加——預算超時會記 `timeout` 且後面的來源照跑（用一個會 `sleep` 的假 fetch，
-  預算設 0.2 秒）、ecmwf 失敗時 `model.ec` 從上一份抄過來且 `reusedFrom` 有值、timing 檔每個來源一行而且
+  預算設 0.2 秒）、ecmwf 失敗時 `model.ec` 從上一份抄過來、`ok` 仍是 `false` 且 `reusedFrom` 有值、上一份的 `runs.ecmwf` 超過 24 小時就不抄（`model.ec` 為 `null`、沒有 `reusedFrom`）、timing 檔每個來源一行而且
   在來源之間就已經寫進去；`tests/test_sources.py` 加 ECMWF 鏡像順序（用假 Client：ecmwf `latest()` 成功、
   aws 下載 404 → 回 ecmwf 下載；ecmwf `latest()` 一直 429 → 改用 aws 的）。測試照舊不連網
 - `latest.json` 既有欄位不改名、不改型別；`tests/test_build.py` 的契約測試照舊要過
