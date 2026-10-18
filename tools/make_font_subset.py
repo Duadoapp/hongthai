@@ -4,7 +4,8 @@
 
 完整字型下載到暫存目錄（不進 repo），子集寫到 `assets/fonts/`：
 - Fraunces（ASCII 可印字元＋`EXTRA_LATIN`）：可變字型用 `varLib.instancer` 固定 SOFT 100、wght 600，
-  opsz、WONK 留預設（opsz 9、WONK 1），變成靜態檔再取子集
+  變成靜態檔再取子集。產兩個：小字用的 opsz、WONK 留預設（opsz 9、WONK 1）；IATA 大字用的 opsz 144
+  （HD4，WONK 一樣留預設）
 - 芫荽 Iansui：`hongthai.og.required_chars` 的非 ASCII 字裡芫荽有的
 - Noto Sans TC（芫荽缺字的備援）：可變字型固定 wght 400，取芫荽沒有的那些字；一個都沒缺時
   照樣產生（只含全形空白），讓程式與測試的路徑固定
@@ -71,12 +72,13 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="hongthai-fonts-") as tmp:
         files = {k: download(u, Path(tmp) / f"{k}.ttf") for k, u in SOURCES.items()}
 
-        make_subset(
-            TTFont(files["fraunces"]),
-            latin | set(EXTRA_LATIN),
-            OUT / og.FONT_FILES["latin"],
-            {"SOFT": 100, "wght": 600, "opsz": None, "WONK": None},
-        )
+        for key, opsz in (("latin", None), ("display", 144)):
+            make_subset(
+                TTFont(files["fraunces"]),
+                latin | set(EXTRA_LATIN),
+                OUT / og.FONT_FILES[key],
+                {"SOFT": 100, "wght": 600, "opsz": opsz, "WONK": None},
+            )
 
         ia = TTFont(files["iansui"])
         ia_cmap = ia.getBestCmap()

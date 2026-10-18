@@ -1,4 +1,5 @@
-"""分享預覽圖（HD1）：51 張都畫得出來、尺寸與大小、一顆／三顆燈、子集涵蓋、燈號與小字的規則。"""
+"""分享預覽圖（HD1、HD4）：51 張都畫得出來、尺寸與大小、一顆／三顆燈、時間軸、子集涵蓋、
+燈號與小字的規則。"""
 
 from __future__ import annotations
 
@@ -19,21 +20,23 @@ AIRPORTS = json.loads((ROOT / "airports.json").read_text("utf-8"))["airports"]
 T0 = utc(2026, 10, 19, 0)
 
 
-def slots(levels: list[str]) -> list[dict]:
+def slots(levels: list[str | None], t0=T0) -> list[dict]:
+    """`None` 的格不放 `level`。"""
     return [
         {
-            "from": iso(T0 + timedelta(hours=6 * i)),
-            "to": iso(T0 + timedelta(hours=6 * i + 6)),
-            "level": lv,
+            "from": iso(t0 + timedelta(hours=6 * i)),
+            "to": iso(t0 + timedelta(hours=6 * i + 6)),
+            **({} if lv is None else {"level": lv}),
         }
         for i, lv in enumerate(levels)
     ]
 
 
-def airport(iata: str, levels: list[str] | None = None) -> dict:
+def airport(iata: str, levels: list[str | None] | None = None, t0=T0) -> dict:
     a = next(a for a in AIRPORTS if a["iata"] == iata)
     keys = ("icao", "iata", "tz", "name", "region")
-    return {**{k: a[k] for k in keys}, "slots": slots(["low"] * 20 if levels is None else levels)}
+    lv = ["low"] * 20 if levels is None else levels
+    return {**{k: a[k] for k in keys}, "slots": slots(lv, t0)}
 
 
 # ---- 燈號與小字 ----
@@ -166,6 +169,97 @@ def test_render_three_lights(tmp_path):
         assert im.getpixel((x, top + 12)) == og._rgb(og.LEVEL_COLORS[lt.level][0])
 
 
+def _overlap(a, b) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def test_render_three_lights_timeline_does_not_overlap(tmp_path):
+    lights = [
+        og.Light("規則", "confirmed", "已確認停飛　10/20 20 時–10/21 02 時"),
+        og.Light("Claude", "medium", "最高：中　10/23 20 時–10/24 02 時"),
+        og.Light("Gemini", "unknown", "資料不足"),
+    ]
+    for iata in ("TPE", "GUM", "HND", "SGN"):
+        _, lay = og._draw(airport(iata), "2026-10-18T18:15:00Z", lights)
+        assert lay.timeline is not None and len(lay.cells) == 20
+        assert not _overlap(lay.lights, lay.timeline), iata
+        # 左側太窄，改放燈號下方整排橫跨（寬度 1200 − 2×64 以內）
+        assert lay.timeline[0] == og.MARGIN and lay.timeline[2] <= og.WIDTH - og.MARGIN
+        assert lay.timeline[1] > lay.lights[3]
+        assert lay.timeline[3] < og.HEIGHT - og.MARGIN - og.UPDATED_SIZE
+        w = lay.cells[0][2] - lay.cells[0][0]
+        assert og.TL_CELL_MIN <= w <= og.TL_CELL_MAX
+
+
+def test_render_one_light_timeline_aligned_with_left_column():
+    a = airport("TPE", ["high"] * 20)
+    _, lay = og._draw(a, "2026-10-18T18:15:00Z", [og.rule_light(a)])
+    assert not _overlap(lay.lights, lay.timeline)
+    # 和左側文字區對齊：從左邊距開始，右邊不超過燈號色塊左邊再空 COL_GAP
+    blocks_left = og.WIDTH - og.MARGIN - og.BLOCK_W
+    assert lay.timeline[0] == og.MARGIN
+    assert lay.timeline[2] <= blocks_left - og.COL_GAP
+    assert lay.cells[1][0] - lay.cells[0][2] == og.TL_GAP
+    assert {c[3] - c[1] for c in lay.cells} == {og.TL_CELL_H}
+
+
+def test_timeline_colors(tmp_path):
+    """20 格照 `slots` 的順序，五種等級各至少一格；沒有 `level` 的格當 unknown。"""
+    levels = ["low", "medium", "high", "confirmed", "unknown", None] * 3 + ["high", "low"]
+    a = airport("TPE", levels)
+    out = tmp_path / "tl.png"
+    og.render(a, "2026-10-18T18:15:00Z", [og.rule_light(a)], out)
+    im = _check_png(out)
+    _, lay = og._draw(a, "2026-10-18T18:15:00Z", [og.rule_light(a)])
+    assert len(lay.cells) == 20
+    want = {lv: og._rgb(og.LEVEL_COLORS[lv][0]) for lv in og.LEVEL_COLORS}
+    for cell, lv in zip(lay.cells, levels, strict=True):
+        center = ((cell[0] + cell[2]) // 2, (cell[1] + cell[3]) // 2)
+        assert im.getpixel(center) == want[lv or "unknown"]
+    assert og.slot_color({"level": "weird"}) == og.LEVEL_COLORS["unknown"][0]
+    assert og.slot_color({}) == og.LEVEL_COLORS["unknown"][0]
+
+
+@pytest.mark.parametrize(
+    ("iata", "start_h", "cells", "dates"),
+    [
+        # 台北 UTC+8，00Z 起：當地 08、14、20（跨午夜，算 10/19）、02（10/20）……
+        ("TPE", 0, [0, 3, 7, 11, 15, 19], ["10/19", "10/20", "10/21", "10/22", "10/23", "10/24"]),
+        # 羽田 UTC+9，12Z 起：第一格當地 21–03 跨午夜算 10/19，第二格 03 時已是 10/20
+        ("HND", 12, [0, 1, 5, 9, 13, 17], ["10/19", "10/20", "10/21", "10/22", "10/23", "10/24"]),
+        # 關島 UTC+10，06Z 起：當地 16、22（跨午夜，算 10/19）、04（10/20）……
+        ("GUM", 6, [0, 2, 6, 10, 14, 18], ["10/19", "10/20", "10/21", "10/22", "10/23", "10/24"]),
+    ],
+)
+def test_timeline_date_labels(iata, start_h, cells, dates):
+    a = airport(iata, t0=utc(2026, 10, 19, start_h))
+    assert og.day_labels(a["slots"], a["tz"]) == list(zip(cells, dates, strict=True))
+    _, lay = og._draw(a, "2026-10-18T18:15:00Z", [og.rule_light(a)])
+    assert [(i, t) for i, t, _ in lay.dates] == list(zip(cells, dates, strict=True))
+    prev = None
+    for i, _, box in lay.dates:
+        cell = lay.cells[i]
+        assert box[1] > cell[3]  # 在格的下方
+        # 在那格底下（往右推或往左收時也和那格有重疊）、不超出時間軸、彼此不重疊
+        assert box[0] < cell[2] and box[2] > cell[0]
+        assert lay.timeline[0] <= box[0] and box[2] <= lay.timeline[2]
+        if prev is not None:
+            assert box[0] > prev[2]
+        prev = box
+    # 不是被往右推或往左收的標籤就和格的左邊對齊（字形左邊有一點側方空白）
+    assert abs(lay.dates[2][2][0] - lay.cells[cells[2]][0]) <= 3
+
+
+def test_timeline_date_labels_at_most_six():
+    many = slots(["low"] * 40)
+    assert len(og.day_labels(many, "Asia/Taipei")) == 6
+
+
+def test_timeline_skipped_without_slots():
+    _, lay = og._draw(airport("TPE", []), "2026-10-18T18:15:00Z", [og.Light(None, "unknown", "")])
+    assert lay.timeline is None and lay.cells == []
+
+
 def test_render_needs_a_light(tmp_path):
     with pytest.raises(ValueError):
         og.render(airport("TPE"), "2026-10-18T18:15:00Z", [], tmp_path / "x.png")
@@ -181,7 +275,8 @@ def _cmap(key):
 def test_font_subsets_cover_required_chars():
     """之後加機場或改字串沒重做子集（tools/make_font_subset.py），這裡會紅。"""
     latin, other = og.required_chars(ROOT / "airports.json")
-    assert {ord(c) for c in latin} <= _cmap("latin")
+    for key in ("latin", "display"):  # 兩個 Fraunces 子集（opsz 9 與 IATA 大字的 opsz 144）
+        assert {ord(c) for c in latin} <= _cmap(key), key
     assert set("0123456789") <= latin
     cjk = _cmap("cjk") | _cmap("fallback")
     missing = sorted(c for c in other if ord(c) not in cjk)
@@ -193,7 +288,11 @@ def test_font_files_and_licenses():
     for f in og.FONT_FILES.values():
         t = TTFont(d / f)
         assert "fvar" not in t  # 都是靜態檔
-    assert TTFont(d / og.FONT_FILES["latin"])["OS/2"].usWeightClass == 600
+    small, display = TTFont(d / og.FONT_FILES["latin"]), TTFont(d / og.FONT_FILES["display"])
+    assert small["OS/2"].usWeightClass == display["OS/2"].usWeightClass == 600
+    assert "144pt" in display["name"].getDebugName(1)  # opsz 144 的靜態檔
+    assert "pt" not in small["name"].getDebugName(1)
+    assert display["hmtx"]["H"] != small["hmtx"]["H"]
     for name in ("Iansui", "Fraunces", "NotoSansTC"):
         assert "SIL OPEN FONT LICENSE Version 1.1" in (d / f"OFL-{name}.txt").read_text("utf-8")
     assert (d / "README.md").exists()

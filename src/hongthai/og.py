@@ -1,9 +1,14 @@
-"""分享預覽圖（HD1）：每個機場一張 1200×630 的 PNG，發布到 GitHub Pages 的 `og/<iata>.png`
+"""分享預覽圖（HD1、HD4）：每個機場一張 1200×630 的 PNG，發布到 GitHub Pages 的 `og/<iata>.png`
 （iata 小寫）。
 
 規格是 Duado #374 定的、預設值 Shawn 2026-10-19 拍板（`docs/prompts/2026-10-19-HD1-og-image.md`）：
 - 內容：左上 IATA 大字、其下機場名 zh-TW＋en；右上燈號色塊與一行小字；左下更新時間（機場當地時間）；
   右下「HongThai　機場停飛風險」與 `duado.app/hongthai`。不放 logo、不放地圖
+- 時間軸（HD4，`_timeline`）：機場名下方、更新時間上方，未來 5 天 20 格照 `slots` 的順序各一個小圓角
+  色塊（顏色同燈號，`LEVEL_COLORS`；沒有等級當 `unknown`），色塊裡不寫字。寬度和左側文字區對齊；
+  三顆燈時左側太窄（一格不到 `TL_CELL_MIN`），改放到燈號下方整排橫跨。每天第一格下方標當地日期
+  `M/D`（`day_labels`：一格的日期以 `from` 換成當地時間為準，第一格一定標，之後當地日期變了就標，
+  最多 6 個）
 - 燈號（`rule_light`）：這個機場未來 5 天（20 格）裡最高的等級，小字寫第一個達到那個等級的格的當地
   日期時段（「最高：高　10/23 14–20 時」）；全部低寫「未來 5 天：低」。有 `confirmed` 的格（視為高）
   時色塊寫「已確認」、小字「已確認停飛　<第一個已確認的格>」；全部 `unknown` 寫「資料不足」；
@@ -13,8 +18,9 @@
 - 顏色、字型都是 Duado 晨光風格：淺底、大圓角色塊、不用框線與陰影、不做深色版
   （`COLORS`、`LEVEL_COLORS`）
 - 字型（`assets/fonts/`，都是 SIL OFL 1.1，只放子集）：ASCII 與數字用 Fraunces（SOFT 100、
-  wght 600 的靜態檔），其他字用芫荽，芫荽沒有的字才用 Noto Sans TC。Pillow 不會自動補字，
-  所以逐字分段（`_runs`）、各段用自己的字型畫在同一條基線上。子集怎麼重做見 `assets/fonts/README.md`
+  wght 600 的靜態檔；IATA 大字用 opsz 144 那個、其他小字用 opsz 9 那個），其他字用芫荽，
+  芫荽沒有的字才用 Noto Sans TC。Pillow 不會自動補字，所以逐字分段（`_runs`）、各段用自己的字型
+  畫在同一條基線上。子集怎麼重做見 `assets/fonts/README.md`
 - PNG 轉成調色盤模式＋`optimize=True`，每張約 15–20 KB（目標 ≤ 60 KB）。調色盤是固定的
   （`_palette`）：上面幾個顏色本身，加上會相鄰的兩色之間的 `BLEND_STEPS` 個中間色（文字與圓角的
   反鋸齒），所以色塊與底色的顏色和規格完全一樣
@@ -25,7 +31,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from functools import cache
 from pathlib import Path
@@ -35,7 +41,7 @@ from fontTools.ttLib import TTFont
 from PIL import Image, ImageDraw, ImageFont
 
 from . import budget
-from .timeutil import parse_time
+from .timeutil import SLOT_COUNT, parse_time
 
 log = logging.getLogger("hongthai")
 
@@ -82,6 +88,7 @@ PUNCTUATION = "，。、：；！？（）「」『』　・–—～／％"
 
 FONT_FILES = {
     "latin": "Fraunces-Soft600.subset.ttf",
+    "display": "Fraunces-Soft600-Display.subset.ttf",  # opsz 144，只給 IATA 大字用
     "cjk": "Iansui-Regular.subset.ttf",
     "fallback": "NotoSansTC-Regular.subset.ttf",
 }
@@ -99,7 +106,17 @@ UPDATED_SIZE = 28
 BRAND_SIZE = 32
 URL_SIZE = 24
 LIGHTS_MAX_W = 620  # 三顆燈並排時佔的最大寬度
+COL_GAP = 40  # 左側文字區與燈號區之間
+# 時間軸（HD4）：格寬依可用空間算，介於 TL_CELL_MIN（不到就改整排橫跨）與 TL_CELL_MAX 之間
+TL_CELL_H, TL_R, TL_GAP = 28, 8, 6
+TL_CELL_MIN, TL_CELL_MAX = 24, 48
+DATE_SIZE = 20
+DATE_GAP = 8  # 日期標籤之間至少留的空
+MAX_DATES = 6
 BLEND_STEPS = 7
+
+
+Box = tuple[float, float, float, float]  # (左, 上, 右, 下)
 
 
 @dataclass(frozen=True)
@@ -109,6 +126,16 @@ class Light:
     label: str | None
     level: str
     note: str
+
+
+@dataclass
+class Layout:
+    """一張圖各區實際畫到的範圍（測試檢查版面用）。"""
+
+    lights: Box  # 燈號區（標籤、色塊、小字）
+    timeline: Box | None = None  # 時間軸（色塊與日期標籤）；沒有格時 None
+    cells: list[Box] = field(default_factory=list)  # 時間軸每一格
+    dates: list[tuple[int, str, Box]] = field(default_factory=list)  # (第幾格, "M/D", 範圍)
 
 
 def font_dir() -> Path:
@@ -138,10 +165,12 @@ def font_key(ch: str, root: Path) -> str:
     return "cjk" if ord(ch) in _cmap("cjk", root) else "fallback"
 
 
-def _runs(text: str, root: Path) -> list[tuple[str, str]]:
+def _runs(text: str, root: Path, latin: str = "latin") -> list[tuple[str, str]]:
+    """逐字分段；ASCII 那幾段用 `latin` 這個字型（IATA 大字傳 `"display"`）。"""
     out: list[tuple[str, str]] = []
     for ch in text:
         k = font_key(ch, root)
+        k = latin if k == "latin" else k
         if out and out[-1][0] == k:
             out[-1] = (k, out[-1][1] + ch)
         else:
@@ -155,38 +184,58 @@ class _Canvas:
         self.img = Image.new("RGB", (WIDTH, HEIGHT), COLORS["background"])
         self.draw = ImageDraw.Draw(self.img)
 
-    def width(self, text: str, size: int) -> float:
-        return sum(_font(k, size, self.root).getlength(s) for k, s in _runs(text, self.root))
+    def width(self, text: str, size: int, latin: str = "latin") -> float:
+        return sum(_font(k, size, self.root).getlength(s) for k, s in _runs(text, self.root, latin))
 
-    def cap(self, size: int) -> int:
+    def cap(self, size: int, latin: str = "latin") -> int:
         """Fraunces 大寫字母的高度（基線到頂）。"""
-        return -_font("latin", size, self.root).getbbox("H", anchor="ls")[1]
+        return -_font(latin, size, self.root).getbbox("H", anchor="ls")[1]
 
-    def fit(self, text: str, size: int, max_w: float, min_size: int = 12) -> int:
-        while size > min_size and self.width(text, size) > max_w:
+    def fit(
+        self, text: str, size: int, max_w: float, min_size: int = 12, latin: str = "latin"
+    ) -> int:
+        while size > min_size and self.width(text, size, latin) > max_w:
             size -= 1
         return size
 
     def text(
-        self, x: float, baseline: float, text: str, size: int, fill: str, align: str = "left"
-    ) -> None:
-        """畫一行（各段用自己的字型、對齊同一條基線）。`align`：left／right／center，x 是那一側。"""
-        w = self.width(text, size)
+        self,
+        x: float,
+        baseline: float,
+        text: str,
+        size: int,
+        fill: str,
+        align: str = "left",
+        latin: str = "latin",
+    ) -> Box:
+        """畫一行（各段用自己的字型、對齊同一條基線）。`align`：left／right／center，x 是那一側。
+        回傳實際畫到的範圍。"""
+        w = self.width(text, size, latin)
         x = {"left": x, "right": x - w, "center": x - w / 2}[align]
-        for k, s in _runs(text, self.root):
+        box: Box | None = None
+        for k, s in _runs(text, self.root, latin):
             f = _font(k, size, self.root)
             self.draw.text((x, baseline), s, font=f, fill=fill, anchor="ls")
+            box = _union(box, self.draw.textbbox((x, baseline), s, font=f, anchor="ls"))
             x += f.getlength(s)
+        return box or (x, baseline, x, baseline)
 
-    def block(self, x: int, y: int, w: int, h: int, fill: str) -> None:
+    def block(self, x: int, y: int, w: int, h: int, fill: str, radius: int = BLOCK_R) -> Box:
         """圓角色塊；四倍大畫遮罩再縮小，邊緣才平滑。"""
         s = 4
         mask = Image.new("L", (w * s, h * s), 0)
         ImageDraw.Draw(mask).rounded_rectangle(
-            (0, 0, w * s - 1, h * s - 1), radius=BLOCK_R * s, fill=255
+            (0, 0, w * s - 1, h * s - 1), radius=radius * s, fill=255
         )
         mask = mask.resize((w, h), Image.Resampling.LANCZOS)
         self.img.paste(Image.new("RGB", (w, h), fill), (x, y), mask)
+        return (x, y, x + w, y + h)
+
+
+def _union(a: Box | None, b: Box) -> Box:
+    if a is None:
+        return tuple(b)  # type: ignore[return-value]
+    return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
 
 
 def _rgb(hex_color: str) -> tuple[int, int, int]:
@@ -212,8 +261,8 @@ def _palette() -> Image.Image:
     return pal
 
 
-def _lights(c: _Canvas, lights: list[Light]) -> int:
-    """右上的燈號（並排、靠右）；回傳燈號區最左邊的 x。"""
+def _lights(c: _Canvas, lights: list[Light]) -> tuple[int, Box]:
+    """右上的燈號（並排、靠右）；回傳（色塊最左邊的 x，燈號區含標籤與小字實際畫到的範圍）。"""
     n = len(lights)
     right = WIDTH - MARGIN
     w = min(BLOCK_W, int((LIGHTS_MAX_W - BLOCK_GAP * (n - 1)) / n))
@@ -221,41 +270,90 @@ def _lights(c: _Canvas, lights: list[Light]) -> int:
     labelled = any(lt.label for lt in lights)
     top = MARGIN + (LABEL_SIZE + 14 if labelled else 0)
     note_base = top + BLOCK_H + NOTE_SIZE + 16
+    box: Box | None = None
     for i, lt in enumerate(lights):
         x = left + i * (w + BLOCK_GAP)
         bg, fg = LEVEL_COLORS.get(lt.level, LEVEL_COLORS["unknown"])
         if lt.label:
-            c.text(
-                x + w / 2,
-                MARGIN + LABEL_SIZE * 0.85,
-                lt.label,
-                LABEL_SIZE,
-                COLORS["text"],
-                "center",
+            box = _union(
+                box,
+                c.text(
+                    x + w / 2,
+                    MARGIN + LABEL_SIZE * 0.85,
+                    lt.label,
+                    LABEL_SIZE,
+                    COLORS["text"],
+                    "center",
+                ),
             )
-        c.block(x, top, w, BLOCK_H, bg)
+        box = _union(box, c.block(x, top, w, BLOCK_H, bg))
         word = LEVEL_TEXT.get(lt.level, LEVEL_TEXT["unknown"])
         size = c.fit(word, BLOCK_TEXT_SIZE, w - 40)
         # 漢字大致是 em 方塊，中心在基線上方約 0.38 em
         c.text(x + w / 2, top + BLOCK_H / 2 + size * 0.38, word, size, fg, "center")
         if n == 1:  # 一顆燈時小字靠右、可以比色塊寬
             size = c.fit(lt.note, NOTE_SIZE, right - 560)
-            c.text(right, note_base, lt.note, size, COLORS["text"], "right")
+            box = _union(box, c.text(right, note_base, lt.note, size, COLORS["text"], "right"))
         else:  # 三顆燈時小字在各自色塊下置中，太長就在全形空白處換行
             size = NOTE_SIZE - 4
             lines = [lt.note]
             if c.fit(lt.note, size, w) < 20:
                 lines = lt.note.split("　")
             for j, line in enumerate(lines):
-                c.text(
-                    x + w / 2,
-                    note_base + j * (size + 10),
-                    line,
-                    c.fit(line, size, w),
-                    COLORS["text"],
-                    "center",
+                box = _union(
+                    box,
+                    c.text(
+                        x + w / 2,
+                        note_base + j * (size + 10),
+                        line,
+                        c.fit(line, size, w),
+                        COLORS["text"],
+                        "center",
+                    ),
                 )
-    return left
+    assert box is not None
+    return left, box
+
+
+def slot_color(slot: dict) -> str:
+    """時間軸一格的顏色：同燈號的底色；沒有等級或等級不認得當 `unknown`。"""
+    return LEVEL_COLORS.get(slot.get("level"), LEVEL_COLORS["unknown"])[0]  # type: ignore[arg-type]
+
+
+def day_labels(slots: list[dict], tz: str) -> list[tuple[int, str]]:
+    """時間軸要標日期的格：[(第幾格, "M/D")]。一格的日期是它的 `from` 換成當地時間的日期；
+    第一格一定標，之後當地日期變了就標，最多 `MAX_DATES` 個。"""
+    z = ZoneInfo(tz)
+    out: list[tuple[int, str]] = []
+    prev = None
+    for i, s in enumerate(slots):
+        d = parse_time(s["from"]).astimezone(z).date()
+        if d != prev:
+            out.append((i, f"{d.month}/{d.day}"))
+            prev = d
+    return out[:MAX_DATES]
+
+
+def _timeline(
+    c: _Canvas, layout: Layout, slots: list[dict], tz: str, x: int, top: int, avail: int
+) -> None:
+    """畫時間軸（左上角 `x`、`top`，寬度不超過 `avail`），範圍記到 `layout`。"""
+    w = min(TL_CELL_MAX, (avail - (SLOT_COUNT - 1) * TL_GAP) // SLOT_COUNT)
+    right = x + SLOT_COUNT * w + (SLOT_COUNT - 1) * TL_GAP
+    box: Box = (x, top, right, top + TL_CELL_H)
+    for i, s in enumerate(slots):
+        layout.cells.append(c.block(x + i * (w + TL_GAP), top, w, TL_CELL_H, slot_color(s), TL_R))
+    # 標籤對齊那格的左邊；和前一個太近就往右推、超出時間軸右邊就往左收
+    baseline = top + TL_CELL_H + 10 + c.cap(DATE_SIZE)
+    prev_right = float("-inf")
+    for i, text in day_labels(slots, tz):
+        tw = c.width(text, DATE_SIZE)
+        lx = min(max(x + i * (w + TL_GAP), prev_right + DATE_GAP), right - tw)
+        b = c.text(lx, baseline, text, DATE_SIZE, COLORS["text"])
+        prev_right = b[2]
+        layout.dates.append((i, text, b))
+        box = _union(box, b)
+    layout.timeline = box
 
 
 def updated_text(generated_at: str, tz: str) -> str:
@@ -263,33 +361,55 @@ def updated_text(generated_at: str, tz: str) -> str:
     return f"更新 {t:%Y-%m-%d %H:%M}（當地時間）"
 
 
-def render(airport: dict, generated_at: str, lights: list[Light], out_path: Path) -> int:
-    """畫一張預覽圖寫到 `out_path`（純畫圖，不讀網路）；回傳檔案大小（bytes）。
-
-    `airport` 是 `latest.json` 的 `airports[]` 一筆（用 `iata`、`tz`、`name`）。
-    """
+def _draw(airport: dict, generated_at: str, lights: list[Light]) -> tuple[_Canvas, Layout]:
+    """畫一張預覽圖；回傳（畫布，各區實際畫到的範圍）。"""
     if not lights:
         raise ValueError("至少要一顆燈")
     c = _Canvas(font_dir())
     ink = COLORS["text"]
-    lights_left = _lights(c, lights)
-    col_w = lights_left - 40 - MARGIN
+    lights_left, lights_box = _lights(c, lights)
+    layout = Layout(lights_box)
+    col_w = lights_left - COL_GAP - MARGIN
 
-    iata_size = c.fit(airport["iata"], IATA_SIZE, col_w, 80)
-    iata_base = MARGIN + c.cap(iata_size)
-    c.text(MARGIN, iata_base, airport["iata"], iata_size, ink)
+    iata = airport["iata"]
+    iata_size = c.fit(iata, IATA_SIZE, col_w, 80, latin="display")
+    iata_base = MARGIN + c.cap(iata_size, "display")
+    c.text(MARGIN, iata_base, iata, iata_size, ink, latin="display")
     name = airport["name"]
     zh_base = iata_base + 40 + NAME_SIZE
     c.text(MARGIN, zh_base, name["zh-TW"], c.fit(name["zh-TW"], NAME_SIZE, col_w), ink)
-    c.text(MARGIN, zh_base + 54, name["en"], c.fit(name["en"], NAME_EN_SIZE, col_w), ink)
+    en_box = c.text(MARGIN, zh_base + 54, name["en"], c.fit(name["en"], NAME_EN_SIZE, col_w), ink)
 
     bottom = HEIGHT - MARGIN
-    c.text(MARGIN, bottom, updated_text(generated_at, airport["tz"]), UPDATED_SIZE, ink)
+    updated_box = c.text(
+        MARGIN, bottom, updated_text(generated_at, airport["tz"]), UPDATED_SIZE, ink
+    )
     c.text(WIDTH - MARGIN, bottom, "duado.app/hongthai", URL_SIZE, ink, "right")
     c.text(
         WIDTH - MARGIN, bottom - URL_SIZE - 22, "HongThai　機場停飛風險", BRAND_SIZE, ink, "right"
     )
 
+    slots = [s for s in airport.get("slots") or [] if isinstance(s, dict)][:SLOT_COUNT]
+    if slots:
+        # 左側文字區夠寬就和它對齊，不然（三顆燈）放到燈號下方整排橫跨
+        avail = col_w
+        if (avail - (SLOT_COUNT - 1) * TL_GAP) // SLOT_COUNT < TL_CELL_MIN:
+            avail = WIDTH - 2 * MARGIN
+        # 機場名與更新時間之間置中；整排橫跨時也要在燈號下方
+        group_h = TL_CELL_H + 10 + c.cap(DATE_SIZE)
+        top = round((en_box[3] + updated_box[1] - group_h) / 2)
+        if avail > col_w:
+            top = max(top, round(lights_box[3]) + 24)
+        _timeline(c, layout, slots, airport["tz"], MARGIN, top, avail)
+    return c, layout
+
+
+def render(airport: dict, generated_at: str, lights: list[Light], out_path: Path) -> int:
+    """畫一張預覽圖寫到 `out_path`（純畫圖，不讀網路）；回傳檔案大小（bytes）。
+
+    `airport` 是 `latest.json` 的 `airports[]` 一筆（用 `iata`、`tz`、`name`、`slots`）。
+    """
+    c, _ = _draw(airport, generated_at, lights)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img = c.img.quantize(palette=_palette(), dither=Image.Dither.NONE)
     img.save(out_path, format="PNG", optimize=True)
