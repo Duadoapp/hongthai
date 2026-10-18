@@ -233,5 +233,111 @@
     "wgst": null
    }
   ]
+ },
+ {
+  "icaoId": "ZSPD",
+  "issueTime": "2026-10-18T16:06:00.000Z",
+  "validTimeFrom": 1792324800,
+  "validTimeTo": 1792432800,
+  "rawTAF": "TAF AMD ZSPD 181606Z 1812/1918 01006MPS 8000 BKN020 TX25/1906Z TN21/1821Z TN23/1918Z BECMG 1909/1910 12004MPS",
+  "fcsts": [
+   {
+    "timeFrom": 1792324800,
+    "timeTo": 1792400400,
+    "timeBec": null,
+    "fcstChange": null,
+    "probability": null,
+    "wdir": 10,
+    "wspd": 12,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792400400,
+    "timeTo": 1792432800,
+    "timeBec": 1792404000,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 120,
+    "wspd": 8,
+    "wgst": null
+   }
+  ]
+ },
+ {
+  "icaoId": "ROAH",
+  "issueTime": "2026-10-18T11:05:00.000Z",
+  "validTimeFrom": 1792324800,
+  "validTimeTo": 1792432800,
+  "rawTAF": "TAF ROAH 181105Z 1812/1918 08012KT 9999 FEW015 SCT030",
+  "fcsts": [
+   {
+    "timeFrom": 1792324800,
+    "timeTo": 1792432800,
+    "timeBec": null,
+    "fcstChange": null,
+    "probability": null,
+    "wdir": 80,
+    "wspd": 12,
+    "wgst": null
+   }
+  ]
+ },
+ {
+  "icaoId": "RJTT",
+  "issueTime": "2026-10-18T11:05:00.000Z",
+  "validTimeFrom": 1792324800,
+  "validTimeTo": 1792432800,
+  "rawTAF": "TAF RJTT 181105Z 1812/1918 19012KT 9999 FEW030 TEMPO 1915/1918 4000 -SHRA BR FEW005 BKN008",
+  "fcsts": [
+   {
+    "timeFrom": 1792324800,
+    "timeTo": 1792432800,
+    "timeBec": null,
+    "fcstChange": null,
+    "probability": null,
+    "wdir": 190,
+    "wspd": 12,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792422000,
+    "timeTo": 1792432800,
+    "timeBec": null,
+    "fcstChange": "TEMPO",
+    "probability": null,
+    "wdir": null,
+    "wspd": null,
+    "wgst": null
+   }
+  ]
+ },
+ {
+  "icaoId": "RKSI",
+  "issueTime": "2026-10-18T17:00:00.000Z",
+  "validTimeFrom": 1792346400,
+  "validTimeTo": 1792454400,
+  "rawTAF": "TAF RKSI 181700Z 1818/1924 33007KT CAVOK TN13/1821Z TX18/1905Z TN12/1920Z BECMG 1915/1917 07005KT",
+  "fcsts": [
+   {
+    "timeFrom": 1792346400,
+    "timeTo": 1792422000,
+    "timeBec": null,
+    "fcstChange": null,
+    "probability": null,
+    "wdir": 330,
+    "wspd": 7,
+    "wgst": null
+   },
+   {
+    "timeFrom": 1792422000,
+    "timeTo": 1792454400,
+    "timeBec": 1792429200,
+    "fcstChange": "BECMG",
+    "probability": null,
+    "wdir": 70,
+    "wspd": 5,
+    "wgst": null
+   }
+  ]
  }
 ]

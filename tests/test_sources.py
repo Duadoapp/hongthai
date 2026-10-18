@@ -18,7 +18,7 @@ from hongthai.units import KT_PER_MS
 
 def test_parse_tafs_real_sample():
     tafs = taf.parse_tafs(load_json("taf.json"))
-    assert set(tafs) == {"RCTP", "RCSS", "RCKH", "VHHH", "VMMC"}
+    assert set(tafs) == {"RCTP", "RCSS", "RCKH", "VHHH", "VMMC", "ZSPD", "ROAH", "RJTT", "RKSI"}
     t = tafs["RCTP"]
     assert t.issued == utc(2026, 10, 17, 23)
     assert t.valid_from == utc(2026, 10, 18, 0)
@@ -26,6 +26,50 @@ def test_parse_tafs_real_sample():
     assert [p.kind for p in t.periods] == ["main", "main", "main", "tempo", "main"]
     assert t.periods[0].wind_kt == 5 and t.periods[0].gust_kt is None
     assert t.periods[2].wdir == 90
+
+
+def test_parse_tafs_multi_station_h9():
+    """41 個機場一次請求的回應（fixture 加了四站，2026-10-18 抓的）：各站各自解析。"""
+    tafs = taf.parse_tafs(load_json("taf.json"))
+    # 中國的 TAF 用 MPS，API 解碼成節是乘 2（01006MPS → 12 節）
+    pd = tafs["ZSPD"]
+    assert "01006MPS" in pd.raw
+    assert [(p.kind, p.wdir, p.wind_kt) for p in pd.periods] == [("main", 10, 12), ("main", 120, 8)]
+    # 有天氣沒有風的 TEMPO 段：風是 None
+    hnd = tafs["RJTT"]
+    assert [(p.kind, p.wind_kt) for p in hnd.periods] == [("main", 12), ("tempo", None)]
+    assert tafs["RKSI"].issued == utc(2026, 10, 18, 17)
+    metars = taf.parse_metars(load_json("metar.json"))
+    assert {"ZSPD", "ROAH", "RJTT", "RKSI", "ROMY"} <= set(metars)
+    assert "ROMY" not in tafs  # 宮古只有 METAR
+    assert metars["ROMY"].wind_kt == 7
+
+
+class _Resp:
+    def __init__(self, status, body):
+        self.status_code, self.content = status, body
+
+    def json(self):
+        return json.loads(self.content)
+
+
+def test_taf_fetch_one_request_for_all_and_204(monkeypatch, airports):
+    calls = []
+
+    def fake_get(url, *, params=None, error=None, **kw):
+        calls.append((url, params))
+        if url == taf.TAF_URL:
+            return _Resp(200, (FIXTURES / "taf.json").read_bytes())
+        return _Resp(204, b"")  # 一站 METAR 都沒有
+
+    monkeypatch.setattr(taf, "http_get", fake_get)
+    data = taf.fetch(airports)
+    assert len(calls) == 2
+    ids = calls[0][1]["ids"].split(",")
+    assert ids == [a.icao for a in airports] and len(ids) == 41
+    assert len(calls[0][1]["ids"]) < 250  # 網址長度沒問題
+    assert data.metars == {} and data.raw["metar"] == []
+    assert "RCYU" not in data.tafs and "RCTP" in data.tafs
 
 
 def test_period_kind_prob_and_tempo():
@@ -131,20 +175,57 @@ def test_cwa_zone_per_airport(airports):
         info["area"] = [a for a in info["area"] if a["areaDesc"] in north]
     bulletins = cwa.parse_bulletins(data, utc(2026, 8, 27, 5))
     got = {}
-    for icao in ("RCTP", "RCSS", "RCKH"):
+    taiwan = [a.icao for a in airports if a.region == "taiwan"]
+    for icao in taiwan:
         a = by[icao]
         (w,) = cwa.for_airport(bulletins, a.cwa_areas, a.name)
         got[icao] = (w.kind, w.level, w.in_zone)
+    # 北部＋連江縣在警戒區（警戒區文字也寫「馬祖應嚴加戒備」）→ 桃園、松山、馬祖高，其他中
+    in_zone = {"RCTP", "RCSS", "RCFG"}
     assert got == {
-        "RCTP": ("typhoon_land", "high", True),
-        "RCSS": ("typhoon_land", "high", True),
-        "RCKH": ("typhoon_land", "medium", False),
+        i: ("typhoon_land", "high", True) if i in in_zone else ("typhoon_land", "medium", False)
+        for i in taiwan
     }
     (w,) = cwa.for_airport(bulletins, by["RCSS"].cwa_areas, by["RCSS"].name)
     assert "松山在警戒區" in w.text["zh-TW"]
     assert "Taipei Songshan is in the warning area" in w.text["en"]
     (w,) = cwa.for_airport(bulletins, by["RCKH"].cwa_areas, by["RCKH"].name)
     assert "警戒區" not in w.text["zh-TW"]
+
+
+def test_cwa_keywords_match_cwa_county_names(airports):
+    """每個台灣機場的關鍵字對得到氣象署 `areaDesc` 的縣市寫法（臺中市、臺東縣、連江縣……），
+    也對不到別的機場的縣市（「東部」「中部」「南部」只會在警戒區文字裡出現）。"""
+    county = {
+        "RCTP": "桃園市",
+        "RCSS": "臺北市",
+        "RCKH": "高雄市",
+        "RCMQ": "臺中市",
+        "RCNN": "臺南市",
+        "RCYU": "花蓮縣",
+        "RCFN": "臺東縣",
+        "RCQC": "澎湖縣",
+        "RCBS": "金門縣",
+        "RCFG": "連江縣",
+    }
+    descs = {
+        a["areaDesc"] for a in load_json("cwa_w-c0034-001_land.json")["records"]["info"][0]["area"]
+    }
+    assert set(county.values()) <= descs  # fixture 裡就是這樣寫
+    taiwan = {a.icao: a for a in airports if a.region == "taiwan"}
+    assert set(taiwan) == set(county)
+    for icao, a in taiwan.items():
+        assert len(a.cwa_areas) == len(set(a.cwa_areas)) > 0
+        for other, name in county.items():
+            hit = cwa.in_zone([name], "", a.cwa_areas)
+            same_city = {icao, other} <= {"RCTP", "RCSS"}  # 桃園、松山同一組
+            assert hit is (other == icao or same_city), (icao, name)
+    assert cwa.in_zone([], "宜蘭、花蓮、臺東應嚴加戒備", taiwan["RCYU"].cwa_areas)
+    assert cwa.in_zone([], "東部地區應嚴加戒備", taiwan["RCFN"].cwa_areas)
+    assert not cwa.in_zone([], "東部海面航行船隻", taiwan["RCFN"].cwa_areas)
+    assert cwa.in_zone([], "澎湖、金門、馬祖應嚴加戒備", taiwan["RCQC"].cwa_areas)
+    assert cwa.in_zone([], "澎湖、金門、馬祖應嚴加戒備", taiwan["RCBS"].cwa_areas)
+    assert not cwa.in_zone([], "馬祖海面航行船隻", taiwan["RCFG"].cwa_areas)
 
 
 def test_cwa_south_keywords():
@@ -169,7 +250,7 @@ def test_cwa_no_key():
 def test_ecmwf_hres_parse(airports):
     run, pts = ecmwf.parse_hres(FIXTURES / "ecmwf_oper_subregion.grib2", airports)
     assert run == utc(2026, 10, 17, 18)
-    assert set(pts) == {"RCTP", "RCSS", "RCKH", "VHHH", "VMMC"}
+    assert set(pts) == {a.icao for a in airports}  # fixture 只裁了台灣到港澳，框外的取邊上的格點
     g = pts["VHHH"]
     assert [x.end - run for x in g] == [timedelta(hours=h) for h in (87, 90, 93, 96)]
     # 0–90 小時的 10fg 是前 1 小時，93 以後的 10fg3 是前 3 小時
@@ -376,23 +457,32 @@ def test_ecmwf_client_bounded_retries(monkeypatch):
     assert ecmwf._client("aws", **ecmwf.DOWNLOAD_RETRY["aws"]).maximum_retries == 1
 
 
-def test_gfs_groups_two_boxes(airports):
-    gs = gfs.groups(airports)
-    assert [sorted(a.icao for a in g) for g in gs] == [
-        ["VHHH", "VMMC"],
-        ["RCKH", "RCSS", "RCTP"],
-    ]
-    hkmo, tw = (gfs.subregion(g) for g in gs)
-    assert float(hkmo["leftlon"]) == pytest.approx(112.59)
-    assert float(hkmo["rightlon"]) == pytest.approx(114.92)
-    assert float(tw["toplat"]) == pytest.approx(26.08)
-    assert float(tw["bottomlat"]) == pytest.approx(21.58)
+def test_gfs_nomads_one_box(airports):
+    """NOMADS 備援（H9）：一個框涵蓋全部 41 個機場（外接框 ±1°）。"""
+    box = gfs.subregion(airports)
+    assert float(box["bottomlat"]) == pytest.approx(17.30)  # 三亞 18.30
+    assert float(box["toplat"]) == pytest.approx(43.77)  # 新千歲 42.77
+    assert float(box["leftlon"]) == pytest.approx(108.41)  # 三亞 109.41
+    assert float(box["rightlon"]) == pytest.approx(142.69)  # 新千歲 141.69
+    assert 17 <= float(box["bottomlat"]) and float(box["toplat"]) <= 44
+    assert 107 <= float(box["leftlon"]) and float(box["rightlon"]) <= 147
+
+
+def test_gfs_parse_one_box_all_airports(airports):
+    """2026-10-18 實測 NOMADS 一個框（12Z f120，約 64 KB）：41 個機場都在框內、都解析得到。"""
+    pts = gfs.parse_file(FIXTURES / "gfs_all_f120.grb2", airports)
+    assert set(pts) == {a.icao for a in airports}
+    for icao, ps in pts.items():
+        (p,) = ps
+        assert p.valid == utc(2026, 10, 23, 12)
+        assert p.gust_kt is not None and 0 < p.gust_kt < 150, icao
+        assert p.wdir is not None and 0 <= p.wdir < 360
 
 
 def test_gfs_parse_file_with_wind(airports):
-    gs = gfs.groups(airports)
-    hkmo = gfs.parse_file(FIXTURES / "gfs_hkmo_f006.grb2", gs[0])
-    tw = gfs.parse_file(FIXTURES / "gfs_tw_f006.grb2", gs[1])
+    by = {a.icao: a for a in airports}
+    hkmo = gfs.parse_file(FIXTURES / "gfs_hkmo_f006.grb2", [by["VHHH"], by["VMMC"]])
+    tw = gfs.parse_file(FIXTURES / "gfs_tw_f006.grb2", [by[i] for i in ("RCTP", "RCSS", "RCKH")])
     assert set(hkmo) == {"VHHH", "VMMC"} and set(tw) == {"RCTP", "RCSS", "RCKH"}
     (p,) = tw["RCTP"]
     assert p.valid == utc(2026, 10, 18, 6)
@@ -492,8 +582,7 @@ class FakeNoaa:
                 return FakeResponse(200, b"<html>SlowDown</html>")
             a, b = headers["Range"].removeprefix("bytes=").split("-")
             return FakeResponse(206, self.full[int(a) : int(b) + 1 if b else None])
-        name = "hkmo" if float(params["leftlon"]) < 115 else "tw"
-        return FakeResponse(200, (FIXTURES / f"gfs_{name}_f006.grb2").read_bytes())
+        return FakeResponse(200, (FIXTURES / "gfs_all_f120.grb2").read_bytes())
 
 
 def _fake_noaa(monkeypatch, **kw) -> FakeNoaa:
@@ -548,9 +637,11 @@ def test_gfs_fetch_aws_failure_falls_back_to_nomads(monkeypatch, airports, tmp_p
         "aws:range",
     ]
     assert set(fake.calls[i:]) == {"nomads:filter"}
-    assert fake.calls[i:].count("nomads:filter") == 2 * 19  # 兩個框 × 剩下的 19 個步長
+    assert fake.calls[i:].count("nomads:filter") == 19  # 一個框 × 剩下的 19 個步長
     assert all(len(data.points[a.icao]) == 21 for a in airports)
-    assert data.points["VMMC"][-1].gust_kt == pytest.approx(5.6 * KT_PER_MS, abs=0.02)
+    # 後面的步長是 NOMADS 一個框的檔（fixture 是 12Z f120）
+    nomads = gfs.parse_file(FIXTURES / "gfs_all_f120.grb2", airports)
+    assert data.points["ROAH"][-1].gust_kt == nomads["ROAH"][0].gust_kt
 
 
 def test_gfs_fetch_nomads_when_aws_down(monkeypatch, airports, tmp_path):

@@ -14,6 +14,7 @@ from math import atan2, degrees, hypot
 from pathlib import Path
 
 import numpy as np
+import xarray as xr
 
 from .budget import check_cancelled
 
@@ -54,19 +55,23 @@ def _read_points(cfgrib, path, points) -> dict[str, dict[str, PointSeries]]:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", FutureWarning)
         datasets = cfgrib.open_datasets(str(path), backend_kwargs={"indexpath": ""})
+    names = list(points)
     for ds in datasets:
         run = _to_datetime(ds["time"].values)
         steps = np.atleast_1d(ds["step"].values) / np.timedelta64(1, "h")
         lon_max = float(ds["longitude"].max())
+        # 所有點一次取（向量化的 nearest）：一個變數只解碼一次，點數多（H9 起 41 個）也不會變慢
+        lats = xr.DataArray([points[n][0] for n in names], dims="point")
+        lons = [points[n][1] for n in names]
+        lons = xr.DataArray([x + 360 if x < 0 and lon_max > 180 else x for x in lons], dims="point")
         for var in ds.data_vars:
             da = ds[var]
             key = da.attrs.get("GRIB_shortName") or str(var)
-            for name, (lat, lon) in points.items():
-                if lon < 0 and lon_max > 180:
-                    lon += 360
-                vals = np.atleast_1d(da.sel(latitude=lat, longitude=lon, method="nearest").values)
+            picked = da.sel(latitude=lats, longitude=lons, method="nearest")
+            table = picked.transpose(..., "point").values.reshape(-1, len(names))
+            for i, name in enumerate(names):
                 series = out[name].setdefault(key, PointSeries(run, [], []))
-                for s, v in zip(steps, vals, strict=True):
+                for s, v in zip(steps, table[:, i], strict=True):
                     series.steps.append(float(s))
                     series.values.append(None if np.isnan(v) else float(v))
         ds.close()

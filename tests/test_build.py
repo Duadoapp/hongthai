@@ -6,16 +6,31 @@ import json
 import re
 import threading
 import time
+from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from conftest import FIXTURES, ROOT, load_json, utc
 
 from hongthai import budget, build, grib
-from hongthai.config import ConfirmedPeriod, Thresholds, load_airports
+from hongthai.config import ConfirmedPeriod, Thresholds, load_airports, load_regions
 from hongthai.sources import cwa, ecmwf, gfs, hko, smg, taf
 from hongthai.sources.gfs import GfsData, GustPoint
 
-ICAOS = ["RCTP", "RCSS", "RCKH", "VHHH", "VMMC"]
+# 地區與機場的顯示順序（H9，Duado spec 第 16 節）
+REGIONS = {
+    "taiwan": ["RCTP", "RCSS", "RCKH", "RCMQ", "RCNN", "RCYU", "RCFN", "RCQC", "RCBS", "RCFG"],
+    "east-china": ["ZSPD", "ZSSS", "ZSHC", "ZSNB", "ZSWZ", "ZSFZ", "ZSAM", "ZSQZ"],
+    "south-china-hkmo": ["ZGOW", "ZGSZ", "ZGGG", "VHHH", "VMMC", "ZGSD", "ZJHK", "ZJSY"],
+    "okinawa": ["ROAH", "ROIG", "ROMY"],
+    "japan": ["RJFK", "RJFF", "RJBB", "RJGG", "RJTT", "RJAA", "RJCC", "RJSS"],
+    "korea": ["RKPC", "RKPK", "RKSI", "RKSS"],
+}
+ICAOS = [i for icaos in REGIONS.values() for i in icaos]
+TAIWAN = REGIONS["taiwan"]
+# fixtures 的 TAF／METAR 有的站（ROMY 只有 METAR）
+TAF_ICAOS = {"RCTP", "RCSS", "RCKH", "VHHH", "VMMC", "ZSPD", "ROAH", "RJTT", "RKSI"}
+METAR_ICAOS = TAF_ICAOS | {"ROMY"}
 ISO_Z = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 LANGS = {"zh-TW", "zh-HK", "zh-CN", "en"}
 NOW = utc(2026, 10, 18, 8, 10)
@@ -59,6 +74,7 @@ def sample_inputs(airports):
 @pytest.fixture
 def latest(airports):
     ec, gf, tf, hk, cw, sm = sample_inputs(airports)
+    regions = load_regions(ROOT / "airports.json")
     status = {n: {"ok": True} for n in build.SOURCE_NAMES}
     status["cwa"] = {"ok": False, "error": "timeout"}
     confirmed = [
@@ -66,6 +82,7 @@ def latest(airports):
     ]
     out = build.assemble(
         now=NOW,
+        regions=regions,
         airports=airports,
         confirmed=confirmed,
         status=status,
@@ -92,6 +109,16 @@ def test_top_level(latest):
         if not s["ok"]:
             assert isinstance(s["error"], str)
     assert latest["sources"]["cwa"] == {"ok": False, "error": "timeout"}
+    # 地區（H9）：照顯示順序，四語名稱
+    assert [r["id"] for r in latest["regions"]] == list(REGIONS)
+    for r in latest["regions"]:
+        assert set(r) == {"id", "name"} and set(r["name"]) == LANGS
+    assert latest["regions"][0]["name"] == {
+        "zh-TW": "台灣",
+        "zh-HK": "台灣",
+        "zh-CN": "台湾",
+        "en": "Taiwan",
+    }
 
 
 def test_airport_shape(latest):
@@ -99,6 +126,9 @@ def test_airport_shape(latest):
     for a in latest["airports"]:
         assert isinstance(a["iata"], str) and isinstance(a["tz"], str)
         assert set(a["name"]) == LANGS
+        assert a["icao"] in REGIONS[a["region"]]
+        assert set(a["official"]) == {"warnings"} and isinstance(a["official"]["warnings"], bool)
+        assert "runwaySource" not in a
         for w in a["warnings"]:
             assert w["source"] in ("hko", "cwa", "smg")
             assert isinstance(w["kind"], str)
@@ -106,12 +136,16 @@ def test_airport_shape(latest):
             assert set(w["text"]) == LANGS
             assert w["issuedAt"] is None or ISO_Z.match(w["issuedAt"])
         m = a["metar"]
-        assert ISO_Z.match(m["observedAt"])
-        assert all(is_num_or_none(m[k]) for k in ("windDirDeg", "windKt", "gustKt"))
-        assert isinstance(m["raw"], str)
+        assert (m is not None) == (a["icao"] in METAR_ICAOS)  # 沒有 METAR 的站是 null
+        if m is not None:
+            assert ISO_Z.match(m["observedAt"])
+            assert all(is_num_or_none(m[k]) for k in ("windDirDeg", "windKt", "gustKt"))
+            assert isinstance(m["raw"], str)
         t = a["taf"]
-        assert all(ISO_Z.match(t[k]) for k in ("issuedAt", "validFrom", "validTo"))
-        assert isinstance(t["raw"], str)
+        assert (t is not None) == (a["icao"] in TAF_ICAOS)  # 沒有 TAF 的站是 null
+        if t is not None:
+            assert all(ISO_Z.match(t[k]) for k in ("issuedAt", "validFrom", "validTo"))
+            assert isinstance(t["raw"], str)
         for c in a["confirmed"]:
             assert ISO_Z.match(c["from"]) and ISO_Z.match(c["to"])
             assert isinstance(c["note"], dict)
@@ -158,10 +192,17 @@ def test_slot_shape(latest):
 def test_content_from_samples(latest):
     by = {a["icao"]: a for a in latest["airports"]}
     rctp, vhhh, vmmc = by["RCTP"], by["VHHH"], by["VMMC"]
-    # 氣象署警報只給台灣三個機場、天文台信號只給香港、SMG 信號只給澳門
-    for icao in ("RCTP", "RCSS", "RCKH"):
+    # 氣象署警報只給台灣十個機場、天文台信號只給香港、SMG 信號只給澳門
+    for icao in TAIWAN:
         assert [w["kind"] for w in by[icao]["warnings"]] == ["typhoon_land"]
     assert "松山在警戒區" in by["RCSS"]["warnings"][0]["text"]["zh-TW"]
+    # 沒有官方警報來源的機場：warnings 是空的、official.warnings 是 false（網頁顯示「尚未提供」）
+    with_sources = set(TAIWAN) | {"VHHH", "VMMC"}
+    for a in latest["airports"]:
+        assert a["official"]["warnings"] is (a["icao"] in with_sources)
+        if a["icao"] not in with_sources:
+            assert a["warnings"] == []
+            assert all(not (s["official"] or {}).get("warnings") for s in a["slots"])
     assert [(w["kind"], w["code"]) for w in vhhh["warnings"]] == [("tc_signal", "TC8NE")]
     assert [(w["source"], w["code"], w["level"]) for w in vmmc["warnings"]] == [
         ("smg", "TC3", "medium")
@@ -171,8 +212,13 @@ def test_content_from_samples(latest):
     # 側風：GFS 40 節、120° → 對香港 070.9° 的跑道差 49°
     xw = vhhh["slots"][0]["model"]["gfs"]["crosswindKt"]
     assert xw == pytest.approx(40 * 0.755, abs=0.2)
+    # 有跑道的機場都算得出側風；石垣 OurAirports 沒有跑道方位 → 側風一律 null
     for a in latest["airports"]:
-        assert all(isinstance(s["model"]["ec"]["crosswindKt"], float) for s in a["slots"][12:14])
+        xws = [s["model"]["ec"]["crosswindKt"] for s in a["slots"][12:14]]
+        if a["icao"] == "ROIG":
+            assert xws == [None, None]
+        else:
+            assert all(isinstance(x, float) for x in xws)
     s0 = vhhh["slots"][0]
     assert (s0["level"], s0["basis"]) == ("high", "official")
     assert s0["official"]["warnings"] == ["tc_signal"]
@@ -185,19 +231,82 @@ def test_content_from_samples(latest):
 
 
 def test_airports_thresholds_in_knots(airports, tmp_path):
-    # 五個機場目前都用預設門檻（節）
+    # 41 個機場目前都用預設門檻（節），airports.json 不寫 thresholds
     assert all(a.thresholds == Thresholds() for a in airports)
     raw = json.loads((ROOT / "airports.json").read_text("utf-8"))
-    raw[0]["thresholds"] = {"crosswindMediumKt": 20, "ecP49High": 0.5}
+    assert not any("thresholds" in a for a in raw["airports"])
+    raw["airports"][0]["thresholds"] = {"crosswindMediumKt": 20, "ecP49High": 0.5}
     p = tmp_path / "airports.json"
     p.write_text(json.dumps(raw), "utf-8")
     th = load_airports(p)[0].thresholds
     assert (th.crosswind_medium_kt, th.ec_p49_high, th.model_high_gust_kt) == (20, 0.5, 48)
     # HD2 以前的 m/s 鍵不再接受
-    raw[0]["thresholds"] = {"modelHighGustMs": 25}
+    raw["airports"][0]["thresholds"] = {"modelHighGustMs": 25}
     p.write_text(json.dumps(raw), "utf-8")
     with pytest.raises(ValueError, match="modelHighGustMs"):
         load_airports(p)
+
+
+def test_airports_json_structure():
+    """`airports.json`（H9）：41 個機場、六個地區，順序和 Duado spec 第 16 節一致。"""
+    raw = json.loads((ROOT / "airports.json").read_text("utf-8"))
+    assert [r["id"] for r in raw["regions"]] == list(REGIONS)
+    assert all(set(r["name"]) == LANGS for r in raw["regions"])
+    aps = raw["airports"]
+    assert len(aps) == 41 and [a["icao"] for a in aps] == ICAOS
+    assert len({a["icao"] for a in aps}) == 41 and len({a["iata"] for a in aps}) == 41
+    for a in aps:
+        assert a["icao"] in REGIONS[a["region"]]
+        assert re.fullmatch(r"[A-Z]{4}", a["icao"]) and re.fullmatch(r"[A-Z]{3}", a["iata"])
+        ZoneInfo(a["tz"])
+        assert set(a["name"]) == LANGS and "機場" not in a["name"]["zh-TW"]
+        assert -90 <= a["lat"] <= 90 and -180 <= a["lon"] <= 180
+        assert a["runwaySource"] in ("aip", "ourairports")
+        for r in a["runways"]:
+            assert len(r["headings"]) == 2 and all(0 <= h <= 360 for h in r["headings"])
+            assert abs((r["headings"][1] - r["headings"][0]) % 360 - 180) < 0.05
+        # 官方警報：台灣看氣象署（每個機場一組警戒區關鍵字）、香港天文台、澳門 SMG，其他還沒有
+        want = (
+            ["cwa"]
+            if a["region"] == "taiwan"
+            else {"VHHH": ["hko"], "VMMC": ["smg"]}.get(a["icao"], [])
+        )
+        assert a["warningSources"] == want
+        assert bool(a.get("cwaAreas")) == (a["region"] == "taiwan")
+    aip = [a["icao"] for a in aps if a["runwaySource"] == "aip"]
+    assert sorted(aip) == ["RCKH", "RCSS", "RCTP", "VHHH", "VMMC"]
+
+
+def _write_airports(tmp_path, raw):
+    p = tmp_path / "airports.json"
+    p.write_text(json.dumps(raw, ensure_ascii=False), "utf-8")
+    return p
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (lambda raw: raw["airports"].append(dict(raw["airports"][0])), "ICAO 重複"),
+        (lambda raw: raw["airports"][0].update(region="mars"), "不在 regions"),
+        (lambda raw: raw["airports"][0].update(tz="Asia/Taipeii"), "IANA"),
+        (lambda raw: raw["airports"][0]["runways"][0].update(headings=[49, 400]), "0–360"),
+        (lambda raw: raw["airports"].insert(0, raw["airports"].pop(-1)), "順序"),
+        (lambda raw: raw["regions"].append(dict(raw["regions"][0])), "地區 id 重複"),
+    ],
+)
+def test_airports_json_rejected(tmp_path, change, message):
+    raw = json.loads((ROOT / "airports.json").read_text("utf-8"))
+    change(raw)
+    with pytest.raises(ValueError, match=message):
+        load_airports(_write_airports(tmp_path, raw))
+
+
+def test_regions_order_matches_airports(latest):
+    seen = []
+    for a in latest["airports"]:
+        if not seen or seen[-1] != a["region"]:
+            seen.append(a["region"])
+    assert seen == [r["id"] for r in latest["regions"]]
 
 
 # ---- 執行與失敗處理 ----
@@ -215,6 +324,10 @@ def workspace(tmp_path, monkeypatch):
 
     monkeypatch.setattr(build.requests, "get", no_network)
     return tmp_path
+
+
+def _airport(out, icao):
+    return next(a for a in out["airports"] if a["icao"] == icao)
 
 
 def _boom(*a, **k):
@@ -239,13 +352,9 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
 
 
 def test_full_build_from_fixtures(workspace, monkeypatch, airports):
-    """整個 `build.main` 用 fixtures 跑一次：五個機場都有 20 格，原始快照都寫了。"""
+    """整個 `build.main` 用 fixtures 跑一次：41 個機場都有 20 格，原始快照都寫了。"""
     ec, gf, tf, hk, cw, sm = sample_inputs(airports)
-    gs = gfs.groups(airports)
-    pts = {}
-    for name, members in zip(("hkmo", "tw"), gs, strict=True):
-        pts.update(gfs.parse_file(FIXTURES / f"gfs_{name}_f006.grb2", members))
-    gf = GfsData(utc(2026, 10, 18, 0), pts)
+    gf = GfsData(utc(2026, 10, 18, 12), gfs.parse_file(FIXTURES / "gfs_all_f120.grb2", airports))
     tf.raw.update(taf=load_json("taf.json"), metar=load_json("metar.json"))
     hk.raw.update(tc={})
     sm.raw.update(c=(FIXTURES / "smg_c_typhoon_sig3.xml").read_text("utf-8"))
@@ -261,7 +370,9 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     assert all(s["ok"] for k, s in out["sources"].items())
     assert [a["icao"] for a in out["airports"]] == ICAOS
     assert all(len(a["slots"]) == 20 for a in out["airports"])
-    assert all(a["metar"] and a["taf"] for a in out["airports"])
+    assert {a["icao"] for a in out["airports"] if a["taf"]} == TAF_ICAOS
+    assert {a["icao"] for a in out["airports"] if a["metar"]} == METAR_ICAOS
+    assert [r["id"] for r in out["regions"]] == list(REGIONS)
     raw = workspace / "data" / "history" / "raw" / "2026-10-18"
     assert sorted(p.name for p in raw.iterdir()) == [
         f"0810Z-{n}.json" for n in ("cwa", "hko", "metar", "smg", "taf")
@@ -474,7 +585,7 @@ def test_reuse_expires_after_24h(workspace, monkeypatch):
     src = out["sources"]["ecmwf"]
     assert (src["ok"], src["error"]) == (False, "timeout") and "reusedFrom" not in src
     assert out["runs"] == {"ecmwf": None, "ecmwfEns": None, "gfs": None}
-    s0 = out["airports"][3]["slots"][0]
+    s0 = _airport(out, "VHHH")["slots"][0]
     assert s0["model"]["ec"]["hresGustMs"] is None
     assert (s0["level"], s0["model"]["level"]) == ("unknown", None)
 
@@ -495,7 +606,7 @@ def test_gfs_failure_reuses_previous_gfs(workspace, monkeypatch, airports):
     assert out["sources"]["gfs"]["ok"] is False
     assert "reusedFrom" not in out["sources"]["ecmwf"]
     assert out["runs"]["gfs"] == "2026-10-17T18:00:00Z"
-    slots = out["airports"][3]["slots"]
+    slots = _airport(out, "VHHH")["slots"]
     s12 = slots[12]
     assert s12["from"] == "2026-10-21T06:00:00Z"
     assert s12["model"]["gfs"] == {"gustMs": 20.6, "gustKt": 40.0, "crosswindKt": 20.0}
@@ -557,7 +668,7 @@ def test_reuse_searches_back_to_last_good_run(workspace, monkeypatch, airports):
     src = out["sources"]["gfs"]
     assert (src["ok"], src["reusedFrom"]) == (False, "2026-10-17T20:10:00Z")
     assert out["runs"]["gfs"] == "2026-10-17T12:00:00Z"
-    s12 = out["airports"][3]["slots"][12]
+    s12 = _airport(out, "VHHH")["slots"][12]
     assert s12["from"] == "2026-10-21T06:00:00Z"
     # HD2 以前的格式：gustKt 由 gustMs 補（16 m/s ≈ 31.1 節）
     assert s12["model"]["gfs"] == {"gustMs": 16.0, "gustKt": 31.1, "crosswindKt": 20.0}
@@ -588,7 +699,7 @@ def test_reuse_search_all_older_than_24h(workspace, monkeypatch, airports):
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     assert "reusedFrom" not in out["sources"]["gfs"]
     assert out["runs"]["gfs"] is None
-    assert all(s["model"]["gfs"]["gustMs"] is None for s in out["airports"][3]["slots"])
+    assert all(s["model"]["gfs"]["gustMs"] is None for s in _airport(out, "VHHH")["slots"])
 
 
 def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
@@ -644,3 +755,19 @@ def test_timing_done_false_when_pipeline_crashes(workspace, monkeypatch):
     lines = _timing_lines(workspace)
     assert [(r["source"], r["ok"]) for r in lines] == [("start", True), ("done", False)]
     assert lines[0]["commit"] is None
+
+
+def test_pages_history_only_last_7_days(tmp_path):
+    """Pages 的 `history/` 只放 `generatedAt`（＝檔名）在 7 天內的；archive 全部保留。"""
+    archive, out = tmp_path / "data", tmp_path / "public"
+    stamps = []
+    for days in (0, 1, 6.9, 7.1, 30):
+        t = NOW - timedelta(days=days)
+        stamps.append(f"{t:%Y%m%dT%H%M}Z.json")
+        build._dump(archive / "history" / stamps[-1], {"generatedAt": build.iso(t)})
+    build._dump(archive / "history" / "notes.json", {})  # 檔名不是時間的不發布
+    build._dump(out / "history" / stamps[-1], {})  # 上次發布留下、已經過期的要刪
+    build.publish(out, archive, {"generatedAt": build.iso(NOW)}, NOW)
+    assert sorted(p.name for p in (out / "history").iterdir()) == sorted(stamps[:3])
+    assert len(list((archive / "history").glob("*.json"))) == 6
+    assert json.loads((out / "latest.json").read_text("utf-8"))["generatedAt"] == build.iso(NOW)

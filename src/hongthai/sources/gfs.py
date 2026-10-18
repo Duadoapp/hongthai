@@ -23,8 +23,11 @@ NOMADS（備援，H10 以前唯一的來源）：
 - 網址：`https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl`，參數 `dir`、`file`、
   `var_GUST=on`、`var_UGRD=on`、`var_VGRD=on`、`lev_surface=on`、`lev_10_m_above_ground=on`、
   `subregion=` 與 `toplat`／`bottomlat`／`leftlon`／`rightlon`
-- 範圍：機場依經度分群（相鄰機場經度差超過 `GROUP_GAP_DEG` 就分開），每群一個各自 ±1° 的外接框；
-  五個機場分成台灣（桃園、松山、高雄）與港澳兩個框，每檔 1–2 KB
+- 範圍（H9）：**一個框**涵蓋全部機場（外接框 ±1°；41 個機場約北緯 17.3–43.8°、東經 108.4–142.7°，
+  NOMADS 對齊 0.25° 格點），每個步長一個請求。2026-10-18 實測一檔約 64 KB、21 個步長約 1.3 MB。
+  不用依地區分六個框：NOMADS 有速率限制、每個請求前 `sleep(1)`，六個框是 126 個請求（光等就 126 秒，
+  預算 180 秒），一個框是 21 個；框大一點只多幾十 KB。之後加機場（HD3）框會自動變大
+- H9 以前依經度分群（經度差 3° 以上分開），五個機場兩個框、每檔 1–2 KB
 - NOMADS 有速率限制：請求之間 `sleep(1)`，失敗重試 3 次
 
 共同：
@@ -61,7 +64,6 @@ IDX_FIELDS = (("GUST", "surface"), ("UGRD", "10 m above ground"), ("VGRD", "10 m
 SPAN_H = 120
 STEP_H = 6
 PAD_DEG = 1.0
-GROUP_GAP_DEG = 3.0
 
 
 class GfsError(SourceError):
@@ -81,17 +83,6 @@ class GfsData:
     points: dict[str, list[GustPoint]]
     bytes_downloaded: int = 0
     mirror: str | None = None  # 最後從哪裡下載：aws／nomads
-
-
-def groups(airports: list[Airport]) -> list[list[Airport]]:
-    """依經度排序，相鄰兩個機場經度差超過 `GROUP_GAP_DEG` 就分成不同的框。"""
-    out: list[list[Airport]] = []
-    for a in sorted(airports, key=lambda a: a.lon):
-        if out and a.lon - out[-1][-1].lon <= GROUP_GAP_DEG:
-            out[-1].append(a)
-        else:
-            out.append([a])
-    return out
 
 
 def subregion(airports: list[Airport]) -> dict[str, str]:
@@ -224,18 +215,13 @@ def _fetch_aws(
 def _fetch_nomads(
     run: datetime, fh: int, airports: list[Airport], tmp: Path
 ) -> tuple[dict[str, list[GustPoint]], int]:
-    """NOMADS GRIB filter：每個經度群一個裁好區域的小檔。"""
-    out: dict[str, list[GustPoint]] = {}
-    size = 0
-    for g, members in enumerate(groups(airports)):
-        time.sleep(1)
-        params = {"dir": run_dir(run), "file": file_name(run, fh), **PARAMS, **subregion(members)}
-        r = http_get(FILTER_URL, params=params, error=GfsError)
-        path = tmp / f"gfs-nomads-g{g}-f{fh:03d}.grib2"
-        path.write_bytes(r.content)
-        size += len(r.content)
-        out.update(parse_file(path, members))
-    return out, size
+    """NOMADS GRIB filter：一個涵蓋全部機場的框（`subregion`），裁好區域的小檔。"""
+    time.sleep(1)
+    params = {"dir": run_dir(run), "file": file_name(run, fh), **PARAMS, **subregion(airports)}
+    r = http_get(FILTER_URL, params=params, error=GfsError)
+    path = tmp / f"gfs-nomads-f{fh:03d}.grib2"
+    path.write_bytes(r.content)
+    return parse_file(path, airports), len(r.content)
 
 
 def fetch(

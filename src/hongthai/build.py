@@ -10,8 +10,8 @@
   - `history/timing/<YYYY-MM>.jsonl`（每次 build 每個來源的耗時，一行一筆，見 `Timing`）
   - `history/cancellations/unknown-statuses.json`（航班狀態對照表沒列的字串與次數，見
     `cancellations.store_unknown`）
-- `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與 `history/*.json`
-  （只放結果，不放原始快照與航班統計）
+- `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
+  `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計）
 
 失敗處理：單一來源失敗記在 `sources.<名稱>`，其他照出。整個流程失敗（例外沒接到）時不產生新的
 `latest.json`，改用上一份（先找 `--archive` 裡的，沒有就從 Pages 網址抓）重新發布，並回傳非 0。
@@ -46,7 +46,15 @@ from pathlib import Path
 import requests
 
 from . import assess, budget, cancellations
-from .config import Airport, ConfirmedPeriod, Thresholds, load_airports, load_confirmed
+from .config import (
+    Airport,
+    ConfirmedPeriod,
+    Region,
+    Thresholds,
+    load_airports,
+    load_confirmed,
+    load_regions,
+)
 from .sources import cwa, ecmwf, flights, gfs, hko, smg, taf
 from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
 
@@ -70,6 +78,8 @@ BUDGET_S: dict[str, float] = {
 }
 
 REUSE_MAX_AGE = timedelta(hours=24)
+# GitHub Pages 的 `history/` 只放最近幾天（H9：41 個機場每份約 515 KB）；`data` 分支全部保留
+PAGES_HISTORY_DAYS = 7
 # 模式來源 → (`model` 裡的鍵, [(`runs` 的鍵, 那一報決定的欄位)])；系集與 HRES 的時次各自判斷期限。
 # 節的欄位（HD2）在 HD2 以前的結果裡沒有，抄完由 `_rescore` 用 m/s 欄位補（`assess.fill_kt`）
 REUSE_FIELDS: dict[str, tuple[str, tuple[tuple[str, tuple[str, ...]], ...]]] = {
@@ -389,6 +399,7 @@ def confirmed_json(c: ConfirmedPeriod) -> dict:
 def assemble(
     *,
     now: datetime,
+    regions: list[Region],
     airports: list[Airport],
     confirmed: list[ConfirmedPeriod],
     status: dict,
@@ -426,6 +437,9 @@ def assemble(
                 "iata": a.iata,
                 "tz": a.tz,
                 "name": a.name,
+                "region": a.region,
+                # 有沒有接官方警報來源（H9）；false 的機場網頁顯示「官方警報：尚未提供」
+                "official": {"warnings": bool(a.warning_sources)},
                 "warnings": [warning_json(w) for w in warns],
                 "metar": metar_json(metar),
                 "taf": taf_json(taf_info),
@@ -447,6 +461,7 @@ def assemble(
             **{n: status.get(n, {"ok": False, "error": "skipped"}) for n in SOURCE_NAMES},
             **{k: v for k, v in status.items() if k not in SOURCE_NAMES},
         },
+        "regions": [{"id": r.id, "name": r.name} for r in regions],
         "airports": out_airports,
     }
 
@@ -499,6 +514,7 @@ def run(
     pages_url: str = PAGES_URL,
     timing: Timing | None = None,
 ) -> dict:
+    regions = load_regions(airports_path)
     airports = load_airports(airports_path)
     confirmed = load_confirmed(confirmed_path)
     slot0 = floor_6h(now)
@@ -533,6 +549,7 @@ def run(
 
     latest = assemble(
         now=now,
+        regions=regions,
         airports=airports,
         confirmed=confirmed,
         status=status,
@@ -567,15 +584,25 @@ def run(
     return latest
 
 
-def publish(out: Path, archive: Path, latest: dict | None) -> None:
-    """把 latest 與歷次結果（`history/*.json`，不含 raw／cancellations）放進發布目錄。"""
+def publish(out: Path, archive: Path, latest: dict | None, now: datetime) -> None:
+    """把 latest 與最近 `PAGES_HISTORY_DAYS` 天的結果（`history/<時間>.json`，不含
+    raw／cancellations）放進發布目錄。
+
+    檔名的時間就是那一份的 `generatedAt`，所以用檔名判斷、不用打開約 500 KB 的檔。發布目錄裡已經有、
+    但超過天數的舊檔刪掉。`data` 分支（`--archive`）照舊全部保留（H9）。
+    """
     out.mkdir(parents=True, exist_ok=True)
     if latest is not None:
         _dump(out / "latest.json", latest)
     hist_out = out / "history"
     hist_out.mkdir(parents=True, exist_ok=True)
-    for p in sorted((archive / "history").glob("*.json")):
-        shutil.copy2(p, hist_out / p.name)
+    since = now - timedelta(days=PAGES_HISTORY_DAYS)
+    keep = {p.name for t, p in _history_files(archive) if t > since}
+    for p in hist_out.glob("*.json"):
+        if p.name not in keep:
+            p.unlink()
+    for name in sorted(keep):
+        shutil.copy2(archive / "history" / name, hist_out / name)
 
 
 def previous_latest(archive: Path, pages_url: str) -> dict | None:
@@ -629,7 +656,7 @@ def main(argv: list[str] | None = None) -> int:
                 timing=timing,
             )
         produced = True
-        publish(args.out, args.archive, latest)
+        publish(args.out, args.archive, latest, now)
         ok = {k: v.get("ok") for k, v in latest["sources"].items()}
         log.info("完成，%.1f 秒；來源：%s", time.monotonic() - t0, ok)
         return 0
@@ -638,7 +665,7 @@ def main(argv: list[str] | None = None) -> int:
         prev = previous_latest(args.archive, args.pages_url)
         if prev is None:
             return 2
-        publish(args.out, args.archive, prev)
+        publish(args.out, args.archive, prev, now)
         return 1
     finally:
         # 被放棄的來源執行緒是 daemon，不 join，程式照常結束

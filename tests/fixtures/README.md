@@ -12,6 +12,10 @@
   （`10fg`／`10fg3`）＋10 米風（`10u`／`10v`，同一報 2026-10-17 18Z、同樣步長，後加）與系集機率
   （`10fgg10/15/25`），從全球檔裁成 22–26°N、113–122°E
 - `taf.json`、`metar.json` 後面三筆（RCSS、RCKH、VMMC）是 2026-10-18 04:50Z 抓的
+- `taf.json` 再後面四筆（ZSPD、ROAH、RJTT、RKSI）與 `metar.json` 再後面五筆（同四站＋ROMY，宮古只有 METAR）
+  是 H9 一次請求 41 站時（2026-10-18 17:1xZ）抓的；ZSPD 是 `MPS` 的 TAF
+- `gfs_all_f120.grb2`：H9 的 NOMADS 一個框（17.3–43.8°N、108.4–142.7°E，2026-10-18 12Z f120，GUST＋10 米風，
+  約 64 KB），41 個機場都在框內
 - `smg_{c,e}_typhoon_none.xml`：SMG 熱帶氣旋信號 XML（當時沒有信號）
 - `tsa_intl_departure.json`、`khh_intdep.json`、`mfm_departure_en.json`：松山、高雄、澳門航班（各前 5 筆）
 - `hkg_arrival.json`：香港機管局航班資訊（每天只留 3 筆）

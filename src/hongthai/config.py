@@ -1,4 +1,10 @@
-"""讀 `airports.json` 與 `confirmed.json`。"""
+"""讀 `airports.json` 與 `confirmed.json`。
+
+`airports.json`（H9 起）是 `{"regions": [...], "airports": [...]}`：`regions` 是地區（顯示順序），
+`airports` 照地區順序排、地區內照顯示順序。讀的時候檢查：ICAO 唯一、地區 id 唯一、每個機場的
+`region` 在 `regions` 裡、`airports` 依 `regions` 的順序分段（同一地區的機場連在一起）、`tz` 是
+合法的 IANA 時區、跑道方位在 0–360。不對就丟 `ValueError`。
+"""
 
 from __future__ import annotations
 
@@ -6,6 +12,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .timeutil import parse_time
 
@@ -33,6 +40,14 @@ class Runway:
 
 
 @dataclass(frozen=True)
+class Region:
+    """地區（H9）：`id` 是 `latest.json` 的契約（和 Duado spec 第 16 節一致），`name` 四語。"""
+
+    id: str
+    name: dict[str, str]
+
+
+@dataclass(frozen=True)
 class Airport:
     icao: str
     iata: str
@@ -44,6 +59,7 @@ class Airport:
     thresholds: Thresholds
     runways: tuple[Runway, ...] = ()
     cwa_areas: tuple[str, ...] = ()  # 氣象署警戒區關鍵字（`airports.json` 的 `cwaAreas`）
+    region: str = ""  # 地區 id（`Region.id`）
 
 
 @dataclass(frozen=True)
@@ -74,10 +90,25 @@ def _thresholds(icao: str, raw: dict) -> Thresholds:
     return Thresholds(**{_THRESHOLD_KEYS[k]: v for k, v in raw.items()})
 
 
-def load_airports(path: str | Path) -> list[Airport]:
+def _raw(path: str | Path) -> dict:
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or not {"regions", "airports"} <= set(raw):
+        raise ValueError('airports.json 要是 {"regions": [...], "airports": [...]}')
+    return raw
+
+
+def _regions(raw: dict) -> list[Region]:
+    return [Region(r["id"], dict(r["name"])) for r in raw["regions"]]
+
+
+def load_regions(path: str | Path) -> list[Region]:
+    return _regions(_raw(path))
+
+
+def load_airports(path: str | Path) -> list[Airport]:
+    raw = _raw(path)
     airports = []
-    for a in raw:
+    for a in raw["airports"]:
         airports.append(
             Airport(
                 icao=a["icao"],
@@ -93,9 +124,37 @@ def load_airports(path: str | Path) -> list[Airport]:
                     for r in a.get("runways", [])
                 ),
                 cwa_areas=tuple(a.get("cwaAreas", [])),
+                region=a["region"],
             )
         )
+    _check(_regions(raw), airports)
     return airports
+
+
+def _check(regions: list[Region], airports: list[Airport]) -> None:
+    ids = [r.id for r in regions]
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"airports.json 的地區 id 重複：{ids}")
+    icaos = [a.icao for a in airports]
+    dup = sorted({i for i in icaos if icaos.count(i) > 1})
+    if dup:
+        raise ValueError(f"airports.json 的 ICAO 重複：{', '.join(dup)}")
+    for a in airports:
+        if a.region not in ids:
+            raise ValueError(f"airports.json {a.icao} 的 region {a.region!r} 不在 regions 裡")
+        try:
+            ZoneInfo(a.tz)
+        except (ZoneInfoNotFoundError, ValueError) as e:
+            raise ValueError(f"airports.json {a.icao} 的 tz {a.tz!r} 不是 IANA 時區") from e
+        for r in a.runways:
+            if not r.headings or not all(0 <= h <= 360 for h in r.headings):
+                raise ValueError(
+                    f"airports.json {a.icao} 跑道 {r.id} 的方位不在 0–360：{r.headings}"
+                )
+    # 照地區順序分段：機場的地區順序不能往回跳
+    order = [ids.index(a.region) for a in airports]
+    if order != sorted(order):
+        raise ValueError("airports.json 的 airports 要照 regions 的順序排（同一地區連在一起）")
 
 
 def load_confirmed(path: str | Path) -> list[ConfirmedPeriod]:

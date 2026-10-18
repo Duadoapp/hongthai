@@ -6,6 +6,14 @@
 TAF 用回傳裡的 `fcsts`：每段有 `timeFrom`／`timeTo`（epoch 秒）、`fcstChange`（null＝主時段，
 `FM`、`BECMG`、`TEMPO`）、`probability`（30／40）、`wdir`、`wspd`、`wgst`（節）。
 沒有陣風時 `wgst` 是 null；`wdir` 可能是 `"VRB"`。
+
+H9（41 個機場）：一次請求帶全部 ICAO（`ids` 逗號分隔，41 個約 200 字元，網址不到 300 字元）。
+沒有 TAF 或 METAR 的站回應裡就沒有那一站（該機場 `taf`／`metar` 是 null）；一站都沒有時 API 回
+`204`、內容是空的，當成空陣列。2026-10-18 實測沒有 TAF 的：花蓮 RCYU、金門 RCBS、馬祖 RCFG、
+溫州 ZSWZ、泉州 ZSQZ、珠海 ZGSD、宮古 ROMY（宮古有 METAR，其他六個 METAR 也沒有）。
+
+中國機場的 TAF／METAR 風速用 `MPS`，API 解碼成節時是乘 2（3 MPS → 6 節，實際 5.8 節），
+比實際高約 3%，偏保守，先不修正。
 """
 
 from __future__ import annotations
@@ -134,13 +142,18 @@ def parse_metars(data: list[dict]) -> dict[str, Metar]:
     return out
 
 
+def _get_json(url: str, ids: str) -> object:
+    r = http_get(url, params={"ids": ids, "format": "json"}, error=TafError)
+    if r.status_code == 204 or not r.content.strip():  # 一站都沒有資料
+        return []
+    return r.json()
+
+
 def fetch(airports: list[Airport]) -> TafData:
     ids = ",".join(a.icao for a in airports)
     try:
-        taf_json = http_get(TAF_URL, params={"ids": ids, "format": "json"}, error=TafError).json()
-        metar_json = http_get(
-            METAR_URL, params={"ids": ids, "format": "json"}, error=TafError
-        ).json()
+        taf_json = _get_json(TAF_URL, ids)
+        metar_json = _get_json(METAR_URL, ids)
     except ValueError as e:
         raise TafError(f"AviationWeather 回傳不是 JSON：{e}", "bad_json") from e
     if not isinstance(taf_json, list) or not isinstance(metar_json, list):

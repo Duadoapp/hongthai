@@ -5,13 +5,13 @@
 
 ## 這個 repo 做什麼
 
-用公開氣象資料，每天四次算五個機場（桃園 RCTP、松山 RCSS、高雄 RCKH、香港 VHHH、澳門 VMMC）
-未來 120 小時、每 6 小時一格的**強風停飛風險**（低／中／高），輸出一份 `latest.json` 發布在
-GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
+用公開氣象資料，每天四次算 **41 個機場、六個地區**（台灣 10、華東 8、華南・港澳 8、沖繩 3、日本 8、
+韓國 4；H9 起，名單見 README「機場」）未來 120 小時、每 6 小時一格的**強風停飛風險**（低／中／高），
+輸出一份 `latest.json` 發布在 GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
 
 - 只產資料。網頁 <https://duado.app/hongthai/> 在 Duado 的私人 repo（`site/hongthai/`），不在這裡
 - 程式：`src/hongthai/`（`sources/` 各資料來源、`assess.py` 判讀、`build.py` 組 JSON 與失敗處理）
-- 設定：`airports.json`（機場、跑道、門檻、看哪些官方警報）、`confirmed.json`（人工填的已確認停飛）
+- 設定：`airports.json`（地區、機場、跑道、門檻、看哪些官方警報）、`confirmed.json`（人工填的已確認停飛）
 
 ## 和產品負責人（Shawn）合作的方式
 
@@ -101,8 +101,11 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
 - HD2 加的節欄位（要進 Duado `docs/spec.md` 第 16 節）：`model.ec.hresGustKt`、`model.gfs.gustKt`（節）、
   `model.ec.p29Kt`／`p37Kt`／`p49Kt`（系集陣風 ≥ 29／37／49 節機率；`p29Kt`＝`p15`、`p49Kt`＝`p25`、
   `p37Kt` 一律 `null`）。網頁之後顯示風速請改用節的欄位
-- 第三階段（41 個機場）會加的欄位（地區、官方警報有沒有接）要和 Duado `docs/spec.md` 第 16 節一致，欄位定稿後經 Shawn
-  轉給 Duado 總指揮，網頁那邊另外排
+- 第三階段（H9，41 個機場）加的欄位，要和 Duado `docs/spec.md` 第 16 節一致，經 Shawn 轉給 Duado 總指揮：
+  頂層 `regions`（`[{id, name: {四語}}]`，顯示順序；id 是 `taiwan`、`east-china`、`south-china-hkmo`、
+  `okinawa`、`japan`、`korea`）、`airports[].region`（地區 id）、`airports[].official.warnings`（布林，
+  有沒有接官方警報來源；`false` 顯示「官方警報：尚未提供」）。沒有 TAF／METAR 的機場 `taf`／`metar` 是
+  `null`（原本就是可空）
 
 ## 流程
 
@@ -123,8 +126,9 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 | --- | --- | --- |
 | ECMWF 開放資料（經 AWS／Google 鏡像） | HRES 10 米陣風與 10 米風（側風的風向）、系集陣風機率 | CC BY 4.0（要標示 © ECMWF） |
 | NOAA GFS（AWS 開放資料鏡像 `noaa-gfs-bdp-pds`，NOMADS 備援；H10） | 地面陣風、10 米風 | 美國政府公有領域 |
-| AviationWeather.gov Data API | 五個機場的 TAF、METAR | 美國政府公有領域 |
-| 中央氣象署開放資料（`W-C0034-001`） | 颱風警報（桃園、松山、高雄） | 政府資料開放授權條款；要授權碼 |
+| AviationWeather.gov Data API | 41 個機場的 TAF、METAR（一個請求帶全部；7 個沒有 TAF，見 README「機場」） | 美國政府公有領域 |
+| OurAirports（`airports.csv`、`runways.csv`；H9） | 新增 36 個機場的座標與跑道真北方位 | 公有領域（Unlicense） |
+| 中央氣象署開放資料（`W-C0034-001`） | 颱風警報（台灣十個機場，每個機場一組警戒區關鍵字） | 政府資料開放授權條款；要授權碼 |
 | 香港天文台開放數據（warnsum） | 熱帶氣旋信號（香港） | data.gov.hk 使用條款 |
 | 澳門地球物理氣象局 SMG（`xml.smg.gov.mo`，data.gov.mo 資料集「熱帶氣旋信號」） | 熱帶氣旋信號（澳門） | 澳門政府數據開放平台使用條款（須註明平台與取得日期） |
 | 航班狀態（香港機管局、桃園機場、松山／高雄／澳門見 README） | 算每 6 小時格的取消／延誤統計（不存原始資料），之後回測 | 各自條款，見 README |
@@ -197,4 +201,6 @@ Actions 自動推，不要手動改。內容：
   欄位見 README「輸出」
 - `history/flights/2026-10-18/`：H6 之前存的一天份航班快照（gz），留著不管
 
-GitHub Pages（`public/`）只放 `latest.json` 與 `history/*.json`，不放原始快照與航班統計。
+GitHub Pages（`public/`）只放 `latest.json` 與**最近 7 天**的 `history/<時間>.json`（H9 起，一份約 515 KB，2026-10-18 實測；
+`build.py` 的 `PAGES_HISTORY_DAYS`，Shawn 確認中），不放原始快照與航班統計。`data` 分支的
+`history/<時間>.json` 照舊全部保留。
