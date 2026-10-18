@@ -1,0 +1,38 @@
+[
+  {
+    "icao": "RCTP",
+    "iata": "TPE",
+    "tz": "Asia/Taipei",
+    "name": { "zh-TW": "桃園", "zh-HK": "桃園", "zh-CN": "桃园", "en": "Taoyuan" },
+    "lat": 25.0777,
+    "lon": 121.2328,
+    "warningSources": ["cwa"],
+    "thresholds": {
+      "modelHighGustMs": 25,
+      "modelMediumGustMs": 15,
+      "ecP25High": 0.3,
+      "ecP15Medium": 0.5,
+      "tafHighGustKt": 45,
+      "tafHighWindKt": 35,
+      "tafMediumGustKt": 30
+    }
+  },
+  {
+    "icao": "VHHH",
+    "iata": "HKG",
+    "tz": "Asia/Hong_Kong",
+    "name": { "zh-TW": "香港", "zh-HK": "香港", "zh-CN": "香港", "en": "Hong Kong" },
+    "lat": 22.308,
+    "lon": 113.9185,
+    "warningSources": ["hko"],
+    "thresholds": {
+      "modelHighGustMs": 25,
+      "modelMediumGustMs": 15,
+      "ecP25High": 0.3,
+      "ecP15Medium": 0.5,
+      "tafHighGustKt": 45,
+      "tafHighWindKt": 35,
+      "tafMediumGustKt": 30
+    }
+  }
+]

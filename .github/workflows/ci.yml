@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 裝 eccodes
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libeccodes-dev
+
+      - name: 裝套件
+        run: pip install ".[dev]"
+
+      - name: ruff
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: pytest
+        run: pytest -q
