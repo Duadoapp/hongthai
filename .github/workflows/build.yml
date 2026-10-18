@@ -24,15 +24,15 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # ubuntu-latest 2026-10-19 起換成 26.04；eccodes 與 Python 套件在新版確認過再換
     timeout-minutes: 20
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -77,14 +77,14 @@ jobs:
 
       - name: 上傳 Pages artifact
         if: hashFiles('public/latest.json') != ''
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: public
 
       - name: 發布到 GitHub Pages
         id: deploy
         if: hashFiles('public/latest.json') != ''
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: 流程失敗時標紅
         if: steps.build.outcome != 'success'
