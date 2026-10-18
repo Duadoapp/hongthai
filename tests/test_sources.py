@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import gzip
 import json
 from datetime import timedelta
 
@@ -300,7 +299,7 @@ def test_smg_bad_xml():
 
 def test_tpe_parse_big5():
     rows = flights.parse_tpe((FIXTURES / "tpe_flights_big5.txt").read_bytes())
-    assert len(rows) == 5
+    assert len(rows) == 14
     assert rows[0]["airlineName"] == "真航空"
     assert rows[0]["airportZh"] == "仁川"
     assert rows[0]["status"].endswith("ARRIVED")
@@ -319,14 +318,58 @@ def test_tsa_khh_mfm_samples():
         flights.parse_mfm({"error": "x"})
 
 
-def test_flight_snapshot_path(tmp_path):
+def test_flights_fetch_skips_failed_airport(monkeypatch):
     hk = load_json("hkg_arrival.json")
-    now = utc(2026, 10, 18, 7, 25)
-    p = flights.write_snapshot(tmp_path, "VHHH", now, {"arrival": hk})
-    assert p == tmp_path / "flights" / "2026-10-18" / "VHHH-0725.json.gz"
-    body = json.loads(gzip.decompress(p.read_bytes()))
-    assert body["fetchedAt"] == "2026-10-18T07:25:00Z"
-    assert body["arrival"][0]["list"][0]["flight"]
+    monkeypatch.setattr(flights, "fetch_hkg", lambda now: {"arrival": hk, "departure": []})
+    monkeypatch.setattr(flights, "fetch_tpe", lambda: {"rows": []})
+    monkeypatch.setattr(flights, "fetch_tsa", lambda: {})
+    monkeypatch.setattr(flights, "fetch_khh", lambda: {})
+
+    def down():
+        raise flights.FlightsError("down", "timeout")
+
+    monkeypatch.setattr(flights, "fetch_mfm", down)
+    data = flights.fetch(utc(2026, 10, 18, 7, 25))
+    assert data.errors == {"VMMC": "timeout"}
+    assert sorted(data.snapshots) == ["RCKH", "RCSS", "RCTP", "VHHH"]
+    assert data.snapshots["VHHH"]["arrival"] == hk
+
+
+def test_hkg_fetches_yesterday_and_today(monkeypatch):
+    calls = []
+
+    class Resp:
+        def __init__(self, params):
+            self.params = params
+
+        def json(self):
+            return [{"date": self.params["date"], "list": []}]
+
+    def fake_get(url, params=None, **kw):
+        calls.append((params["date"], params["arrival"]))
+        return Resp(params)
+
+    monkeypatch.setattr(flights, "http_get", fake_get)
+    out = flights.fetch_hkg(utc(2026, 10, 18, 20, 25))  # 香港 10/19 04:25
+    assert calls == [
+        ("2026-10-18", "false"),
+        ("2026-10-18", "true"),
+        ("2026-10-19", "false"),
+        ("2026-10-19", "true"),
+    ]
+    assert [g["date"] for g in out["departure"]] == ["2026-10-18", "2026-10-19"]
+
+    # 昨天的抓不到：只用今天的；今天的抓不到：整個機場失敗
+    def flaky(url, params=None, **kw):
+        if params["date"] == "2026-10-18":
+            raise flights.FlightsError("down", "timeout")
+        return Resp(params)
+
+    monkeypatch.setattr(flights, "http_get", flaky)
+    out = flights.fetch_hkg(utc(2026, 10, 18, 20, 25))
+    assert [g["date"] for g in out["arrival"]] == ["2026-10-19"]
+    with pytest.raises(flights.FlightsError):
+        flights.fetch_hkg(utc(2026, 10, 18, 10))  # 香港 10/18 18:00，今天就是 10/18
 
 
 def test_cwa_tls_adapter_keeps_verification_but_not_strict():

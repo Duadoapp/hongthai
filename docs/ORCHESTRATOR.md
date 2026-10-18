@@ -41,8 +41,8 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
   - 第二階段（H4）：側風分跑道、松山／高雄／澳門
   - 第三階段：第一件 H6 航班快照→停飛統計（2026-10-18 定案，提示詞在 `docs/prompts/`）；之後還沒排：FNV3／WeatherNext Cyclones 颱風路徑（授權是實驗性條款、商用待確認，所以排後面）、
     日本機場（JMA bosai JSON 非正式）、華南與馬尼拉（只能爬網頁）、推播（要接進 App，屬 Duado 的規格）
-- 等級叫「風險」不叫「機率」，等用實際停飛紀錄回測校準後才改。停飛紀錄沒有現成的，從第一天起每天存
-  航班快照（`data` 分支）自己累積
+- 等級叫「風險」不叫「機率」，等用實際停飛紀錄回測校準後才改。停飛紀錄沒有現成的，從第一天起從航班狀態
+  自己累積（`data` 分支；H6 起只存每 6 小時格的取消／延誤統計，不存原始航班資料）
 - 保守假設都在 `assess.py` 與 `airports.json` 的門檻，改之前先跟 Shawn 確認
 - 隱私：這個 repo 不碰任何個資；公開 repo，程式裡不能有金鑰
 
@@ -77,7 +77,7 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 | 中央氣象署開放資料（`W-C0034-001`） | 颱風警報（桃園、松山、高雄） | 政府資料開放授權條款；要授權碼 |
 | 香港天文台開放數據（warnsum） | 熱帶氣旋信號（香港） | data.gov.hk 使用條款 |
 | 澳門地球物理氣象局 SMG（`xml.smg.gov.mo`，data.gov.mo 資料集「熱帶氣旋信號」） | 熱帶氣旋信號（澳門） | 澳門政府數據開放平台使用條款（須註明平台與取得日期） |
-| 航班快照（香港機管局、桃園機場、松山／高雄見 README） | 只存檔，之後回測 | 各自條款，見 README |
+| 航班狀態（香港機管局、桃園機場、松山／高雄／澳門見 README） | 算每 6 小時格的取消／延誤統計（不存原始資料），之後回測 | 各自條款，見 README |
 
 ## `latest.json` 是契約
 
@@ -111,6 +111,9 @@ Actions 自動推，不要手動改。內容：
 
 - `latest.json`、`history/<YYYYMMDDTHHMM>Z.json`：每次的結果
 - `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg}.json`：官方來源原始回應（SMG 是 XML 原文包在 JSON 裡）
-- `history/flights/<日期>/<機場>-<HHMM>.json.gz`：航班快照（之後回測停飛用）
+- `history/cancellations/<日期>.json`：每機場每 UTC 6 小時格的航班取消／延誤統計（之後回測停飛用；
+  H6 起，原始航班資料不再存）。日期是格的 UTC 日期；每次 build 合併進去，同一格新的覆蓋舊的，
+  但新的總班數比舊的少就留舊的。格式與規則見 README「輸出」、`src/hongthai/cancellations.py` 開頭
+- `history/flights/2026-10-18/`：H6 之前存的一天份航班快照（gz），留著不管
 
-GitHub Pages（`public/`）只放 `latest.json` 與 `history/*.json`，不放原始快照與航班。
+GitHub Pages（`public/`）只放 `latest.json` 與 `history/*.json`，不放原始快照與航班統計。

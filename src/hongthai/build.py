@@ -5,9 +5,10 @@
   - `latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（每次的結果）
   - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署、SMG 原始回應；
     SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON）
-  - `history/flights/<YYYY-MM-DD>/<機場>-<HHMM>.json.gz`（航班快照）
+  - `history/cancellations/<YYYY-MM-DD>.json`（每機場每 6 小時格的航班取消／延誤統計，日期是格的
+    UTC 日期；合併規則見 `cancellations.py`。原始航班資料不存）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與 `history/*.json`
-  （只放結果，不放原始快照與航班）
+  （只放結果，不放原始快照與航班統計）
 
 失敗處理：單一來源失敗記在 `sources.<名稱>`，其他照出。整個流程失敗（例外沒接到）時不產生新的
 `latest.json`，改用上一份（先找 `--archive` 裡的，沒有就從 Pages 網址抓）重新發布，並回傳非 0。
@@ -29,7 +30,7 @@ from pathlib import Path
 
 import requests
 
-from . import assess
+from . import assess, cancellations
 from .config import Airport, ConfirmedPeriod, load_airports, load_confirmed
 from .sources import cwa, ecmwf, flights, gfs, hko, smg, taf
 from .timeutil import floor_6h, iso, slot_bounds, utcnow
@@ -197,6 +198,37 @@ def assemble(
     }
 
 
+def flight_stats(
+    fl: flights.FlightsData, airports: list[Airport], now: datetime, history: Path
+) -> dict:
+    """航班 → 每 6 小時格的取消／延誤統計，合併寫進 `history/cancellations/`。
+
+    回傳 `sources.flights`：抓不到的機場照舊記在 `error`；統計或寫檔失敗只 log、記在
+    `statsError`，不讓 build 失敗。
+    """
+    out: dict[str, object] = {"ok": True}
+    if fl.errors:
+        out = {"ok": False, "error": ",".join(f"{k}:{v}" for k, v in fl.errors.items())}
+    tz = {a.icao: a.tz for a in airports}
+    stats: list[dict] = []
+    errors: dict[str, str] = {}
+    for icao, payload in fl.snapshots.items():
+        try:
+            stats += cancellations.airport_stats(icao, payload, tz[icao], now)
+        except Exception as e:  # 某個機場格式突然變了，其他照算
+            log.warning("航班統計 %s 失敗：%s", icao, e, exc_info=True)
+            errors[icao] = f"{e.__class__.__name__}: {e}"[:120]
+    try:
+        for p in cancellations.store(history, stats):
+            log.info("航班統計 → %s", p)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        log.warning("航班統計寫檔失敗：%s", e, exc_info=True)
+        errors["store"] = f"{e.__class__.__name__}: {e}"[:120]
+    if errors:
+        out["statsError"] = "; ".join(f"{k}:{v}" for k, v in errors.items())
+    return out
+
+
 def run(
     *,
     now: datetime,
@@ -226,11 +258,7 @@ def run(
     sm = _call("smg", smg.fetch, status)
 
     history = archive / "history"
-    status["flights"] = {"ok": True}
-    fl = flights.fetch_and_store(history, now)
-    failed = {k: v for k, v in fl.items() if v}
-    if failed:
-        status["flights"] = {"ok": False, "error": ",".join(f"{k}:{v}" for k, v in failed.items())}
+    status["flights"] = flight_stats(flights.fetch(now), airports, now, history)
 
     latest = assemble(
         now=now,
@@ -262,7 +290,7 @@ def run(
 
 
 def publish(out: Path, archive: Path, latest: dict | None) -> None:
-    """把 latest 與歷次結果（`history/*.json`，不含 raw／flights）放進發布目錄。"""
+    """把 latest 與歷次結果（`history/*.json`，不含 raw／cancellations）放進發布目錄。"""
     out.mkdir(parents=True, exist_ok=True)
     if latest is not None:
         _dump(out / "latest.json", latest)

@@ -16,6 +16,11 @@
 - `tsa_intl_departure.json`、`khh_intdep.json`、`mfm_departure_en.json`：松山、高雄、澳門航班（各前 5 筆）
 - `hkg_arrival.json`：香港機管局航班資訊（每天只留 3 筆）
 - `tpe_flights_big5.txt`：桃園機場即時航班（Big5，前 5 行）
+- 上面五個航班檔後面加的幾筆（H6，測取消／延誤統計）是 2026-10-18 08:5xZ 抓的真實資料：
+  松山 3 筆「延誤Delayed」共掛（`Master` 1／2／3）；高雄 3 筆（「延遲」兩筆、「登機」但晚 61 分一筆）；
+  澳門 6 筆（`CANCELLED`、`DELAY UNTIL …`、`RESCHEDULE …`、`0`、`CHECK-IN … OPEN AT …`）；
+  香港 10/18 那組加 2 筆（`Cancelled`、`Est at 00:30 (19/10/2026)`）；桃園 9 行（延遲共掛、晚 90 分、
+  取消共掛、出發取消、晚 55 分的三個班號共掛）
 
 真實內容、轉回 XML 格式：
 - `smg_c_typhoon_{sig3,sig1_pending3,cancel}.xml`：2026 年颱風紅霞（2612）期間 SMG 的真實報告

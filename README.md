@@ -64,8 +64,33 @@ Actions 那一步的上限是 10 分鐘。
 
 - GitHub Pages（`public/`）：`latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（歷次結果）
 - `data` 分支（Actions 自動推）：同樣的結果，加上原始快照
-  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg}.json`（SMG 是 `{"c": XML, "e": XML}`）與航班快照
-  `history/flights/<日期>/<機場>-<HHMM>.json.gz`（之後回測用）
+  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg}.json`（SMG 是 `{"c": XML, "e": XML}`）與航班的
+  取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
+  原始航班資料不存）。這兩樣都不進 GitHub Pages、不進 `latest.json`
+
+`history/cancellations/<日期>.json`：日期是格的 UTC 日期，一天一個檔，內容是陣列、依 `airport`、`from`
+排序（兩個空白縮排）。每個元素是一個機場的一個 UTC 6 小時格（和 `latest.json` 一樣對齊 00／06／12／18Z）：
+
+```json
+{
+  "airport": "RCTP",
+  "from": "2026-10-18T06:00:00Z",
+  "to": "2026-10-18T12:00:00Z",
+  "asOf": "2026-10-18T13:05:00Z",
+  "dep": { "total": 118, "cancelled": 2, "delayed": 7, "other": 0 },
+  "arr": { "total": 121, "cancelled": 1, "delayed": 9, "other": 0 }
+}
+```
+
+- 依**表定**時間歸格（當地時間用 `airports.json` 的 `tz` 轉 UTC）；出發、抵達分開；不含貨機；
+  共掛班號與重複的列只算一班
+- `cancelled`：狀態是取消；`delayed`：狀態是延誤，或預計／實際時間比表定晚 60 分鐘以上（取消的不重複算）；
+  `other`：看不懂的狀態（仍算進 `total`，log 印出字串）。三者互斥，其餘是正常或還沒有狀態
+- `asOf`：算出這筆的跑次時間
+- 合併：每次 build 把算出來的格合併進對應日期的檔（一次可能動到兩三個日期）。同 `airport`＋`from`
+  已有紀錄時新的覆蓋舊的，但新的 `dep.total + arr.total` 比舊的少就留舊的（來源換日後看不到前一天的班機，
+  不能把昨天的統計洗成 0）；沒有的就加
+- 各機場的狀態用語對照表、共掛怎麼認、沒有日期的時間怎麼補，寫在 `src/hongthai/cancellations.py` 開頭
 
 `latest.json` 範例（時間一律 UTC ISO 8601 加 `Z`）：
 
@@ -109,6 +134,8 @@ Actions 那一步的上限是 10 分鐘。
 - `runs.ecmwfEns`：系集機率那一報（只有 00／12Z 有，可能比 HRES 早一報）
 - `sources.<名稱>.seconds`、`bytes`；`sources.ecmwf.ensembleOk`／`ensembleError`（只有系集失敗時）；
   `sources.flights`
+- `sources.flights.statsError`：航班取消／延誤統計算不出來或寫檔失敗時才有，`"<機場>:<訊息>"`
+  （多個用 `; ` 接）；不影響 `latest.json` 其他內容
 - `warnings[].code`（天文台／SMG 信號代碼，例如 `TC8NE`、`TC3`）、`warnings[].detail`（氣象署警戒區原文、
   SMG 的說明原文）
 - `official.warnings`（這格套用了哪些警報）；只有警報、沒有 TAF 的格 `official.kind` 是 `"warning"`
@@ -136,15 +163,15 @@ Actions 那一步的上限是 10 分鐘。
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
 | [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報） | 海上／陸上颱風警報與警戒區 | [政府資料開放授權條款](https://data.gov.tw/license) |
 | [澳門地球物理氣象局 XML](https://xml.smg.gov.mo/)（`c_typhoon.xml`／`e_typhoon.xml`；data.gov.mo 資料集[「熱帶氣旋信號」](https://data.gov.mo/Detail?id=15044781-1752-4f98-b87e-508208d70408)） | 熱帶氣旋信號 | [澳門政府數據開放平台使用條款](https://data.gov.mo/)：免費使用與再發布，須註明「澳門特別行政區政府數據開放平台」與取得日期 |
-| [香港機管局航班資訊](https://data.gov.hk/tc-data/dataset/aahk-team1-flight-info)（data.gov.hk） | 航班狀態快照（只存檔） | data.gov.hk 使用條款 |
-| [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 航班狀態快照（只存檔） | 政府資料開放授權條款 |
-| 松山機場即時航班（data.gov.tw [37242](https://data.gov.tw/dataset/37242)／[37248](https://data.gov.tw/dataset/37248)／[37317](https://data.gov.tw/dataset/37317)／[37319](https://data.gov.tw/dataset/37319)） | 航班狀態快照（只存檔） | 政府資料開放授權條款 |
-| 高雄機場即時航班（data.gov.tw [33656](https://data.gov.tw/dataset/33656)／[33655](https://data.gov.tw/dataset/33655)／[33651](https://data.gov.tw/dataset/33651)／[33649](https://data.gov.tw/dataset/33649)） | 航班狀態快照（只存檔） | 政府資料開放授權條款 |
-| 澳門民航局航班資訊（data.gov.mo [離港（英文）](https://data.gov.mo/Detail?id=f910cf2e-5e30-45c3-9e62-3eb6bf912db3)／[抵港（英文）](https://data.gov.mo/Detail?id=44b62bd1-6c84-421f-b571-52ab184c7df3)） | 航班狀態快照（只存檔） | 澳門政府數據開放平台使用條款 |
+| [香港機管局航班資訊](https://data.gov.hk/tc-data/dataset/aahk-team1-flight-info)（data.gov.hk） | 算每 6 小時格的取消／延誤統計（不存原始資料） | data.gov.hk 使用條款 |
+| [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
+| 松山機場即時航班（data.gov.tw [37242](https://data.gov.tw/dataset/37242)／[37248](https://data.gov.tw/dataset/37248)／[37317](https://data.gov.tw/dataset/37317)／[37319](https://data.gov.tw/dataset/37319)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
+| 高雄機場即時航班（data.gov.tw [33656](https://data.gov.tw/dataset/33656)／[33655](https://data.gov.tw/dataset/33655)／[33651](https://data.gov.tw/dataset/33651)／[33649](https://data.gov.tw/dataset/33649)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
+| 澳門民航局航班資訊（data.gov.mo [離港（英文）](https://data.gov.mo/Detail?id=f910cf2e-5e30-45c3-9e62-3eb6bf912db3)／[抵港（英文）](https://data.gov.mo/Detail?id=44b62bd1-6c84-421f-b571-52ab184c7df3)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 澳門政府數據開放平台使用條款 |
 
-航班快照：澳門機場官網只有伺服器端產生的 HTML（不爬），改用 data.gov.mo 上民航局的開放 API；它要一個
+航班：澳門機場官網只有伺服器端產生的 HTML（不爬），改用 data.gov.mo 上民航局的開放 API；它要一個
 `Authorization: APPCODE …` 標頭，值是平台發給所有匿名使用者的公開共用碼，程式每次從資料集說明 API 取，
-不寫進程式也不存進快照。細節在 `src/hongthai/sources/flights.py` 開頭。
+不寫進程式也不存檔。細節在 `src/hongthai/sources/flights.py` 開頭。
 
 ### 跑道方位
 
