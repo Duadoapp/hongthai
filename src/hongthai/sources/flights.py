@@ -1,9 +1,11 @@
-"""航班狀態快照（只存檔、不算等級，之後回測用）。抓不到就跳過。
+"""航班狀態（不算等級，之後回測用）。抓不到就跳過。
 
 - 香港機管局（data.gov.hk「航班資訊」）：
   `https://www.hongkongairport.com/flightinfo-rest/rest/flights/past?date=YYYY-MM-DD&lang=en&cargo=false&arrival=false|true`
-  回傳 `[{"date", "arrival", "cargo", "list": [{"time", "flight": [...], "status", ...}]}]`，
-  會帶前一天與當天兩組。
+  回傳 `[{"date", "arrival", "cargo", "list": [{"time", "flight": [...], "status", ...}]}]`；
+  `date` 那天的一組是整天的表，另外可能帶前後一天還沒結束的幾班。香港當地的昨天和今天各查一次
+  （晚上的班機在隔天的跑次才有最後的狀態；昨天的抓不到就只用今天的），兩次的組接在一起，
+  重複的班機由統計那邊去重
 - 桃園機場（data.gov.tw 資料集 26194「桃園國際機場即時航班」）：資源只有 CSV，沒有 JSON；
   實際檔案是 `https://www.taoyuan-airport.com/uploads/flightx/a_flight_v4.txt`（Big5 編碼、
   逗號分隔、沒有標題列，每 5 分鐘更新）。存成 JSON 時欄位名稱照資料集說明的順序。
@@ -17,24 +19,21 @@
   民航局的「航班資訊」開放 API：`https://aacm.apigateway.data.gov.mo/api/open/list{Arrival|Departure}Flight/ENGLISH`。
   閘道要 `Authorization: APPCODE <appCode>` 標頭，appCode 是平台給所有匿名使用者的公開共用碼，
   每次執行從資料集說明 API（`https://api.data.gov.mo/datadir/detail/<資料集 id>` 的 `data.appCode`）
-  取得，不寫進程式、不存進快照。回傳是 JSON 陣列（文件範例包成 `{"data": "<字串>"}`，兩種都接）
+  取得，不寫進程式、不存檔。回傳是 JSON 陣列（文件範例包成 `{"data": "<字串>"}`，兩種都接）
 
-存成 `history/flights/<YYYY-MM-DD>/<airport>-<HHMM>.json.gz`（UTC 日期與時間；gzip 是因為
-桃園一份就 500 KB 以上，一年下來太大）。
+原始資料不存檔：`cancellations.py` 算成每 6 小時格的取消／延誤統計，存 `history/cancellations/`。
 """
 
 from __future__ import annotations
 
-import gzip
 import json
 import logging
-from datetime import datetime
-from pathlib import Path
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
 
-from ..timeutil import iso
 from . import NonStrictTLSAdapter, SourceError, http_get
 
 log = logging.getLogger("hongthai")
@@ -81,6 +80,12 @@ class FlightsError(SourceError):
     pass
 
 
+@dataclass
+class FlightsData:
+    snapshots: dict[str, dict]  # 機場 → 該機場 `fetch_*` 的回傳
+    errors: dict[str, str]  # 抓不到的機場 → 錯誤代碼
+
+
 def parse_tpe(raw: bytes) -> list[dict[str, object]]:
     text = raw.decode("big5", errors="replace")
     rows = []
@@ -95,13 +100,23 @@ def parse_tpe(raw: bytes) -> list[dict[str, object]]:
     return rows
 
 
-def fetch_hkg(now: datetime) -> dict[str, object]:
-    date = now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d")
-    out: dict[str, object] = {}
-    for arrival in ("false", "true"):
-        params = {"date": date, "lang": "en", "cargo": "false", "arrival": arrival}
-        r = http_get(HKG_URL, params=params, retries=2, error=FlightsError)
-        out["arrival" if arrival == "true" else "departure"] = r.json()
+def fetch_hkg(now: datetime) -> dict[str, list]:
+    today = now.astimezone(ZoneInfo("Asia/Hong_Kong")).date()
+    out: dict[str, list] = {"departure": [], "arrival": []}
+    for day in (today - timedelta(days=1), today):
+        for arrival in ("false", "true"):
+            params = {"date": f"{day:%Y-%m-%d}", "lang": "en", "cargo": "false", "arrival": arrival}
+            try:
+                r = http_get(HKG_URL, params=params, retries=2, error=FlightsError)
+                groups = _json(r)
+                if not isinstance(groups, list):
+                    raise FlightsError("香港航班回傳格式不對", "bad_format")
+            except FlightsError as e:
+                if day == today:
+                    raise
+                log.warning("香港航班 %s 抓不到，只用今天的：%s", day, e)
+                continue
+            out["arrival" if arrival == "true" else "departure"].extend(groups)
     return out
 
 
@@ -162,18 +177,9 @@ def fetch_mfm() -> dict[str, object]:
     return out
 
 
-def write_snapshot(root: Path, airport: str, now: datetime, payload: dict) -> Path:
-    path = root / "flights" / f"{now:%Y-%m-%d}" / f"{airport}-{now:%H%M}.json.gz"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    body = {"airport": airport, "fetchedAt": iso(now), **payload}
-    with gzip.open(path, "wt", encoding="utf-8") as f:
-        json.dump(body, f, ensure_ascii=False, separators=(",", ":"))
-    return path
-
-
-def fetch_and_store(history_dir: Path, now: datetime) -> dict[str, str | None]:
-    """每個機場各抓一次；回傳 `{機場: None（成功）或錯誤代碼}`。"""
-    result: dict[str, str | None] = {}
+def fetch(now: datetime) -> FlightsData:
+    """每個機場各抓一次；抓不到的記在 `errors`，其他照回。"""
+    data = FlightsData({}, {})
     sources = (
         ("VHHH", lambda: fetch_hkg(now)),
         ("RCTP", fetch_tpe),
@@ -183,10 +189,9 @@ def fetch_and_store(history_dir: Path, now: datetime) -> dict[str, str | None]:
     )
     for airport, fn in sources:
         try:
-            path = write_snapshot(history_dir, airport, now, fn())
-            log.info("航班快照 %s → %s（%d bytes）", airport, path, path.stat().st_size)
-            result[airport] = None
+            data.snapshots[airport] = fn()
+            log.info("航班 %s 抓到了", airport)
         except (SourceError, ValueError, OSError) as e:
-            log.warning("航班快照 %s 跳過：%s", airport, e)
-            result[airport] = getattr(e, "code", e.__class__.__name__)
-    return result
+            log.warning("航班 %s 跳過：%s", airport, e)
+            data.errors[airport] = getattr(e, "code", None) or e.__class__.__name__
+    return data

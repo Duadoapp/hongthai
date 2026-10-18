@@ -176,7 +176,7 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "airports.json").write_text((ROOT / "airports.json").read_text("utf-8"), "utf-8")
     (tmp_path / "confirmed.json").write_text("[]", "utf-8")
-    monkeypatch.setattr(build.flights, "fetch_and_store", lambda d, now: dict.fromkeys(ICAOS))
+    monkeypatch.setattr(build.flights, "fetch", lambda now: build.flights.FlightsData({}, {}))
     return tmp_path
 
 
@@ -249,3 +249,46 @@ def test_pipeline_crash_without_previous(workspace, monkeypatch):
     monkeypatch.setattr(build, "previous_latest", lambda archive, url: None)
     assert build.main([]) == 2
     assert not (workspace / "public" / "latest.json").exists()
+
+
+def _flights_from_fixtures():
+    from hongthai.sources import flights
+
+    return flights.FlightsData(
+        {
+            "VHHH": {"arrival": load_json("hkg_arrival.json"), "departure": []},
+            "RCTP": {"rows": flights.parse_tpe((FIXTURES / "tpe_flights_big5.txt").read_bytes())},
+            "RCSS": {"intlDeparture": load_json("tsa_intl_departure.json")},
+            "RCKH": {"intlDeparture": load_json("khh_intdep.json")},
+            "VMMC": {"departure": "壞掉的格式"},  # 統計失敗不影響其他機場與整個 build
+        },
+        {},
+    )
+
+
+def test_flight_stats_written_to_archive_only(workspace, monkeypatch):
+    for mod in (build.ecmwf, build.gfs, build.taf, build.hko, build.smg):
+        monkeypatch.setattr(mod, "fetch", _boom)
+    monkeypatch.setattr(build.flights, "fetch", lambda now: _flights_from_fixtures())
+    monkeypatch.setattr(build, "utcnow", lambda: NOW)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    fl = out["sources"]["flights"]
+    assert fl["ok"] is True and fl["statsError"].startswith("VMMC:")
+    day = workspace / "data" / "history" / "cancellations" / "2026-10-18.json"
+    rows = json.loads(day.read_text("utf-8"))
+    assert {r["airport"] for r in rows} == {"VHHH", "RCTP", "RCSS", "RCKH"}
+    assert not list((workspace / "public").rglob("*cancellations*"))
+    assert not (workspace / "data" / "history" / "flights").exists()
+
+
+def test_flight_fetch_error_reported(workspace, monkeypatch):
+    for mod in (build.ecmwf, build.gfs, build.taf, build.hko, build.smg):
+        monkeypatch.setattr(mod, "fetch", _boom)
+    fl = _flights_from_fixtures()
+    del fl.snapshots["VMMC"]
+    fl.errors["VMMC"] = "timeout"
+    monkeypatch.setattr(build.flights, "fetch", lambda now: fl)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["sources"]["flights"] == {"ok": False, "error": "VMMC:timeout"}
