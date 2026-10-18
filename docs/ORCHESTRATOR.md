@@ -21,7 +21,8 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
 - 給他的指令一律完整可貼（他用 Windows cmd）。這個 repo 幾乎沒有本機指令：部署是 Actions，
   他只在 GitHub 網頁按 Run workflow、設 Secrets
 - 每個功能一個 PR。主對話寫提示詞放 `docs/prompts/<日期>-<代號>-<名稱>.md`（只放文字，不放截圖內容、
-  個資、金鑰），開新的雲端對話貼「照 docs/prompts/<檔名> 做」。提示詞最後都要有
+  個資、金鑰），開新的雲端對話貼「照 docs/prompts/<檔名> 做」。**H 編號兩個 repo 共用**（H1、H4、H6 在這裡，
+  H2、H3、H5 在 Duado），開新編號前先看 Duado 的 `docs/prompts/` 用到幾號。提示詞最後都要有
   「開 PR 之後：gh pr checks --watch 等 CI，紅了自己修到綠（最多三輪）」
 - 主對話審 PR 不等 CI：他給號碼就審，審完回「可以合併」，他再開 auto-merge
   - 已設（2026-10-18）：`main` 的 ruleset 要求 PR、必要檢查 `ci`、禁止 force push；Allow auto-merge 已開。
@@ -38,7 +39,7 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
 - 分階段：
   - 第一階段（PR #1）：桃園、香港
   - 第二階段（H4）：側風分跑道、松山／高雄／澳門
-  - 第三階段（還沒排）：FNV3／WeatherNext Cyclones 颱風路徑（授權是實驗性條款、商用待確認，所以排後面）、
+  - 第三階段：第一件 H6 航班快照→停飛統計（2026-10-18 定案，提示詞在 `docs/prompts/`）；之後還沒排：FNV3／WeatherNext Cyclones 颱風路徑（授權是實驗性條款、商用待確認，所以排後面）、
     日本機場（JMA bosai JSON 非正式）、華南與馬尼拉（只能爬網頁）、推播（要接進 App，屬 Duado 的規格）
 - 等級叫「風險」不叫「機率」，等用實際停飛紀錄回測校準後才改。停飛紀錄沒有現成的，從第一天起每天存
   航班快照（`data` 分支）自己累積
