@@ -8,6 +8,8 @@
   - `history/cancellations/<YYYY-MM-DD>.json`（每機場每 6 小時格的航班取消／延誤統計，日期是格的
     UTC 日期；合併規則見 `cancellations.py`。原始航班資料不存）
   - `history/timing/<YYYY-MM>.jsonl`（每次 build 每個來源的耗時，一行一筆，見 `Timing`）
+  - `history/cancellations/unknown-statuses.json`（航班狀態對照表沒列的字串與次數，見
+    `cancellations.store_unknown`）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與 `history/*.json`
   （只放結果，不放原始快照與航班統計）
 
@@ -18,10 +20,13 @@
 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`、不等它，繼續下一個來源
 （被放棄的執行緒怎麼收尾見 `budget.py`）。
 
-模式沿用（H7）：`ecmwf` 或 `gfs` 失敗時，從上一份 `latest.json` 把同一機場、同一 `from` 的
-`model.ec`／`model.gfs` 抄過來，等級照常算（`reuse_models`）。`sources.<名稱>.ok` 維持 `false`，另加
-`reusedFrom`；`runs` 用上一份的（舊預報的真實時次）。上一份的模式時次離現在超過
-`REUSE_MAX_AGE`（24 小時）就不沿用，所以連續失敗時 24 小時後自然停掉。TAF、METAR、警報不沿用。
+模式沿用（H7；H10 改成往前找）：`ecmwf` 或 `gfs` 失敗時，從「最近一份有該模式資料」的結果把
+同一機場、同一 `from` 的 `model.ec`／`model.gfs` 抄過來，等級照常算（`reuse_models`）。哪一份由
+`find_reuse_source` 找：`--archive` 的 `history/<時間>.json` 由新到舊，第一份 `sources.<名稱>.ok` 是
+`true`（自己也在沿用的不算）而且 `runs.<鍵>` 離現在 `REUSE_MAX_AGE`（24 小時）內的；archive 裡找不到
+才退回上一份 `latest.json`（`previous_latest`，H7 的做法）。`sources.<名稱>.ok` 維持 `false`，另加
+`reusedFrom`（那一份的 `generatedAt`）；`runs` 用那一份的（舊預報的真實時次）。模式時次超過 24 小時
+就不沿用（系集與 HRES 各自判斷），所以連續失敗時 24 小時後自然停掉。TAF、METAR、警報不沿用。
 """
 
 from __future__ import annotations
@@ -35,7 +40,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -51,10 +56,11 @@ SCHEMA = 1
 PAGES_URL = "https://duadoapp.github.io/hongthai/latest.json"
 SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa", "smg")
 
-# 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90＋10（HRES＋系集）、gfs 約 110、
-# flights 約 20、其他幾秒。總和約 12 分鐘，`build.yml` 那一步的上限是 15 分鐘。
+# 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
+# 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。
+# 總和 750 秒（12.5 分鐘），`build.yml` 那一步的上限是 15 分鐘。
 BUDGET_S: dict[str, float] = {
-    "ecmwf": 240,  # HRES＋系集，含鏡像切換
+    "ecmwf": 300,  # HRES＋系集，含鏡像切換
     "gfs": 180,
     "taf": 45,  # TAF 與 METAR 同一個來源，各一個請求
     "hko": 30,
@@ -85,7 +91,7 @@ class Timing:
     `build.yml` 的「推 data 分支」是 `if: always()`，所以「產生 latest.json」被 Actions 砍掉時，
     已經寫進去的行也會推上去；沒有 `done` 那行就表示那次被砍了。欄位名固定（主對話直接看這個檔）：
     - 開始：`{"run", "source": "start", "ok": true, "seconds": 0, "commit"}`
-    - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf 多 `mirror`
+    - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf 與 gfs 多 `mirror`
     - 結束：`{"run", "source": "done", "ok": <有沒有產出 latest.json>, "seconds": <總秒數>}`
     """
 
@@ -110,7 +116,7 @@ class Timing:
             "seconds": st["seconds"],
             "bytes": st.get("bytes", ctx.bytes),
         }
-        if name == "ecmwf":
+        if name in ("ecmwf", "gfs"):
             fields["mirror"] = st.get("mirror", ctx.notes.get("mirror"))
         self.write(**fields)
 
@@ -164,6 +170,13 @@ def _ecmwf_extra(ec: ecmwf.EcmwfData) -> dict:
     return d
 
 
+def _gfs_extra(g: gfs.GfsData) -> dict:
+    d: dict[str, object] = {"bytes": g.bytes_downloaded}
+    if g.mirror:
+        d["mirror"] = g.mirror
+    return d
+
+
 def _is_num(v: object) -> bool:
     return isinstance(v, int | float) and not isinstance(v, bool)
 
@@ -180,36 +193,95 @@ def _rescore(slot: dict, th: Thresholds) -> None:
     slot["gap"] = off is not None and m["level"] is not None and off["level"] != m["level"]
 
 
-def reuse_models(
-    latest: dict, prev: dict | None, failed: list[str], now: datetime, airports: list[Airport]
-) -> None:
-    """失敗的模式來源（`ecmwf`／`gfs`）從上一份 `latest.json` 抄同一機場、同一 `from` 的值。
+def _run_time(doc: dict, run_key: str) -> datetime | None:
+    runs = doc.get("runs") if isinstance(doc.get("runs"), dict) else {}
+    run = runs.get(run_key)
+    try:
+        return parse_time(run) if isinstance(run, str) else None
+    except ValueError:
+        return None
 
-    `runs.<鍵>` 離 `now` 超過 `REUSE_MAX_AGE` 的那一報不抄（系集與 HRES 各自判斷）；有抄到的
-    才把 `runs` 換成上一份的、在 `sources.<名稱>` 加 `reusedFrom`。`ok`／`error` 不動。
+
+def _history_files(archive: Path) -> list[tuple[datetime, Path]]:
+    """`history/<YYYYMMDDTHHMM>Z.json`，由新到舊（檔名不是這個格式的跳過）。"""
+    out = []
+    for p in (archive / "history").glob("*.json"):
+        try:
+            t = datetime.strptime(p.stem, "%Y%m%dT%H%MZ").replace(tzinfo=UTC)
+        except ValueError:
+            continue
+        out.append((t, p))
+    return sorted(out, reverse=True)
+
+
+def find_reuse_source(archive: Path, name: str, now: datetime) -> dict | None:
+    """由新到舊找第一份 `sources.<name>.ok` 是 `true`、`runs.<主要的鍵>` 在 24 小時內的結果。
+
+    主要的鍵是 `REUSE_FIELDS[name]` 的第一個（ecmwf 是 HRES 的 `ecmwf`，gfs 是 `gfs`）。
+    一份結果的 `runs` 不會晚於它的 `generatedAt`，所以檔名早於 `now - REUSE_MAX_AGE` 就不用
+    再往前找。
     """
-    if not prev or not isinstance(prev.get("generatedAt"), str):
-        return
-    prev_runs = prev.get("runs") if isinstance(prev.get("runs"), dict) else {}
-    prev_slots: dict[tuple[object, object], dict] = {}
-    for a in prev.get("airports") or []:
-        for s in (a.get("slots") or []) if isinstance(a, dict) else []:
-            if isinstance(s, dict) and isinstance(s.get("model"), dict):
-                prev_slots[(a.get("icao"), s.get("from"))] = s["model"]
+    run_key = REUSE_FIELDS[name][1][0][0]
+    for t, p in _history_files(archive):
+        if t >= now:
+            continue
+        if now - t > REUSE_MAX_AGE:
+            break
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            log.warning("歷史結果 %s 讀不了，跳過", p)
+            continue
+        if not isinstance(doc, dict) or not isinstance(doc.get("generatedAt"), str):
+            continue
+        sources = doc.get("sources")
+        src = sources.get(name) if isinstance(sources, dict) else None
+        if not isinstance(src, dict) or src.get("ok") is not True:
+            continue
+        run_t = _run_time(doc, run_key)
+        if run_t is not None and now - run_t <= REUSE_MAX_AGE:
+            return doc
+    return None
+
+
+def reuse_models(
+    latest: dict,
+    prev: dict[str, dict | None],
+    failed: list[str],
+    now: datetime,
+    airports: list[Airport],
+) -> None:
+    """失敗的模式來源（`ecmwf`／`gfs`）從 `prev[來源名稱]` 那一份抄同一機場、同一 `from` 的值。
+
+    每個來源可以抄不同份（`find_reuse_source` 各自找）。`runs.<鍵>` 離 `now` 超過 `REUSE_MAX_AGE`
+    的那一報不抄（系集與 HRES 各自判斷）；有抄到的才把 `runs` 換成那一份的、在 `sources.<名稱>` 加
+    `reusedFrom`。`ok`／`error` 不動。
+    """
+
+    def slots_of(doc: dict) -> dict[tuple[object, object], dict]:
+        out: dict[tuple[object, object], dict] = {}
+        for a in doc.get("airports") or []:
+            for s in (a.get("slots") or []) if isinstance(a, dict) else []:
+                if isinstance(s, dict) and isinstance(s.get("model"), dict):
+                    out[(a.get("icao"), s.get("from"))] = s["model"]
+        return out
 
     # 先算好要改什麼，再一次套用（上一份格式怪也不會改到一半）
     updates: list[tuple[str, dict, str, str, float]] = []
     runs: dict[str, str] = {}
+    reused_from: dict[str, str] = {}
     for name in failed:
+        doc = prev.get(name)
+        if not isinstance(doc, dict) or not isinstance(doc.get("generatedAt"), str):
+            continue
+        prev_slots = slots_of(doc)
         key, parts = REUSE_FIELDS[name]
         for run_key, fields in parts:
-            run = prev_runs.get(run_key)
-            try:
-                run_t = parse_time(run) if isinstance(run, str) else None
-            except ValueError:
-                run_t = None
+            run_t = _run_time(doc, run_key)
             if run_t is None or now - run_t > REUSE_MAX_AGE:
-                log.info("上一份的 runs.%s=%s 超過 24 小時或沒有，不沿用", run_key, run)
+                log.info(
+                    "%s 那份的 runs.%s 超過 24 小時或沒有，不沿用", doc["generatedAt"], run_key
+                )
                 continue
             n = 0
             for a in latest["airports"]:
@@ -223,6 +295,7 @@ def reuse_models(
                             n += 1
             if n:
                 runs[run_key] = iso(run_t)
+                reused_from[name] = doc["generatedAt"]
     if not updates:
         return
 
@@ -234,11 +307,9 @@ def reuse_models(
     for s, icao in touched.values():
         _rescore(s, th[icao])
     latest["runs"].update(runs)
-    for name in failed:
-        key, parts = REUSE_FIELDS[name]
-        if any(rk in runs for rk, _ in parts):
-            latest["sources"][name]["reusedFrom"] = prev["generatedAt"]
-            log.info("%s 失敗，沿用 %s 那份的模式資料（runs：%s）", name, prev["generatedAt"], runs)
+    for name, generated_at in reused_from.items():
+        latest["sources"][name]["reusedFrom"] = generated_at
+        log.info("%s 失敗，沿用 %s 那份的模式資料（runs：%s）", name, generated_at, runs)
 
 
 def collect_warnings(
@@ -378,7 +449,8 @@ def assemble(
 def flight_stats(
     fl: flights.FlightsData, airports: list[Airport], now: datetime, history: Path
 ) -> dict:
-    """航班 → 每 6 小時格的取消／延誤統計，合併寫進 `history/cancellations/`。
+    """航班 → 每 6 小時格的取消／延誤統計，合併寫進 `history/cancellations/`；看不懂的狀態字串
+    合併進 `history/cancellations/unknown-statuses.json`。
 
     回傳 `sources.flights`：抓不到的機場照舊記在 `error`；統計或寫檔失敗只 log、記在
     `statsError`，不讓 build 失敗。
@@ -388,10 +460,13 @@ def flight_stats(
         out = {"ok": False, "error": ",".join(f"{k}:{v}" for k, v in fl.errors.items())}
     tz = {a.icao: a.tz for a in airports}
     stats: list[dict] = []
+    unknown = {}
     errors: dict[str, str] = {}
     for icao, payload in fl.snapshots.items():
         try:
-            stats += cancellations.airport_stats(icao, payload, tz[icao], now)
+            parsed = cancellations.flights_of(icao, payload, tz[icao], now)
+            stats += cancellations.slot_stats(icao, parsed, now)
+            unknown[icao] = cancellations.unknown_statuses(parsed)
         except Exception as e:  # 某個機場格式突然變了，其他照算
             log.warning("航班統計 %s 失敗：%s", icao, e, exc_info=True)
             errors[icao] = f"{e.__class__.__name__}: {e}"[:120]
@@ -399,6 +474,7 @@ def flight_stats(
     try:
         for p in cancellations.store(history, stats):
             log.info("航班統計 → %s", p)
+        cancellations.store_unknown(history, unknown, now)
     except (OSError, ValueError, KeyError, TypeError) as e:
         log.warning("航班統計寫檔失敗：%s", e, exc_info=True)
         errors["store"] = f"{e.__class__.__name__}: {e}"[:120]
@@ -436,7 +512,7 @@ def run(
         lambda: gfs.fetch(airports, now, slot0, workdir / "gfs"),
         status,
         timing,
-        lambda g: {"bytes": g.bytes_downloaded},
+        _gfs_extra,
     )
     tf = _call("taf", lambda: taf.fetch(airports), status, timing)
     hk = _call("hko", hko.fetch, status, timing)
@@ -464,7 +540,11 @@ def run(
     )
     failed = [n for n, d in (("ecmwf", ec), ("gfs", gf)) if d is None]
     if failed:
-        reuse_models(latest, previous_latest(archive, pages_url), failed, now, airports)
+        sources: dict[str, dict | None] = {n: find_reuse_source(archive, n, now) for n in failed}
+        if any(d is None for d in sources.values()):
+            prev = previous_latest(archive, pages_url)  # archive 裡找不到的退回上一份（H7 的做法）
+            sources = {n: d if d is not None else prev for n, d in sources.items()}
+        reuse_models(latest, sources, failed, now, airports)
 
     stamp = f"{now:%Y%m%dT%H%M}Z"
     raw_dir = history / "raw" / f"{now:%Y-%m-%d}"

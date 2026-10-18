@@ -23,7 +23,8 @@
 - 分類（互斥，一班只進一類，`total` 包含全部）：
   - `cancelled`：狀態表示取消
   - `delayed`：狀態表示延誤，**或**預計／實際時間比表定時間晚 60 分鐘以上（取消的不重複算）
-  - `other`：對照表沒列的狀態（仍算進 `total`；每種字串在 log 印一次）
+  - `other`：對照表沒列的狀態（仍算進 `total`；每種字串在 log 印一次，並合併進
+    `history/cancellations/unknown-statuses.json`，見 `store_unknown`）
   - 其他（狀態正常或還沒有狀態）不另外計
 - 沒有日期的預計／實際時間（松山、高雄、澳門、香港沒帶日期的）：
   放在表定時間前 6 小時到後 18 小時之間
@@ -64,6 +65,12 @@
     （可帶 `AT HH:MM`，那是開櫃時間，不算班機時間）
   - 狀態可能是兩段用多個空白接起來（`DELAY UNTIL 17:45␣␣␣…CHECK-IN D12-D14 OPEN`），
     每段各自比對，取最嚴重的一類
+  - 英文端點也會回中文狀態（2026-10-18 看到 `航班著陸 16:23`）。去空白、轉大寫對中文沒用，所以
+    上面的英文樣式都比不到時，再用「包含關鍵字」比對（`MFM_KEYWORDS`，依序、先比到的算），
+    狀態裡有 `HH:MM` 就拿來算延誤：
+    - 正常：包含「著陸」（`航班著陸 HH:MM`＝已降落，和 `LANDED AT` 同一類；＊`著陸`、＊`已著陸`）、
+      包含「起飛」（＊`航班起飛 HH:MM`＝`TOOK OFF AT`；＊`起飛`、＊`已起飛`）
+    - 為了「延遲起飛」這類不會被當成正常，先比：＊包含「取消」→ 取消，＊包含「延誤」「延遲」→ 延誤
 """
 
 from __future__ import annotations
@@ -152,6 +159,14 @@ MFM_STATUS = [
     (r"DELAYED", DELAYED),
     (rf"(?:TOOK OFF AT|LANDED AT|EXPECTED AT|RESCHEDULE) {_T}", OK),
     (r"BOARDING|GATE CLOSED|CHECK-IN CLOSED|CHECK-IN \S+ OPEN(?: AT \d{1,2}:\d{2})?", OK),
+]
+# 澳門的中文狀態：（關鍵字, 分類），依序比「包含」，先比到的算
+MFM_KEYWORDS = [
+    ("取消", CANCELLED),
+    ("延誤", DELAYED),
+    ("延遲", DELAYED),
+    ("著陸", OK),
+    ("起飛", OK),
 ]
 
 
@@ -351,11 +366,21 @@ def _hkg(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
                 yield Flight(direction, key, sched, _category(cat, sched, actual), status)
 
 
+def _mfm_part(part: str) -> tuple[str, str | None]:
+    cat, hhmm, _ = _match(MFM_STATUS, part)
+    if cat == OTHER:
+        for keyword, kw_cat in MFM_KEYWORDS:
+            if keyword in part:
+                m = re.search(_T, part)
+                return kw_cat, m[1] if m else None
+    return cat, hhmm
+
+
 def _mfm_status(status: str) -> tuple[str, str | None]:
     parts = [p for p in re.split(r"\s{2,}", status.strip()) if p] or [""]
-    results = [_match(MFM_STATUS, p) for p in parts]
-    cat = max((c for c, _, _ in results), key=SEVERITY.__getitem__)
-    hhmm = next((t for _, t, _ in results if t), None)
+    results = [_mfm_part(p) for p in parts]
+    cat = max((c for c, _ in results), key=SEVERITY.__getitem__)
+    hhmm = next((t for _, t in results if t), None)
     return cat, hhmm
 
 
@@ -422,11 +447,19 @@ def _zero() -> dict[str, int]:
     return {"total": 0, CANCELLED: 0, DELAYED: 0, OTHER: 0}
 
 
+def unknown_statuses(flights: Iterable[Flight]) -> Counter[str]:
+    """對照表沒列的狀態字串（去頭尾空白）→ 班數。"""
+    return Counter(f.status.strip() for f in flights if f.category == OTHER)
+
+
 def airport_stats(airport: str, payload: dict, tz: str, now: datetime) -> list[dict]:
     """一個機場的原始資料 → 每個有班機的 UTC 6 小時格一筆統計，依 `from` 排序。"""
-    flights = flights_of(airport, payload, tz, now)
-    unknown = Counter(f.status for f in flights if f.category == OTHER)
-    for status, n in sorted(unknown.items()):
+    return slot_stats(airport, flights_of(airport, payload, tz, now), now)
+
+
+def slot_stats(airport: str, flights: list[Flight], now: datetime) -> list[dict]:
+    """解析好的航班 → 每格一筆統計（`airport_stats` 的後半）。"""
+    for status, n in sorted(unknown_statuses(flights).items()):
         log.warning("航班 %s 看不懂的狀態 %r（%d 班，算進 other）", airport, status, n)
     slots: dict[datetime, dict[str, dict[str, int]]] = defaultdict(
         lambda: {"dep": _zero(), "arr": _zero()}
@@ -478,3 +511,34 @@ def store(history: Path, stats: list[dict]) -> list[Path]:
         path.write_text(body + "\n", encoding="utf-8")
         written.append(path)
     return written
+
+
+UNKNOWN_FILE = "unknown-statuses.json"
+
+
+def merge_unknown(existing: dict, airport_counts: dict[str, Counter[str]], now: datetime) -> dict:
+    """`{機場: {狀態: {"count", "firstSeen", "lastSeen"}}}`：次數累加（每次 build 看到幾班就加幾，
+    同一班在多次 build 都看到會重複算），`firstSeen` 留第一次、`lastSeen` 換成這次。"""
+    out = {k: dict(v) for k, v in existing.items() if isinstance(v, dict)}
+    for airport, counts in sorted(airport_counts.items()):
+        rows = out.setdefault(airport, {})
+        for status, n in sorted(counts.items()):
+            old = rows.get(status) if isinstance(rows.get(status), dict) else {}
+            rows[status] = {
+                "count": int(old.get("count") or 0) + n,
+                "firstSeen": old.get("firstSeen") or iso(now),
+                "lastSeen": iso(now),
+            }
+    return {k: dict(sorted(v.items())) for k, v in sorted(out.items())}
+
+
+def store_unknown(history: Path, airport_counts: dict[str, Counter[str]], now: datetime) -> Path:
+    """合併進 `history/cancellations/unknown-statuses.json`（只存狀態字串與次數，不存班號、時間、
+    航點）。這次沒有看不懂的狀態也會建出檔（`{}`），主對話看得到「有在記、只是都看得懂」。"""
+    path = history / "cancellations" / UNKNOWN_FILE
+    old = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    merged = merge_unknown(old if isinstance(old, dict) else {}, airport_counts, now)
+    if not path.exists() or merged != old:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path

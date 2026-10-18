@@ -12,8 +12,18 @@
 
 所以 HRES 用最新一報（四個時次都可以），系集機率用最新的 00／12Z，`runs` 分開記。
 
-側風（第二階段）：HRES 多抓 10 米風 `10u`／`10v`（瞬時值，和陣風同一組步長），每個陣風區間配上
-區間結束那個步長的風向（真北）。全球檔每個參數每個步長約 0.5–1 MB，所以 HRES 下載量約變三倍。
+側風（第二階段）：HRES 多抓 10 米風 `10u`／`10v`（瞬時值），每個陣風區間配上一個風向（真北）。
+
+下載量（H10，2026-10-18 06Z 那一報的 index 實測，全球 0.25°，每個步長）：
+- 陣風每個步長**只有一個**參數：0–90 小時只有 `10fg`（約 1.29–1.42 MB），93–144 小時只有 `10fg3`
+  （約 1.28–1.41 MB），150 小時以後只有 `10fg`；同一步長不會兩個都有，所以請求裡寫兩個參數不會
+  多抓。0–90 小時沒有 `10fg3`，不能「改抓 `10fg3`、不抓 `10fg`」，那樣 0–90 小時就沒有陣風了
+- `10u`、`10v` 各約 0.73–0.87 MB
+- H7 的做法（四個參數 × 全部步長）：06Z 那一報 rel0=6、40 個步長，陣風 52.4 MB＋風 59.3 MB＝
+  111,671,090 bytes（就是 2026-10-18 14:33Z 那次逾時時的下載量）
+- 所以 `10u`／`10v` 改成只抓 6 小時整的步長（`wind_steps`，00／06／12／18Z 的時間點），另外一個請求
+  下載：同一報陣風 52.4 MB＋風 29.6 MB＝82,041,279 bytes（少 27%）。3 小時那個陣風區間配**結束時間
+  往後最近**的那個 6 小時步長的風向（`wind_step`）
 
 入口與鏡像（H7，2026-10-18 build #4 從頭到尾 429 之後）：
 - `ecmwf-opendata` 底下的 `multiurl` 預設遇到 429／5xx 每 120 秒重試、最多 500 次，而且照伺服器
@@ -96,6 +106,7 @@ class EcmwfData:
 
 HRES_GUST_PARAMS = ("10fg", "10fg3")
 HRES_WIND_PARAMS = ("10u", "10v")
+HRES_WIND_STRIDE_H = 6
 ENS_PARAMS = ("10fgg10", "10fgg15", "10fgg25")
 ENS_WINDOW_H = 24
 ENS_STRIDE_H = 12
@@ -127,6 +138,19 @@ def hres_steps(rel0: float, max_step: int, span_h: int = 120) -> list[int]:
     ]
 
 
+def wind_step(step: float) -> int:
+    """陣風區間（結束於 `step`）配哪個步長的 10 米風：結束時間往後最近的 6 小時整步長。
+
+    時次都是 00／06／12／18Z，所以步長是 6 的倍數＝時間點是 00／06／12／18Z。
+    """
+    return -(-int(step) // HRES_WIND_STRIDE_H) * HRES_WIND_STRIDE_H
+
+
+def wind_steps(steps: list[int]) -> list[int]:
+    """這些陣風步長要配的 10 米風步長（排序、不重複）。"""
+    return sorted({wind_step(s) for s in steps})
+
+
 def ens_windows(rel0: float, span_h: int = 120, slot_h: int = 6) -> list[str]:
     """完整包住任一 6 小時格的 24 小時窗（`"s-e"` 字串）。"""
     needed: set[int] = set()
@@ -138,15 +162,22 @@ def ens_windows(rel0: float, span_h: int = 120, slot_h: int = 6) -> list[str]:
     return [f"{s}-{s + ENS_WINDOW_H}" for s in sorted(needed)]
 
 
-def parse_hres(path: str | Path, airports: list[Airport]) -> tuple[datetime, dict[str, list]]:
-    pts = read_points(path, {a.icao: (a.lat, a.lon) for a in airports})
+def parse_hres(
+    path: str | Path, airports: list[Airport], wind_path: str | Path | None = None
+) -> tuple[datetime, dict[str, list]]:
+    """陣風（`path`）配 10 米風（`wind_path`；沒給就在 `path` 裡找）。
+
+    風向取 `wind_step` 那個步長的 `10u`／`10v`。
+    """
+    where = {a.icao: (a.lat, a.lon) for a in airports}
+    pts = read_points(path, where)
+    winds = read_points(wind_path, where) if wind_path is not None else pts
     run = None
     out: dict[str, list[GustInterval]] = {}
     for icao, series in pts.items():
+        w = winds.get(icao, {})
         uv: dict[str, dict[float, float | None]] = {
-            k: dict(zip(series[k].steps, series[k].values, strict=True))
-            for k in HRES_WIND_PARAMS
-            if k in series
+            k: dict(zip(w[k].steps, w[k].values, strict=True)) for k in HRES_WIND_PARAMS if k in w
         }
         intervals = []
         for short, s in series.items():
@@ -156,7 +187,8 @@ def parse_hres(path: str | Path, airports: list[Airport]) -> tuple[datetime, dic
             for step, v in zip(s.steps, s.values, strict=True):
                 end = s.run + timedelta(hours=step)
                 start = end - timedelta(hours=hres_interval_hours(short, step))
-                wdir = wind_dir_from_uv(uv.get("10u", {}).get(step), uv.get("10v", {}).get(step))
+                ws = wind_step(step)
+                wdir = wind_dir_from_uv(uv.get("10u", {}).get(ws), uv.get("10v", {}).get(ws))
                 intervals.append(GustInterval(start, end, v, wdir))
         out[icao] = sorted(intervals, key=lambda g: g.end)
     if run is None:
@@ -280,10 +312,12 @@ def _retrieve(client, target: Path, **request) -> int:
     return size
 
 
-def _download(clients, target: Path, **request) -> tuple[int, str]:
-    """依 `DOWNLOAD_SOURCES` 下載；回傳（大小, 實際的 source）。全部失敗丟最後一個錯誤的代碼。"""
+def _download(
+    clients, target: Path, sources: tuple[str, ...] = DOWNLOAD_SOURCES, **request
+) -> tuple[int, str]:
+    """依 `sources` 的順序下載；回傳（大小, 實際的 source）。全部失敗丟最後一個錯誤的代碼。"""
     last: BaseException | None = None
-    for src in DOWNLOAD_SOURCES:
+    for src in sources:
         check_cancelled()
         note(mirror=src)
         t0 = time.monotonic()
@@ -313,17 +347,24 @@ def fetch(airports: list[Airport], slot0: datetime, workdir: str | Path | None =
     run = _latest(clients, stream="oper", type="fc", param="10fg3", step=144)
     max_step = 240 if run.hour in (0, 12) else 144
     steps = hres_steps(hours_between(run, slot0), max_step)
+    oper = {"date": run.strftime("%Y%m%d"), "time": run.hour, "stream": "oper", "type": "fc"}
     size, mirror = _download(
-        clients,
-        tmp / "hres.grib2",
-        date=run.strftime("%Y%m%d"),
-        time=run.hour,
-        stream="oper",
-        type="fc",
-        param=[*HRES_GUST_PARAMS, *HRES_WIND_PARAMS],
-        step=steps,
+        clients, tmp / "hres.grib2", param=list(HRES_GUST_PARAMS), step=steps, **oper
     )
-    hres_run, hres = parse_hres(tmp / "hres.grib2", airports)
+    # 風先試陣風成功的那個 source
+    wind_sources = (mirror, *(s for s in DOWNLOAD_SOURCES if s != mirror))
+    wind_size, wind_mirror = _download(
+        clients,
+        tmp / "hres-wind.grib2",
+        wind_sources,
+        param=list(HRES_WIND_PARAMS),
+        step=wind_steps(steps),
+        **oper,
+    )
+    size += wind_size
+    if wind_mirror != mirror:
+        log.info("ECMWF HRES 陣風從 %s、10 米風從 %s 下載", mirror, wind_mirror)
+    hres_run, hres = parse_hres(tmp / "hres.grib2", airports, tmp / "hres-wind.grib2")
 
     ens_run = None
     ens: dict[str, list[ProbWindow]] = {}

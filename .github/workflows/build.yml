@@ -5,7 +5,7 @@ on:
     # 依實測的出爐時間（2026-10-17／18，UTC）排：
     # - ECMWF 開放資料 HRES（全部步長）：00Z ≈ 07:35、06Z ≈ 12:30、12Z ≈ 19:35、18Z ≈ 00:30
     # - ECMWF 系集機率（10fgg*，只有 00／12Z）：00Z ≈ 08:00、12Z ≈ 20:00
-    # - GFS 到 f120（NOMADS）：00Z ≈ 03:40、06Z ≈ 09:40、12Z ≈ 15:40、18Z ≈ 21:40
+    # - GFS 到 f120（AWS 鏡像／NOMADS）：00Z ≈ 03:40、06Z ≈ 09:40、12Z ≈ 15:40、18Z ≈ 21:40
     # GitHub 排程常延遲 5–30 分鐘，所以抓在出爐後約 20–30 分鐘、避開整點。
     - cron: "25 8 * * *" # EC 00Z（HRES＋系集）、GFS 00Z
     - cron: "5 13 * * *" # EC 06Z HRES＋00Z 系集、GFS 06Z
@@ -56,7 +56,7 @@ jobs:
       - name: 產生 latest.json
         id: build
         continue-on-error: true
-        # 每個來源有自己的時間預算（src/hongthai/build.py 的 BUDGET_S，總和約 12 分鐘），
+        # 每個來源有自己的時間預算（src/hongthai/build.py 的 BUDGET_S，總和約 12.5 分鐘），
         # 超時的來源記 ok:false 繼續跑；這裡是整步的保險。被砍時已寫的 history/timing/ 照樣推上去
         timeout-minutes: 15
         env:
