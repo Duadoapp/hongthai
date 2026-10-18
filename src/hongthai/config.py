@@ -12,15 +12,16 @@ from .timeutil import parse_time
 
 @dataclass(frozen=True)
 class Thresholds:
-    model_high_gust_ms: float = 25
-    model_medium_gust_ms: float = 15
-    ec_p25_high: float = 0.3
-    ec_p15_medium: float = 0.5
-    taf_high_gust_kt: float = 45
+    """等級門檻，風速一律用節（HD2，2026-10-19）。依據寫在 `assess.py` 開頭。"""
+
+    model_medium_gust_kt: float = 37
+    model_high_gust_kt: float = 48
+    taf_medium_gust_kt: float = 37
+    taf_high_gust_kt: float = 48
     taf_high_wind_kt: float = 35
-    taf_medium_gust_kt: float = 30
-    crosswind_high_kt: float = 35
-    crosswind_medium_kt: float = 25
+    crosswind_medium_kt: float = 27
+    crosswind_high_kt: float = 33
+    ec_p49_high: float = 0.3  # 系集陣風 ≥ 25 m/s（≈ 48.6 節）的機率
 
 
 @dataclass(frozen=True)
@@ -54,23 +55,29 @@ class ConfirmedPeriod:
 
 
 _THRESHOLD_KEYS = {
-    "modelHighGustMs": "model_high_gust_ms",
-    "modelMediumGustMs": "model_medium_gust_ms",
-    "ecP25High": "ec_p25_high",
-    "ecP15Medium": "ec_p15_medium",
+    "modelMediumGustKt": "model_medium_gust_kt",
+    "modelHighGustKt": "model_high_gust_kt",
+    "tafMediumGustKt": "taf_medium_gust_kt",
     "tafHighGustKt": "taf_high_gust_kt",
     "tafHighWindKt": "taf_high_wind_kt",
-    "tafMediumGustKt": "taf_medium_gust_kt",
-    "crosswindHighKt": "crosswind_high_kt",
     "crosswindMediumKt": "crosswind_medium_kt",
+    "crosswindHighKt": "crosswind_high_kt",
+    "ecP49High": "ec_p49_high",
 }
+
+
+def _thresholds(icao: str, raw: dict) -> Thresholds:
+    """`airports.json` 的 `thresholds`；HD2 以前的 m/s 鍵（`modelHighGustMs` 等）不再接受。"""
+    unknown = sorted(set(raw) - set(_THRESHOLD_KEYS))
+    if unknown:
+        raise ValueError(f"airports.json {icao} 的 thresholds 有不認得的鍵：{', '.join(unknown)}")
+    return Thresholds(**{_THRESHOLD_KEYS[k]: v for k, v in raw.items()})
 
 
 def load_airports(path: str | Path) -> list[Airport]:
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     airports = []
     for a in raw:
-        th = {_THRESHOLD_KEYS[k]: v for k, v in a.get("thresholds", {}).items()}
         airports.append(
             Airport(
                 icao=a["icao"],
@@ -80,7 +87,7 @@ def load_airports(path: str | Path) -> list[Airport]:
                 lat=float(a["lat"]),
                 lon=float(a["lon"]),
                 warning_sources=tuple(a.get("warningSources", [])),
-                thresholds=Thresholds(**th),
+                thresholds=_thresholds(a["icao"], a.get("thresholds", {})),
                 runways=tuple(
                     Runway(r["id"], tuple(float(h) for h in r["headings"]))
                     for r in a.get("runways", [])

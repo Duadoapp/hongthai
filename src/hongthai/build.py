@@ -70,13 +70,17 @@ BUDGET_S: dict[str, float] = {
 }
 
 REUSE_MAX_AGE = timedelta(hours=24)
-# 模式來源 → (`model` 裡的鍵, [(`runs` 的鍵, 那一報決定的欄位)])；系集與 HRES 的時次各自判斷期限
+# 模式來源 → (`model` 裡的鍵, [(`runs` 的鍵, 那一報決定的欄位)])；系集與 HRES 的時次各自判斷期限。
+# 節的欄位（HD2）在 HD2 以前的結果裡沒有，抄完由 `_rescore` 用 m/s 欄位補（`assess.fill_kt`）
 REUSE_FIELDS: dict[str, tuple[str, tuple[tuple[str, tuple[str, ...]], ...]]] = {
     "ecmwf": (
         "ec",
-        (("ecmwf", ("hresGustMs", "crosswindKt")), ("ecmwfEns", ("p10", "p15", "p25"))),
+        (
+            ("ecmwf", ("hresGustMs", "hresGustKt", "crosswindKt")),
+            ("ecmwfEns", ("p10", "p15", "p25", "p29Kt", "p37Kt", "p49Kt")),
+        ),
     ),
-    "gfs": ("gfs", (("gfs", ("gustMs", "crosswindKt")),)),
+    "gfs": ("gfs", (("gfs", ("gustMs", "gustKt", "crosswindKt")),)),
 }
 
 
@@ -183,8 +187,9 @@ def _is_num(v: object) -> bool:
 
 def _rescore(slot: dict, th: Thresholds) -> None:
     """模式值換掉之後重算模式層等級、一致性、落差與整格等級（和 `assess.assess_slots` 同一套規則；
-    官方層與已確認不受模式影響，維持原樣）。"""
+    官方層與已確認不受模式影響，維持原樣）。抄來的是 HD2 以前的結果時，先用 m/s 欄位補節的欄位。"""
     m = slot["model"]
+    assess.fill_kt(m["ec"], m["gfs"])
     m["level"] = assess.model_level(m["ec"], m["gfs"], th)
     m["agreement"] = assess.agreement(m["ec"], m["gfs"], th)
     if slot["basis"] in ("model", "none"):

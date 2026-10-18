@@ -1,4 +1,4 @@
-"""等級規則：每條規則一個 case。"""
+"""等級規則：每條規則一個 case。風速一律用節（HD2）。"""
 
 from __future__ import annotations
 
@@ -13,8 +13,11 @@ from hongthai.assess import (
     assess_slots,
     crosswind_kt,
     crosswind_level,
+    fill_kt,
+    max_level,
     model_level,
     taf_for_slot,
+    taf_level,
 )
 from hongthai.config import ConfirmedPeriod, Runway, Thresholds
 from hongthai.grib import wind_dir_from_uv
@@ -29,12 +32,13 @@ SLOTS = slot_bounds(NOW)
 S0 = SLOTS[0][0]  # 2026-10-18T06:00Z
 
 
-def ec(p10=None, p15=None, p25=None, hres=None):
-    return {"p10": p10, "p15": p15, "p25": p25, "hresGustMs": hres}
+def ec(p10=None, p29=None, p49=None, hres=None):
+    """`hres` 是 HRES 陣風（節）；`p29`／`p49` 是系集陣風 ≥ 29／49 節的機率。"""
+    return {"p10": p10, "p29Kt": p29, "p37Kt": None, "p49Kt": p49, "hresGustKt": hres}
 
 
 def gfs(g=None):
-    return {"gustMs": g}
+    return {"gustKt": g}
 
 
 def warn(level, kind="tc_signal", source="hko"):
@@ -42,7 +46,7 @@ def warn(level, kind="tc_signal", source="hko"):
 
 
 def flat_ec(hres: float, p15: float = 0.0, p25: float = 0.0) -> EcmwfPoint:
-    """整段 120 小時都一樣的 EC 資料。"""
+    """整段 120 小時都一樣的 EC 資料（陣風是節）。"""
     hres_list = [
         GustInterval(S0 + timedelta(hours=h - 3), S0 + timedelta(hours=h), hres)
         for h in range(3, 121, 3)
@@ -55,6 +59,7 @@ def flat_ec(hres: float, p15: float = 0.0, p25: float = 0.0) -> EcmwfPoint:
 
 
 def flat_gfs(g: float) -> list[GustPoint]:
+    """陣風是節。"""
     return [GustPoint(S0 + timedelta(hours=h), g) for h in range(0, 121, 6)]
 
 
@@ -85,40 +90,55 @@ def test_slots_start_at_floor_and_cover_120h():
 # ---- 模式規則 ----
 
 
-def test_model_high_by_ec_p25():
-    assert model_level(ec(p25=0.30), gfs(5), TH) == "high"
-    assert model_level(ec(p25=0.29), gfs(5), TH) == "low"
+def test_default_thresholds_in_knots():
+    assert TH == Thresholds(
+        model_medium_gust_kt=37,
+        model_high_gust_kt=48,
+        taf_medium_gust_kt=37,
+        taf_high_gust_kt=48,
+        taf_high_wind_kt=35,
+        crosswind_medium_kt=27,
+        crosswind_high_kt=33,
+        ec_p49_high=0.3,
+    )
+
+
+def test_model_high_by_ec_p49():
+    assert model_level(ec(p49=0.30), gfs(5), TH) == "high"
+    assert model_level(ec(p49=0.29), gfs(5), TH) == "low"
 
 
 def test_model_high_by_hres_gust():
-    assert model_level(ec(hres=25.0), gfs(5), TH) == "high"
+    assert model_level(ec(hres=48.0), gfs(5), TH) == "high"
+    assert model_level(ec(hres=47.9), gfs(5), TH) == "medium"
 
 
 def test_model_high_by_gfs_gust():
-    assert model_level(ec(hres=5), gfs(25.0), TH) == "high"
+    assert model_level(ec(hres=5), gfs(48.0), TH) == "high"
 
 
-def test_model_medium_by_ec_p15():
-    assert model_level(ec(p15=0.5, p25=0.1), gfs(5), TH) == "medium"
-    assert model_level(ec(p15=0.49), gfs(5), TH) == "low"
+def test_model_medium_does_not_use_ensemble():
+    # ECMWF 沒有 ≥ 37 節的機率；≥ 29 節的機率再高也不進規則
+    assert model_level(ec(p10=1.0, p29=1.0, p49=0.29, hres=30), gfs(30), TH) == "low"
 
 
 def test_model_medium_by_any_gust():
-    assert model_level(ec(hres=15.0), gfs(3), TH) == "medium"
-    assert model_level(ec(hres=3), gfs(15.0), TH) == "medium"
+    assert model_level(ec(hres=37.0), gfs(3), TH) == "medium"
+    assert model_level(ec(hres=3), gfs(37.0), TH) == "medium"
+    assert model_level(ec(hres=36.9), gfs(36.9), TH) == "low"
 
 
 def test_model_low_and_missing():
-    assert model_level(ec(p10=0.9, p15=0.1, p25=0, hres=12), gfs(14.9), TH) == "low"
+    assert model_level(ec(p10=0.9, p29=0.1, p49=0, hres=24), gfs(29), TH) == "low"
     assert model_level(ec(), gfs(), TH) is None
 
 
 def test_ec_slot_uses_hres_max_and_min_of_containing_windows():
     point = EcmwfPoint(
         hres=[
-            GustInterval(S0, S0 + timedelta(hours=3), 10.0),
-            GustInterval(S0 + timedelta(hours=3), S0 + timedelta(hours=6), 18.04),
-            GustInterval(S0 + timedelta(hours=6), S0 + timedelta(hours=9), 30.0),
+            GustInterval(S0, S0 + timedelta(hours=3), 20.0),
+            GustInterval(S0 + timedelta(hours=3), S0 + timedelta(hours=6), 37.04),
+            GustInterval(S0 + timedelta(hours=6), S0 + timedelta(hours=9), 60.0),
         ],
         ens=[
             ProbWindow(S0 - timedelta(hours=12), S0 + timedelta(hours=12), 0.9, 0.6, 0.2),
@@ -131,10 +151,32 @@ def test_ec_slot_uses_hres_max_and_min_of_containing_windows():
         "p10": 0.8,
         "p15": 0.4,
         "p25": 0.2,
-        "hresGustMs": 18.0,
+        "p29Kt": 0.4,  # ＝p15（15 m/s ≈ 29.2 節）
+        "p37Kt": None,  # 沒有來源
+        "p49Kt": 0.2,  # ＝p25（25 m/s ≈ 48.6 節）
+        "hresGustMs": 19.1,  # 37.04 節換回 m/s
+        "hresGustKt": 37.0,
         "crosswindKt": None,
     }
     assert s["model"]["level"] == "medium"
+
+
+def test_gfs_slot_outputs_knots_and_ms():
+    s = run(gfs=flat_gfs(50.0))[0]
+    assert s["model"]["gfs"] == {"gustMs": 25.7, "gustKt": 50.0, "crosswindKt": None}
+
+
+def test_fill_kt_from_ms_fields():
+    """HD2 以前的結果（只有 m/s 欄位）被沿用時補節的欄位。"""
+    e = {"p10": 0.9, "p15": 0.6, "p25": 0.3, "hresGustMs": 25.0, "crosswindKt": 1.0}
+    g = {"gustMs": 19.0, "crosswindKt": 2.0}
+    fill_kt(e, g)
+    assert (e["hresGustKt"], e["p29Kt"], e["p37Kt"], e["p49Kt"]) == (48.6, 0.6, None, 0.3)
+    assert g["gustKt"] == 36.9
+    # 已經有節的欄位就不動
+    e2 = {"p15": 0.6, "p29Kt": 0.5, "hresGustMs": 25.0, "hresGustKt": 48.5}
+    fill_kt(e2, {})
+    assert (e2["p29Kt"], e2["hresGustKt"]) == (0.5, 48.5)
 
 
 # ---- 官方規則 ----
@@ -166,15 +208,16 @@ def taf(kind, wind, gust, start_h=0, end_h=6):
     )
 
 
-def test_taf_gust45_high():
-    assert taf_for_slot([taf("main", 20, 45)], *SLOTS[0], TH)["level"] == "high"
+def test_taf_gust48_high():
+    assert taf_for_slot([taf("main", 20, 48)], *SLOTS[0], TH)["level"] == "high"
+    assert taf_for_slot([taf("main", 20, 47)], *SLOTS[0], TH)["level"] == "medium"
 
 
 def test_taf_wind35_high():
     assert taf_for_slot([taf("main", 35, None)], *SLOTS[0], TH)["level"] == "high"
 
 
-def test_taf_gust30_medium_and_kind_of_worst_period():
+def test_taf_gust37_medium_and_kind_of_worst_period():
     o = taf_for_slot([taf("main", 15, None), taf("tempo", 25, 38, 2, 4)], *SLOTS[0], TH)
     assert o == {
         "windKt": 25,
@@ -191,8 +234,8 @@ def test_taf_prob_period_counts():
 
 
 def test_taf_below_threshold_low_and_no_overlap_none():
-    assert taf_for_slot([taf("main", 20, 29)], *SLOTS[0], TH)["level"] == "low"
-    assert taf_for_slot([taf("main", 20, 29, 6, 12)], *SLOTS[0], TH) is None
+    assert taf_for_slot([taf("main", 20, 36)], *SLOTS[0], TH)["level"] == "low"
+    assert taf_for_slot([taf("main", 20, 36, 6, 12)], *SLOTS[0], TH) is None
 
 
 # ---- 0–30 小時官方優先 ----
@@ -200,7 +243,7 @@ def test_taf_below_threshold_low_and_no_overlap_none():
 
 def test_official_overrides_model_within_30h():
     periods = [taf("main", 10, None, 0, 30)]
-    slots = run(ec=flat_ec(26), taf_periods=periods)
+    slots = run(ec=flat_ec(50), taf_periods=periods)
     s = slots[0]
     assert (s["level"], s["basis"]) == ("low", "official")
     assert s["model"]["level"] == "high"
@@ -208,7 +251,7 @@ def test_official_overrides_model_within_30h():
 
 def test_after_30h_only_model():
     periods = [taf("main", 10, None, 0, 120)]  # 就算 TAF 很長，超過 30 小時也不看
-    slots = run(ec=flat_ec(16), taf_periods=periods)
+    slots = run(ec=flat_ec(40), taf_periods=periods)
     # 現在 08:10，+30h = 隔天 14:10 → 開始時間 < 14:10 的格（前 6 格）是官方
     assert [s["basis"] for s in slots[:7]] == ["official"] * 6 + ["model"]
     assert slots[6]["official"] is None
@@ -216,7 +259,7 @@ def test_after_30h_only_model():
 
 
 def test_no_official_data_falls_back_to_model():
-    s = run(ec=flat_ec(16), taf_periods=None)[0]
+    s = run(ec=flat_ec(40), taf_periods=None)[0]
     assert (s["level"], s["basis"], s["official"]) == ("medium", "model", None)
 
 
@@ -230,7 +273,7 @@ def test_no_data_at_all_unknown():
 
 
 def test_gap_when_official_and_model_differ():
-    slots = run(ec=flat_ec(26), taf_periods=[taf("main", 10, None, 0, 30)])
+    slots = run(ec=flat_ec(50), taf_periods=[taf("main", 10, None, 0, 30)])
     assert slots[0]["gap"] is True
 
 
@@ -244,12 +287,12 @@ def test_no_gap_when_same_or_no_official():
 
 
 def test_agreement_same_class_agree():
-    s = run(ec=flat_ec(16), gfs=flat_gfs(24.9))[0]
+    s = run(ec=flat_ec(40), gfs=flat_gfs(47.9))[0]
     assert s["model"]["agreement"] == "agree"
 
 
 def test_agreement_different_class_disagree():
-    s = run(ec=flat_ec(16), gfs=flat_gfs(14.9))[0]
+    s = run(ec=flat_ec(40), gfs=flat_gfs(36.9))[0]
     assert s["model"]["agreement"] == "disagree"
 
 
@@ -310,10 +353,10 @@ def test_wind_dir_from_uv():
 
 def test_crosswind_thresholds():
     assert crosswind_level(None, TH) is None
-    assert crosswind_level(24.9, TH) == "low"
-    assert crosswind_level(25, TH) == "medium"
-    assert crosswind_level(34.9, TH) == "medium"
-    assert crosswind_level(35, TH) == "high"
+    assert crosswind_level(26.9, TH) == "low"
+    assert crosswind_level(27, TH) == "medium"
+    assert crosswind_level(32.9, TH) == "medium"
+    assert crosswind_level(33, TH) == "high"
     custom = Thresholds(crosswind_medium_kt=20, crosswind_high_kt=30)
     assert crosswind_level(25, custom) == "medium" and crosswind_level(30, custom) == "high"
 
@@ -334,8 +377,8 @@ def test_taf_crosswind_raises_level():
 
 
 def test_taf_gust_rule_wins_over_low_crosswind():
-    # 陣風 45 節沿跑道 → 側風 0，但陣風規則是高 → 高
-    p = TafPeriod(S0, S0 + timedelta(hours=6), "main", 50, 30, 45)
+    # 陣風 48 節沿跑道 → 側風 0，但陣風規則是高 → 高
+    p = TafPeriod(S0, S0 + timedelta(hours=6), "main", 50, 30, 48)
     t = taf_for_slot([p], S0, S0 + timedelta(hours=6), TH, RWY_05)
     assert t["crosswindKt"] == 0 and t["level"] == "high"
 
@@ -355,29 +398,88 @@ def test_official_slot_crosswind_and_metar():
 
 
 def test_model_crosswind_from_direction():
-    # HRES 陣風 14 m/s（≈27.2 節，陣風規則低），風向 140° 正側風 → 中
+    # HRES 陣風 28 節（陣風規則低），風向 140° 正側風 → 中
     hres = [
-        GustInterval(S0 + timedelta(hours=h - 3), S0 + timedelta(hours=h), 14.0, 140.0)
+        GustInterval(S0 + timedelta(hours=h - 3), S0 + timedelta(hours=h), 28.0, 140.0)
         for h in range(3, 121, 3)
     ]
-    gfs_pts = [GustPoint(S0 + timedelta(hours=h), 14.0, 50.0) for h in range(0, 121, 6)]
+    gfs_pts = [GustPoint(S0 + timedelta(hours=h), 28.0, 50.0) for h in range(0, 121, 6)]
     s = run(ec=EcmwfPoint(hres, []), gfs=gfs_pts, runways=RWY_05)[10]
-    assert s["model"]["ec"]["crosswindKt"] == pytest.approx(27.2, abs=0.05)
+    assert s["model"]["ec"]["crosswindKt"] == pytest.approx(28.0)
     assert s["model"]["gfs"]["crosswindKt"] == 0  # GFS 風向沿跑道
     assert s["model"]["level"] == "medium"
-    # 18.5 m/s（≈36 節）正側風 → 高；陣風規則只到中
-    hres = [GustInterval(g.start, g.end, 18.5, 320.0) for g in hres]
+    # 34 節正側風 → 高；陣風規則是低
+    hres = [GustInterval(g.start, g.end, 34.0, 320.0) for g in hres]
     assert run(ec=EcmwfPoint(hres, []), gfs=None, runways=RWY_05)[10]["model"]["level"] == "high"
 
 
 def test_model_crosswind_no_direction_uses_gust():
-    gfs_pts = [GustPoint(S0 + timedelta(hours=h), 14.0) for h in range(0, 121, 6)]
+    gfs_pts = [GustPoint(S0 + timedelta(hours=h), 28.0) for h in range(0, 121, 6)]
     s = run(ec=None, gfs=gfs_pts, runways=RWY_05)[10]
-    assert s["model"]["gfs"]["crosswindKt"] == pytest.approx(27.2, abs=0.05)
+    assert s["model"]["gfs"]["crosswindKt"] == 28.0
     assert s["model"]["level"] == "medium"
 
 
 def test_no_runways_no_crosswind_rule():
-    s = run(ec=None, gfs=[GustPoint(S0 + timedelta(hours=60), 14.0, 140.0)])[10]
+    s = run(ec=None, gfs=[GustPoint(S0 + timedelta(hours=60), 28.0, 140.0)])[10]
     assert s["model"]["gfs"]["crosswindKt"] is None
     assert s["model"]["level"] == "low"
+
+
+# ---- 真實案例：2026-10-18 16:15Z 那一報（`data` 分支 `history/20261018T1615Z.json`） ----
+
+# 第一個真實強風案例（10/23 桃園、松山、高雄都是 high）。數字照抄那份檔（HD2 以前的格式，只有
+# m/s 欄位，跟被沿用時一樣由 `fill_kt` 補節）；`old` 是那一報用舊門檻算出、檔裡記的 `level`。
+# 這些格都是 `basis: "model"`（TAF 只到 10/19），所以整格等級＝模式層等級。
+# （機場, from, HRES m/s, GFS m/s, p10, p15, p25, EC 側風節, GFS 側風節, old, new）
+REAL_1615Z_MODEL = [
+    # 舊門檻靠系集 p15 ≥ 50% 進中；新門檻中級不用系集，HRES 28.2 節 < 37 → 低
+    ("RCTP", "2026-10-21T00", 14.5, 11.5, 1.0, 0.78, 0.0, 4.4, 2.5, "medium", "low"),
+    # HRES 32.7 節、GFS 24.1 節都 < 37；舊門檻是 HRES ≥ 15 m/s → 中
+    ("RCTP", "2026-10-22T00", 16.8, 12.4, 1.0, 0.81, 0.01, 5.7, 6.2, "medium", "low"),
+    # HRES 22.5 m/s ≈ 43.7 節 ≥ 37 → 中（兩套一樣）
+    ("RCTP", "2026-10-22T18", 22.5, 17.0, 1.0, 0.93, 0.12, 15.3, 3.1, "medium", "medium"),
+    # p25（＝p49Kt）49% ≥ 30% → 高
+    ("RCTP", "2026-10-23T00", 23.5, 22.9, 1.0, 0.99, 0.49, 15.5, 3.9, "high", "high"),
+    # HRES 55.6 節、GFS 57.7 節 ≥ 48 → 高
+    ("RCTP", "2026-10-23T06", 28.6, 29.7, 1.0, 0.99, 0.49, 21.0, 26.1, "high", "high"),
+    # 只有 p15 51% 撐著中 → 低
+    ("RCSS", "2026-10-22T12", 9.6, 8.9, 0.96, 0.51, 0.03, 15.3, 10.9, "medium", "low"),
+    # EC 側風 26.7 節：舊門檻 ≥ 25 中，新門檻 < 27 → 低（HRES 30.3 節也 < 37）
+    ("RCSS", "2026-10-22T18", 15.6, 14.0, 0.96, 0.51, 0.03, 26.7, 18.5, "medium", "low"),
+    ("RCSS", "2026-10-23T00", 20.3, 21.4, 0.98, 0.94, 0.42, 28.0, 18.5, "high", "high"),
+    # 側風 28.0 節 ≥ 27 → 中（兩套一樣）
+    ("RCKH", "2026-10-22T06", 14.5, 4.7, 0.95, 0.4, 0.01, 28.0, 9.1, "medium", "medium"),
+    # 側風 26.7 節 < 27、p25 21% < 30% → 低
+    ("RCKH", "2026-10-22T12", 13.8, 6.1, 0.93, 0.68, 0.21, 26.7, 11.9, "medium", "low"),
+    # 側風 39.2 節 ≥ 33 → 高
+    ("RCKH", "2026-10-22T18", 20.6, 11.5, 0.93, 0.68, 0.21, 39.2, 22.4, "high", "high"),
+    # 模式側風 50.5 節（HRES 與 GFS 都是）
+    ("RCKH", "2026-10-23T06", 32.5, 30.7, 0.93, 0.87, 0.66, 50.5, 50.5, "high", "high"),
+    # 側風 27.7 節 ≥ 27 → 中（兩套一樣）
+    ("VHHH", "2026-10-23T00", 14.3, 11.0, 0.93, 0.51, 0.0, 27.7, 19.6, "medium", "medium"),
+    # 側風 22.4 節、HRES 22.5 節；舊門檻靠 p15 51% 與 HRES ≥ 15 m/s → 中
+    ("VHHH", "2026-10-23T06", 11.6, 11.0, 0.93, 0.51, 0.0, 22.4, 20.5, "medium", "low"),
+    ("VMMC", "2026-10-23T06", 10.6, 12.2, 0.84, 0.02, 0.0, 0.7, 3.4, "low", "low"),
+]
+
+# 官方層（TAF）的格：（機場, from, TAF 平均風節, 陣風節, 側風節, old, new）
+REAL_1615Z_TAF = [
+    ("RCTP", "2026-10-18T12", 5, None, 6.2, "low", "low"),
+    ("RCSS", "2026-10-18T12", 12, None, 2.5, "low", "low"),
+]
+
+
+def test_real_case_20261018_1615z():
+    wrong = []
+    for icao, start, hres, gfs_ms, p10, p15, p25, ec_xw, gfs_xw, old, new in REAL_1615Z_MODEL:
+        e = {"p10": p10, "p15": p15, "p25": p25, "hresGustMs": hres, "crosswindKt": ec_xw}
+        g = {"gustMs": gfs_ms, "crosswindKt": gfs_xw}
+        fill_kt(e, g)
+        assert e["p49Kt"] == p25 and e["p37Kt"] is None
+        if (got := model_level(e, g, TH)) != new:
+            wrong.append((icao, start, old, new, got))
+    for icao, start, wind, gust, xw, old, new in REAL_1615Z_TAF:
+        if (got := max_level([taf_level(wind, gust, TH), crosswind_level(xw, TH)])) != new:
+            wrong.append((icao, start, old, new, got))
+    assert wrong == []

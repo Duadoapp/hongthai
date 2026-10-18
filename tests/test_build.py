@@ -11,7 +11,7 @@ import pytest
 from conftest import FIXTURES, ROOT, load_json, utc
 
 from hongthai import budget, build, grib
-from hongthai.config import ConfirmedPeriod
+from hongthai.config import ConfirmedPeriod, Thresholds, load_airports
 from hongthai.sources import cwa, ecmwf, gfs, hko, smg, taf
 from hongthai.sources.gfs import GfsData, GustPoint
 
@@ -36,7 +36,7 @@ def sample_inputs(airports):
     )
     gf = GfsData(
         utc(2026, 10, 18, 0),
-        {a.icao: [GustPoint(utc(2026, 10, 18, 6), 16.0, 120.0)] for a in airports},
+        {a.icao: [GustPoint(utc(2026, 10, 18, 6), 40.0, 120.0)] for a in airports},  # 節
     )
     tf = taf.TafData(
         taf.parse_tafs(load_json("taf.json")), taf.parse_metars(load_json("metar.json")), {}
@@ -134,9 +134,22 @@ def test_slot_shape(latest):
                 assert o["level"] in ("low", "medium", "high")
                 assert is_num_or_none(o["crosswindKt"])
             m = s["model"]
-            assert set(m["ec"]) == {"p10", "p15", "p25", "hresGustMs", "crosswindKt"}
+            assert set(m["ec"]) == {
+                "p10",
+                "p15",
+                "p25",
+                "p29Kt",
+                "p37Kt",
+                "p49Kt",
+                "hresGustMs",
+                "hresGustKt",
+                "crosswindKt",
+            }
             assert all(is_num_or_none(v) for v in m["ec"].values())
-            assert set(m["gfs"]) == {"gustMs", "crosswindKt"}
+            # 節的欄位（HD2）：系集機率的節欄位就是 m/s 門檻的那兩個，37 節沒有來源
+            assert m["ec"]["p29Kt"] == m["ec"]["p15"] and m["ec"]["p49Kt"] == m["ec"]["p25"]
+            assert m["ec"]["p37Kt"] is None
+            assert set(m["gfs"]) == {"gustMs", "gustKt", "crosswindKt"}
             assert all(is_num_or_none(v) for v in m["gfs"].values())
             assert m["level"] in ("low", "medium", "high", None)
             assert m["agreement"] in ("agree", "disagree", None)
@@ -155,19 +168,36 @@ def test_content_from_samples(latest):
     ]
     assert vmmc["slots"][0]["official"]["warnings"] == ["tc_signal"]
     assert vmmc["slots"][0]["level"] == "medium"
-    # 側風：GFS 16 m/s、120° → 對香港 070.9° 的跑道差 49°
+    # 側風：GFS 40 節、120° → 對香港 070.9° 的跑道差 49°
     xw = vhhh["slots"][0]["model"]["gfs"]["crosswindKt"]
-    assert xw == pytest.approx(16 * 3600 / 1852 * 0.755, abs=0.2)
+    assert xw == pytest.approx(40 * 0.755, abs=0.2)
     for a in latest["airports"]:
         assert all(isinstance(s["model"]["ec"]["crosswindKt"], float) for s in a["slots"][12:14])
     s0 = vhhh["slots"][0]
     assert (s0["level"], s0["basis"]) == ("high", "official")
     assert s0["official"]["warnings"] == ["tc_signal"]
-    assert s0["model"]["gfs"]["gustMs"] == 16.0
-    assert s0["model"]["level"] == "medium"
+    assert s0["model"]["gfs"]["gustKt"] == 40.0
+    assert s0["model"]["gfs"]["gustMs"] == 20.6  # 契約的舊欄位照出 m/s
+    assert s0["model"]["level"] == "medium"  # 40 節 ≥ 37
     assert s0["gap"] is True
     assert vhhh["slots"][3]["level"] == "confirmed"
     assert len(vhhh["confirmed"]) == 1 and rctp["confirmed"] == []
+
+
+def test_airports_thresholds_in_knots(airports, tmp_path):
+    # 五個機場目前都用預設門檻（節）
+    assert all(a.thresholds == Thresholds() for a in airports)
+    raw = json.loads((ROOT / "airports.json").read_text("utf-8"))
+    raw[0]["thresholds"] = {"crosswindMediumKt": 20, "ecP49High": 0.5}
+    p = tmp_path / "airports.json"
+    p.write_text(json.dumps(raw), "utf-8")
+    th = load_airports(p)[0].thresholds
+    assert (th.crosswind_medium_kt, th.ec_p49_high, th.model_high_gust_kt) == (20, 0.5, 48)
+    # HD2 以前的 m/s 鍵不再接受
+    raw[0]["thresholds"] = {"modelHighGustMs": 25}
+    p.write_text(json.dumps(raw), "utf-8")
+    with pytest.raises(ValueError, match="modelHighGustMs"):
+        load_airports(p)
 
 
 # ---- 執行與失敗處理 ----
@@ -408,15 +438,20 @@ def test_ecmwf_failure_reuses_previous_model(workspace, monkeypatch):
     assert "reusedFrom" not in out["sources"]["gfs"]
     by = {a["icao"]: a for a in out["airports"]}
     s0 = by["VHHH"]["slots"][0]
+    # 上一份是 HD2 以前的格式（只有 m/s 欄位）→ 節的欄位由 m/s 補
     assert s0["model"]["ec"] == {
         "p10": None,
         "p15": None,
         "p25": None,
+        "p29Kt": None,
+        "p37Kt": None,
+        "p49Kt": None,
         "hresGustMs": 26.0,
+        "hresGustKt": 50.5,
         "crosswindKt": 12.5,
     }
-    assert s0["model"]["gfs"] == {"gustMs": None, "crosswindKt": None}
-    # 等級照常用抄來的值算：HRES 26 m/s → 高
+    assert s0["model"]["gfs"] == {"gustMs": None, "gustKt": None, "crosswindKt": None}
+    # 等級照常用抄來的值算：HRES 26 m/s ≈ 50.5 節 → 高
     assert (s0["level"], s0["basis"], s0["model"]["level"]) == ("high", "model", "high")
     assert s0["model"]["agreement"] is None
     assert by["VHHH"]["slots"][1]["level"] == "unknown"
@@ -449,7 +484,7 @@ def test_gfs_failure_reuses_previous_gfs(workspace, monkeypatch, airports):
     prev = _prev(
         "2026-10-18T02:10:00Z",
         {"ecmwf": None, "ecmwfEns": None, "gfs": "2026-10-17T18:00:00Z"},
-        gfs_v={"gustMs": 16.0, "crosswindKt": 20.0},
+        gfs_v={"gustMs": 20.6, "gustKt": 40.0, "crosswindKt": 20.0},  # HD2 以後的格式
         slot_from="2026-10-21T06:00:00Z",  # fixture 的 HRES 有涵蓋的格
     )
     _write_prev(workspace, prev)
@@ -463,12 +498,13 @@ def test_gfs_failure_reuses_previous_gfs(workspace, monkeypatch, airports):
     slots = out["airports"][3]["slots"]
     s12 = slots[12]
     assert s12["from"] == "2026-10-21T06:00:00Z"
-    assert s12["model"]["gfs"] == {"gustMs": 16.0, "crosswindKt": 20.0}
-    assert isinstance(s12["model"]["ec"]["hresGustMs"], float)
+    assert s12["model"]["gfs"] == {"gustMs": 20.6, "gustKt": 40.0, "crosswindKt": 20.0}
+    assert isinstance(s12["model"]["ec"]["hresGustKt"], float)
     # 兩個模式都有了，一致性照常算
     assert s12["model"]["agreement"] in ("agree", "disagree")
-    assert s12["model"]["level"] in ("medium", "high")  # GFS 16 m/s ≥ 15 → 至少中
+    assert s12["model"]["level"] in ("medium", "high")  # GFS 40 節 ≥ 37 → 至少中
     assert all(s["model"]["gfs"]["gustMs"] is None for s in slots if s is not s12)
+    assert all(s["model"]["gfs"]["gustKt"] is None for s in slots if s is not s12)
 
 
 def _write_hist(workspace, doc, ok=None):
@@ -523,7 +559,8 @@ def test_reuse_searches_back_to_last_good_run(workspace, monkeypatch, airports):
     assert out["runs"]["gfs"] == "2026-10-17T12:00:00Z"
     s12 = out["airports"][3]["slots"][12]
     assert s12["from"] == "2026-10-21T06:00:00Z"
-    assert s12["model"]["gfs"] == {"gustMs": 16.0, "crosswindKt": 20.0}
+    # HD2 以前的格式：gustKt 由 gustMs 補（16 m/s ≈ 31.1 節）
+    assert s12["model"]["gfs"] == {"gustMs": 16.0, "gustKt": 31.1, "crosswindKt": 20.0}
 
 
 def test_reuse_search_all_older_than_24h(workspace, monkeypatch, airports):

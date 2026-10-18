@@ -30,6 +30,7 @@ NOMADS（備援，H10 以前唯一的來源）：
 共同：
 - 出爐時間（UTC）：各報約 3.5–4 小時後到 f120（00Z ≈ 03:40、06Z ≈ 09:40、12Z ≈ 15:40、18Z ≈ 21:40）
 - GUST 是瞬時值（每 6 小時一筆），判讀時一格取頭尾兩個時間點的最大值
+- GRIB 的陣風是 m/s，解析完就換算成節（`GustPoint.gust_kt`，HD2）
 """
 
 from __future__ import annotations
@@ -45,6 +46,7 @@ from ..budget import note
 from ..config import Airport
 from ..grib import read_points, wind_dir_from_uv
 from ..timeutil import floor_6h, hours_between
+from ..units import ms_to_kt
 from . import SourceError, http_get
 
 log = logging.getLogger("hongthai")
@@ -69,7 +71,7 @@ class GfsError(SourceError):
 @dataclass
 class GustPoint:
     valid: datetime
-    gust_ms: float | None
+    gust_kt: float | None  # 節
     wdir: float | None = None  # 同一時間的 10 米風向（度，真北）
 
 
@@ -112,7 +114,7 @@ PARAMS = {
 
 
 def parse_file(path: str | Path, airports: list[Airport]) -> dict[str, list[GustPoint]]:
-    """一個 GRIB 檔（一個步長）→ 各機場的陣風點（配上同一步長的 10 米風向）。"""
+    """一個 GRIB 檔（一個步長）→ 各機場的陣風點（節，配上同一步長的 10 米風向）。"""
     out: dict[str, list[GustPoint]] = {}
     for icao, series in read_points(path, {a.icao: (a.lat, a.lon) for a in airports}).items():
         u, v = series.get("10u"), series.get("10v")
@@ -124,7 +126,7 @@ def parse_file(path: str | Path, airports: list[Airport]) -> dict[str, list[Gust
         if gust is not None:
             for step, val in zip(gust.steps, gust.values, strict=True):
                 wdir = wind_dir_from_uv(*uv.get(step, (None, None)))
-                pts.append(GustPoint(gust.run + timedelta(hours=step), val, wdir))
+                pts.append(GustPoint(gust.run + timedelta(hours=step), ms_to_kt(val), wdir))
         out[icao] = pts
     return out
 
