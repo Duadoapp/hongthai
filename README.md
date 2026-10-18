@@ -139,11 +139,12 @@ H10（2026-10-18）之後：
 | cwa | 45 | 幾秒 |
 | nws（HD3，關島） | 30 | 不到 1 秒 |
 | flights（抓＋統計＋寫檔） | 120 | 約 20 |
+| og（分享預覽圖 51 張，HD1；`publish()` 之後） | 60 | 約 3–6 |
 
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和 780 秒（13 分鐘；HD3 加 nws 30 秒），Actions「產生 latest.json」那一步上限 15 分鐘、整個 job 25 分鐘
+- 總和 840 秒（14 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒），Actions「產生 latest.json」那一步上限 15 分鐘、整個 job 25 分鐘
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
   重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
   下載先試 AWS 鏡像，那一報還沒同步到或失敗再回 ECMWF 入口，再失敗試 Google；實際從哪裡下載記在
@@ -188,12 +189,15 @@ H10（2026-10-18）之後：
 - `src/hongthai/sources/`：各資料來源（每個 `fetch()` 回 dataclass，失敗丟自己的例外）
 - `src/hongthai/assess.py`：判讀（純函式）
 - `src/hongthai/build.py`：組 JSON、寫檔、失敗處理
+- `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
+  重做腳本 `tools/make_font_subset.py`
 
 ### 輸出
 
 - GitHub Pages（`public/`）：`latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（歷次結果，**只放最近 7 天**：
   H9 起一份約 515 KB、HD3 起約 642 KB（2026-10-18 實測），`publish()` 只複製檔名時間（＝`generatedAt`）在 7 天內的，Pages 上更舊的刪掉；
-  `data` 分支照舊全部保留）
+  `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，
+  每報重畫、不進 `data` 分支）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
   `/alerts/active` 的原始回應，HD3 起）與航班的
@@ -211,9 +215,11 @@ H10（2026-10-18）之後：
 {"run": "2026-10-18T09:28:00Z", "source": "done", "ok": true, "seconds": 371.2}
 ```
 
-- `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`nws`（HD3 起）、`flights`、`done`（照執行順序）
-- `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`；`bytes`：下載量（逾時的是到那時為止，
-  ecmwf 只算下載完的檔）；
+- `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`nws`（HD3 起）、`flights`、`og`（HD1 起，
+  分享預覽圖；改發布上一份時也有）、`done`（照執行順序）
+- `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`（`og` 有幾張畫不出來時是
+  `"<IATA>:<例外類別>"`，多個用 `,` 接）；`bytes`：下載量（逾時的是到那時為止，
+  ecmwf 只算下載完的檔；`og` 是畫出來的圖的總大小）；
   `mirror`：ecmwf 與 gfs 有（gfs 是 H10 起），實際下載（逾時或失敗時是最後在試）的 source，
   還沒開始是 `null`；ecmwf 是 `aws`／`ecmwf`／`google`，gfs 是 `aws`／`nomads`
 - `start` 的 `commit` 是 `GITHUB_SHA` 前 7 碼（本機跑是 `null`）；`done` 的 `ok` 是這次有沒有產出新的
@@ -347,6 +353,42 @@ HD3（2026-10-19）加的（只加值、不加欄位，既有欄位不改名、�
   `agreement` 在少一個模式時是 `null`
 - TAF 沒涵蓋、也沒有警報的 0–30 小時格：`official: null`、`basis: "model"`
 
+## 分享預覽圖
+
+HD1（規格 Duado #374，預設值 Shawn 2026-10-19 拍板）：每報 build 跑完，用 Pillow 畫每個機場一張
+**1200×630** 的 PNG，發布在
+
+`https://duadoapp.github.io/hongthai/og/<iata 小寫>.png`（例如 <https://duadoapp.github.io/hongthai/og/tpe.png>）
+
+Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒有加欄位。程式在 `src/hongthai/og.py`。
+
+- 內容（Duado 晨光風格：底色 `#EDF1F4`、文字 `#263038`，大圓角色塊，不用框線與陰影，不做深色版；
+  不放 logo、地圖）：
+  - 左上 IATA 大字（Fraunces 160 px），其下機場名 zh-TW（芫荽 56 px）與 en（Fraunces 36 px）
+  - 右上燈號：300×110、圓角 28 的色塊，裡面寫等級字。顏色：低 `#C2DCC6`、中 `#F3E3A5`、高 `#F7C9A9`、
+    已確認 `#263038`（字用 `#EDF1F4`）、資料不足 `#D8DEE3`（`og.LEVEL_COLORS`）
+  - 色塊下一行小字；左下「更新 2026-10-19 02:15（當地時間）」（機場時區的 `generatedAt`）；
+    右下「HongThai　機場停飛風險」與「duado.app/hongthai」
+- 燈號是這個機場**未來 5 天（20 格）裡最高的等級**，小字寫第一個達到那個等級的格的當地日期時段：
+  - 「最高：高　10/23 14–20 時」；結束在當地午夜寫「18–24 時」；跨午夜寫兩個日期「10/23 20 時–10/24 02 時」
+    （UTC+8 的機場每天有一格這樣）
+  - 全部低：「未來 5 天：低」
+  - 有 `confirmed` 的格（視為高）：色塊「已確認」、小字「已確認停飛　<第一個已確認的格>」
+  - 全部 `unknown`：色塊與小字都是「資料不足」；有的格 `unknown`、有的有等級時只看有等級的
+- 三顆燈：`og.render(airport, generated_at, lights, out_path)` 吃 `lights: list[Light(label, level, note)]`，
+  現在只傳一顆規則燈（`label=None`，不畫標籤）。AI 對決那支多傳兩顆（標籤「規則」「Claude」「Gemini」），
+  色塊會並排、寬度自動縮，小字放各自色塊下面
+- PNG 用固定調色盤（品牌色＋反鋸齒的中間色）＋`optimize=True`：每張約 15–19 KB，51 張約 0.9 MB；
+  本機畫 51 張約 3 秒（2026-10-19 用 Pages 上 18:15Z 那份 `latest.json` 實測 893 KB、3.2 秒）
+- 在 `publish()` 之後、Pages 上傳之前畫（`build.draw_og`），寫到 `public/og/`；整次 build 失敗改發布上一份
+  `latest.json` 時，也用那一份畫。畫圖失敗只 log、不讓 build 失敗；預算 60 秒（`BUDGET_S["og"]`）；
+  `history/timing/` 多一行 `source: "og"`（`ok`、`seconds`、`bytes` 是全部圖的總大小）
+- 字型（`assets/fonts/`，都是 SIL OFL 1.1，只放子集，各附 `OFL-*.txt`）：ASCII 與數字用 **Fraunces**
+  （SOFT 100、wght 600 的靜態檔），其他字用 **芫荽 Iansui**，芫荽缺的字才用 **Noto Sans TC**（目前一個都沒缺）。
+  Pillow 不會自動補字，所以逐字分段、各段用自己的字型畫。來源、版本、子集大小見 `assets/fonts/README.md`
+- **加了機場或改了機場名之後要重做子集**：`python tools/make_font_subset.py`（下載完整字型到暫存目錄、
+  取子集寫回 `assets/fonts/`）。沒重做的話 `tests/test_og.py` 的涵蓋檢查會紅
+
 ## 發布設定（產品負責人要做的）
 
 1. **Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**
@@ -375,6 +417,9 @@ HD3（2026-10-19）加的（只加值、不加欄位，既有欄位不改名、�
 | 松山機場即時航班（data.gov.tw [37242](https://data.gov.tw/dataset/37242)／[37248](https://data.gov.tw/dataset/37248)／[37317](https://data.gov.tw/dataset/37317)／[37319](https://data.gov.tw/dataset/37319)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 高雄機場即時航班（data.gov.tw [33656](https://data.gov.tw/dataset/33656)／[33655](https://data.gov.tw/dataset/33655)／[33651](https://data.gov.tw/dataset/33651)／[33649](https://data.gov.tw/dataset/33649)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 澳門民航局航班資訊（data.gov.mo [離港（英文）](https://data.gov.mo/Detail?id=f910cf2e-5e30-45c3-9e62-3eb6bf912db3)／[抵港（英文）](https://data.gov.mo/Detail?id=44b62bd1-6c84-421f-b571-52ab184c7df3)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 澳門政府數據開放平台使用條款 |
+| [芫荽 Iansui](https://github.com/ButTaiwan/iansui)（子集，`assets/fonts/`；HD1） | 分享預覽圖的中文字 | [SIL OFL 1.1](assets/fonts/OFL-Iansui.txt) |
+| [Fraunces](https://github.com/undercasetype/Fraunces)（SOFT 100、wght 600 靜態檔的子集；HD1） | 分享預覽圖的英文與數字 | [SIL OFL 1.1](assets/fonts/OFL-Fraunces.txt) |
+| [Noto Sans TC](https://fonts.google.com/noto/specimen/Noto+Sans+TC)（Google Fonts，子集；HD1） | 分享預覽圖：芫荽缺字時的備援 | [SIL OFL 1.1](assets/fonts/OFL-NotoSansTC.txt) |
 
 NWS（關島、帛琉，HD3，2026-10-18 查）：
 - 關島：`/zones?area=GU` 有 `GUZ001`（public／fire，名稱 Guam，`cwa` 是 GUM＝NWS 關島分處）；PGUM 的

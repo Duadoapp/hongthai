@@ -355,6 +355,10 @@ def workspace(tmp_path, monkeypatch):
         raise build.requests.ConnectionError("測試不連網")
 
     monkeypatch.setattr(build.requests, "get", no_network)
+    # 預覽圖（HD1）在 test_og.py 測；這裡不畫，build 的測試才不會每個多幾秒
+    monkeypatch.setattr(
+        build.og, "render_all", lambda latest, out_dir: {"ok": True, "count": 0, "bytes": 0}
+    )
     return tmp_path
 
 
@@ -762,6 +766,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "smg",
         "nws",
         "flights",
+        "og",
         "done",
     ]
     assert {r["run"] for r in lines} == {"2026-10-18T08:10:00Z"}
