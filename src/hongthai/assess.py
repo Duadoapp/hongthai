@@ -1,13 +1,20 @@
 """判讀：把各來源的資料對到 6 小時格，依規格的等級規則算等級。全部是純函式。
 
-規格（Duado `docs/spec.md`「16. HongThai」，初版、保守，之後用實際紀錄校準）：
-- 模式：EC ≥ 25 m/s 機率 ≥ 30%、或 HRES 陣風 ≥ 25 m/s、或 GFS 陣風 ≥ 25 m/s → 高；
-  EC ≥ 15 m/s 機率 ≥ 50%、或任一模式陣風 ≥ 15 m/s → 中；其他低
+規格（Duado `docs/spec.md`「16. HongThai」，初版、保守，之後用實際紀錄校準）。HD2（2026-10-19）起
+風速一律用節（1 m/s = 1.943844 節），模式陣風解析完就換算成節：
+- 模式：HRES 或 GFS 陣風 ≥ 48 節、或 EC 系集「陣風 ≥ 25 m/s（≈ 48.6 節）」機率 ≥ 30%
+  （`p49Kt`）→ 高；HRES 或 GFS 陣風 ≥ 37 節 → 中；其他低。中級**不用系集**：ECMWF 開放資料的
+  機率產品只有 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節），沒有 37 節的（`p37Kt` 一律 `null`，
+  之後用 GEFS 系集成員自己算）；`p29Kt`（＝`p15`）只輸出、不進規則
 - 官方（只看 0–30 小時）：天文台／SMG 8 號或以上 → 高，3 號 → 中；氣象署陸上颱風警報且機場在警戒區
-  → 高，海上警報 → 中；TAF 該時段陣風 ≥ 45 節（或平均風 ≥ 35 節）→ 高，陣風 ≥ 30 節 → 中
+  → 高，海上警報 → 中；TAF 該時段陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高，陣風 ≥ 37 節 → 中
+- 陣風門檻（TAF 與模式同一套）的依據：桃園機場空橋規則，最大瞬間風速 37 節（蒲福 8 級）啟動
+  空橋防護、48 節（10 級）空橋停用、55 節以上全部綁死
 - 0–30 小時以官方為準；官方與模式差一級以上標「落差」（`gap`）
 - 一致性：HRES 與 GFS 的陣風落在同一級＝一致（`agree`）
 - `confirmed.json` 有時段的格 → `confirmed`
+- 所有機場先用同一套門檻（`config.Thresholds` 的預設值），之後找到個別機場的作業標準再在
+  `airports.json` 的 `thresholds` 覆寫
 
 本模組自己的約定（規格沒寫死的地方）：
 - 「0–30 小時」：格的開始時間早於「現在 + 30 小時」
@@ -23,7 +30,8 @@
   方向取小的，再取所有跑道裡最小的（還有一條能用就不算停飛）。風向可變（VRB）或沒有風向時，
   側風＝風速本身（最保守）；機場沒設定跑道時不算側風（`crosswindKt: null`）
 - 跑道方位用真北（METAR／TAF 與模式的風向都是真北；磁方位只記在 `airports.json` 備查）
-- 門檻：含陣風側風 ≥ 25 節 → 中、≥ 35 節 → 高（`crosswindMediumKt`／`crosswindHighKt`）；
+- 門檻：含陣風側風 ≥ 27 節 → 中、≥ 33 節 → 高（`crosswindMediumKt`／`crosswindHighKt`，HD2）；
+  依據是窄體客機常見的作業限制（737-800 濕跑道起飛約 27 節、乾跑道約 33 節）。
   和陣風規則取較高的等級（官方層、模式層各自合成）
 - 官方：一格取重疊的 TAF 時段裡最大的側風；METAR 只算進「現在」所在的那一格（觀測在 3 小時內），
   而且只在該格本來就有官方資料（TAF 或警報）時
@@ -44,12 +52,12 @@ from .sources.ecmwf import EcmwfPoint
 from .sources.gfs import GustPoint
 from .sources.taf import Metar, TafPeriod
 from .timeutil import iso
+from .units import kt_to_ms, ms_to_kt
 
 LEVELS = ("low", "medium", "high")
 OFFICIAL_HORIZON_H = 30
 WARNING_HORIZON_H = 12
 METAR_MAX_AGE_H = 3
-KT_PER_MS = 3600 / 1852
 
 
 @dataclass(frozen=True)
@@ -174,31 +182,52 @@ def metar_crosswind(metar: Metar | None, now: datetime, runways: Sequence[Runway
 # ---- 模式 ----
 
 
-def _model_crosswind(
-    gust_ms: float | None, wdir: float | None, runways: Sequence[Runway]
-) -> float | None:
-    return crosswind_kt(None if gust_ms is None else gust_ms * KT_PER_MS, wdir, runways)
+EC_KEYS = (
+    "p10",
+    "p15",
+    "p25",
+    "p29Kt",
+    "p37Kt",
+    "p49Kt",
+    "hresGustMs",
+    "hresGustKt",
+    "crosswindKt",
+)
+# 系集機率的節欄位 ← ECMWF 的 m/s 門檻欄位（15 m/s ≈ 29.2 節、25 m/s ≈ 48.6 節）
+EC_PROB_KT = {"p29Kt": "p15", "p49Kt": "p25"}
+
+
+def fill_kt(ec: dict, gfs: dict) -> None:
+    """節的欄位是空的、但對應的 m/s 欄位有值時補上（HD2 以前的結果被沿用時只有 m/s 欄位）。"""
+    for kt, ms in EC_PROB_KT.items():
+        if ec.get(kt) is None and ec.get(ms) is not None:
+            ec[kt] = ec[ms]
+    ec.setdefault("p37Kt", None)
+    for d, kt, ms in ((ec, "hresGustKt", "hresGustMs"), (gfs, "gustKt", "gustMs")):
+        if d.get(kt) is None and d.get(ms) is not None:
+            d[kt] = _round(ms_to_kt(d[ms]), 1)
 
 
 def ec_for_slot(
     point: EcmwfPoint | None, start: datetime, end: datetime, runways: Sequence[Runway] = ()
 ) -> dict:
-    out: dict[str, float | None] = {
-        "p10": None,
-        "p15": None,
-        "p25": None,
-        "hresGustMs": None,
-        "crosswindKt": None,
-    }
+    """`hresGustMs`／`p10`／`p15`／`p25` 是契約的舊欄位（m/s 與 ECMWF 的 m/s 門檻），照出；
+    HD2 加 `hresGustKt` 與 `p29Kt`（＝`p15`）、`p37Kt`（沒有來源，一律 None）、
+    `p49Kt`（＝`p25`）。"""
+    out: dict[str, float | None] = dict.fromkeys(EC_KEYS)
     if point is None:
         return out
-    hits = [g for g in point.hres if g.gust_ms is not None and start < g.end <= end]
-    out["hresGustMs"] = _round(_max(g.gust_ms for g in hits), 1)
-    out["crosswindKt"] = _round(_max(_model_crosswind(g.gust_ms, g.wdir, runways) for g in hits), 1)
+    hits = [g for g in point.hres if g.gust_kt is not None and start < g.end <= end]
+    gust = _max(g.gust_kt for g in hits)
+    out["hresGustMs"] = _round(kt_to_ms(gust), 1)
+    out["hresGustKt"] = _round(gust, 1)
+    out["crosswindKt"] = _round(_max(crosswind_kt(g.gust_kt, g.wdir, runways) for g in hits), 1)
     windows = [w for w in point.ens if w.start <= start and w.end >= end]
     for key in ("p10", "p15", "p25"):
         vals = [getattr(w, key) for w in windows if getattr(w, key) is not None]
         out[key] = _round(min(vals), 2) if vals else None
+    for kt, ms in EC_PROB_KT.items():
+        out[kt] = out[ms]
     return out
 
 
@@ -208,40 +237,42 @@ def gfs_for_slot(
     end: datetime,
     runways: Sequence[Runway] = (),
 ) -> dict:
-    hits = [p for p in points or [] if p.gust_ms is not None and start <= p.valid <= end]
+    hits = [p for p in points or [] if p.gust_kt is not None and start <= p.valid <= end]
+    gust = _max(p.gust_kt for p in hits)
     return {
-        "gustMs": _round(_max(p.gust_ms for p in hits), 1),
-        "crosswindKt": _round(_max(_model_crosswind(p.gust_ms, p.wdir, runways) for p in hits), 1),
+        "gustMs": _round(kt_to_ms(gust), 1),
+        "gustKt": _round(gust, 1),
+        "crosswindKt": _round(_max(crosswind_kt(p.gust_kt, p.wdir, runways) for p in hits), 1),
     }
 
 
-def gust_level(gust_ms: float | None, th: Thresholds) -> str | None:
-    if gust_ms is None:
+def gust_level(gust_kt: float | None, th: Thresholds) -> str | None:
+    if gust_kt is None:
         return None
-    if gust_ms >= th.model_high_gust_ms:
+    if gust_kt >= th.model_high_gust_kt:
         return "high"
-    if gust_ms >= th.model_medium_gust_ms:
+    if gust_kt >= th.model_medium_gust_kt:
         return "medium"
     return "low"
 
 
 def _model_gust_level(ec: dict, gfs: dict, th: Thresholds) -> str:
-    p15, p25, hres, g = ec.get("p15"), ec.get("p25"), ec.get("hresGustMs"), gfs.get("gustMs")
-    gusts = [v for v in (hres, g) if v is not None]
-    if (p25 is not None and p25 >= th.ec_p25_high) or any(
-        v >= th.model_high_gust_ms for v in gusts
-    ):
-        return "high"
-    if (p15 is not None and p15 >= th.ec_p15_medium) or any(
-        v >= th.model_medium_gust_ms for v in gusts
-    ):
-        return "medium"
-    return "low"
+    """確定性陣風（HRES、GFS）決定中、高；系集只看 `p49Kt` 進高（沒有 37 節的機率）。"""
+    p49 = ec.get("p49Kt")
+    high_by_ens = p49 is not None and p49 >= th.ec_p49_high
+    gust = max_level(gust_level(v, th) for v in (ec.get("hresGustKt"), gfs.get("gustKt")))
+    return "high" if high_by_ens else gust or "low"
 
 
 def model_level(ec: dict, gfs: dict, th: Thresholds) -> str | None:
     """陣風規則與兩個模式的側風規則取較高者；完全沒有模式資料回 None。"""
-    keys = (ec.get("p10"), ec.get("p15"), ec.get("p25"), ec.get("hresGustMs"), gfs.get("gustMs"))
+    keys = (
+        ec.get("p10"),
+        ec.get("p29Kt"),
+        ec.get("p49Kt"),
+        ec.get("hresGustKt"),
+        gfs.get("gustKt"),
+    )
     if all(v is None for v in keys):
         return None
     return max_level(
@@ -254,7 +285,7 @@ def model_level(ec: dict, gfs: dict, th: Thresholds) -> str | None:
 
 
 def agreement(ec: dict, gfs: dict, th: Thresholds) -> str | None:
-    a, b = gust_level(ec.get("hresGustMs"), th), gust_level(gfs.get("gustMs"), th)
+    a, b = gust_level(ec.get("hresGustKt"), th), gust_level(gfs.get("gustKt"), th)
     if a is None or b is None:
         return None
     return "agree" if a == b else "disagree"

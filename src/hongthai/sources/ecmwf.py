@@ -14,6 +14,9 @@
 
 側風（第二階段）：HRES 多抓 10 米風 `10u`／`10v`（瞬時值），每個陣風區間配上一個風向（真北）。
 
+單位（HD2，2026-10-19）：GRIB 的陣風是 m/s，解析完就換算成節（`GustInterval.gust_kt`）；
+系集機率的門檻仍是 ECMWF 定的 10／15／25 m/s（≈ 19.4／29.2／48.6 節），開放資料沒有其他門檻。
+
 下載量（H10，2026-10-18 06Z 那一報的 index 實測，全球 0.25°，每個步長）：
 - 陣風每個步長**只有一個**參數：0–90 小時只有 `10fg`（約 1.29–1.42 MB），93–144 小時只有 `10fg3`
   （約 1.28–1.41 MB），150 小時以後只有 `10fg`；同一步長不會兩個都有，所以請求裡寫兩個參數不會
@@ -57,6 +60,7 @@ from ..budget import add_bytes, check_cancelled, note
 from ..config import Airport
 from ..grib import read_points, wind_dir_from_uv
 from ..timeutil import hours_between
+from ..units import ms_to_kt
 from . import SourceError
 
 log = logging.getLogger("hongthai")
@@ -68,17 +72,17 @@ class EcmwfError(SourceError):
 
 @dataclass
 class GustInterval:
-    """某段時間（start, end] 內的最大陣風。"""
+    """某段時間（start, end] 內的最大陣風（節）。"""
 
     start: datetime
     end: datetime
-    gust_ms: float | None
+    gust_kt: float | None
     wdir: float | None = None  # 區間結束時的 10 米風向（度，真北）；沒有 10u／10v 時 None
 
 
 @dataclass
 class ProbWindow:
-    """系集機率的 24 小時窗（start, end]，機率 0–1。"""
+    """系集機率的 24 小時窗（start, end]，機率 0–1；`p10`／`p15`／`p25` 是陣風 ≥ 10／15／25 m/s。"""
 
     start: datetime
     end: datetime
@@ -167,7 +171,7 @@ def parse_hres(
 ) -> tuple[datetime, dict[str, list]]:
     """陣風（`path`）配 10 米風（`wind_path`；沒給就在 `path` 裡找）。
 
-    風向取 `wind_step` 那個步長的 `10u`／`10v`。
+    風向取 `wind_step` 那個步長的 `10u`／`10v`；陣風換算成節。
     """
     where = {a.icao: (a.lat, a.lon) for a in airports}
     pts = read_points(path, where)
@@ -189,7 +193,7 @@ def parse_hres(
                 start = end - timedelta(hours=hres_interval_hours(short, step))
                 ws = wind_step(step)
                 wdir = wind_dir_from_uv(uv.get("10u", {}).get(ws), uv.get("10v", {}).get(ws))
-                intervals.append(GustInterval(start, end, v, wdir))
+                intervals.append(GustInterval(start, end, ms_to_kt(v), wdir))
         out[icao] = sorted(intervals, key=lambda g: g.end)
     if run is None:
         raise EcmwfError("HRES GRIB 裡沒有陣風資料", "empty")

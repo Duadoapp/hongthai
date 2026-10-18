@@ -11,6 +11,7 @@ import requests
 from conftest import FIXTURES, load_json, utc
 
 from hongthai.sources import cwa, ecmwf, flights, gfs, hko, smg, taf
+from hongthai.units import KT_PER_MS
 
 # ---- TAF／METAR ----
 
@@ -174,7 +175,8 @@ def test_ecmwf_hres_parse(airports):
     # 0–90 小時的 10fg 是前 1 小時，93 以後的 10fg3 是前 3 小時
     assert g[0].end - g[0].start == timedelta(hours=1)
     assert g[2].end - g[2].start == timedelta(hours=3)
-    assert g[2].gust_ms == pytest.approx(9.08, abs=0.01)
+    # GRIB 是 m/s，解析完換算成節
+    assert g[2].gust_kt == pytest.approx(9.08 * KT_PER_MS, abs=0.02)
     # 10u／10v 配區間結束時間往後最近的 6 小時步長（fixture 18Z 起報：87、90 → 90；93、96 → 96）
     assert [round(x.wdir) for x in g] == [42, 42, 2, 2]
     assert pts["RCTP"][0].wdir == pytest.approx(48, abs=1)
@@ -201,8 +203,8 @@ def test_ecmwf_hres_parse_wind_from_separate_file(airports, tmp_path):
     _, same = ecmwf.parse_hres(FIXTURES / "ecmwf_oper_subregion.grib2", airports)
     assert run == utc(2026, 10, 17, 18)
     for icao in pts:
-        assert [(x.end, x.gust_ms, x.wdir) for x in pts[icao]] == [
-            (x.end, x.gust_ms, x.wdir) for x in same[icao]
+        assert [(x.end, x.gust_kt, x.wdir) for x in pts[icao]] == [
+            (x.end, x.gust_kt, x.wdir) for x in same[icao]
         ]
 
 
@@ -394,10 +396,10 @@ def test_gfs_parse_file_with_wind(airports):
     assert set(hkmo) == {"VHHH", "VMMC"} and set(tw) == {"RCTP", "RCSS", "RCKH"}
     (p,) = tw["RCTP"]
     assert p.valid == utc(2026, 10, 18, 6)
-    assert p.gust_ms == pytest.approx(2.8, abs=0.01)
+    assert p.gust_kt == pytest.approx(2.8 * KT_PER_MS, abs=0.02)
     assert p.wdir == pytest.approx(355.5, abs=0.1)
     (p,) = hkmo["VMMC"]
-    assert p.gust_ms == pytest.approx(5.6, abs=0.01)
+    assert p.gust_kt == pytest.approx(5.6 * KT_PER_MS, abs=0.02)
     assert p.wdir == pytest.approx(120.8, abs=0.1)
 
 
@@ -531,7 +533,7 @@ def test_gfs_fetch_from_aws(monkeypatch, airports, tmp_path):
     pts = data.points["RCTP"]
     assert len(pts) == 21
     # fixture 是 f006 的檔，每個步長都回它；值與 NOMADS 小檔解析的一樣
-    assert pts[0].gust_ms == pytest.approx(2.8, abs=0.01)
+    assert pts[0].gust_kt == pytest.approx(2.8 * KT_PER_MS, abs=0.02)
     assert pts[0].wdir == pytest.approx(355.5, abs=0.1)
 
 
@@ -548,7 +550,7 @@ def test_gfs_fetch_aws_failure_falls_back_to_nomads(monkeypatch, airports, tmp_p
     assert set(fake.calls[i:]) == {"nomads:filter"}
     assert fake.calls[i:].count("nomads:filter") == 2 * 19  # 兩個框 × 剩下的 19 個步長
     assert all(len(data.points[a.icao]) == 21 for a in airports)
-    assert data.points["VMMC"][-1].gust_ms == pytest.approx(5.6, abs=0.01)
+    assert data.points["VMMC"][-1].gust_kt == pytest.approx(5.6 * KT_PER_MS, abs=0.02)
 
 
 def test_gfs_fetch_nomads_when_aws_down(monkeypatch, airports, tmp_path):
