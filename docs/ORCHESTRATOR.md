@@ -21,26 +21,34 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
 - 給他的指令一律完整可貼（他用 Windows cmd）。這個 repo 幾乎沒有本機指令：部署是 Actions，
   他只在 GitHub 網頁按 Run workflow、設 Secrets
 - 每個功能一個 PR。主對話寫提示詞放 `docs/prompts/<日期>-<代號>-<名稱>.md`（只放文字，不放截圖內容、
-  個資、金鑰），開新的雲端對話貼「照 docs/prompts/<檔名> 做」。**H 編號兩個 repo 共用**（H1、H4、H6 在這裡，
-  H2、H3、H5 在 Duado），開新編號前先看 Duado 的 `docs/prompts/` 用到幾號。提示詞最後都要有
+  個資、金鑰），開新的雲端對話貼「照 docs/prompts/<檔名> 做」。**H 編號兩個 repo 共用**（H1、H4、H6、H7、
+  H9、H10 在這裡，H2、H3、H5、H8 在 Duado）：**開新 H 號前先看 Duado 的 `docs/prompts/` 和 `docs/spec.md`
+  第 16 節，已經在 spec 寫好的號碼（例如 H9＝41 個機場）不能拿去用在別的功能**；不確定就問 Shawn。
+  提示詞最後都要有
   「開 PR 之後：gh pr checks --watch 等 CI，紅了自己修到綠（最多三輪）」
 - 主對話審 PR 不等 CI：他給號碼就審，審完回「可以合併」，他再開 auto-merge
   - 已設（2026-10-18）：`main` 的 ruleset 要求 PR、必要檢查 `ci`、禁止 force push；Allow auto-merge 已開。
     `ci.yml` 的 job 名稱就是 `ci`（必要檢查比對的是 job 名稱，不是 workflow 名稱），不要改名
   - 雲端對話用不了 GitHub GraphQL，這類操作走 REST
-- 金鑰（`CWA_API_KEY` 等）只由他自己放進 Actions secrets，不貼進對話、PR、截圖；程式只從環境變數讀
+- 金鑰（`CWA_API_KEY`、之後 AI 評論用的 Anthropic 金鑰與 Google 服務帳號等）只由他自己放進 Actions secrets，
+  不貼進對話、PR、截圖；程式只從環境變數讀
 
 ## 已經做過的決定（不要重問）
 
 - 名稱 HongThai，只放 duado.app/hongthai/ 網頁、不進 App；網頁在 Duado 私人 repo（`site/hongthai/`），
   本 repo 只產資料
+- 定位（2026-10-18）：**純資訊網頁**，不給「下一步該怎麼做」、不做通知、公開給大家看；跟 Duado App 接排到很後期。
+  名字維持 HongThai，副標「機場停飛風險」，加了雨雪霧之後仍用這個名字。語言維持四語（zh-TW、zh-HK、zh-CN、en），
+  不加日文、韓文；機場名稱與 AI 短評都只出這四語。網頁會做分享預覽卡與每個機場的獨立網址（Duado 總指揮排）；
+  資料端要多給什麼（例如每個機場一句摘要）由那邊再提
 - `latest.json` 的格式是和網頁的契約，以 Duado `docs/spec.md` 第 16 節為準：既有欄位不改名、不改型別，
   只能加；要改就兩邊同時改，先跟 Duado 的主對話說（經 Shawn 轉）
 - 分階段：
   - 第一階段（PR #1）：桃園、香港
   - 第二階段（H4）：側風分跑道、松山／高雄／澳門
-  - 第三階段：H6 航班統計、H7 來源預算（見 `docs/prompts/`）
-  - **第四階段（2026-10-18 定案）：機場擴成 41 個，分六個地區**，每個機場多一個地區欄位（網頁依此分組）：
+  - 第二階段之後的來源與統計修正（不算一個階段）：H6 航班統計、H7 來源預算、H10 GFS 鏡像與 ECMWF 瘦身
+    （見 `docs/prompts/`）
+  - **第三階段（2026-10-18 定案，Duado spec 第 16 節的第三階段；資料端代號 H9）：機場擴成 41 個，分六個地區**，每個機場多一個地區欄位（網頁依此分組）：
     台灣（10）：桃園、松山、高雄、台中、台南、花蓮、台東、澎湖、金門、馬祖南竿；
     華東（8）：上海浦東、虹橋、杭州、寧波、溫州、福州、廈門、泉州；
     華南・港澳（8）：潮汕、深圳、廣州、香港、澳門、珠海、海口、三亞；
@@ -50,8 +58,19 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
     不含菲律賓（之後再加）。做法：41 個先全部用全球資料上線（ECMWF、GFS、TAF／METAR、跑道側風），
     官方警報逐國補：日本先、韓國再來；中國官方颱風預警先不接。台灣機場的氣象署警戒區關鍵字每個機場一組。
     沒有官方警報來源的機場要在 `latest.json` 標出來，讓網頁顯示「官方警報：尚未提供」。
-    要等 H7 合併並成功跑過一次 build 才開工；提示詞編號先看 Duado `docs/prompts/` 再取下一個 H 號
-  - 第三階段：第一件 H6 航班快照→停飛統計（2026-10-18 定案，提示詞在 `docs/prompts/`）；之後還沒排：FNV3／WeatherNext Cyclones 颱風路徑（授權是實驗性條款、商用待確認，所以排後面）、
+    要等 H10 合併並成功跑過一次 build 才開工
+  - **第四階段：AI 對決「三顆燈」（2026-10-18 定案）**——規則（現有等級）、Claude Opus 5.5、Gemini 4 Argon
+    各一顆燈。兩個 AI 各自讀該機場的全部數據，給自己的等級＋一段短評（像評論員）；數據照舊全部保留給讀者。
+    只請 AI 評「未來 5 天有任一時段 ≥ 中、或等級有變」的機場，其他機場兩個 AI 燈直接寫「沒看到明顯風險」、
+    不呼叫。短評一次輸出四語，以 zh-TW 為準、其他三語是忠實翻譯，四語內容完全一樣不得增減，zh-HK、zh-CN
+    用當地用語。AI 只能根據 `latest.json` 裡的數據講、不能自己生機率數字；附「AI 評論僅供參考，以航空公司與
+    機場公告為準」。記「對決戰績」：用停飛統計回頭比較規則、Opus、Argon 誰事前比較準，11/18 看第一份，
+    之後再決定要不要公開。金鑰：HongThai 專屬的 Anthropic 金鑰與 Google 服務帳號，各設每月上限 30 美元，
+    不跟 Duado 共用，只放 Actions secrets
+  - **第五階段：新天氣種類**——大雨／雷雨、大雪／結冰、濃霧；12 月北海道下雪前上線
+  - 順序：41 個機場 → AI 對決 → 天氣種類。11/18 檢討停飛統計能不能拿來校準等級。**階段號碼以 Duado
+    `docs/spec.md` 第 16 節為準**，兩邊要一樣
+  - 還沒排進階段的：FNV3／WeatherNext Cyclones 颱風路徑（授權是實驗性條款、商用待確認，所以排後面）、
     日本機場（JMA bosai JSON 非正式）、華南與馬尼拉（只能爬網頁）、推播（要接進 App，屬 Duado 的規格）
 - 等級叫「風險」不叫「機率」，等用實際停飛紀錄回測校準後才改。停飛紀錄沒有現成的，從第一天起從航班狀態
   自己累積（`data` 分支；H6 起只存每 6 小時格的取消／延誤統計，不存原始航班資料）
@@ -65,7 +84,7 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
 - 目前待網頁配合：每格的 `official.crosswindKt`、`model.ec.crosswindKt`、`model.gfs.crosswindKt`
   （節；含陣風、所有跑道裡最小的側風分量；沒有風向時＝風速本身；`null`＝沒資料或沒設跑道）
   要加進網頁的「依據」區；澳門的警報 `source` 是 `"smg"`
-- 第四階段會加的欄位（地區、官方警報有沒有接）要和 Duado `docs/spec.md` 第 16 節一致，欄位定稿後經 Shawn
+- 第三階段（41 個機場）會加的欄位（地區、官方警報有沒有接）要和 Duado `docs/spec.md` 第 16 節一致，欄位定稿後經 Shawn
   轉給 Duado 總指揮，網頁那邊另外排
 
 ## 流程

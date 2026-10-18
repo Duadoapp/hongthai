@@ -2,7 +2,7 @@
 
 主對話（HongThai 總指揮）每個功能寫一份，Shawn 開新的雲端對話貼「照 docs/prompts/<檔名> 做」。
 
-- 檔名：`<日期>-<代號>-<名稱>.md`，例如 `2026-10-18-H6-cancel-stats.md`。**H 編號兩個 repo 共用**（H1、H4、H6 在這裡，H2、H3、H5 在 Duado），開新編號前先看 Duado 的 `docs/prompts/` 用到幾號
+- 檔名：`<日期>-<代號>-<名稱>.md`，例如 `2026-10-18-H6-cancel-stats.md`。**H 編號兩個 repo 共用**（H1、H4、H6、H7、H9、H10 在這裡，H2、H3、H5、H8 在 Duado）：開新 H 號前先看 Duado 的 `docs/prompts/` 和 `docs/spec.md` 第 16 節，已經在 spec 寫好的號碼不能拿去用在別的功能
 - 只放文字：不放截圖內容、個資、金鑰、網址以外的任何憑證
 - 開頭寫明要用的模型與強度（大功能 Opus 高；資料、文件類小 PR 用中）
 - 碰到 `latest.json` 要加欄位時，提示詞裡把欄位名稱、型別、意思寫清楚，並要求同時更新
