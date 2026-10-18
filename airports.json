@@ -7,6 +7,10 @@
     "lat": 25.0777,
     "lon": 121.2328,
     "warningSources": ["cwa"],
+    "cwaAreas": ["北部", "桃園", "臺北", "台北", "新北"],
+    "runways": [
+      { "id": "05L/23R、05R/23L", "headings": [49.1, 229.1], "magnetic": [54, 234] }
+    ],
     "thresholds": {
       "modelHighGustMs": 25,
       "modelMediumGustMs": 15,
@@ -14,7 +18,57 @@
       "ecP15Medium": 0.5,
       "tafHighGustKt": 45,
       "tafHighWindKt": 35,
-      "tafMediumGustKt": 30
+      "tafMediumGustKt": 30,
+      "crosswindHighKt": 35,
+      "crosswindMediumKt": 25
+    }
+  },
+  {
+    "icao": "RCSS",
+    "iata": "TSA",
+    "tz": "Asia/Taipei",
+    "name": { "zh-TW": "松山", "zh-HK": "松山", "zh-CN": "松山", "en": "Taipei Songshan" },
+    "lat": 25.0694,
+    "lon": 121.5525,
+    "warningSources": ["cwa"],
+    "cwaAreas": ["北部", "桃園", "臺北", "台北", "新北"],
+    "runways": [
+      { "id": "10/28", "headings": [92.2, 272.2], "magnetic": [97, 277] }
+    ],
+    "thresholds": {
+      "modelHighGustMs": 25,
+      "modelMediumGustMs": 15,
+      "ecP25High": 0.3,
+      "ecP15Medium": 0.5,
+      "tafHighGustKt": 45,
+      "tafHighWindKt": 35,
+      "tafMediumGustKt": 30,
+      "crosswindHighKt": 35,
+      "crosswindMediumKt": 25
+    }
+  },
+  {
+    "icao": "RCKH",
+    "iata": "KHH",
+    "tz": "Asia/Taipei",
+    "name": { "zh-TW": "高雄", "zh-HK": "高雄", "zh-CN": "高雄", "en": "Kaohsiung" },
+    "lat": 22.5771,
+    "lon": 120.35,
+    "warningSources": ["cwa"],
+    "cwaAreas": ["南部", "高雄"],
+    "runways": [
+      { "id": "09/27", "headings": [91.9, 271.9], "magnetic": [96, 276] }
+    ],
+    "thresholds": {
+      "modelHighGustMs": 25,
+      "modelMediumGustMs": 15,
+      "ecP25High": 0.3,
+      "ecP15Medium": 0.5,
+      "tafHighGustKt": 45,
+      "tafHighWindKt": 35,
+      "tafMediumGustKt": 30,
+      "crosswindHighKt": 35,
+      "crosswindMediumKt": 25
     }
   },
   {
@@ -25,6 +79,9 @@
     "lat": 22.308,
     "lon": 113.9185,
     "warningSources": ["hko"],
+    "runways": [
+      { "id": "07L/25R、07C/25C、07R/25L", "headings": [70.9, 250.9], "magnetic": [73.9, 253.9] }
+    ],
     "thresholds": {
       "modelHighGustMs": 25,
       "modelMediumGustMs": 15,
@@ -32,7 +89,32 @@
       "ecP15Medium": 0.5,
       "tafHighGustKt": 45,
       "tafHighWindKt": 35,
-      "tafMediumGustKt": 30
+      "tafMediumGustKt": 30,
+      "crosswindHighKt": 35,
+      "crosswindMediumKt": 25
+    }
+  },
+  {
+    "icao": "VMMC",
+    "iata": "MFM",
+    "tz": "Asia/Macau",
+    "name": { "zh-TW": "澳門", "zh-HK": "澳門", "zh-CN": "澳门", "en": "Macau" },
+    "lat": 22.1496,
+    "lon": 113.5915,
+    "warningSources": ["smg"],
+    "runways": [
+      { "id": "16/34", "headings": [161.2, 341.2], "magnetic": [164, 344] }
+    ],
+    "thresholds": {
+      "modelHighGustMs": 25,
+      "modelMediumGustMs": 15,
+      "ecP25High": 0.3,
+      "ecP15Medium": 0.5,
+      "tafHighGustKt": 45,
+      "tafHighWindKt": 35,
+      "tafMediumGustKt": 30,
+      "crosswindHighKt": 35,
+      "crosswindMediumKt": 25
     }
   }
 ]
