@@ -28,7 +28,8 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
   - 已設（2026-10-18）：`main` 的 ruleset 要求 PR、必要檢查 `ci`、禁止 force push；Allow auto-merge 已開。
     `ci.yml` 的 job 名稱就是 `ci`（必要檢查比對的是 job 名稱，不是 workflow 名稱），不要改名
   - 雲端對話用不了 GitHub GraphQL，這類操作走 REST
-- 金鑰（`CWA_API_KEY` 等）只由他自己放進 Actions secrets，不貼進對話、PR、截圖；程式只從環境變數讀
+- 金鑰（`CWA_API_KEY`、之後 AI 評論用的 Anthropic 金鑰與 Google 服務帳號等）只由他自己放進 Actions secrets，
+  不貼進對話、PR、截圖；程式只從環境變數讀
 
 ## 已經做過的決定（不要重問）
 
@@ -51,6 +52,16 @@ GitHub Pages：<https://duadoapp.github.io/hongthai/latest.json>。
     官方警報逐國補：日本先、韓國再來；中國官方颱風預警先不接。台灣機場的氣象署警戒區關鍵字每個機場一組。
     沒有官方警報來源的機場要在 `latest.json` 標出來，讓網頁顯示「官方警報：尚未提供」。
     要等 H7 合併並成功跑過一次 build 才開工；提示詞編號先看 Duado `docs/prompts/` 再取下一個 H 號
+  - **第五階段：AI 評論「三顆燈」（2026-10-18 定案）**——規則（現有等級）、Claude Opus 5.5、Gemini 4 Argon
+    各一顆燈。兩個 AI 各自讀該機場的全部數據，給自己的等級＋一段短評（像評論員）；數據照舊全部保留給讀者。
+    只請 AI 評「未來 5 天有任一時段 ≥ 中、或等級有變」的機場，其他機場兩個 AI 燈直接寫「沒看到明顯風險」、
+    不呼叫。短評一次輸出四語，以 zh-TW 為準、其他三語是忠實翻譯，四語內容完全一樣不得增減，zh-HK、zh-CN
+    用當地用語。AI 只能根據 `latest.json` 裡的數據講、不能自己生機率數字；附「AI 評論僅供參考，以航空公司與
+    機場公告為準」。記「對決戰績」：用停飛統計回頭比較規則、Opus、Argon 誰事前比較準，11/18 看第一份，
+    之後再決定要不要公開。金鑰：HongThai 專屬的 Anthropic 金鑰與 Google 服務帳號，各設每月上限 30 美元，
+    不跟 Duado 共用，只放 Actions secrets
+  - **第六階段：新天氣種類**——大雨／雷雨、大雪／結冰、濃霧；12 月北海道下雪前上線
+  - 順序：41 個機場 → AI 評論 → 天氣種類。11/18 檢討停飛統計能不能拿來校準等級
   - 第三階段：第一件 H6 航班快照→停飛統計（2026-10-18 定案，提示詞在 `docs/prompts/`）；之後還沒排：FNV3／WeatherNext Cyclones 颱風路徑（授權是實驗性條款、商用待確認，所以排後面）、
     日本機場（JMA bosai JSON 非正式）、華南與馬尼拉（只能爬網頁）、推播（要接進 App，屬 Duado 的規格）
 - 等級叫「風險」不叫「機率」，等用實際停飛紀錄回測校準後才改。停飛紀錄沒有現成的，從第一天起從航班狀態
