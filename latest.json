@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "generatedAt": "2026-10-18T04:24:00Z",
+ "generatedAt": "2026-10-18T05:06:00Z",
  "runs": {
   "ecmwf": "2026-10-17T18:00:00Z",
   "ecmwfEns": "2026-10-17T12:00:00Z",
@@ -9,25 +9,29 @@
  "sources": {
   "ecmwf": {
    "ok": true,
-   "seconds": 39.1,
-   "bytes": 62990902
+   "seconds": 153.6,
+   "bytes": 123158170
   },
   "gfs": {
    "ok": true,
-   "seconds": 28.4,
-   "bytes": 18093
+   "seconds": 57.6,
+   "bytes": 44815
   },
   "taf": {
    "ok": true,
-   "seconds": 1.6
+   "seconds": 0.3
   },
   "hko": {
    "ok": true,
-   "seconds": 3.1
+   "seconds": 4.3
   },
   "cwa": {
    "ok": true,
    "seconds": 0.9
+  },
+  "smg": {
+   "ok": true,
+   "seconds": 3.2
   },
   "flights": {
    "ok": true
@@ -46,40 +50,36 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T04:00:00Z",
-    "windDirDeg": 320,
-    "windKt": 7,
+    "observedAt": "2026-10-18T05:00:00Z",
+    "windDirDeg": 300,
+    "windKt": 6,
     "gustKt": null,
-    "raw": "METAR RCTP 180400Z 32007KT 270V360 7000 FEW008 SCT020 31/26 Q1016 NOSIG RMK A3002"
+    "raw": "METAR RCTP 180500Z 30006KT 250V340 8000 FEW008 SCT020 31/26 Q1016 NOSIG RMK A3001"
    },
    "taf": {
-    "issuedAt": "2026-10-17T23:00:00Z",
-    "validFrom": "2026-10-18T00:00:00Z",
-    "validTo": "2026-10-19T06:00:00Z",
-    "raw": "TAF RCTP 172300Z 1800/1906 17005KT 9999 FEW015 BKN032 BECMG 1802/1804 34005KT BECMG 1810/1812 09010KT TEMPO 1820/1901 12005KT BECMG 1904/1906 01005KT"
+    "issuedAt": "2026-10-18T05:00:00Z",
+    "validFrom": "2026-10-18T06:00:00Z",
+    "validTo": "2026-10-19T12:00:00Z",
+    "raw": "TAF RCTP 180500Z 1806/1912 33005KT 8000 FEW015 BKN032 BECMG 1810/1812 09012KT 9999 TEMPO 1819/1901 16005KT TEMPO 1902/1906 29008KT"
    },
    "slots": [
     {
      "from": "2026-10-18T00:00:00Z",
      "to": "2026-10-18T06:00:00Z",
      "level": "low",
-     "basis": "official",
-     "official": {
-      "windKt": 5,
-      "gustKt": null,
-      "kind": "main",
-      "level": "low",
-      "warnings": []
-     },
+     "basis": "model",
+     "official": null,
      "model": {
       "ec": {
        "p10": 0.15,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 8.7
+       "hresGustMs": 8.7,
+       "crosswindKt": 13.5
       },
       "gfs": {
-       "gustMs": 2.8
+       "gustMs": 2.8,
+       "crosswindKt": 4.4
       },
       "level": "low",
       "agreement": "agree"
@@ -92,10 +92,11 @@
      "level": "low",
      "basis": "official",
      "official": {
-      "windKt": 10,
+      "windKt": 12,
       "gustKt": null,
       "kind": "main",
       "level": "low",
+      "crosswindKt": 7.9,
       "warnings": []
      },
      "model": {
@@ -103,10 +104,12 @@
        "p10": 0.15,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 9.0
+       "hresGustMs": 9.0,
+       "crosswindKt": 13.0
       },
       "gfs": {
-       "gustMs": 6.7
+       "gustMs": 6.7,
+       "crosswindKt": 6.7
       },
       "level": "low",
       "agreement": "agree"
@@ -119,10 +122,11 @@
      "level": "low",
      "basis": "official",
      "official": {
-      "windKt": 10,
+      "windKt": 12,
       "gustKt": null,
       "kind": "main",
       "level": "low",
+      "crosswindKt": 7.9,
       "warnings": []
      },
      "model": {
@@ -130,10 +134,12 @@
        "p10": 0.29,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 8.7
+       "hresGustMs": 8.7,
+       "crosswindKt": 9.9
       },
       "gfs": {
-       "gustMs": 6.7
+       "gustMs": 6.7,
+       "crosswindKt": 8.1
       },
       "level": "low",
       "agreement": "agree"
@@ -146,10 +152,11 @@
      "level": "low",
      "basis": "official",
      "official": {
-      "windKt": 10,
+      "windKt": 12,
       "gustKt": null,
       "kind": "main",
       "level": "low",
+      "crosswindKt": 7.9,
       "warnings": []
      },
      "model": {
@@ -157,10 +164,12 @@
        "p10": 0.29,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 4.3
+       "hresGustMs": 4.3,
+       "crosswindKt": 6.4
       },
       "gfs": {
-       "gustMs": 4.8
+       "gustMs": 4.8,
+       "crosswindKt": 8.1
       },
       "level": "low",
       "agreement": "agree"
@@ -173,10 +182,11 @@
      "level": "low",
      "basis": "official",
      "official": {
-      "windKt": 10,
+      "windKt": 12,
       "gustKt": null,
       "kind": "main",
       "level": "low",
+      "crosswindKt": 7.9,
       "warnings": []
      },
      "model": {
@@ -184,10 +194,12 @@
        "p10": 0.13,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 5.7
+       "hresGustMs": 5.7,
+       "crosswindKt": 9.3
       },
       "gfs": {
-       "gustMs": 3.1
+       "gustMs": 3.1,
+       "crosswindKt": 4.7
       },
       "level": "low",
       "agreement": "agree"
@@ -198,17 +210,26 @@
      "from": "2026-10-19T06:00:00Z",
      "to": "2026-10-19T12:00:00Z",
      "level": "low",
-     "basis": "model",
-     "official": null,
+     "basis": "official",
+     "official": {
+      "windKt": 12,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 7.9,
+      "warnings": []
+     },
      "model": {
       "ec": {
        "p10": 0.13,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 7.2
+       "hresGustMs": 7.2,
+       "crosswindKt": 8.1
       },
       "gfs": {
-       "gustMs": 3.9
+       "gustMs": 3.9,
+       "crosswindKt": 4.8
       },
       "level": "low",
       "agreement": "agree"
@@ -226,10 +247,12 @@
        "p10": 0.13,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 4.6
+       "hresGustMs": 4.6,
+       "crosswindKt": 5.7
       },
       "gfs": {
-       "gustMs": 3.9
+       "gustMs": 3.9,
+       "crosswindKt": 4.8
       },
       "level": "low",
       "agreement": "agree"
@@ -247,10 +270,12 @@
        "p10": 0.13,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 3.9
+       "hresGustMs": 3.9,
+       "crosswindKt": 5.3
       },
       "gfs": {
-       "gustMs": 2.1
+       "gustMs": 2.1,
+       "crosswindKt": 4.1
       },
       "level": "low",
       "agreement": "agree"
@@ -268,10 +293,12 @@
        "p10": 0.17,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 8.6
+       "hresGustMs": 8.6,
+       "crosswindKt": 16.7
       },
       "gfs": {
-       "gustMs": 3.0
+       "gustMs": 3.0,
+       "crosswindKt": 5.5
       },
       "level": "low",
       "agreement": "agree"
@@ -289,10 +316,12 @@
        "p10": 0.17,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 5.7
+       "hresGustMs": 5.7,
+       "crosswindKt": 11.2
       },
       "gfs": {
-       "gustMs": 3.2
+       "gustMs": 3.2,
+       "crosswindKt": 5.5
       },
       "level": "low",
       "agreement": "agree"
@@ -310,10 +339,12 @@
        "p10": 0.51,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 5.5
+       "hresGustMs": 5.5,
+       "crosswindKt": 4.1
       },
       "gfs": {
-       "gustMs": 8.3
+       "gustMs": 8.3,
+       "crosswindKt": 5.0
       },
       "level": "low",
       "agreement": "agree"
@@ -331,10 +362,12 @@
        "p10": 0.51,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 9.6
+       "hresGustMs": 9.6,
+       "crosswindKt": 1.6
       },
       "gfs": {
-       "gustMs": 10.0
+       "gustMs": 10.0,
+       "crosswindKt": 5.0
       },
       "level": "low",
       "agreement": "agree"
@@ -352,10 +385,12 @@
        "p10": 1.0,
        "p15": 0.82,
        "p25": 0.0,
-       "hresGustMs": 16.2
+       "hresGustMs": 16.2,
+       "crosswindKt": 5.5
       },
       "gfs": {
-       "gustMs": 13.1
+       "gustMs": 13.1,
+       "crosswindKt": 2.5
       },
       "level": "medium",
       "agreement": "disagree"
@@ -373,10 +408,12 @@
        "p10": 1.0,
        "p15": 0.82,
        "p25": 0.0,
-       "hresGustMs": 14.7
+       "hresGustMs": 14.7,
+       "crosswindKt": 2.8
       },
       "gfs": {
-       "gustMs": 13.1
+       "gustMs": 13.1,
+       "crosswindKt": 2.5
       },
       "level": "medium",
       "agreement": "agree"
@@ -394,10 +431,12 @@
        "p10": 1.0,
        "p15": 0.82,
        "p25": 0.0,
-       "hresGustMs": 11.8
+       "hresGustMs": 11.8,
+       "crosswindKt": 4.0
       },
       "gfs": {
-       "gustMs": 12.1
+       "gustMs": 12.1,
+       "crosswindKt": 0.4
       },
       "level": "medium",
       "agreement": "agree"
@@ -415,10 +454,12 @@
        "p10": 1.0,
        "p15": 0.82,
        "p25": 0.0,
-       "hresGustMs": 12.9
+       "hresGustMs": 12.9,
+       "crosswindKt": 1.2
       },
       "gfs": {
-       "gustMs": 11.1
+       "gustMs": 11.1,
+       "crosswindKt": 5.2
       },
       "level": "medium",
       "agreement": "agree"
@@ -436,10 +477,12 @@
        "p10": 1.0,
        "p15": 0.82,
        "p25": 0.01,
-       "hresGustMs": 16.7
+       "hresGustMs": 16.7,
+       "crosswindKt": 1.6
       },
       "gfs": {
-       "gustMs": 12.7
+       "gustMs": 12.7,
+       "crosswindKt": 5.2
       },
       "level": "medium",
       "agreement": "disagree"
@@ -457,10 +500,12 @@
        "p10": 1.0,
        "p15": 0.82,
        "p25": 0.01,
-       "hresGustMs": 15.7
+       "hresGustMs": 15.7,
+       "crosswindKt": 0.9
       },
       "gfs": {
-       "gustMs": 12.7
+       "gustMs": 12.7,
+       "crosswindKt": 5.4
       },
       "level": "medium",
       "agreement": "disagree"
@@ -478,10 +523,12 @@
        "p10": 1.0,
        "p15": 0.89,
        "p25": 0.07,
-       "hresGustMs": 15.3
+       "hresGustMs": 15.3,
+       "crosswindKt": 4.7
       },
       "gfs": {
-       "gustMs": 11.3
+       "gustMs": 11.3,
+       "crosswindKt": 5.4
       },
       "level": "medium",
       "agreement": "disagree"
@@ -499,13 +546,1054 @@
        "p10": 1.0,
        "p15": 0.89,
        "p25": 0.07,
-       "hresGustMs": 18.0
+       "hresGustMs": 18.0,
+       "crosswindKt": 5.3
       },
       "gfs": {
-       "gustMs": 19.5
+       "gustMs": 19.5,
+       "crosswindKt": 5.3
       },
       "level": "medium",
       "agreement": "agree"
+     },
+     "gap": false
+    }
+   ],
+   "confirmed": []
+  },
+  {
+   "icao": "RCSS",
+   "iata": "TSA",
+   "tz": "Asia/Taipei",
+   "name": {
+    "zh-TW": "松山",
+    "zh-HK": "松山",
+    "zh-CN": "松山",
+    "en": "Taipei Songshan"
+   },
+   "warnings": [],
+   "metar": {
+    "observedAt": "2026-10-18T05:00:00Z",
+    "windDirDeg": 280,
+    "windKt": 6,
+    "gustKt": null,
+    "raw": "METAR RCSS 180500Z 28006KT 210V350 9999 FEW020 SCT040 34/24 Q1015 NOSIG RMK 29008KT/R10 A2998"
+   },
+   "taf": {
+    "issuedAt": "2026-10-18T05:00:00Z",
+    "validFrom": "2026-10-18T06:00:00Z",
+    "validTo": "2026-10-19T06:00:00Z",
+    "raw": "TAF RCSS 180500Z 1806/1906 30005KT 9999 FEW015 BKN032 BECMG 1810/1812 09012KT"
+   },
+   "slots": [
+    {
+     "from": "2026-10-18T00:00:00Z",
+     "to": "2026-10-18T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.1,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 9.0,
+       "crosswindKt": 11.6
+      },
+      "gfs": {
+       "gustMs": 1.8,
+       "crosswindKt": 3.2
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-18T06:00:00Z",
+     "to": "2026-10-18T12:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 12,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 2.3,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.1,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 7.9,
+       "crosswindKt": 4.0
+      },
+      "gfs": {
+       "gustMs": 7.3,
+       "crosswindKt": 3.2
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-18T12:00:00Z",
+     "to": "2026-10-18T18:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 12,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 0.5,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.1,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 7.8,
+       "crosswindKt": 3.1
+      },
+      "gfs": {
+       "gustMs": 7.3,
+       "crosswindKt": 4.2
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-18T18:00:00Z",
+     "to": "2026-10-19T00:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 12,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 0.5,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.1,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 3.2,
+       "crosswindKt": 2.2
+      },
+      "gfs": {
+       "gustMs": 6.9,
+       "crosswindKt": 4.2
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T00:00:00Z",
+     "to": "2026-10-19T06:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 12,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 0.5,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.55,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 10.7,
+       "crosswindKt": 4.9
+      },
+      "gfs": {
+       "gustMs": 5.5,
+       "crosswindKt": 3.1
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T06:00:00Z",
+     "to": "2026-10-19T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.55,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 11.2,
+       "crosswindKt": 2.1
+      },
+      "gfs": {
+       "gustMs": 6.7,
+       "crosswindKt": 4.3
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T12:00:00Z",
+     "to": "2026-10-19T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.21,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 5.7,
+       "crosswindKt": 1.2
+      },
+      "gfs": {
+       "gustMs": 6.7,
+       "crosswindKt": 4.3
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T18:00:00Z",
+     "to": "2026-10-20T00:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.21,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 3.4,
+       "crosswindKt": 1.9
+      },
+      "gfs": {
+       "gustMs": 3.4,
+       "crosswindKt": 4.0
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T00:00:00Z",
+     "to": "2026-10-20T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.21,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 5.9,
+       "crosswindKt": 9.9
+      },
+      "gfs": {
+       "gustMs": 2.2,
+       "crosswindKt": 2.2
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T06:00:00Z",
+     "to": "2026-10-20T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.21,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 5.1,
+       "crosswindKt": 4.1
+      },
+      "gfs": {
+       "gustMs": 4.0,
+       "crosswindKt": 2.4
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T12:00:00Z",
+     "to": "2026-10-20T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.21,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 5.3,
+       "crosswindKt": 3.2
+      },
+      "gfs": {
+       "gustMs": 4.8,
+       "crosswindKt": 2.4
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T18:00:00Z",
+     "to": "2026-10-21T00:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.21,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 6.3,
+       "crosswindKt": 3.5
+      },
+      "gfs": {
+       "gustMs": 6.4,
+       "crosswindKt": 4.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T00:00:00Z",
+     "to": "2026-10-21T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.98,
+       "p15": 0.03,
+       "p25": 0.0,
+       "hresGustMs": 11.4,
+       "crosswindKt": 13.2
+      },
+      "gfs": {
+       "gustMs": 10.0,
+       "crosswindKt": 9.3
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T06:00:00Z",
+     "to": "2026-10-21T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.98,
+       "p15": 0.03,
+       "p25": 0.0,
+       "hresGustMs": 9.0,
+       "crosswindKt": 9.6
+      },
+      "gfs": {
+       "gustMs": 10.6,
+       "crosswindKt": 13.2
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T12:00:00Z",
+     "to": "2026-10-21T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.86,
+       "p15": 0.03,
+       "p25": 0.0,
+       "hresGustMs": 9.2,
+       "crosswindKt": 9.2
+      },
+      "gfs": {
+       "gustMs": 10.6,
+       "crosswindKt": 13.2
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T18:00:00Z",
+     "to": "2026-10-22T00:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.86,
+       "p15": 0.03,
+       "p25": 0.0,
+       "hresGustMs": 8.9,
+       "crosswindKt": 8.4
+      },
+      "gfs": {
+       "gustMs": 8.3,
+       "crosswindKt": 8.5
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T00:00:00Z",
+     "to": "2026-10-22T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.86,
+       "p15": 0.13,
+       "p25": 0.0,
+       "hresGustMs": 12.9,
+       "crosswindKt": 16.3
+      },
+      "gfs": {
+       "gustMs": 9.4,
+       "crosswindKt": 10.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T06:00:00Z",
+     "to": "2026-10-22T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.86,
+       "p15": 0.13,
+       "p25": 0.0,
+       "hresGustMs": 10.1,
+       "crosswindKt": 11.8
+      },
+      "gfs": {
+       "gustMs": 9.4,
+       "crosswindKt": 10.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T12:00:00Z",
+     "to": "2026-10-22T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.93,
+       "p15": 0.36,
+       "p25": 0.06,
+       "hresGustMs": 11.8,
+       "crosswindKt": 14.5
+      },
+      "gfs": {
+       "gustMs": 9.0,
+       "crosswindKt": 11.2
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T18:00:00Z",
+     "to": "2026-10-23T00:00:00Z",
+     "level": "medium",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.93,
+       "p15": 0.36,
+       "p25": 0.06,
+       "hresGustMs": 16.1,
+       "crosswindKt": 15.5
+      },
+      "gfs": {
+       "gustMs": 18.3,
+       "crosswindKt": 23.7
+      },
+      "level": "medium",
+      "agreement": "agree"
+     },
+     "gap": false
+    }
+   ],
+   "confirmed": []
+  },
+  {
+   "icao": "RCKH",
+   "iata": "KHH",
+   "tz": "Asia/Taipei",
+   "name": {
+    "zh-TW": "高雄",
+    "zh-HK": "高雄",
+    "zh-CN": "高雄",
+    "en": "Kaohsiung"
+   },
+   "warnings": [],
+   "metar": {
+    "observedAt": "2026-10-18T05:00:00Z",
+    "windDirDeg": 270,
+    "windKt": 10,
+    "gustKt": null,
+    "raw": "METAR RCKH 180500Z 27010KT 230V310 9999 FEW026 BKN220 31/22 Q1014 NOSIG RMK 27011KT/R09 A2996"
+   },
+   "taf": {
+    "issuedAt": "2026-10-18T05:00:00Z",
+    "validFrom": "2026-10-18T06:00:00Z",
+    "validTo": "2026-10-19T12:00:00Z",
+    "raw": "TAF RCKH 180500Z 1806/1912 28010KT 9999 FEW018 BKN032 BECMG 1810/1812 34005KT TEMPO 1820/1824 04005KT 5000 BR BECMG 1902/1904 28010KT"
+   },
+   "slots": [
+    {
+     "from": "2026-10-18T00:00:00Z",
+     "to": "2026-10-18T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.06,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 6.9,
+       "crosswindKt": 6.8
+      },
+      "gfs": {
+       "gustMs": 4.3,
+       "crosswindKt": 3.7
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-18T06:00:00Z",
+     "to": "2026-10-18T12:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 10,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 4.6,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.06,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 6.6,
+       "crosswindKt": 10.0
+      },
+      "gfs": {
+       "gustMs": 4.3,
+       "crosswindKt": 3.7
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-18T12:00:00Z",
+     "to": "2026-10-18T18:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 5,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 4.6,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.02,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 4.0,
+       "crosswindKt": 6.9
+      },
+      "gfs": {
+       "gustMs": 1.3,
+       "crosswindKt": 1.8
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-18T18:00:00Z",
+     "to": "2026-10-19T00:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 5,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 4.6,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.02,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 3.6,
+       "crosswindKt": 6.9
+      },
+      "gfs": {
+       "gustMs": 1.5,
+       "crosswindKt": 2.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T00:00:00Z",
+     "to": "2026-10-19T06:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 10,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 4.6,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.02,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 7.3,
+       "crosswindKt": 9.3
+      },
+      "gfs": {
+       "gustMs": 4.1,
+       "crosswindKt": 4.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T06:00:00Z",
+     "to": "2026-10-19T12:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 10,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 1.4,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.02,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 7.6,
+       "crosswindKt": 12.6
+      },
+      "gfs": {
+       "gustMs": 4.1,
+       "crosswindKt": 4.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T12:00:00Z",
+     "to": "2026-10-19T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.01,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 2.9,
+       "crosswindKt": 2.5
+      },
+      "gfs": {
+       "gustMs": 2.2,
+       "crosswindKt": 3.5
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T18:00:00Z",
+     "to": "2026-10-20T00:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.01,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 3.9,
+       "crosswindKt": 7.6
+      },
+      "gfs": {
+       "gustMs": 1.3,
+       "crosswindKt": 1.8
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T00:00:00Z",
+     "to": "2026-10-20T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.01,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 6.5,
+       "crosswindKt": 7.1
+      },
+      "gfs": {
+       "gustMs": 4.0,
+       "crosswindKt": 2.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T06:00:00Z",
+     "to": "2026-10-20T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.01,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 6.0,
+       "crosswindKt": 8.5
+      },
+      "gfs": {
+       "gustMs": 4.0,
+       "crosswindKt": 2.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T12:00:00Z",
+     "to": "2026-10-20T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.01,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 4.5,
+       "crosswindKt": 8.4
+      },
+      "gfs": {
+       "gustMs": 1.7,
+       "crosswindKt": 1.8
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T18:00:00Z",
+     "to": "2026-10-21T00:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.01,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 6.5,
+       "crosswindKt": 12.4
+      },
+      "gfs": {
+       "gustMs": 3.5,
+       "crosswindKt": 6.0
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T00:00:00Z",
+     "to": "2026-10-21T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.62,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 10.2,
+       "crosswindKt": 15.1
+      },
+      "gfs": {
+       "gustMs": 3.5,
+       "crosswindKt": 6.0
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T06:00:00Z",
+     "to": "2026-10-21T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.62,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 10.1,
+       "crosswindKt": 16.1
+      },
+      "gfs": {
+       "gustMs": 3.3,
+       "crosswindKt": 2.1
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T12:00:00Z",
+     "to": "2026-10-21T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.65,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 4.9,
+       "crosswindKt": 8.0
+      },
+      "gfs": {
+       "gustMs": 3.3,
+       "crosswindKt": 6.4
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T18:00:00Z",
+     "to": "2026-10-22T00:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.65,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 7.0,
+       "crosswindKt": 13.6
+      },
+      "gfs": {
+       "gustMs": 5.0,
+       "crosswindKt": 9.8
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T00:00:00Z",
+     "to": "2026-10-22T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.92,
+       "p15": 0.29,
+       "p25": 0.01,
+       "hresGustMs": 7.5,
+       "crosswindKt": 11.3
+      },
+      "gfs": {
+       "gustMs": 7.0,
+       "crosswindKt": 12.1
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T06:00:00Z",
+     "to": "2026-10-22T12:00:00Z",
+     "level": "medium",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.92,
+       "p15": 0.29,
+       "p25": 0.01,
+       "hresGustMs": 14.7,
+       "crosswindKt": 28.3
+      },
+      "gfs": {
+       "gustMs": 7.0,
+       "crosswindKt": 12.1
+      },
+      "level": "medium",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T12:00:00Z",
+     "to": "2026-10-22T18:00:00Z",
+     "level": "medium",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.98,
+       "p15": 0.56,
+       "p25": 0.1,
+       "hresGustMs": 12.6,
+       "crosswindKt": 24.5
+      },
+      "gfs": {
+       "gustMs": 8.4,
+       "crosswindKt": 16.3
+      },
+      "level": "medium",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T18:00:00Z",
+     "to": "2026-10-23T00:00:00Z",
+     "level": "medium",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.98,
+       "p15": 0.56,
+       "p25": 0.1,
+       "hresGustMs": 15.7,
+       "crosswindKt": 30.5
+      },
+      "gfs": {
+       "gustMs": 14.1,
+       "crosswindKt": 27.2
+      },
+      "level": "medium",
+      "agreement": "disagree"
      },
      "gap": false
     }
@@ -524,40 +1612,36 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-18T04:00:00Z",
-    "windDirDeg": 80,
+    "observedAt": "2026-10-18T05:00:00Z",
+    "windDirDeg": 100,
     "windKt": 11,
     "gustKt": null,
-    "raw": "METAR VHHH 180400Z 08011KT 9999 FEW028 32/21 Q1016 NOSIG"
+    "raw": "METAR VHHH 180500Z 10011KT 070V130 9999 FEW028 32/21 Q1016 NOSIG"
    },
    "taf": {
-    "issuedAt": "2026-10-18T02:00:00Z",
-    "validFrom": "2026-10-18T03:00:00Z",
-    "validTo": "2026-10-19T09:00:00Z",
-    "raw": "TAF VHHH 180200Z 1803/1909 10010KT 9999 FEW020 TX32/1806Z TX32/1906Z TN27/1822Z TEMPO 1805/1809 27010KT BECMG 1903/1905 27010KT"
+    "issuedAt": "2026-10-18T05:00:00Z",
+    "validFrom": "2026-10-18T06:00:00Z",
+    "validTo": "2026-10-19T12:00:00Z",
+    "raw": "TAF VHHH 180500Z 1806/1912 09010KT 9999 FEW025 TX33/1806Z TX32/1906Z TN27/1822Z TEMPO 1806/1809 27010KT TEMPO 1820/1824 VRB05KT BECMG 1903/1905 27010KT BECMG 1909/1911 10010KT"
    },
    "slots": [
     {
      "from": "2026-10-18T00:00:00Z",
      "to": "2026-10-18T06:00:00Z",
      "level": "low",
-     "basis": "official",
-     "official": {
-      "windKt": 10,
-      "gustKt": null,
-      "kind": "main",
-      "level": "low",
-      "warnings": []
-     },
+     "basis": "model",
+     "official": null,
      "model": {
       "ec": {
        "p10": 0.86,
        "p15": 0.01,
        "p25": 0.0,
-       "hresGustMs": 11.9
+       "hresGustMs": 11.9,
+       "crosswindKt": 15.2
       },
       "gfs": {
-       "gustMs": 8.1
+       "gustMs": 8.1,
+       "crosswindKt": 9.4
       },
       "level": "low",
       "agreement": "agree"
@@ -574,6 +1658,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
+      "crosswindKt": 3.3,
       "warnings": []
      },
      "model": {
@@ -581,10 +1666,12 @@
        "p10": 0.86,
        "p15": 0.01,
        "p25": 0.0,
-       "hresGustMs": 9.6
+       "hresGustMs": 9.6,
+       "crosswindKt": 9.8
       },
       "gfs": {
-       "gustMs": 6.9
+       "gustMs": 6.9,
+       "crosswindKt": 9.4
       },
       "level": "low",
       "agreement": "agree"
@@ -601,6 +1688,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
+      "crosswindKt": 3.3,
       "warnings": []
      },
      "model": {
@@ -608,10 +1696,12 @@
        "p10": 0.86,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 8.7
+       "hresGustMs": 8.7,
+       "crosswindKt": 11.5
       },
       "gfs": {
-       "gustMs": 6.9
+       "gustMs": 6.9,
+       "crosswindKt": 8.7
       },
       "level": "low",
       "agreement": "agree"
@@ -628,6 +1718,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
+      "crosswindKt": 5.0,
       "warnings": []
      },
      "model": {
@@ -635,10 +1726,12 @@
        "p10": 0.86,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 4.2
+       "hresGustMs": 4.2,
+       "crosswindKt": 6.7
       },
       "gfs": {
-       "gustMs": 3.9
+       "gustMs": 3.9,
+       "crosswindKt": 3.4
       },
       "level": "low",
       "agreement": "agree"
@@ -655,6 +1748,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
+      "crosswindKt": 3.3,
       "warnings": []
      },
      "model": {
@@ -662,10 +1756,12 @@
        "p10": 0.84,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 10.0
+       "hresGustMs": 10.0,
+       "crosswindKt": 14.5
       },
       "gfs": {
-       "gustMs": 8.1
+       "gustMs": 8.1,
+       "crosswindKt": 8.3
       },
       "level": "low",
       "agreement": "agree"
@@ -682,6 +1778,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
+      "crosswindKt": 4.9,
       "warnings": []
      },
      "model": {
@@ -689,10 +1786,12 @@
        "p10": 0.84,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 10.3
+       "hresGustMs": 10.3,
+       "crosswindKt": 13.4
       },
       "gfs": {
-       "gustMs": 8.1
+       "gustMs": 8.1,
+       "crosswindKt": 8.3
       },
       "level": "low",
       "agreement": "agree"
@@ -710,10 +1809,12 @@
        "p10": 0.64,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 8.0
+       "hresGustMs": 8.0,
+       "crosswindKt": 7.1
       },
       "gfs": {
-       "gustMs": 8.6
+       "gustMs": 8.6,
+       "crosswindKt": 7.5
       },
       "level": "low",
       "agreement": "agree"
@@ -731,10 +1832,12 @@
        "p10": 0.64,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 8.8
+       "hresGustMs": 8.8,
+       "crosswindKt": 3.9
       },
       "gfs": {
-       "gustMs": 8.6
+       "gustMs": 8.6,
+       "crosswindKt": 6.5
       },
       "level": "low",
       "agreement": "agree"
@@ -752,10 +1855,12 @@
        "p10": 0.64,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 10.1
+       "hresGustMs": 10.1,
+       "crosswindKt": 14.4
       },
       "gfs": {
-       "gustMs": 6.6
+       "gustMs": 6.6,
+       "crosswindKt": 7.7
       },
       "level": "low",
       "agreement": "agree"
@@ -773,10 +1878,12 @@
        "p10": 0.64,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 8.8
+       "hresGustMs": 8.8,
+       "crosswindKt": 13.3
       },
       "gfs": {
-       "gustMs": 6.0
+       "gustMs": 6.0,
+       "crosswindKt": 7.7
       },
       "level": "low",
       "agreement": "agree"
@@ -794,10 +1901,12 @@
        "p10": 0.65,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 3.4
+       "hresGustMs": 3.4,
+       "crosswindKt": 4.2
       },
       "gfs": {
-       "gustMs": 4.9
+       "gustMs": 4.9,
+       "crosswindKt": 7.4
       },
       "level": "low",
       "agreement": "agree"
@@ -815,10 +1924,12 @@
        "p10": 0.65,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 6.2
+       "hresGustMs": 6.2,
+       "crosswindKt": 11.8
       },
       "gfs": {
-       "gustMs": 3.6
+       "gustMs": 3.6,
+       "crosswindKt": 7.0
       },
       "level": "low",
       "agreement": "agree"
@@ -836,10 +1947,12 @@
        "p10": 0.65,
        "p15": 0.05,
        "p25": 0.0,
-       "hresGustMs": 8.3
+       "hresGustMs": 8.3,
+       "crosswindKt": 15.7
       },
       "gfs": {
-       "gustMs": 3.6
+       "gustMs": 3.6,
+       "crosswindKt": 7.0
       },
       "level": "low",
       "agreement": "agree"
@@ -857,10 +1970,12 @@
        "p10": 0.65,
        "p15": 0.05,
        "p25": 0.0,
-       "hresGustMs": 6.2
+       "hresGustMs": 6.2,
+       "crosswindKt": 11.6
       },
       "gfs": {
-       "gustMs": 3.4
+       "gustMs": 3.4,
+       "crosswindKt": 5.0
       },
       "level": "low",
       "agreement": "agree"
@@ -878,10 +1993,12 @@
        "p10": 0.73,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 9.1
+       "hresGustMs": 9.1,
+       "crosswindKt": 15.9
       },
       "gfs": {
-       "gustMs": 5.1
+       "gustMs": 5.1,
+       "crosswindKt": 1.9
       },
       "level": "low",
       "agreement": "agree"
@@ -899,10 +2016,12 @@
        "p10": 0.73,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 10.8
+       "hresGustMs": 10.8,
+       "crosswindKt": 18.7
       },
       "gfs": {
-       "gustMs": 6.8
+       "gustMs": 6.8,
+       "crosswindKt": 13.0
       },
       "level": "low",
       "agreement": "agree"
@@ -920,10 +2039,12 @@
        "p10": 0.63,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 10.8
+       "hresGustMs": 10.8,
+       "crosswindKt": 19.4
       },
       "gfs": {
-       "gustMs": 6.8
+       "gustMs": 6.8,
+       "crosswindKt": 13.0
       },
       "level": "low",
       "agreement": "agree"
@@ -941,10 +2062,12 @@
        "p10": 0.63,
        "p15": 0.0,
        "p25": 0.0,
-       "hresGustMs": 7.1
+       "hresGustMs": 7.1,
+       "crosswindKt": 13.8
       },
       "gfs": {
-       "gustMs": 3.4
+       "gustMs": 3.4,
+       "crosswindKt": 4.3
       },
       "level": "low",
       "agreement": "agree"
@@ -962,10 +2085,535 @@
        "p10": 0.63,
        "p15": 0.15,
        "p25": 0.0,
-       "hresGustMs": 8.4
+       "hresGustMs": 8.4,
+       "crosswindKt": 15.5
       },
       "gfs": {
-       "gustMs": 4.8
+       "gustMs": 4.8,
+       "crosswindKt": 7.2
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T18:00:00Z",
+     "to": "2026-10-23T00:00:00Z",
+     "level": "medium",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.63,
+       "p15": 0.15,
+       "p25": 0.0,
+       "hresGustMs": 13.5,
+       "crosswindKt": 26.3
+      },
+      "gfs": {
+       "gustMs": 9.8,
+       "crosswindKt": 19.0
+      },
+      "level": "medium",
+      "agreement": "agree"
+     },
+     "gap": false
+    }
+   ],
+   "confirmed": []
+  },
+  {
+   "icao": "VMMC",
+   "iata": "MFM",
+   "tz": "Asia/Macau",
+   "name": {
+    "zh-TW": "澳門",
+    "zh-HK": "澳門",
+    "zh-CN": "澳门",
+    "en": "Macau"
+   },
+   "warnings": [],
+   "metar": {
+    "observedAt": "2026-10-18T05:00:00Z",
+    "windDirDeg": 100,
+    "windKt": 8,
+    "gustKt": null,
+    "raw": "METAR VMMC 180500Z 10008KT 060V140 9999 FEW018 30/25 Q1016 NOSIG"
+   },
+   "taf": {
+    "issuedAt": "2026-10-17T23:00:00Z",
+    "validFrom": "2026-10-18T00:00:00Z",
+    "validTo": "2026-10-19T06:00:00Z",
+    "raw": "TAF VMMC 172300Z 1800/1906 10008KT 9999 FEW015 SCT025"
+   },
+   "slots": [
+    {
+     "from": "2026-10-18T00:00:00Z",
+     "to": "2026-10-18T06:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 8,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 7.0,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.82,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 11.0,
+       "crosswindKt": 13.5
+      },
+      "gfs": {
+       "gustMs": 8.2,
+       "crosswindKt": 13.7
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-18T06:00:00Z",
+     "to": "2026-10-18T12:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 8,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 7.0,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.82,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 9.2,
+       "crosswindKt": 12.4
+      },
+      "gfs": {
+       "gustMs": 6.3,
+       "crosswindKt": 7.3
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-18T12:00:00Z",
+     "to": "2026-10-18T18:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 8,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 7.0,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.09,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 5.2,
+       "crosswindKt": 6.2
+      },
+      "gfs": {
+       "gustMs": 6.3,
+       "crosswindKt": 7.3
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-18T18:00:00Z",
+     "to": "2026-10-19T00:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 8,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 7.0,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.09,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 3.9,
+       "crosswindKt": 1.6
+      },
+      "gfs": {
+       "gustMs": 2.7,
+       "crosswindKt": 5.1
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T00:00:00Z",
+     "to": "2026-10-19T06:00:00Z",
+     "level": "low",
+     "basis": "official",
+     "official": {
+      "windKt": 8,
+      "gustKt": null,
+      "kind": "main",
+      "level": "low",
+      "crosswindKt": 7.0,
+      "warnings": []
+     },
+     "model": {
+      "ec": {
+       "p10": 0.09,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 7.3,
+       "crosswindKt": 14.1
+      },
+      "gfs": {
+       "gustMs": 5.5,
+       "crosswindKt": 8.0
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T06:00:00Z",
+     "to": "2026-10-19T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.09,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 8.7,
+       "crosswindKt": 6.0
+      },
+      "gfs": {
+       "gustMs": 7.2,
+       "crosswindKt": 9.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T12:00:00Z",
+     "to": "2026-10-19T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.09,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 5.0,
+       "crosswindKt": 7.2
+      },
+      "gfs": {
+       "gustMs": 7.2,
+       "crosswindKt": 9.7
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-19T18:00:00Z",
+     "to": "2026-10-20T00:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.09,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 5.1,
+       "crosswindKt": 9.2
+      },
+      "gfs": {
+       "gustMs": 6.4,
+       "crosswindKt": 11.4
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T00:00:00Z",
+     "to": "2026-10-20T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.1,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 7.6,
+       "crosswindKt": 13.7
+      },
+      "gfs": {
+       "gustMs": 5.9,
+       "crosswindKt": 11.4
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T06:00:00Z",
+     "to": "2026-10-20T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.1,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 8.5,
+       "crosswindKt": 5.4
+      },
+      "gfs": {
+       "gustMs": 4.3,
+       "crosswindKt": 6.3
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T12:00:00Z",
+     "to": "2026-10-20T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.12,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 2.4,
+       "crosswindKt": 2.5
+      },
+      "gfs": {
+       "gustMs": 4.0,
+       "crosswindKt": 2.7
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-20T18:00:00Z",
+     "to": "2026-10-21T00:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.12,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 3.6,
+       "crosswindKt": 1.6
+      },
+      "gfs": {
+       "gustMs": 2.4,
+       "crosswindKt": 0.7
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T00:00:00Z",
+     "to": "2026-10-21T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.84,
+       "p15": 0.07,
+       "p25": 0.0,
+       "hresGustMs": 10.3,
+       "crosswindKt": 15.6
+      },
+      "gfs": {
+       "gustMs": 5.6,
+       "crosswindKt": 9.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T06:00:00Z",
+     "to": "2026-10-21T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.84,
+       "p15": 0.07,
+       "p25": 0.0,
+       "hresGustMs": 11.4,
+       "crosswindKt": 12.2
+      },
+      "gfs": {
+       "gustMs": 5.6,
+       "crosswindKt": 9.6
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T12:00:00Z",
+     "to": "2026-10-21T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.69,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 9.4,
+       "crosswindKt": 14.6
+      },
+      "gfs": {
+       "gustMs": 4.9,
+       "crosswindKt": 8.7
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-21T18:00:00Z",
+     "to": "2026-10-22T00:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.69,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 9.0,
+       "crosswindKt": 8.4
+      },
+      "gfs": {
+       "gustMs": 5.9,
+       "crosswindKt": 8.7
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T00:00:00Z",
+     "to": "2026-10-22T06:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.65,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 10.9,
+       "crosswindKt": 13.6
+      },
+      "gfs": {
+       "gustMs": 5.9,
+       "crosswindKt": 6.4
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T06:00:00Z",
+     "to": "2026-10-22T12:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.65,
+       "p15": 0.0,
+       "p25": 0.0,
+       "hresGustMs": 9.3,
+       "crosswindKt": 6.5
+      },
+      "gfs": {
+       "gustMs": 6.8,
+       "crosswindKt": 6.4
+      },
+      "level": "low",
+      "agreement": "agree"
+     },
+     "gap": false
+    },
+    {
+     "from": "2026-10-22T12:00:00Z",
+     "to": "2026-10-22T18:00:00Z",
+     "level": "low",
+     "basis": "model",
+     "official": null,
+     "model": {
+      "ec": {
+       "p10": 0.65,
+       "p15": 0.01,
+       "p25": 0.0,
+       "hresGustMs": 6.6,
+       "crosswindKt": 2.3
+      },
+      "gfs": {
+       "gustMs": 6.8,
+       "crosswindKt": 4.3
       },
       "level": "low",
       "agreement": "agree"
@@ -980,13 +2628,15 @@
      "official": null,
      "model": {
       "ec": {
-       "p10": 0.63,
-       "p15": 0.15,
+       "p10": 0.65,
+       "p15": 0.01,
        "p25": 0.0,
-       "hresGustMs": 13.5
+       "hresGustMs": 8.7,
+       "crosswindKt": 0.7
       },
       "gfs": {
-       "gustMs": 9.8
+       "gustMs": 10.4,
+       "crosswindKt": 3.0
       },
       "level": "low",
       "agreement": "agree"
