@@ -10,6 +10,8 @@ import time
 import requests
 from requests.adapters import HTTPAdapter
 
+from ..budget import add_bytes, check_cancelled
+
 log = logging.getLogger("hongthai")
 
 USER_AGENT = "hongthai/0.1 (+https://github.com/Duadoapp/hongthai)"
@@ -61,13 +63,18 @@ def http_get(
     error: type[SourceError] = SourceError,
     ok_404: bool = False,
 ) -> requests.Response:
-    """GET，失敗重試；把大小與耗時印在 log。`ok_404=True` 時 404 直接回傳不重試。"""
+    """GET，失敗重試；把大小與耗時印在 log。`ok_404=True` 時 404 直接回傳不重試。
+
+    來源超過時間預算被放棄後，下一次請求前就停（`budget.check_cancelled`）。
+    """
     hdrs = {"User-Agent": USER_AGENT, **(headers or {})}
     last: Exception | None = None
     for attempt in range(1, retries + 1):
+        check_cancelled()
         t0 = time.monotonic()
         try:
             r = (session or requests).get(url, params=params, headers=hdrs, timeout=TIMEOUT)
+            add_bytes(len(r.content))
             if r.status_code == 404 and ok_404:
                 return r
             r.raise_for_status()

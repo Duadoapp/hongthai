@@ -1,7 +1,12 @@
-"""用 cfgrib／xarray 讀 GRIB，取各機場最近格點的時間序列。"""
+"""用 cfgrib／xarray 讀 GRIB，取各機場最近格點的時間序列。
+
+eccodes 不是執行緒安全的，而超過時間預算被放棄的來源執行緒可能還在背景跑（見 `budget.py`），
+所以所有解析都包在全域的 `GRIB_LOCK` 裡；被放棄的執行緒在解析前就會因 `check_cancelled()` 結束。
+"""
 
 from __future__ import annotations
 
+import threading
 import warnings
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -9,6 +14,10 @@ from math import atan2, degrees, hypot
 from pathlib import Path
 
 import numpy as np
+
+from .budget import check_cancelled
+
+GRIB_LOCK = threading.Lock()
 
 
 @dataclass
@@ -34,6 +43,13 @@ def read_points(
     """
     import cfgrib  # 延後載入：沒有 eccodes 的環境也能跑其他測試
 
+    check_cancelled()
+    with GRIB_LOCK:
+        check_cancelled()  # 等鎖的時候可能剛好超時
+        return _read_points(cfgrib, path, points)
+
+
+def _read_points(cfgrib, path, points) -> dict[str, dict[str, PointSeries]]:
     out: dict[str, dict[str, PointSeries]] = {k: {} for k in points}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", FutureWarning)
