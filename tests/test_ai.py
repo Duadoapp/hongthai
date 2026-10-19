@@ -264,6 +264,36 @@ def test_airport_text_weather_types():
     assert "第一句要點出主因天氣" in prompt.SYSTEM
 
 
+def test_airport_text_cwa_station_metar():
+    """HD13：金門、馬祖的 METAR 是氣象署局屬站觀測，第一格的官方層由它撐起。"""
+    ap = airport("RCBS", lv(2, "medium"))
+    ap["metar"] = {
+        "observedAt": RUN,
+        "windDirDeg": 90,
+        "windKt": 2.9,
+        "gustKt": 6.2,
+        "raw": "CWA 467110 2026-10-18T08:00Z 能見度 0.3 km 陰有霧 風 090° 1.5 m/s",
+        "visibilityM": 300,
+        "wx": ["FG"],
+        "ceilingFt": None,
+        "source": "cwa",
+    }
+    ap["slots"][0]["official"] = {
+        "windKt": 2.9,
+        "gustKt": 6.2,
+        "kind": "metar",
+        "level": "high",
+        "crosswindKt": 2.7,
+        "warnings": ["cwa_dense_fog"],
+        "wx": None,
+    }
+    text = prompt.airport_text(ap, RUN)
+    assert "METAR（氣象署局屬站觀測、觀測 當地" in text
+    line = next(ln for ln in text.splitlines() if ln.startswith("1. "))
+    assert "官方：等級 high、METAR（觀測）平均風 2.9 節" in line
+    assert "警報 濃霧特報" in line
+
+
 def test_airport_text_without_optional_data():
     ap = airport("RCKH", lv(2, "medium"))
     ap["official"] = {"warnings": False}

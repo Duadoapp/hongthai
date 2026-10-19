@@ -5,7 +5,8 @@
   - `latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（每次的結果）
   - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署、SMG、NWS 原始回應；
     SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON；氣象署天氣特報 `W-C0033-001` 是另一個檔
-    `-cwa-hazards.json`，HD8，`-cwa.json` 維持颱風警報原文）
+    `-cwa-hazards.json`，HD8，`-cwa.json` 維持颱風警報原文；金門、馬祖的局屬站觀測 `O-A0003-001` 是
+    `-cwa-obs.json`，HD13）
   - `history/cancellations/<YYYY-MM-DD>.json`（每機場每 6 小時格的航班取消／延誤統計，日期是格的
     UTC 日期；合併規則見 `cancellations.py`。原始航班資料不存）
   - `history/timing/<YYYY-MM>.jsonl`（每次 build 每個來源的耗時，一行一筆，見 `Timing`）
@@ -86,7 +87,7 @@ BUDGET_S: dict[str, float] = {
     "taf": 45,  # TAF 與 METAR 同一個來源，各一個請求
     "hko": 30,
     "smg": 30,
-    "cwa": 45,
+    "cwa": 45,  # 颱風警報、天氣特報、局屬站觀測（HD13）各一個請求；實測 1–5 秒
     "nws": 30,  # HD3：關島的颱風警報，一個請求
     "flights": 120,  # 抓＋統計＋寫檔
     "ai": 240,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒；HD12 180 → 240
@@ -225,10 +226,13 @@ def _is_num(v: object) -> bool:
 
 
 def _cwa_extra(c: cwa.CwaData) -> dict:
-    """氣象署天氣特報（HD8）那個請求失敗時才有；颱風警報照常算 `ok`。"""
-    if c.hazards_error is None:
-        return {}
-    return {"heavyRainOk": False, "heavyRainError": c.hazards_error}
+    """氣象署天氣特報（HD8）或局屬站觀測（HD13）那個請求失敗時才有；颱風警報照常算 `ok`。"""
+    d: dict[str, object] = {}
+    if c.hazards_error is not None:
+        d.update(heavyRainOk=False, heavyRainError=c.hazards_error)
+    if c.obs_error is not None:
+        d.update(obsOk=False, obsError=c.obs_error)
+    return d
 
 
 def _rescore(slot: dict, th: Thresholds) -> None:
@@ -396,7 +400,10 @@ def collect_warnings(
                     "cwa", w.kind, w.level, w.text, w.issued_at, detail=w.detail or None
                 )
             )
-        for w in cwa.heavy_rain_for_airport(cwa_data.hazards, airport.cwa_areas, airport.name):
+        for w in [
+            *cwa.heavy_rain_for_airport(cwa_data.hazards, airport.cwa_areas, airport.name),
+            *cwa.dense_fog_for_airport(cwa_data.hazards, airport.cwa_areas, airport.name),
+        ]:
             out.append(
                 assess.ActiveWarning("cwa", w.kind, w.level, w.text, w.issued_at, detail=w.detail)
             )
@@ -426,9 +433,10 @@ def warning_json(w: assess.ActiveWarning) -> dict:
 
 
 def metar_json(m: taf.Metar | None) -> dict | None:
+    """AviationWeather 的沒有 `source` 鍵；氣象署局屬站觀測（HD13）多 `source: "cwa"`。"""
     if m is None:
         return None
-    return {
+    d: dict[str, object] = {
         "observedAt": iso(m.observed),
         "windDirDeg": m.wdir,
         "windKt": m.wind_kt,
@@ -439,6 +447,19 @@ def metar_json(m: taf.Metar | None) -> dict | None:
         "wx": list(m.wx),
         "ceilingFt": m.ceiling_ft,
     }
+    if m.source:
+        d["source"] = m.source
+    return d
+
+
+def station_metar(
+    airport: Airport, tf: taf.TafData | None, cw: cwa.CwaData | None
+) -> taf.Metar | None:
+    """AviationWeather 的 METAR；沒有時用氣象署局屬站觀測（`cwaStation`，HD13）。"""
+    metar = tf.metars.get(airport.icao) if tf else None
+    if metar is None and airport.cwa_station and cw is not None:
+        metar = cw.obs.get(airport.cwa_station)
+    return metar
 
 
 def main_period(t: taf.TafInfo, now: datetime | None = None) -> taf.TafPeriod | None:
@@ -496,7 +517,7 @@ def assemble(
         warns = collect_warnings(a, hk, cw, sm, nw)
         mine = [c for c in confirmed if c.airport == a.icao]
         taf_info = tf.tafs.get(a.icao) if tf else None
-        metar = tf.metars.get(a.icao) if tf else None
+        metar = station_metar(a, tf, cw)
         slot_list = assess.assess_slots(
             now=now,
             slots=slots,
@@ -615,7 +636,8 @@ def run(
     )
     tf = _call("taf", lambda: taf.fetch(airports), status, timing)
     hk = _call("hko", hko.fetch, status, timing)
-    cw = _call("cwa", lambda: cwa.fetch(api_key, now), status, timing, _cwa_extra)
+    stations = tuple(a.cwa_station for a in airports if a.cwa_station)
+    cw = _call("cwa", lambda: cwa.fetch(api_key, now, stations), status, timing, _cwa_extra)
     sm = _call("smg", smg.fetch, status, timing)
     nws_zones = [a.nws_zone for a in airports if "nws" in a.warning_sources]
     nw = _call("nws", lambda: nws.fetch(nws_zones), status, timing)
@@ -661,6 +683,8 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-cwa.json", cw.raw)
         if cw.hazards_raw is not None:
             _dump(raw_dir / f"{now:%H%M}Z-cwa-hazards.json", cw.hazards_raw)
+        if cw.obs_raw is not None:
+            _dump(raw_dir / f"{now:%H%M}Z-cwa-obs.json", cw.obs_raw)
     if sm is not None:
         _dump(raw_dir / f"{now:%H%M}Z-smg.json", sm.raw)
     if nw is not None:

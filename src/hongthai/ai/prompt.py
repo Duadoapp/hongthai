@@ -104,6 +104,7 @@ WARNING_KIND_TEXT = {
     "rainstorm_red": "紅色暴雨警告信號",
     "thunderstorm": "雷暴警告",
     "cwa_heavy_rain": "豪雨特報（大豪雨以上）",
+    "cwa_dense_fog": "濃霧特報",
 }
 CAUSE_TEXT = {"wind": "強風", "rain": "大雨", "snow": "大雪", "fog": "濃霧"}
 
@@ -153,8 +154,10 @@ def _official(o: dict | None) -> str:
     if not isinstance(o, dict):
         return "官方：無"
     warns = "、".join(WARNING_KIND_TEXT.get(k, str(k)) for k in o.get("warnings") or []) or "無"
+    # HD13：沒有 TAF 的機場第一格由 METAR 撐起（`kind: "metar"`）
+    src = "METAR（觀測）" if o.get("kind") == "metar" else f"TAF（{o.get('kind') or '無'}）"
     return (
-        f"官方：等級 {o.get('level') or '—'}、TAF（{o.get('kind') or '無'}）平均風 "
+        f"官方：等級 {o.get('level') or '—'}、{src}平均風 "
         f"{_kt(o.get('windKt'))}、陣風 {_kt(o.get('gustKt'))}、側風 {_kt(o.get('crosswindKt'))}、"
         f"警報 {warns}、{_wx(o.get('wx'))}"
     )
@@ -250,8 +253,10 @@ def airport_text(airport: dict, generated_at: str) -> str:
     if isinstance(metar, dict):
         wdir = metar.get("windDirDeg")
         phen = " ".join(str(w) for w in metar.get("wx") or []) or "無"
+        # HD13：金門、馬祖沒有機場 METAR，用氣象署局屬站的觀測
+        src = "氣象署局屬站觀測、" if metar.get("source") == "cwa" else ""
         lines.append(
-            f"METAR（觀測 當地 {_local(metar.get('observedAt'), z)}）：風向 "
+            f"METAR（{src}觀測 當地 {_local(metar.get('observedAt'), z)}）：風向 "
             f"{'不定' if wdir is None else _num(wdir, '°')}、風 {_kt(metar.get('windKt'))}、"
             f"陣風 {_kt(metar.get('gustKt'))}、能見度 {_num(metar.get('visibilityM'), ' 公尺')}、"
             f"天氣 {phen}、雲底 {_num(metar.get('ceilingFt'), ' 呎')}；原文 {metar.get('raw')}"
