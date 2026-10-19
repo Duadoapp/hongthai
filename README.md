@@ -285,7 +285,8 @@ H10（2026-10-18）之後：
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
   原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`、
   每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`，以及 AI 對決的戰績
-  `history/ai/<YYYY-MM-DD>.json` 與每日呼叫次數 `history/ai/calls-<YYYY-MM-DD>.json`（HD5，下面
+  `history/ai/<YYYY-MM-DD>.json` 與每日呼叫次數 `history/ai/calls-<YYYY-MM-DD>.json`（HD5；每日上限開發期間不限，
+  次數照常記，之後評估看實際用量；下面
   「AI 對決」）。這些都不進 GitHub Pages、不進 `latest.json`
 
 `history/timing/<YYYY-MM>.jsonl`：一行一筆 JSON，每個來源一跑完就 append（不等全部結束），所以
@@ -435,7 +436,7 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
     - `status: "error"`：`level: null`、`comment: null`，`error` 是代碼：`no_api_key`（沒設金鑰）、`timeout`
       （單次請求 60 秒或整個 AI 步驟 180 秒到了）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
       超過字數上限、被 `max_tokens` 截斷）、`http_<碼>`（API 回錯誤，例如 `http_429`）、`network`、
-      `daily_cap`（那個模型今天已經呼叫 80 次）；**規格以外多三個**：`run_cap`（符合條件但排在這一報前 20 個
+      `daily_cap`（那個模型今天已經呼叫到每日上限；目前 `DAILY_CAP=0` 不限，不會出現）；**規格以外多三個**：`run_cap`（符合條件但排在這一報前 20 個
       之後，沒評；不寫「沒看到明顯風險」，因為可能是中級）、`refusal`（模型拒答或被安全過濾擋下）、
       `bad_wording`（HD6：格式對但短評用字違規，見「AI 對決」的「用字規則與檢查」）
 - `sources.ai`：`{ "ok": <兩個模型至少一個有成功>, "seconds", "calls": { "claude": n, "gemini": n },
@@ -526,8 +527,10 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   `{"level", "comment": {四語}}` 的 JSON，不然記 `bad_format`（外面包了 ``` 或前後多了說明文字時，取第一個
   `{` 到最後一個 `}` 之間再解析，HD6）；字數上限中文每語 300 字、en 800 字（`config.MAX_COMMENT_CHARS`）
 - **免責**：頂層 `ai.disclaimer`「AI 評論僅供參考，以航空公司與機場公告為準」（四語）
-- **保險**（`ai/config.py`）：每報最多評 20 個機場；每天（UTC）每個模型最多 80 次呼叫（`history/ai/calls-<日期>.json`
-  記次數，成功失敗都算），超過的記 `daily_cap`；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
+- **保險**（`ai/config.py`）：每報最多評 20 個機場；每天（UTC）每個模型的呼叫上限 `DAILY_CAP` **開發期間不限**
+  （`DAILY_CAP=0`，2026-10-19 定案，HD11；手動 Run workflow 也照常跑 AI），正式推廣前再評估，恢復時改成 80 之類的
+  數字即可，超過的記 `daily_cap`；`history/ai/calls-<日期>.json` 照常記每個模型今天呼叫幾次（成功失敗都算）；
+  另有 Anthropic workspace 每月 30 美元硬上限、GCP 30 美元預算警示（在平台上設）；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
   的自動重試都關掉）；單次請求逾時 60 秒；整個 AI 步驟預算 180 秒（`BUDGET_S["ai"]`），兩個模型**平行**
   呼叫、每個模型的並行數 Claude 4 條、Gemini 2 條（`config.PARALLEL`，HD6），超過的機場記 `timeout`。
   AI 失敗不影響 `latest.json` 其他內容
@@ -551,7 +554,7 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   以下，所以 Gemini 降成 2 條並行、讓請求不要一次擠進去。Shawn 要做的：在 GCP 控制台
   「Vertex AI（Agent Platform）→ Dashboard」看組織目前的級距（要專案的 `roles/aiplatform.viewer` 與帳單帳戶的
   `roles/billing.viewer`）；要更多只能找 Google Cloud 業務談 Custom Tier，或改買 Priority PayGo／
-  Provisioned Throughput——**以我們每天 80 次的量都不值得**，先觀察 2 條並行後還有沒有 429。
+  Provisioned Throughput——**以我們每天幾十到一兩百次的量都不值得**，先觀察 2 條並行後還有沒有 429。
   「IAM 與管理 → 配額與系統限制」裡 `aiplatform.googleapis.com` 的
   `global_generate_content_requests_per_minute_per_project_per_base_model` 這類配額，文件寫的是 Gemini Omni、
   Lyria 這些生成媒體模型用的，不是 Argon 文字生成。來源：
