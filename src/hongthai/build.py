@@ -4,7 +4,8 @@
 - `--archive`（預設 `data/`，Actions 裡是 `data` 分支的 checkout）：長期保存
   - `latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（每次的結果）
   - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署、SMG、NWS 原始回應；
-    SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON）
+    SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON；氣象署天氣特報 `W-C0033-001` 是另一個檔
+    `-cwa-hazards.json`，HD8，`-cwa.json` 維持颱風警報原文）
   - `history/cancellations/<YYYY-MM-DD>.json`（每機場每 6 小時格的航班取消／延誤統計，日期是格的
     UTC 日期；合併規則見 `cancellations.py`。原始航班資料不存）
   - `history/timing/<YYYY-MM>.jsonl`（每次 build 每個來源的耗時，一行一筆，見 `Timing`）
@@ -96,16 +97,23 @@ REUSE_MAX_AGE = timedelta(hours=24)
 # GitHub Pages 的 `history/` 只放最近幾天（H9：41 個機場每份約 515 KB）；`data` 分支全部保留
 PAGES_HISTORY_DAYS = 7
 # 模式來源 → (`model` 裡的鍵, [(`runs` 的鍵, 那一報決定的欄位)])；系集與 HRES 的時次各自判斷期限。
-# 節的欄位（HD2）在 HD2 以前的結果裡沒有，抄完由 `_rescore` 用 m/s 欄位補（`assess.fill_kt`）
+# 節的欄位（HD2）在 HD2 以前的結果裡沒有，抄完由 `_rescore` 用 m/s 欄位補（`assess.fill_kt`）。
+# HD8 的雨量、降水型態、能見度一起抄（`ptype` 是字串）；三類的等級不抄，由 `_rescore` 重算
 REUSE_FIELDS: dict[str, tuple[str, tuple[tuple[str, tuple[str, ...]], ...]]] = {
     "ecmwf": (
         "ec",
         (
-            ("ecmwf", ("hresGustMs", "hresGustKt", "crosswindKt")),
-            ("ecmwfEns", ("p10", "p15", "p25", "p29Kt", "p37Kt", "p49Kt")),
+            ("ecmwf", ("hresGustMs", "hresGustKt", "crosswindKt", "rain6hMm", "ptype", "temp2mC")),
+            (
+                "ecmwfEns",
+                ("p10", "p15", "p25", "p29Kt", "p37Kt", "p49Kt", "p24hRain25", "p24hRain50"),
+            ),
         ),
     ),
-    "gfs": ("gfs", (("gfs", ("gustMs", "gustKt", "crosswindKt")),)),
+    "gfs": (
+        "gfs",
+        (("gfs", ("gustMs", "gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")),),
+    ),
 }
 
 
@@ -216,17 +224,29 @@ def _is_num(v: object) -> bool:
     return isinstance(v, int | float) and not isinstance(v, bool)
 
 
+def _cwa_extra(c: cwa.CwaData) -> dict:
+    """氣象署天氣特報（HD8）那個請求失敗時才有；颱風警報照常算 `ok`。"""
+    if c.hazards_error is None:
+        return {}
+    return {"heavyRainOk": False, "heavyRainError": c.hazards_error}
+
+
 def _rescore(slot: dict, th: Thresholds) -> None:
     """模式值換掉之後重算模式層等級、一致性、落差與整格等級（和 `assess.assess_slots` 同一套規則；
-    官方層與已確認不受模式影響，維持原樣）。抄來的是 HD2 以前的結果時，先用 m/s 欄位補節的欄位。"""
+    官方層與已確認不受模式影響，維持原樣）。抄來的是 HD2 以前的結果時，先用 m/s 欄位補節的欄位。
+    三類等級（HD8）照抄來的雨量重算；依據是模式層的格 `causes` 也重算（官方層的不動）。"""
     m = slot["model"]
     assess.fill_kt(m["ec"], m["gfs"])
+    assess.fill_model_wx(m["ec"], m["gfs"], th)
     m["level"] = assess.model_level(m["ec"], m["gfs"], th)
     m["agreement"] = assess.agreement(m["ec"], m["gfs"], th)
     if slot["basis"] in ("model", "none"):
         slot["level"], slot["basis"] = (m["level"], "model") if m["level"] else ("unknown", "none")
     off = slot["official"]
     slot["gap"] = off is not None and m["level"] is not None and off["level"] != m["level"]
+    causes = assess.slot_causes(slot, th)
+    if causes is not None:
+        slot["causes"] = causes
 
 
 def _run_time(doc: dict, run_key: str) -> datetime | None:
@@ -326,7 +346,7 @@ def reuse_models(
                     if not isinstance(old, dict):
                         continue
                     for f in fields:
-                        if _is_num(old.get(f)):
+                        if _is_num(old.get(f)) or (f == "ptype" and isinstance(old.get(f), str)):
                             updates.append((a["icao"], s, key, f, old[f]))
                             n += 1
             if n:
@@ -359,6 +379,9 @@ def collect_warnings(
     if "hko" in airport.warning_sources and hko_data and hko_data.signal:
         s = hko_data.signal
         out.append(assess.ActiveWarning("hko", "tc_signal", s.level, s.text, s.issued_at, s.code))
+    if "hko" in airport.warning_sources and hko_data:  # 暴雨、雷暴（HD8）
+        for w in hko_data.warnings:
+            out.append(assess.ActiveWarning("hko", w.kind, w.level, w.text, w.issued_at, w.code))
     if "smg" in airport.warning_sources and smg_data and smg_data.signal:
         s = smg_data.signal
         out.append(
@@ -372,6 +395,10 @@ def collect_warnings(
                 assess.ActiveWarning(
                     "cwa", w.kind, w.level, w.text, w.issued_at, detail=w.detail or None
                 )
+            )
+        for w in cwa.heavy_rain_for_airport(cwa_data.hazards, airport.cwa_areas, airport.name):
+            out.append(
+                assess.ActiveWarning("cwa", w.kind, w.level, w.text, w.issued_at, detail=w.detail)
             )
     if "nws" in airport.warning_sources and nws_data:
         for w in nws.for_zone(nws_data.alerts, airport.nws_zone):
@@ -407,17 +434,38 @@ def metar_json(m: taf.Metar | None) -> dict | None:
         "windKt": m.wind_kt,
         "gustKt": m.gust_kt,
         "raw": m.raw,
+        # HD8：觀測的能見度（公尺，9999＝以上）、天氣現象、雲幕（呎）
+        "visibilityM": m.vis_m,
+        "wx": list(m.wx),
+        "ceilingFt": m.ceiling_ft,
     }
 
 
-def taf_json(t: taf.TafInfo | None) -> dict | None:
+def main_period(t: taf.TafInfo, now: datetime | None = None) -> taf.TafPeriod | None:
+    """TAF 的主時段：涵蓋 `now` 的主時段（FM／BECMG 之後的也算主時段），沒有就第一個還沒結束的、
+    再沒有就第一個。"""
+    mains = [p for p in t.periods if p.kind == "main"]
+    if now is not None:
+        cover = [p for p in mains if p.start <= now < p.end]
+        if cover:
+            return cover[-1]
+        mains = [p for p in mains if p.end > now] or mains
+    return mains[0] if mains else None
+
+
+def taf_json(t: taf.TafInfo | None, now: datetime | None = None) -> dict | None:
     if t is None:
         return None
+    main = main_period(t, now)
     return {
         "issuedAt": iso(t.issued),
         "validFrom": iso(t.valid_from),
         "validTo": iso(t.valid_to),
         "raw": t.raw,
+        # HD8：主時段的能見度、天氣現象、雲幕
+        "visibilityM": main.vis_m if main else None,
+        "wx": list(main.wx) if main else [],
+        "ceilingFt": main.ceiling_ft if main else None,
     }
 
 
@@ -472,7 +520,7 @@ def assemble(
                 "official": {"warnings": bool(a.warning_sources)},
                 "warnings": [warning_json(w) for w in warns],
                 "metar": metar_json(metar),
-                "taf": taf_json(taf_info),
+                "taf": taf_json(taf_info, now),
                 "slots": slot_list,
                 "confirmed": [
                     confirmed_json(c) for c in mine if c.start < window_end and c.end > window_start
@@ -567,7 +615,7 @@ def run(
     )
     tf = _call("taf", lambda: taf.fetch(airports), status, timing)
     hk = _call("hko", hko.fetch, status, timing)
-    cw = _call("cwa", lambda: cwa.fetch(api_key, now), status, timing)
+    cw = _call("cwa", lambda: cwa.fetch(api_key, now), status, timing, _cwa_extra)
     sm = _call("smg", smg.fetch, status, timing)
     nws_zones = [a.nws_zone for a in airports if "nws" in a.warning_sources]
     nw = _call("nws", lambda: nws.fetch(nws_zones), status, timing)
@@ -611,6 +659,8 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-hko.json", hk.raw)
     if cw is not None:
         _dump(raw_dir / f"{now:%H%M}Z-cwa.json", cw.raw)
+        if cw.hazards_raw is not None:
+            _dump(raw_dir / f"{now:%H%M}Z-cwa-hazards.json", cw.hazards_raw)
     if sm is not None:
         _dump(raw_dir / f"{now:%H%M}Z-smg.json", sm.raw)
     if nw is not None:

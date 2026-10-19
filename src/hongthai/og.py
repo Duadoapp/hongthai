@@ -10,9 +10,10 @@
   `M/D`（`day_labels`：一格的日期以 `from` 換成當地時間為準，第一格一定標，之後當地日期變了就標，
   最多 6 個）
 - 燈號（`rule_light`）：這個機場未來 5 天（20 格）裡最高的等級，小字寫第一個達到那個等級的格的當地
-  日期時段（「最高：高　10/23 14–20 時」）；全部低寫「未來 5 天：低」。有 `confirmed` 的格（視為高）
-  時色塊寫「已確認」、小字「已確認停飛　<第一個已確認的格>」；全部 `unknown` 寫「資料不足」；
-  有的格 `unknown`、有的有等級時只看有等級的
+  日期時段（「最高：高　10/23 14–20 時」），那格有 `causes` 時後面接主因（`causes[0]`，HD8：
+  「最高：高　10/23 08–14 時・強風」，`CAUSE_TEXT`）；全部低寫「未來 5 天：低」。有 `confirmed`
+  的格（視為高）時色塊寫「已確認」、小字「已確認停飛　<第一個已確認的格>」；全部 `unknown`
+  寫「資料不足」；有的格 `unknown`、有的有等級時只看有等級的
 - 三顆燈（HD5，`lights_for`）：機場的 `ai` 兩顆都是 `skipped` 或 `error`（或沒有 `ai`）時
   只畫一顆規則燈（`label=None` 不畫標籤）；任一顆 `ok` 時畫三顆：「規則」（同上的等級與小字）、
   「Claude」、「Gemini」（AI 的等級；短評不畫、小字留空；`error` 用 `unknown` 色塊寫「資料不足」、
@@ -67,6 +68,8 @@ LEVEL_TEXT = {
     "unknown": "資料不足",
 }
 RANKED = ("low", "medium", "high")
+# 主因（`slots[].causes[0]`，HD8）接在燈號小字後面
+CAUSE_TEXT = {"wind": "強風", "rain": "大雨", "snow": "大雪", "fog": "濃霧"}
 
 # 圖上會出現的固定字串（子集要涵蓋；`tools/make_font_subset.py` 與測試都讀這裡）。
 # 「沒看到明顯風險」與三個標籤是 AI 對決那支要用的，先放進子集
@@ -84,6 +87,7 @@ TEXTS = (
     "Claude",
     "Gemini",
     "沒看到明顯風險",
+    *CAUSE_TEXT.values(),
 )
 # 全形標點與幾個符號（子集要涵蓋，機場名或之後的字串可能用到）
 PUNCTUATION = "，。、：；！？（）「」『』　・–—～／％"
@@ -448,7 +452,10 @@ def rule_light(airport: dict, label: str | None = None) -> Light:
     if top == "low":
         return Light(label, "low", "未來 5 天：低")
     first = next(s for s in known if s["level"] == top)
-    return Light(label, top, f"最高：{LEVEL_TEXT[top]}　{slot_text(first, tz)}")
+    causes = first.get("causes") if isinstance(first.get("causes"), list) else []
+    cause = CAUSE_TEXT.get(causes[0], "") if causes else ""
+    suffix = f"・{cause}" if cause else ""
+    return Light(label, top, f"最高：{LEVEL_TEXT[top]}　{slot_text(first, tz)}{suffix}")
 
 
 AI_LABELS = {"claude": "Claude", "gemini": "Gemini"}

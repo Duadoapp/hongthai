@@ -1,4 +1,5 @@
-"""NOAA GFS 0.25°：地面陣風（`GUST`，m/s）與 10 米風（`UGRD`／`VGRD`，算側風用的風向）。
+"""NOAA GFS 0.25°：地面陣風（`GUST`，m/s）與 10 米風（`UGRD`／`VGRD`，算側風用的風向）；HD8 起加
+6 小時降水（`APCP`）、類別降水（`CRAIN`／`CFRZR`／`CICEP`／`CSNOW`）與地面能見度（`VIS`）。
 
 來源（H10）：以 AWS 開放資料鏡像為主、NOMADS 為備援。2026-10-18 12:42Z 起 NOMADS 對 GitHub Actions
 回 403（請求是找最新一報的第一個 `.idx`，199 bytes），不能只靠它。
@@ -35,6 +36,22 @@ NOMADS（備援，H10 以前唯一的來源）：
 - 出爐時間（UTC）：各報約 3.5–4 小時後到 f120（00Z ≈ 03:40、06Z ≈ 09:40、12Z ≈ 15:40、18Z ≈ 21:40）
 - GUST 是瞬時值（每 6 小時一筆），判讀時一格取頭尾兩個時間點的最大值
 - GRIB 的陣風是 m/s，解析完就換算成節（`GustPoint.gust_kt`，HD2）
+
+降水與能見度（HD8，2026-10-19 00Z 的 `.idx` 實測，全球 0.25° 每筆大小）：
+- `APCP:surface`：6 小時整的檔裡有**兩筆**，`6-12 hour acc fcst`（前 6 小時那桶）與
+  `0-12 hour acc fcst`（從起報累積）；f006 兩筆都是 `0-6 hour acc fcst`；f000 沒有。所以 `.idx`
+  要比對時效字串（`IDX_FIELDS` 第三欄 `acc6`＝`<fh−6>-<fh> hour acc fcst`），約 0.36 MB。
+  kg/m² ＝ mm
+- `CRAIN`／`CFRZR`／`CICEP`／`CSNOW:surface`：0／1 的類別，也是兩種——瞬時（`12 hour fcst`，用這個，
+  第三欄 `inst`）與 `6-12 hour ave fcst`（平均，不用）；四個加起來約 0.14 MB
+- `VIS:surface`：瞬時，公尺，約 0.73 MB
+- 每個步長多約 1.24 MB，21 個步長約 26 MB；`UGRD`／`VGRD` 以外的幾筆不相鄰，每個步長的 `Range` 請求
+  從 2 個變 5–6 個
+- 降水型態（`ptype`）由四個類別合成，嚴重的優先：CFRZR → `freezing_rain`、CICEP → `ice_pellets`、
+  CSNOW → `snow`、CRAIN → `rain`、四個都 0 → `none`（`ptype_from_categories`）
+- NOMADS 的 filter 不能選時效，會兩筆 `APCP` 與兩種類別都給：cfgrib 讀到兩筆同步長的 `APCP`
+  只留第一筆（檔案裡第一筆就是 6 小時那桶，2026-10-19 用 f012 實測），平均型的類別在
+  `grib.read_points` 裡另外記成 `csnow:avg` 這種鍵、不會跟瞬時的混在一起
 """
 
 from __future__ import annotations
@@ -60,8 +77,29 @@ FILTER_URL = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 PROD_URL = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
 MIRRORS = ("aws", "nomads")
 BASE_URL = {"aws": S3_URL, "nomads": PROD_URL}
-# `.idx` 裡要抓的（變數, 層）
-IDX_FIELDS = (("GUST", "surface"), ("UGRD", "10 m above ground"), ("VGRD", "10 m above ground"))
+# `.idx` 裡要抓的（變數, 層[, 時效]）。時效：沒寫＝第一筆、`inst`＝瞬時（`anl`／`<n> hour fcst`）、
+# `acc6`＝前 6 小時的累積（`<fh−6>-<fh> hour acc fcst`）。`IDX_FIELDS` 少了就是 `bad_idx`；
+# HD8 的降水與能見度（`IDX_OPTIONAL`）少了只 log、照抓其他的（不讓陣風跟著失敗）
+IDX_FIELDS: tuple[tuple[str, ...], ...] = (
+    ("GUST", "surface"),
+    ("UGRD", "10 m above ground"),
+    ("VGRD", "10 m above ground"),
+)
+IDX_OPTIONAL: tuple[tuple[str, ...], ...] = (
+    ("APCP", "surface", "acc6"),
+    ("CRAIN", "surface", "inst"),
+    ("CFRZR", "surface", "inst"),
+    ("CICEP", "surface", "inst"),
+    ("CSNOW", "surface", "inst"),
+    ("VIS", "surface", "inst"),
+)
+# 類別降水 → 降水型態，前面的優先（凍雨最嚴重）
+PTYPE_CATEGORIES = (
+    ("cfrzr", "freezing_rain"),
+    ("cicep", "ice_pellets"),
+    ("csnow", "snow"),
+    ("crain", "rain"),
+)
 SPAN_H = 120
 STEP_H = 6
 PAD_DEG = 1.0
@@ -76,6 +114,9 @@ class GustPoint:
     valid: datetime
     gust_kt: float | None  # 節
     wdir: float | None = None  # 同一時間的 10 米風向（度，真北）
+    rain6h_mm: float | None = None  # 前 6 小時降水（mm，HD8）
+    ptype: str | None = None  # 同一時間的降水型態（`ptype_from_categories`）
+    vis_m: float | None = None  # 同一時間的地面能見度（公尺）
 
 
 @dataclass
@@ -100,9 +141,26 @@ PARAMS = {
     "var_GUST": "on",
     "var_UGRD": "on",
     "var_VGRD": "on",
+    "var_APCP": "on",
+    "var_CRAIN": "on",
+    "var_CFRZR": "on",
+    "var_CICEP": "on",
+    "var_CSNOW": "on",
+    "var_VIS": "on",
     "lev_surface": "on",
     "lev_10_m_above_ground": "on",
 }
+
+
+def ptype_from_categories(cats: dict[str, float | None]) -> str | None:
+    """`{"crain": 0/1, ...}` → 降水型態；四個都沒資料回 None。"""
+    if all(cats.get(k) is None for k, _ in PTYPE_CATEGORIES):
+        return None
+    for key, name in PTYPE_CATEGORIES:
+        v = cats.get(key)
+        if v is not None and v >= 0.5:
+            return name
+    return "none"
 
 
 def parse_file(path: str | Path, airports: list[Airport]) -> dict[str, list[GustPoint]]:
@@ -113,12 +171,28 @@ def parse_file(path: str | Path, airports: list[Airport]) -> dict[str, list[Gust
         uv = {}
         if u is not None and v is not None:
             uv = {s: (a, b) for s, a, b in zip(u.steps, u.values, v.values, strict=True)}
+        extra = {
+            k: dict(zip(series[k].steps, series[k].values, strict=True))
+            for k in ("tp", "vis", *(c for c, _ in PTYPE_CATEGORIES))
+            if k in series
+        }
         gust = series.get("gust")
         pts = []
         if gust is not None:
             for step, val in zip(gust.steps, gust.values, strict=True):
                 wdir = wind_dir_from_uv(*uv.get(step, (None, None)))
-                pts.append(GustPoint(gust.run + timedelta(hours=step), ms_to_kt(val), wdir))
+                pts.append(
+                    GustPoint(
+                        gust.run + timedelta(hours=step),
+                        ms_to_kt(val),
+                        wdir,
+                        extra.get("tp", {}).get(step),
+                        ptype_from_categories(
+                            {c: extra.get(c, {}).get(step) for c, _ in PTYPE_CATEGORIES}
+                        ),
+                        extra.get("vis", {}).get(step),
+                    )
+                )
         out[icao] = pts
     return out
 
@@ -131,34 +205,65 @@ def run_dir(run: datetime) -> str:
     return f"/gfs.{run:%Y%m%d}/{run:%H}/atmos"
 
 
-def byte_ranges(idx_text: str, fields=IDX_FIELDS) -> list[tuple[int, int | None]]:
+def fields_for(fh: int, fields=IDX_OPTIONAL) -> tuple[tuple[str, ...], ...]:
+    """f000 沒有累積降水，拿掉 `acc6` 那幾筆。"""
+    return tuple(f for f in fields if not (fh == 0 and len(f) > 2 and f[2] == "acc6"))
+
+
+def _time_ok(kind: str | None, text: str, fh: int | None) -> bool:
+    if kind is None:
+        return True
+    if kind == "inst":
+        return "-" not in text and "ave" not in text and "acc" not in text
+    if kind == "acc6":
+        return fh is not None and text.strip() == f"{fh - 6}-{fh} hour acc fcst"
+    raise ValueError(f"不認得的時效種類 {kind!r}")
+
+
+def byte_ranges(
+    idx_text: str, fields=IDX_FIELDS, fh: int | None = None, optional=()
+) -> list[tuple[int, int | None]]:
     """`.idx` 文字 → 要抓的 byte 範圍（頭尾都含；最後一筆到檔尾時尾是 None），相鄰的併成一段。
 
-    一筆的範圍是它的起點到下一個（起點更大的）紀錄的起點前一個 byte。少了任何一筆就丟 `bad_idx`。
+    一筆的範圍是它的起點到下一個（起點更大的）紀錄的起點前一個 byte。`fields`／`optional` 每個是
+    （變數, 層）或（變數, 層, 時效），時效見 `IDX_FIELDS`（`acc6` 要給 `fh`）；同一個欄位只取第一筆
+    合的。`fields` 少了任何一筆就丟 `bad_idx`，`optional` 少了只 log。
     """
-    recs: list[tuple[int, str, str]] = []
+    recs: list[tuple[int, str, str, str]] = []
     for line in idx_text.splitlines():
         parts = line.split(":")
         if len(parts) < 5 or not parts[1].strip().isdigit():
             continue
-        recs.append((int(parts[1]), parts[3], parts[4]))
+        recs.append((int(parts[1]), parts[3], parts[4], parts[5] if len(parts) > 5 else ""))
     starts = sorted({r[0] for r in recs})
-    wanted = set(fields)
-    found: set[tuple[str, str]] = set()
+    required = {tuple(f) for f in fields}
+    wanted = required | {tuple(f) for f in optional}
+    found: set[tuple[str, ...]] = set()
     out: list[tuple[int, int | None]] = []
-    for start, var, lev in sorted(recs):
-        if (var, lev) not in wanted or (var, lev) in found:
+    for start, var, lev, when in sorted(recs):
+        hit = next(
+            (
+                f
+                for f in wanted - found
+                if f[0] == var and f[1] == lev and _time_ok(f[2] if len(f) > 2 else None, when, fh)
+            ),
+            None,
+        )
+        if hit is None:
             continue
-        found.add((var, lev))
+        found.add(hit)
         later = [s for s in starts if s > start]
         end = later[0] - 1 if later else None
         if out and out[-1][1] is not None and out[-1][1] + 1 == start:
             out[-1] = (out[-1][0], end)
         else:
             out.append((start, end))
-    if found != wanted:
-        missing = ", ".join(f"{v}:{lv}" for v, lv in fields if (v, lv) not in found)
+    if not required <= found:
+        missing = ", ".join(":".join(f) for f in fields if tuple(f) not in found)
         raise GfsError(f".idx 裡沒有 {missing}", "bad_idx")
+    if found != wanted:
+        lost = ", ".join(":".join(f) for f in optional if tuple(f) not in found)
+        log.warning("GFS f%s 的 .idx 裡沒有 %s，這幾筆不抓", fh, lost)
     return out
 
 
@@ -196,9 +301,10 @@ def find_latest_run(now: datetime, slot0: datetime, tries: int = 4) -> tuple[dat
 def _fetch_aws(
     run: datetime, fh: int, airports: list[Airport], tmp: Path
 ) -> tuple[dict[str, list[GustPoint]], int]:
-    """AWS：`.idx` → 三筆的 byte 範圍 → 一段一個 `Range` 請求，接成一個 GRIB 檔再解析。"""
+    """AWS：`.idx` → 要的幾筆的 byte 範圍 → 一段一個 `Range` 請求，接成一個 GRIB 檔再解析。"""
     url = f"{S3_URL}{run_dir(run)}/{file_name(run, fh)}"
-    ranges = byte_ranges(http_get(f"{url}.idx", error=GfsError).text)
+    idx = http_get(f"{url}.idx", error=GfsError).text
+    ranges = byte_ranges(idx, IDX_FIELDS, fh, fields_for(fh))
     path = tmp / f"gfs-aws-f{fh:03d}.grib2"
     size = 0
     with path.open("wb") as f:

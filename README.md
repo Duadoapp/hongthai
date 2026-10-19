@@ -1,7 +1,7 @@
 # HongThai
 
 台灣、華東、華南・港澳、沖繩、日本、韓國、越南、菲律賓、關島・帛琉九個地區 51 個機場（下面「機場」）未來 5 天的
-**強風停飛風險**等級（含分跑道的側風）。
+**停飛風險**等級：強風（含分跑道的側風），第五階段（HD8）起加大雨／雷雨、大雪／結冰、濃霧／低雲。
 每天四次抓氣象資料，輸出一份 `latest.json`，用 GitHub Pages 發布：
 
 <https://duadoapp.github.io/hongthai/latest.json>
@@ -73,11 +73,64 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 - `agreement`：HRES 與 GFS 的陣風落在同一級＝`agree`
 - `confirmed.json` 人工填的已確認停飛時段 → 該格 `level: "confirmed"`
 - 門檻在 `airports.json`，細節（時間格怎麼對、警報套幾小時）寫在 `src/hongthai/assess.py` 開頭
-- 之後新天氣種類（第五階段）的單位：雨量毫米、能見度公尺、積雪公分
+
+### 新天氣種類（第五階段，HD8）
+
+Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調。三類：`rain`（大雨＋雷雨）、`snow`（大雪＋
+結冰）、`fog`（濃霧＋低雲幕）；颱風帶來的雨歸 `wind`（就是上面的規則）。**燈號還是一種「停飛風險」等級**：
+每一層的等級＝風（陣風、側風、風的警報）與三類取最高，不是一種天氣一顆燈；種類只用在每格的 `causes`、
+預覽圖小字與 AI 短評。原則：**貼近實際會停飛的情況，只會延誤的不升級、只寫進依據**。單位：雨量毫米、
+能見度公尺、雲底呎、溫度 °C。
+
+官方層（TAF 各時段與 METAR；只算 HD7 的「還有效且重疊」的時段；METAR 只進第一格、觀測 3 小時內，而且
+該格要有 TAF——只有警報的格 `wx` 是 `null`）。每個時段各自判（雷雨和能見度要在同一個時段），一格取最高：
+
+| 類 | 高 | 中 | 不升級（低） |
+| --- | --- | --- | --- |
+| `rain` | 冰雹：現象含 `GR`（TSGR、+TSGR、GR、SHGR） | `+TSRA`（`+TS` 開頭且含 RA）；或含 `TS` 且能見度 ≤ 1600 公尺 | TS、TSRA、SHRA、+SHRA |
+| `snow` | `FZRA`、`FZDZ`、`PL`（任何強度）；`+SN`、`+SHSN` | `SN`／`SHSN`（不是 `-`／`+`）且能見度 ≤ 1600 公尺 | -SN；SN 但能見度 > 1600；FZFG 不走這裡 |
+| `fog` | 能見度 < 400 公尺或雲底 ≤ 100 呎 | 能見度 < 1000 公尺或雲底 ≤ 200 呎 | 其他（任何原因的低能見度都算，FG／BR／FZFG／HZ／SN 都一樣；沒報不算） |
+
+模式層（每格）：
+
+| 類 | 高 | 中 | 資料 |
+| --- | --- | --- | --- |
+| `rain` | HRES 或 GFS 6 小時雨量 ≥ 60 mm | HRES 或 GFS ≥ 30 mm；或 EC 系集「24 小時雨量 ≥ 50 mm」機率 ≥ 30%（`p24hRain50`，24 小時窗取包住這格的最小值，同 `p49Kt`） | ECMWF `tp`（6 小時差）、`tpg50`；GFS `APCP` 6 小時那桶 |
+| `snow` | 降水型態是雪（`snow`／`wet_snow`／`rain_snow`）且 6 小時水當量 ≥ 10 mm；凍雨類（`freezing_rain`／`freezing_drizzle`／`ice_pellets`）且 ≥ 1 mm | 雪且 ≥ 5 mm | ECMWF `ptype`、GFS 類別降水；EC、GFS 各自算、取較高（小雪不升級，和官方層一致） |
+| `fog` | GFS 能見度 < 400 公尺 | < 1000 公尺 | **只有 GFS**（ECMWF 開放資料沒有能見度） |
+
+- 一格的雨量、降水型態是「格結束時間」那個時間點的（EC 是 `tp` 的差、GFS 是前 6 小時那桶）；GFS 能見度
+  取格頭尾兩個時間點的最小值。`model.agreement` **還是只看陣風**（值域不變）
+
+官方警報（新）：
+
+| 來源 | 種類（`kind`） | 等級 |
+| --- | --- | --- |
+| 香港天文台 | 黑色暴雨警告信號 `rainstorm_black` | 中 |
+| 香港天文台 | 紅色暴雨警告信號 `rainstorm_red`、雷暴警告 `thunderstorm` | 低：**只列出、不升級**（黃雨不列） |
+| 中央氣象署 | 天氣特報「大豪雨」「超大豪雨」且機場的縣市在範圍 `cwa_heavy_rain` | 中（大雨、豪雨特報不算） |
+
+- 這幾種警報算 `rain`，其他（颱風、熱帶氣旋信號）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
+  TAF、只有低的警報時 `official` 是 `null`、退回模式；有 TAF 或有中以上的警報時照舊，
+  `official.warnings[]` 列全部（含低的）。天文台 1 號信號也是低，HD8 起一樣照這條
+- JMA 大雪警報另開 HD9；澳門、韓國、越南、菲律賓這階段不加警報
+
+`causes`（每格，主因在前）：從決定 `level` 的那一層（`basis` 是 `official` 看官方層、`model` 看模式層；
+`confirmed` 看被它蓋掉的那一層——有官方層就是官方層）把等級 ≥ 中的種類列出：`wind`（陣風、側風或風的
+警報）、`rain`、`snow`、`fog`。**等級高的在前，同級照 `wind`、`snow`、`fog`、`rain` 的固定順序**，第一個
+就是主因；都低是 `[]`，`unknown` 是 `[]`。`gap` 的定義不變（官方與模式的 `level` 不同）。
 
 #### 已知的保守假設與待校準的參數
 
 都是初版，等有停飛紀錄回測後再調。HD2（2026-10-19）起的數字：
+
+- **三類（雨、雪、霧）的門檻先照 2026-10-19 定案上線，累積一個月紀錄再調**（HD8，上面「新天氣種類」）
+- **霧的模式層只有 GFS**（ECMWF 開放資料沒有能見度）。GFS 的能見度在大雨時也會掉得很低（2026-10-19 00Z
+  那報花蓮 10/23 6 小時雨量 174 mm、能見度約 80 公尺），所以大雨格常常同時是 `fog`
+- **金門 RCBS、馬祖 RCFG 沒有 TAF／METAR**（AviationWeather 沒有這兩站），霧目前只有 GFS 的模式層；
+  其他來源的查證見 HD8 PR 說明，主對話決定要不要另開一支接進來
+- AviationWeather 的能見度是法定英里，換回公尺（× 1609、四捨五入）會有幾公尺的誤差：公制 TAF 的 `1000`
+  變 998 公尺（`< 1000` → 中）、`0400` 變 402 公尺（不到 `< 400` 的高）、`1600` 變 1593 公尺
 
 - 陣風（模式與 TAF 同一套）：≥ 48 節高、≥ 37 節中；TAF 平均風 ≥ 35 節高
 - 系集：陣風 ≥ 25 m/s（≈ 48.6 節，`p49Kt`）機率 ≥ 30% 高；中級不用系集（沒有 37 節的機率）
@@ -222,7 +275,8 @@ H10（2026-10-18）之後：
   每報重畫、不進 `data` 分支）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
-  `/alerts/active` 的原始回應，HD3 起）與航班的
+  `/alerts/active` 的原始回應，HD3 起；氣象署天氣特報 `W-C0033-001` 是另一個檔 `<HHMM>Z-cwa-hazards.json`，
+  HD8 起，`-cwa.json` 照舊是颱風警報）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
   原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`、
   每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`，以及 AI 對決的戰績
@@ -384,6 +438,36 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
   最多的代碼，`run_cap` 不算），沒有就不出現。這一報沒有要評的機場、金鑰也都在時 `ok: true`。
   `ok: false` 時照其他來源的慣例多一個 `error`（`"claude:no_api_key,gemini:no_api_key"` 這種）
 
+HD8（2026-10-19，第五階段新天氣種類；欄位名定案，Shawn 轉給 Duado 寫進 spec 第 16 節；`schema` 維持 `1`，
+既有欄位不改名、不改型別、不拿掉）：
+
+- `slots[].causes`：字串陣列，`wind`／`rain`／`snow`／`fog` 裡等級 ≥ 中的，主因在前（規則見上面「新天氣
+  種類」）；都低或 `unknown` 是 `[]`
+- `slots[].official.wx`：有 TAF 的格是物件，只有警報的格是 `null`：
+  `{"phenomena": ["+TSRA", "BR"], "visibilityM": 800, "ceilingFt": 200, "rain": "medium", "snow": "low", "fog": "medium"}`
+  - `phenomena`：該格有效時段（含第一格的 METAR）所有天氣現象，去重、照出現順序
+  - `visibilityM`：最小能見度（公尺，`9999`＝10 公里以上）；`ceilingFt`：最低雲幕（BKN／OVC 或垂直能見度，
+    呎）；沒報是 `null`
+  - `rain`／`snow`／`fog`：官方層三類的等級，永遠是字串（`low`／`medium`／`high`）
+  - `official.level` 是風與三類取最高；`official.kind` 照舊是風的時段種類
+- `slots[].model.ec` 多：`rain6hMm`（6 小時雨量 mm，一位小數或 `null`）、`ptype`（降水型態：`none`／`rain`／
+  `freezing_rain`／`snow`／`wet_snow`／`rain_snow`／`ice_pellets`／`freezing_drizzle`，其他代碼 `other`；
+  沒資料 `null`）、`p24hRain25`／`p24hRain50`（系集 24 小時雨量 ≥ 25／50 mm 的機率，0–1 或 `null`，同 `p10`）、
+  `temp2mC`（2 米溫度 °C，一位小數或 `null`，只是參考、不進規則）、`rain`／`snow`（EC 自己的等級字串或 `null`）
+- `slots[].model.gfs` 多：`rain6hMm`、`ptype`（同上的值域）、`visibilityM`（整數公尺或 `null`）、
+  `rain`／`snow`／`fog`（GFS 自己的等級字串或 `null`）
+- `model.level` 是風與三類取最高；`model.agreement` 還是只看陣風
+- `airports[].warnings[]`／`slots[].official.warnings`：`kind` 多 `rainstorm_black`、`rainstorm_red`、
+  `thunderstorm`（`source: "hko"`，`code` 是 `WRAINB`／`WRAINR`／`WTS`；文字是天文台三語，zh-TW＝zh-HK）、
+  `cwa_heavy_rain`（`source: "cwa"`，`detail` 是特報字樣「大豪雨」／「超大豪雨」；四語是固定句型
+  「中央氣象署大豪雨特報，金門在特報範圍」）
+- `airports[].taf`、`airports[].metar` 各多 `visibilityM`（整數公尺或 `null`）、`wx`（字串陣列）、`ceilingFt`
+  （整數呎或 `null`）；METAR 是觀測值，TAF 是主時段的（涵蓋現在的那個主時段，沒有就第一個還沒結束的）
+- `sources.cwa.heavyRainOk: false`＋`heavyRainError`：天氣特報那個請求失敗時才有（颱風警報照常，`ok`
+  不受影響）
+- 大小：2026-10-19 用 `data` 分支 05:25Z 的快照＋06:20Z 抓的模式實測，`latest.json`（不含 AI 欄位）從
+  640 KB 變 1,019 KB（多約 380 KB，`indent=1` 每個新鍵一行）；gzip 後 45 KB（Pages 回應是壓縮過的）
+
 規格以外加的欄位與值（網頁可以忽略）：
 
 - HD2（2026-10-19）加的節欄位（要進 Duado spec 第 16 節；舊欄位全部照出、型別不變）：
@@ -407,6 +491,7 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
 - `warnings[].code`（天文台／SMG 信號代碼，例如 `TC8NE`、`TC3`）、`warnings[].detail`（氣象署警戒區原文、
   SMG 的說明原文）
 - `official.warnings`（這格套用了哪些警報）；只有警報、沒有 TAF 的格 `official.kind` 是 `"warning"`
+  （HD8 起只有中以上的警報才會撐起這種格）
 - 官方與模式都沒資料的格：`level: "unknown"`、`basis: "none"`、`model.level: null`；
   `agreement` 在少一個模式時是 `null`
 - TAF 沒涵蓋、也沒有警報的 0–30 小時格：`official: null`、`basis: "model"`
@@ -424,7 +509,12 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
 - **給模型看什麼**（`ai/prompt.py`）：那個機場的精簡文字（不丟整段 JSON）——機場名、時區、METAR、TAF 原文、
   生效中的警報、已確認停飛，20 格每格的當地時段、等級、依據、官方（TAF 平均風／陣風、側風、警報）、
   模式（EC／GFS 陣風、側風、`p29Kt`／`p49Kt`）、一致性、落差，單位一律節、機率用百分比；最後附規則燈的
-  門檻（37／48 節、側風 27／33 節、`p49Kt` 30%）。系統提示全文在 `ai/prompt.py` 的 `SYSTEM`
+  門檻（37／48 節、側風 27／33 節、`p49Kt` 30%）。系統提示全文在 `ai/prompt.py` 的 `SYSTEM`。
+  HD8 起每格多給 `causes`、官方層 `wx`（現象、能見度、雲底、三類等級）、模式層的雨量／降水型態／
+  `p24hRain50`／GFS 能見度，METAR 多給能見度、天氣、雲底，規則說明加三類的門檻；系統提示加「短評第一句
+  要點出主因天氣（強風／側風、大雨／雷雨、大雪／結冰、濃霧／低雲）」，用字對照加 zh-CN 浓雾、能见度、云底、
+  结冰、米、英尺（zh-HK 同台灣寫法），內部代號多 `ptype`、`rain6hMm`、`visibilityM`、`ceilingFt`、`causes`、
+  `p24hRain25`、`p24hRain50`、`APCP`、`CSNOW`、`CFRZR`，簡繁抽查多「霧／雾」「見／见」
 - **規則**：AI 只能根據給它的數據講，不能用其他知識或外部資訊、不能自己估機率；短評 zh-TW 60–120 字，說明
   依據哪幾格、哪些數字，只講風險判讀、不給乘客建議；**一次輸出四語，以 zh-TW 為準，zh-HK、zh-CN、en 是
   忠實翻譯，內容完全一樣、不得增減**，zh-HK、zh-CN 用當地用語。回應一定要是
@@ -543,6 +633,8 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 - 燈號是這個機場**未來 5 天（20 格）裡最高的等級**，小字寫第一個達到那個等級的格的當地日期時段：
   - 「最高：高　10/23 14–20 時」；結束在當地午夜寫「18–24 時」；跨午夜寫兩個日期「10/23 20 時–10/24 02 時」
     （UTC+8 的機場每天有一格這樣）
+  - 那格有 `causes` 時後面接主因（HD8，`causes[0]`）：「最高：高　10/23 08–14 時・強風」，`wind` 強風、
+    `rain` 大雨、`snow` 大雪、`fog` 濃霧（`og.CAUSE_TEXT`）；`causes` 是空的就不加
   - 全部低：「未來 5 天：低」
   - 有 `confirmed` 的格（視為高）：色塊「已確認」、小字「已確認停飛　<第一個已確認的格>」
   - 全部 `unknown`：色塊與小字都是「資料不足」；有的格 `unknown`、有的有等級時只看有等級的
@@ -580,14 +672,14 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 
 | 來源 | 內容 | 授權 |
 | --- | --- | --- |
-| [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data)（經 AWS／Google 鏡像） | HRES 10 米陣風（`10fg`／`10fg3`）與 10 米風（`10u`／`10v`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`） | CC BY 4.0，© ECMWF |
-| NOAA GFS（[AWS 開放資料鏡像 `noaa-gfs-bdp-pds`](https://registry.opendata.aws/noaa-gfs-bdp-pds/)，[NOMADS](https://nomads.ncep.noaa.gov/) 備援） | 地面陣風 `GUST`、10 米風 `UGRD`／`VGRD` | 美國政府公有領域 |
+| [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data)（經 AWS／Google 鏡像） | HRES 10 米陣風（`10fg`／`10fg3`）與 10 米風（`10u`／`10v`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`）；HD8 起 HRES 總降水 `tp`、降水型態 `ptype`、2 米溫度 `2t`，系集 24 小時雨量機率 `tpg25`／`tpg50` | CC BY 4.0，© ECMWF |
+| NOAA GFS（[AWS 開放資料鏡像 `noaa-gfs-bdp-pds`](https://registry.opendata.aws/noaa-gfs-bdp-pds/)，[NOMADS](https://nomads.ncep.noaa.gov/) 備援） | 地面陣風 `GUST`、10 米風 `UGRD`／`VGRD`；HD8 起 6 小時降水 `APCP`、類別降水 `CRAIN`／`CFRZR`／`CICEP`／`CSNOW`、地面能見度 `VIS` | 美國政府公有領域 |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
 | [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 46 個機場（H9 的 36 個、HD3 的 10 個）的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
 | [OpenStreetMap](https://www.openstreetmap.org/way/114511749)（跑道 way 114511749 的兩端座標，HD3） | 石垣跑道真北方位（用座標算出的一個數字） | © OpenStreetMap contributors，[ODbL](https://www.openstreetmap.org/copyright) |
 | [美國國家氣象局 api.weather.gov](https://www.weather.gov/documentation/services-web-api)（`/alerts/active?zone=GUZ001`，HD3） | 關島的颱風／熱帶風暴警報與守視（NWS 關島分處 Tiyan 發布） | 美國政府公有領域 |
-| [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
-| [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報） | 海上／陸上颱風警報與警戒區（台灣十個機場） | [政府資料開放授權條款](https://data.gov.tw/license) |
+| [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號；HD8 起加暴雨警告信號 `WRAIN`、雷暴警告 `WTS`，同一個請求） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
+| [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報；HD8 起加 `W-C0033-001` 天氣特報） | 海上／陸上颱風警報與警戒區（台灣十個機場）；各縣市目前的天氣特報（只用大豪雨、超大豪雨） | [政府資料開放授權條款](https://data.gov.tw/license) |
 | [澳門地球物理氣象局 XML](https://xml.smg.gov.mo/)（`c_typhoon.xml`／`e_typhoon.xml`；data.gov.mo 資料集[「熱帶氣旋信號」](https://data.gov.mo/Detail?id=15044781-1752-4f98-b87e-508208d70408)） | 熱帶氣旋信號 | [澳門政府數據開放平台使用條款](https://data.gov.mo/)：免費使用與再發布，須註明「澳門特別行政區政府數據開放平台」與取得日期 |
 | [香港機管局航班資訊](https://data.gov.hk/tc-data/dataset/aahk-team1-flight-info)（data.gov.hk） | 算每 6 小時格的取消／延誤統計（不存原始資料） | data.gov.hk 使用條款 |
 | [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
@@ -597,6 +689,20 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 | [芫荽 Iansui](https://github.com/ButTaiwan/iansui)（子集，`assets/fonts/`；HD1） | 分享預覽圖的中文字 | [SIL OFL 1.1](assets/fonts/OFL-Iansui.txt) |
 | [Fraunces](https://github.com/undercasetype/Fraunces)（SOFT 100、wght 600 靜態檔的子集；HD1） | 分享預覽圖的英文與數字 | [SIL OFL 1.1](assets/fonts/OFL-Fraunces.txt) |
 | [Noto Sans TC](https://fonts.google.com/noto/specimen/Noto+Sans+TC)（Google Fonts，子集；HD1） | 分享預覽圖：芫荽缺字時的備援 | [SIL OFL 1.1](assets/fonts/OFL-NotoSansTC.txt) |
+
+HD8 新參數（2026-10-19 查 ECMWF 18Z oper／12Z enfo ep 的 index 與 GFS 00Z 的 `.idx`，實測下載量）：
+- ECMWF HRES：`tp`、`ptype`、`2t` 和 `10u`／`10v` 同一個請求、只抓 6 小時整的步長（多抓第一格的開始步長來算
+  6 小時雨量）；每個步長約 0.9、0.95、0.66 MB。HRES 的 index **沒有能見度**（`vis`），所以 EC 不算霧。
+  `ptype` 代碼照 [ECMWF 參數 260015](https://codes.ecmwf.int/grib/param-db/260015)。系集 `tpg25`／`tpg50`
+  每個窗約 0.07–0.15 MB。實測（AWS 鏡像，06:20Z）：陣風 52.7 MB／17 秒、風＋降水 85.6 MB／91 秒
+  （H10 時只有風 29.6 MB）、系集 12.8 MB／42 秒，**共 151.0 MB、165.6 秒**（H10 時約 92 MB；預算 300 秒）
+- GFS：`.idx` 裡 `APCP:surface` 有兩筆（`<fh−6>-<fh> hour acc` 那桶與從起報累積的），類別降水有瞬時與
+  `ave` 兩種，所以要比對時效字串（`gfs.IDX_FIELDS`／`IDX_OPTIONAL`）；f000 沒有 `APCP`。每個步長多約
+  1.24 MB，實測（AWS，00Z）**73.8 MB、53.8 秒**（H10 時約 50 MB；預算 180 秒）。這幾筆找不到時只 log、
+  陣風照抓
+- 氣象署天氣特報用 `W-C0033-001`（各縣市目前的特報，用 `cwaAreas` 比縣市名），不用 `W-C0033-002`（每則特報
+  的影響區域，名稱是另一套）；沒有授權碼沒辦法實抓，格式照平台文件寫、原始回應存
+  `history/raw/<日期>/<時間>-cwa-hazards.json`，第一次實跑後要對一次
 
 NWS（關島、帛琉，HD3，2026-10-18 查）：
 - 關島：`/zones?area=GU` 有 `GUZ001`（public／fire，名稱 Guam，`cwa` 是 GUM＝NWS 關島分處）；PGUM 的

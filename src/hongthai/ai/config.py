@@ -52,6 +52,17 @@ FORBIDDEN_TOKENS = (
     "agreement",
     "slots",
     "latest.json",
+    # HD8
+    "ptype",
+    "rain6hMm",
+    "visibilityM",
+    "ceilingFt",
+    "causes",
+    "p24hRain25",
+    "p24hRain50",
+    "APCP",
+    "CSNOW",
+    "CFRZR",
 )
 # 可以在括號裡出現一次（「機場預報（TAF）」「airport forecast (TAF)」），沒括號或第二次以上算違規
 ONCE_IN_PARENS = ("TAF", "METAR")
@@ -61,8 +72,8 @@ EN_LEVEL_WORDS = ("high", "medium", "low")
 # zh-HK 用書面語，不用粵語口語
 CANTONESE = ("喺", "嘅", "咗", "嚟", "啱啱", "唔", "佢", "冇", "咁")
 # zh-CN 不能有的繁體字；zh-TW、zh-HK 不能有的簡體字（抽查常見字）
-TRADITIONAL_CHARS = ("颱", "風", "機", "場", "預", "報", "節", "側", "陣")
-SIMPLIFIED_CHARS = ("风", "机", "场", "预", "报", "节", "侧", "阵")
+TRADITIONAL_CHARS = ("颱", "風", "機", "場", "預", "報", "節", "側", "陣", "霧", "見")
+SIMPLIFIED_CHARS = ("风", "机", "场", "预", "报", "节", "侧", "阵", "雾", "见")
 # zh-CN 不能用的台灣用語（HD7）：机率 → 概率、资料 → 数据；zh-TW、zh-HK 照樣寫「機率」「資料」
 ZH_CN_TAIWAN_TERMS = ("机率", "资料")
 # 中文三語統一叫「停飛風險」：有一語寫「停飛／停飞」、另一處又寫「航班取消」就違規

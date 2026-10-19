@@ -381,13 +381,14 @@ def test_ecmwf_latest_from_ecmwf_download_falls_back_from_aws(monkeypatch, airpo
     assert (data.mirror, data.ens_mirror, data.ens_error) == ("ecmwf", "ecmwf", None)
     assert data.bytes_downloaded > 0
     assert data.points["VHHH"].hres and data.points["VHHH"].ens
-    # HRES 分兩個請求：陣風（10fg／10fg3）全部步長、10 米風只有 6 小時整的步長
+    # HRES 分兩個請求：陣風（10fg／10fg3）全部步長、10 米風＋降水（HD8）只有 6 小時整的步長，
+    # 降水多第一格的開始步長（算 6 小時雨量）
     oper = [r for src, r in plan["requests"] if src == "ecmwf" and r["stream"] == "oper"]
     gust_req, wind_req = oper
     assert gust_req["param"] == ["10fg", "10fg3"]
     assert gust_req["step"] == ecmwf.hres_steps(12, 144)  # 18Z 起報、slot0 06Z → rel0=12
-    assert wind_req["param"] == ["10u", "10v"]
-    assert wind_req["step"] == list(range(18, 133, 6))
+    assert wind_req["param"] == ["10u", "10v", "tp", "ptype", "2t"]
+    assert wind_req["step"] == list(range(12, 133, 6))
 
 
 def test_ecmwf_latest_429_switches_to_aws(monkeypatch, airports, tmp_path):

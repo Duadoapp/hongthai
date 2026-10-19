@@ -46,6 +46,40 @@
 - 模式：HRES 的 `10u`／`10v` 只抓 6 小時整的步長（00／06／12／18Z，H10 起，為了減少下載量），
   每個陣風區間配**區間結束時間往後最近**的那個 6 小時步長的風向（例如結束在 09Z 的 3 小時區間配
   12Z 的風）；GFS 用同一時間點的 `UGRD`／`VGRD`。一格取格內最大的側風（時間上取最壞、跑道上取最好）
+
+新天氣種類（第五階段，HD8；Shawn 2026-10-19 定案，門檻先上線、累積一個月紀錄再調）：
+- 三類：`rain`（大雨＋雷雨）、`snow`（大雪＋結冰）、`fog`（濃霧＋低雲幕）；颱風帶來的雨歸
+  `wind`（現有規則）。**燈號還是一種「停飛風險」等級**：一層的等級＝風（陣風、側風、風的警報）
+  與三類取最高；種類只進每格的 `causes`、預覽圖小字與 AI 短評。原則：貼近實際會停飛的情況，
+  只會延誤的不升級
+- 官方層（TAF 各時段與 METAR；HD7 的「還有效且重疊」的時段；METAR 只進第一格、觀測 3 小時內、
+  而且該格有 TAF——只有警報的格 `wx` 是 null，METAR 的天氣不算）。每個時段各自判（TS 和能見度
+  要在同一時段）：
+  - `rain`：天氣現象含 `GR`（TSGR、+TSGR、GR、SHGR，冰雹）→ 高；`+TS` 開頭且含 `RA`（+TSRA）
+    → 中；含 `TS` 且該時段能見度 ≤ 1600 公尺 → 中；其他（TS、TSRA、SHRA、+SHRA）低
+  - `snow`：含 `FZRA`、`FZDZ`、`PL`（任何強度）→ 高；`+` 開頭且含 `SN`（+SN、+SHSN）→ 高；
+    含 `SN`、不是 `-`／`+` 開頭（SN、SHSN、RASN；BLSN 也算）且能見度 ≤ 1600 公尺 → 中；
+    -SN 低。FZFG 不在這裡
+  - `fog`：能見度 < 400 公尺或雲底 ≤ 100 呎 → 高；< 1000 公尺或 ≤ 200 呎 → 中（任何原因的
+    低能見度都算）；沒報的不算
+- 模式層（每格）：
+  - `rain`：HRES 或 GFS 6 小時雨量 ≥ 60 mm → 高；≥ 30 mm，或 EC 系集 24 小時雨量 ≥ 50 mm
+    的機率 ≥ 30%（`p24hRain50`，24 小時窗取包住這格的最小值，同 `p49Kt`）→ 中
+  - `snow`：降水型態是 `snow`／`wet_snow`／`rain_snow` 且 6 小時水當量 ≥ 10 mm → 高、
+    ≥ 5 mm → 中；`freezing_rain`／`freezing_drizzle`／`ice_pellets` 且 ≥ 1 mm → 高。
+    EC、GFS 各自算、取較高
+  - `fog`：只有 GFS 能見度（EC 開放資料沒有能見度），門檻同官方
+  - 一格的雨量、降水型態是「格結束時間」那個時間點的（EC 是 `tp` 差、GFS 是前 6 小時那桶）；
+    GFS 能見度取格頭尾兩個時間點的最小值
+  - `model.agreement` **還是只看陣風**（值域不變）
+- 警報：天文台黑雨 → 中，紅雨、雷暴警告低（只列出）；氣象署大豪雨、超大豪雨特報且機場在範圍
+  → 中。這幾種算 `rain`（`RAIN_WARNING_KINDS`），其他警報算 `wind`。**低的警報不會自己撐起
+  官方層**：一格沒有 TAF、只有低的警報時 `official` 是 null、退回模式（天文台 1 號信號也是低，
+  HD8 起一樣照這條）；有 TAF 或有中以上的警報時，`official.warnings` 列全部（含低的）
+- `causes`：從決定 `level` 的那一層（`official` 或 `model`；`confirmed` 看被它蓋掉的那一層：
+  有官方層就是官方層）把等級 ≥ 中的種類列出——`wind`、`rain`、`snow`、`fog`；等級高的在前，
+  同級照 `wind`、`snow`、`fog`、`rain` 的固定順序（`CAUSE_ORDER`），第一個就是主因；
+  都低是 `[]`，`unknown` 是 `[]`
 """
 
 from __future__ import annotations
@@ -56,7 +90,7 @@ from datetime import datetime, timedelta
 from math import radians, sin
 
 from .config import ConfirmedPeriod, Runway, Thresholds
-from .sources.ecmwf import EcmwfPoint
+from .sources.ecmwf import EcmwfPoint, PrecipStep
 from .sources.gfs import GustPoint
 from .sources.taf import Metar, TafPeriod
 from .timeutil import iso
@@ -66,6 +100,14 @@ LEVELS = ("low", "medium", "high")
 OFFICIAL_HORIZON_H = 30
 WARNING_HORIZON_H = 12
 METAR_MAX_AGE_H = 3
+CAUSES = ("wind", "rain", "snow", "fog")
+CAUSE_ORDER = ("wind", "snow", "fog", "rain")  # 同級時的順序
+# 算 `rain` 的警報種類；其他（颱風、熱帶氣旋信號……）算 `wind`
+RAIN_WARNING_KINDS = frozenset(
+    {"rainstorm_black", "rainstorm_red", "thunderstorm", "cwa_heavy_rain"}
+)
+SNOWY_PTYPES = frozenset({"snow", "wet_snow", "rain_snow"})
+FREEZING_PTYPES = frozenset({"freezing_rain", "freezing_drizzle", "ice_pellets"})
 
 
 @dataclass(frozen=True)
@@ -73,7 +115,8 @@ class ActiveWarning:
     """目前生效的官方警報（天文台／SMG 信號、氣象署颱風警報、NWS 警報），給判讀與輸出用。"""
 
     source: str  # hko／cwa／smg／nws
-    # tc_signal／typhoon_land／typhoon_sea／typhoon_warning／typhoon_watch／ts_warning／ts_watch
+    # tc_signal／typhoon_land／typhoon_sea／typhoon_warning／typhoon_watch／ts_warning／ts_watch；
+    # HD8：rainstorm_black／rainstorm_red／thunderstorm／cwa_heavy_rain
     kind: str
     level: str
     text: dict[str, str]
@@ -96,6 +139,16 @@ def max_level(levels: Iterable[str | None]) -> str | None:
 
 def _round(v: float | None, nd: int) -> float | None:
     return None if v is None else round(v, nd)
+
+
+def warning_cause(kind: str) -> str:
+    return "rain" if kind in RAIN_WARNING_KINDS else "wind"
+
+
+def causes_from(levels: dict[str, str | None]) -> list[str]:
+    """各種類的等級 → `causes`：≥ 中的，等級高的在前、同級照 `CAUSE_ORDER`。"""
+    hits = [c for c in CAUSE_ORDER if rank(levels.get(c)) >= 1]
+    return sorted(hits, key=lambda c: -rank(levels[c]))  # sorted 是穩定的，同級維持固定順序
 
 
 # ---- 側風 ----
@@ -143,6 +196,13 @@ def taf_level(wind_kt: float | None, gust_kt: float | None, th: Thresholds) -> s
     return "low"
 
 
+def taf_hits(
+    periods: Sequence[TafPeriod], now: datetime, start: datetime, end: datetime
+) -> list[TafPeriod]:
+    """和這格重疊、而且在 `now` 之後還有效的 TAF 時段（HD7）。"""
+    return [p for p in periods if p.start < end and p.end > start and p.end > now]
+
+
 def taf_for_slot(
     periods: Sequence[TafPeriod],
     now: datetime,
@@ -154,7 +214,7 @@ def taf_for_slot(
     """該格內所有 TAF 時段（主時段、TEMPO、PROB30／40）的最大風、最大陣風與最大側風；`kind` 記等級
     最高的那一種時段（同級取陣風較大的）。等級＝陣風規則與側風規則取較高者。
     只算在 `now` 之後還有效的時段（`end > now`，HD7）；沒有任何這樣的時段重疊回 None。"""
-    hits = [p for p in periods if p.start < end and p.end > start and p.end > now]
+    hits = taf_hits(periods, now, start, end)
     if not hits:
         return None
 
@@ -180,6 +240,71 @@ def taf_for_slot(
     }
 
 
+# ---- 官方：天氣現象（HD8）----
+
+
+def rain_wx_level(wx: Sequence[str], vis_m: float | None, th: Thresholds) -> str:
+    if any("GR" in w for w in wx):
+        return "high"
+    if any(w.startswith("+TS") and "RA" in w for w in wx):
+        return "medium"
+    if any("TS" in w for w in wx) and vis_m is not None and vis_m <= th.taf_rain_medium_vis_m:
+        return "medium"
+    return "low"
+
+
+def snow_wx_level(wx: Sequence[str], vis_m: float | None, th: Thresholds) -> str:
+    if any(k in w for w in wx for k in ("FZRA", "FZDZ", "PL")):
+        return "high"
+    if any(w.startswith("+") and "SN" in w for w in wx):
+        return "high"
+    moderate = any("SN" in w and not w.startswith(("-", "+")) for w in wx)
+    if moderate and vis_m is not None and vis_m <= th.taf_snow_medium_vis_m:
+        return "medium"
+    return "low"
+
+
+def fog_level(vis_m: float | None, ceiling_ft: float | None, th: Thresholds) -> str | None:
+    """能見度與雲底都沒報回 None。"""
+    if vis_m is None and ceiling_ft is None:
+        return None
+    if (vis_m is not None and vis_m < th.fog_high_vis_m) or (
+        ceiling_ft is not None and ceiling_ft <= th.fog_high_ceiling_ft
+    ):
+        return "high"
+    if (vis_m is not None and vis_m < th.fog_medium_vis_m) or (
+        ceiling_ft is not None and ceiling_ft <= th.fog_medium_ceiling_ft
+    ):
+        return "medium"
+    return "low"
+
+
+def official_wx(items: Sequence[TafPeriod | Metar], th: Thresholds) -> dict:
+    """一格的 TAF 時段（加第一格的 METAR）→ `official.wx`：現象（去重、照出現順序）、最小能見度、
+    最低雲底、三類等級（每個時段各自判、取最高）。"""
+    phenomena: list[str] = []
+    for it in items:
+        phenomena += [w for w in it.wx if w not in phenomena]
+    vis = [it.vis_m for it in items if it.vis_m is not None]
+    ceil = [it.ceiling_ft for it in items if it.ceiling_ft is not None]
+    return {
+        "phenomena": phenomena,
+        "visibilityM": min(vis, default=None),
+        "ceilingFt": min(ceil, default=None),
+        "rain": max_level(rain_wx_level(it.wx, it.vis_m, th) for it in items) or "low",
+        "snow": max_level(snow_wx_level(it.wx, it.vis_m, th) for it in items) or "low",
+        "fog": max_level(fog_level(it.vis_m, it.ceiling_ft, th) for it in items) or "low",
+    }
+
+
+def metar_fresh(metar: Metar | None, now: datetime) -> bool:
+    return (
+        metar is not None
+        and metar.observed is not None
+        and now - metar.observed <= timedelta(hours=METAR_MAX_AGE_H)
+    )
+
+
 def metar_crosswind(metar: Metar | None, now: datetime, runways: Sequence[Runway]) -> float | None:
     """METAR 的側風；觀測超過 `METAR_MAX_AGE_H` 小時就不算。"""
     if metar is None or metar.observed is None:
@@ -202,7 +327,17 @@ EC_KEYS = (
     "hresGustMs",
     "hresGustKt",
     "crosswindKt",
+    # HD8
+    "rain6hMm",
+    "ptype",
+    "p24hRain25",
+    "p24hRain50",
+    "temp2mC",
+    "rain",
+    "snow",
 )
+# 系集降水機率的輸出欄位 ← `ProbWindow` 的屬性（HD8）
+EC_PROB_RAIN = {"p24hRain25": "tp25", "p24hRain50": "tp50"}
 # 系集機率的節欄位 ← ECMWF 的 m/s 門檻欄位（15 m/s ≈ 29.2 節、25 m/s ≈ 48.6 節）
 EC_PROB_KT = {"p29Kt": "p15", "p49Kt": "p25"}
 
@@ -224,7 +359,7 @@ def ec_for_slot(
     """`hresGustMs`／`p10`／`p15`／`p25` 是契約的舊欄位（m/s 與 ECMWF 的 m/s 門檻），照出；
     HD2 加 `hresGustKt` 與 `p29Kt`（＝`p15`）、`p37Kt`（沒有來源，一律 None）、
     `p49Kt`（＝`p25`）。"""
-    out: dict[str, float | None] = dict.fromkeys(EC_KEYS)
+    out: dict[str, float | str | None] = dict.fromkeys(EC_KEYS)
     if point is None:
         return out
     hits = [g for g in point.hres if g.gust_kt is not None and start < g.end <= end]
@@ -238,6 +373,14 @@ def ec_for_slot(
         out[key] = _round(min(vals), 2) if vals else None
     for kt, ms in EC_PROB_KT.items():
         out[kt] = out[ms]
+    for key, attr in EC_PROB_RAIN.items():
+        vals = [getattr(w, attr) for w in windows if getattr(w, attr) is not None]
+        out[key] = _round(min(vals), 2) if vals else None
+    pre: PrecipStep | None = next((p for p in point.precip if p.valid == end), None)
+    if pre is not None:
+        out["rain6hMm"] = _round(pre.rain6h_mm, 1)
+        out["ptype"] = pre.ptype
+        out["temp2mC"] = _round(pre.temp2m_c, 1)
     return out
 
 
@@ -247,12 +390,22 @@ def gfs_for_slot(
     end: datetime,
     runways: Sequence[Runway] = (),
 ) -> dict:
-    hits = [p for p in points or [] if p.gust_kt is not None and start <= p.valid <= end]
+    inside = [p for p in points or [] if start <= p.valid <= end]
+    hits = [p for p in inside if p.gust_kt is not None]
     gust = _max(p.gust_kt for p in hits)
+    last = next((p for p in inside if p.valid == end), None)
+    vis = min((p.vis_m for p in inside if p.vis_m is not None), default=None)
     return {
         "gustMs": _round(kt_to_ms(gust), 1),
         "gustKt": _round(gust, 1),
         "crosswindKt": _round(_max(crosswind_kt(p.gust_kt, p.wdir, runways) for p in hits), 1),
+        # HD8：雨量與型態用格結束那個時間點（前 6 小時那桶）、能見度取格內最小
+        "rain6hMm": _round(last.rain6h_mm, 1) if last else None,
+        "ptype": last.ptype if last else None,
+        "visibilityM": None if vis is None else round(vis),
+        "rain": None,
+        "snow": None,
+        "fog": None,
     }
 
 
@@ -274,24 +427,111 @@ def _model_gust_level(ec: dict, gfs: dict, th: Thresholds) -> str:
     return "high" if high_by_ens else gust or "low"
 
 
-def model_level(ec: dict, gfs: dict, th: Thresholds) -> str | None:
-    """陣風規則與兩個模式的側風規則取較高者；完全沒有模式資料回 None。"""
+def _num(v: object) -> float | None:
+    return v if isinstance(v, int | float) and not isinstance(v, bool) else None
+
+
+def rain_model_level(mm6h: object, th: Thresholds) -> str | None:
+    mm = _num(mm6h)
+    if mm is None:
+        return None
+    if mm >= th.model_rain_high_mm6h:
+        return "high"
+    if mm >= th.model_rain_medium_mm6h:
+        return "medium"
+    return "low"
+
+
+def snow_model_level(mm6h: object, ptype: object, th: Thresholds) -> str | None:
+    """雪（水當量）、凍雨的規則；沒有雨量回 None。"""
+    mm = _num(mm6h)
+    if mm is None:
+        return None
+    if ptype in FREEZING_PTYPES and mm >= th.model_freezing_rain_high_mm6h:
+        return "high"
+    if ptype in SNOWY_PTYPES:
+        if mm >= th.model_snow_high_mm6h:
+            return "high"
+        if mm >= th.model_snow_medium_mm6h:
+            return "medium"
+    return "low"
+
+
+def fog_model_level(vis_m: object, th: Thresholds) -> str | None:
+    return fog_level(_num(vis_m), None, th)
+
+
+def ec_rain_level(ec: dict, th: Thresholds) -> str | None:
+    """HRES 6 小時雨量，或系集 24 小時 ≥ 50 mm 的機率 ≥ 30% → 中。"""
+    by_rain = rain_model_level(ec.get("rain6hMm"), th)
+    p50 = _num(ec.get("p24hRain50"))
+    by_ens = None if p50 is None else ("medium" if p50 >= th.ec_p24h_rain50_medium else "low")
+    return max_level([by_rain, by_ens])
+
+
+def fill_model_wx(ec: dict, gfs: dict, th: Thresholds) -> None:
+    """模式層每個模式的 `rain`／`snow`（GFS 加 `fog`）等級（輸出用，HD8）。"""
+    ec["rain"] = ec_rain_level(ec, th)
+    ec["snow"] = snow_model_level(ec.get("rain6hMm"), ec.get("ptype"), th)
+    gfs["rain"] = rain_model_level(gfs.get("rain6hMm"), th)
+    gfs["snow"] = snow_model_level(gfs.get("rain6hMm"), gfs.get("ptype"), th)
+    gfs["fog"] = fog_model_level(gfs.get("visibilityM"), th)
+
+
+def model_levels(ec: dict, gfs: dict, th: Thresholds) -> dict[str, str | None] | None:
+    """模式層各種類的等級（`wind`＝陣風與兩個模式的側風取較高；EC、GFS 的三類取較高）；
+    完全沒有模式資料回 None。"""
     keys = (
         ec.get("p10"),
         ec.get("p29Kt"),
         ec.get("p49Kt"),
         ec.get("hresGustKt"),
         gfs.get("gustKt"),
+        ec.get("rain6hMm"),
+        ec.get("p24hRain50"),
+        gfs.get("rain6hMm"),
+        gfs.get("visibilityM"),
     )
     if all(v is None for v in keys):
         return None
-    return max_level(
-        [
-            _model_gust_level(ec, gfs, th),
-            crosswind_level(ec.get("crosswindKt"), th),
-            crosswind_level(gfs.get("crosswindKt"), th),
-        ]
-    )
+    return {
+        "wind": max_level(
+            [
+                _model_gust_level(ec, gfs, th),
+                crosswind_level(ec.get("crosswindKt"), th),
+                crosswind_level(gfs.get("crosswindKt"), th),
+            ]
+        ),
+        "rain": max_level([ec_rain_level(ec, th), rain_model_level(gfs.get("rain6hMm"), th)]),
+        "snow": max_level(
+            [
+                snow_model_level(ec.get("rain6hMm"), ec.get("ptype"), th),
+                snow_model_level(gfs.get("rain6hMm"), gfs.get("ptype"), th),
+            ]
+        ),
+        "fog": fog_model_level(gfs.get("visibilityM"), th),
+    }
+
+
+def model_level(ec: dict, gfs: dict, th: Thresholds) -> str | None:
+    """風（陣風、兩個模式的側風）與三類（HD8）取最高；完全沒有模式資料回 None。"""
+    levels = model_levels(ec, gfs, th)
+    return None if levels is None else max_level(levels.values())
+
+
+def slot_causes(slot: dict, th: Thresholds, official_levels: dict | None = None) -> list[str]:
+    """一格的 `causes`（規則見模組說明）。官方層各種類的等級要另外給（`official_levels`；
+    `latest.json` 裡沒有存風的等級）；沒給而依據是官方層時回 None 讓呼叫的人維持原值。"""
+    basis = slot.get("basis")
+    if basis == "confirmed":
+        basis = "official" if slot.get("official") is not None else "model"
+    if basis == "official":
+        return causes_from(official_levels) if official_levels is not None else None
+    if basis == "model":
+        m = slot.get("model") or {}
+        levels = model_levels(m.get("ec") or {}, m.get("gfs") or {}, th)
+        return causes_from(levels or {})
+    return []
 
 
 def agreement(ec: dict, gfs: dict, th: Thresholds) -> str | None:
@@ -325,6 +565,7 @@ def assess_slots(
     for start, end in slots:
         ec_v = ec_for_slot(ec, start, end, runways)
         gfs_v = gfs_for_slot(gfs, start, end, runways)
+        fill_model_wx(ec_v, gfs_v, thresholds)
         m_level = model_level(ec_v, gfs_v, thresholds)
         model = {
             "ec": ec_v,
@@ -334,10 +575,12 @@ def assess_slots(
         }
 
         official = None
+        off_levels: dict[str, str | None] | None = None
         if start < official_until:
             taf = taf_for_slot(taf_periods or [], now, start, end, thresholds, runways)
             applied = [w for w in warnings if start < warning_until]
-            if taf is not None or applied:
+            # 低的警報不會自己撐起官方層（HD8）
+            if taf is not None or any(rank(w.level) >= rank("medium") for w in applied):
                 official = taf or {
                     "windKt": None,
                     "gustKt": None,
@@ -345,16 +588,37 @@ def assess_slots(
                     "level": None,
                     "crosswindKt": None,
                 }
-                if metar_xw is not None and start <= now < end:
+                first = start <= now < end
+                if metar_xw is not None and first:
                     official["crosswindKt"] = _round(_max([official["crosswindKt"], metar_xw]), 1)
-                official["level"] = max_level(
-                    [
-                        official["level"],
-                        crosswind_level(official["crosswindKt"], thresholds),
-                        *(w.level for w in applied),
-                    ]
-                )
+                wx = None
+                if taf is not None:
+                    items: list[TafPeriod | Metar] = list(
+                        taf_hits(taf_periods or [], now, start, end)
+                    )
+                    if first and metar is not None and metar_fresh(metar, now):
+                        items.append(metar)
+                    wx = official_wx(items, thresholds)
+                off_levels = {
+                    "wind": max_level(
+                        [
+                            official["level"],
+                            crosswind_level(official["crosswindKt"], thresholds),
+                            *(w.level for w in applied if warning_cause(w.kind) == "wind"),
+                        ]
+                    ),
+                    "rain": max_level(
+                        [
+                            wx["rain"] if wx else None,
+                            *(w.level for w in applied if warning_cause(w.kind) == "rain"),
+                        ]
+                    ),
+                    "snow": wx["snow"] if wx else None,
+                    "fog": wx["fog"] if wx else None,
+                }
+                official["level"] = max_level(off_levels.values())
                 official["warnings"] = [w.kind for w in applied]
+                official["wx"] = wx
                 if taf is None:
                     official["kind"] = "warning"
 
@@ -369,15 +633,16 @@ def assess_slots(
             level, basis = "confirmed", "confirmed"
 
         gap = official is not None and m_level is not None and official["level"] != m_level
-        out.append(
-            {
-                "from": iso(start),
-                "to": iso(end),
-                "level": level,
-                "basis": basis,
-                "official": official,
-                "model": model,
-                "gap": gap,
-            }
-        )
+        slot = {
+            "from": iso(start),
+            "to": iso(end),
+            "level": level,
+            "basis": basis,
+            "causes": [],
+            "official": official,
+            "model": model,
+            "gap": gap,
+        }
+        slot["causes"] = slot_causes(slot, thresholds, off_levels) or []
+        out.append(slot)
     return out

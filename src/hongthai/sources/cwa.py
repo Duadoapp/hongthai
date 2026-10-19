@@ -15,13 +15,30 @@
 「臺北」「台北」「新北」，高雄是「南部」「高雄」）：陸上的 `areaDesc` 含任一關鍵字（海面、海峽、
 海域不算），或警戒區文字含任一關鍵字（後面接「海面」的不算，例如「北部海面」）。關鍵字是字串比對，
 「東北部」也會比到「北部」——偏保守。
+
+豪雨特報（HD8）：天氣特報有兩個資料集，`W-C0033-001`「各別縣市地區目前之天氣警特報情形」
+（每個縣市一筆、列出目前生效的特報）與 `W-C0033-002`「各別天氣警特報之內容及所影響之區域」
+（每則特報一筆、影響區域用另一套區域名稱，見平台文件附錄 B）。機場已經有一組縣市關鍵字
+（`cwaAreas`），所以用 **`W-C0033-001`**（`HAZARD_URL`，同一把授權碼，多一個請求）：
+`records.location[]` 每筆 `locationName`（縣市名，例如「金門縣」「連江縣」）與
+`hazardConditions.hazards[]`，每則 `info.phenomena`（大雨、豪雨、大豪雨、超大豪雨、濃霧、
+陸上強風…）、`info.significance`（特報）、`validTime.startTime`／`endTime`。
+- 縣市名含機場任一個 `cwaAreas` 關鍵字、`phenomena` 是「大豪雨」或「超大豪雨」才產生
+  `cwa_heavy_rain`（中，`detail` 是那個字樣）；大雨、豪雨特報不算（Shawn 2026-10-19 定案）。
+  `endTime` 已過的不算
+- 這個資料集的回應格式是照平台 API 文件與資料集說明寫的（沒有授權碼不能實抓），解析寫得寬鬆：
+  `hazards` 是物件或陣列都行、找不到 `info` 就在那一層找 `phenomena`。原始回應存在
+  `history/raw/<日期>/<時間>-cwa-hazards.json`，第一次實跑後對一次
+- 特報的時間沒寫時區時當台灣時間（UTC+8，`_tw_time`）
+- 和颱風警報分開 try：特報失敗只記 `sources.cwa.heavyRainOk: false`＋`heavyRainError`，颱風警報照常
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -29,6 +46,10 @@ from ..timeutil import iso, parse_time
 from . import NonStrictTLSAdapter, SourceError, http_get
 
 URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0034-001"
+TAIPEI = ZoneInfo("Asia/Taipei")
+HAZARD_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0033-001"
+HEAVY_RAIN = ("大豪雨", "超大豪雨")  # 「超大豪雨」也含「大豪雨」，比對用 `in`
+HEAVY_RAIN_EN = {"大豪雨": "torrential rain", "超大豪雨": "extremely torrential rain"}
 HEADLINE_SEA = "海上颱風警報"
 HEADLINE_LAND = "海上陸上颱風警報"
 STALE_AFTER = timedelta(hours=6)  # 過了 expires 6 小時還沒更新就當作過期
@@ -66,9 +87,22 @@ class CwaWarning:
 
 
 @dataclass
+class CwaHazard:
+    """一個縣市生效中的一則天氣特報（`W-C0033-001`，HD8）。"""
+
+    location: str
+    phenomena: str
+    start: str | None
+    end: str | None
+
+
+@dataclass
 class CwaData:
     bulletins: list[CwaBulletin]
     raw: object
+    hazards: list[CwaHazard] = field(default_factory=list)
+    hazards_raw: object = None
+    hazards_error: str | None = None  # 特報那個請求失敗的代碼（颱風警報照常）
 
 
 def _sections(info: dict) -> dict[str, str]:
@@ -193,6 +227,78 @@ def parse_warnings(
     return for_airport(parse_bulletins(data, now), keywords, place)
 
 
+def _as_list(v) -> list:
+    if isinstance(v, list):
+        return v
+    return [v] if isinstance(v, dict) else []
+
+
+def _tw_time(v) -> datetime | None:
+    """沒有時區的時間字串當台灣時間；有時區或 epoch 照 `parse_time`。"""
+    if isinstance(v, str) and v.strip():
+        try:
+            t = datetime.fromisoformat(v.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=TAIPEI)
+        return t.astimezone(UTC)
+    return parse_time(v) if isinstance(v, int | float) else None
+
+
+def parse_hazards(data: dict, now: datetime) -> list[CwaHazard]:
+    """`W-C0033-001` → 每個縣市生效中的特報（格式見模組說明；`endTime` 已過的不算）。"""
+    records = data.get("records") or {}
+    locations = records.get("location") if isinstance(records, dict) else None
+    if locations is None:
+        raise CwaError("氣象署特報回傳沒有 records.location", "bad_format")
+    out = []
+    for loc in _as_list(locations):
+        name = loc.get("locationName") or ""
+        cond = loc.get("hazardConditions") or {}
+        hazards = cond.get("hazards") if isinstance(cond, dict) else cond
+        for h in _as_list(hazards):
+            info = h.get("info") if isinstance(h.get("info"), dict) else h
+            phen = (info.get("phenomena") or "").strip()
+            vt = h.get("validTime") if isinstance(h.get("validTime"), dict) else {}
+            end = _tw_time(vt.get("endTime"))
+            if not phen or (end is not None and end < now):
+                continue
+            out.append(CwaHazard(name, phen, iso(_tw_time(vt.get("startTime"))), iso(end)))
+    return out
+
+
+def heavy_rain_for_airport(
+    hazards: list[CwaHazard], keywords: tuple[str, ...], place: dict[str, str]
+) -> list[CwaWarning]:
+    """大豪雨以上特報、縣市名含機場的關鍵字 → `cwa_heavy_rain`（中）。同一種字樣只出一則。"""
+    out: list[CwaWarning] = []
+    seen: set[str] = set()
+    for h in hazards:
+        if not any(k in h.phenomena for k in HEAVY_RAIN) or h.phenomena in seen:
+            continue
+        if not any(k in h.location for k in keywords):
+            continue
+        seen.add(h.phenomena)
+        en = HEAVY_RAIN_EN.get(h.phenomena, "torrential rain")
+        out.append(
+            CwaWarning(
+                kind="cwa_heavy_rain",
+                level="medium",
+                in_zone=True,
+                text={
+                    "zh-TW": f"中央氣象署{h.phenomena}特報，{place['zh-TW']}在特報範圍",
+                    "zh-HK": f"中央氣象署{h.phenomena}特報，{place['zh-HK']}在特報範圍",
+                    "zh-CN": f"中央气象署{h.phenomena}特报，{place['zh-CN']}在特报范围",
+                    "en": f"CWA {en} advisory; {place['en']} is in the advisory area",
+                },
+                detail=h.phenomena,
+                issued_at=h.start,
+            )
+        )
+    return out
+
+
 def fetch(api_key: str | None, now: datetime) -> CwaData:
     if not api_key:
         raise CwaError("沒有設定 CWA_API_KEY", "no_api_key")
@@ -205,4 +311,16 @@ def fetch(api_key: str | None, now: datetime) -> CwaData:
         raise CwaError("氣象署回傳不是 JSON", "bad_json") from e
     if str(data.get("success")).lower() != "true":
         raise CwaError("氣象署回傳 success 不是 true", "api_error")
-    return CwaData(parse_bulletins(data, now), data)
+    out = CwaData(parse_bulletins(data, now), data)
+    try:  # 特報和颱風警報分開：這裡失敗只記代碼
+        r = http_get(
+            HAZARD_URL, session=session, headers={"Authorization": api_key}, error=CwaError
+        )
+        hz = r.json()
+        if str(hz.get("success")).lower() != "true":
+            raise CwaError("氣象署特報回傳 success 不是 true", "api_error")
+        out.hazards_raw = hz
+        out.hazards = parse_hazards(hz, now)
+    except (CwaError, ValueError, AttributeError) as e:
+        out.hazards_error = getattr(e, "code", None) if isinstance(e, CwaError) else "bad_json"
+    return out

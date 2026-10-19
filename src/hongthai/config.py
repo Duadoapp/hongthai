@@ -31,6 +31,20 @@ class Thresholds:
     crosswind_medium_kt: float = 27
     crosswind_high_kt: float = 33
     ec_p49_high: float = 0.3  # 系集陣風 ≥ 25 m/s（≈ 48.6 節）的機率
+    # 第五階段天氣種類（HD8，2026-10-19 定案；先上線、累積一個月紀錄再調）。
+    # 能見度公尺、雲底呎、雨量毫米
+    taf_rain_medium_vis_m: float = 1600  # TS 且能見度 ≤ 這個 → 中
+    taf_snow_medium_vis_m: float = 1600  # SN（不是 -SN／+SN）且能見度 ≤ 這個 → 中
+    fog_medium_vis_m: float = 1000  # 能見度 < 這個 → 中（官方與 GFS 同一組）
+    fog_high_vis_m: float = 400  # 能見度 < 這個 → 高
+    fog_medium_ceiling_ft: float = 200  # 雲底 ≤ 這個 → 中
+    fog_high_ceiling_ft: float = 100  # 雲底 ≤ 這個 → 高
+    model_rain_medium_mm6h: float = 30
+    model_rain_high_mm6h: float = 60
+    ec_p24h_rain50_medium: float = 0.3  # 系集 24 小時雨量 ≥ 50 mm 的機率
+    model_snow_medium_mm6h: float = 5  # 降雪（水當量）
+    model_snow_high_mm6h: float = 10
+    model_freezing_rain_high_mm6h: float = 1
 
 
 @dataclass(frozen=True)
@@ -84,6 +98,18 @@ _THRESHOLD_KEYS = {
     "crosswindMediumKt": "crosswind_medium_kt",
     "crosswindHighKt": "crosswind_high_kt",
     "ecP49High": "ec_p49_high",
+    "tafRainMediumVisM": "taf_rain_medium_vis_m",
+    "tafSnowMediumVisM": "taf_snow_medium_vis_m",
+    "fogMediumVisM": "fog_medium_vis_m",
+    "fogHighVisM": "fog_high_vis_m",
+    "fogMediumCeilingFt": "fog_medium_ceiling_ft",
+    "fogHighCeilingFt": "fog_high_ceiling_ft",
+    "modelRainMediumMm6h": "model_rain_medium_mm6h",
+    "modelRainHighMm6h": "model_rain_high_mm6h",
+    "ecP24hRain50Medium": "ec_p24h_rain50_medium",
+    "modelSnowMediumMm6h": "model_snow_medium_mm6h",
+    "modelSnowHighMm6h": "model_snow_high_mm6h",
+    "modelFreezingRainHighMm6h": "model_freezing_rain_high_mm6h",
 }
 
 
