@@ -90,7 +90,10 @@
     用當地用語。AI 只能根據 `latest.json` 裡的數據講、不能自己生機率數字；附「AI 評論僅供參考，以航空公司與
     機場公告為準」。記「對決戰績」：用停飛統計回頭比較規則、Opus、Argon 誰事前比較準，11/18 看第一份，
     之後再決定要不要公開。金鑰：HongThai 專屬的 Anthropic 金鑰與 Google 服務帳號，各設每月上限 30 美元，
-    不跟 Duado 共用，只放 Actions secrets
+    不跟 Duado 共用，只放 Actions secrets（`ANTHROPIC_API_KEY`、`GOOGLE_SERVICE_ACCOUNT_JSON`＝JSON 整份原文、
+    `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`＝`global`）。模型 `claude-opus-5-5`、`gemini-4-argon`（Vertex）。
+    保險：每報最多評 20 個機場、每天每模型 80 次、不重試、預算 180 秒、兩模型平行。提示詞
+    `docs/prompts/2026-10-19-HD5-ai-duel.md`
   - **第五階段：新天氣種類**——大雨／雷雨、大雪／結冰、濃霧；12 月北海道下雪前上線
   - 順序（2026-10-19 定案）：HD2 → H9 → HD3（十個新機場）→ HD1（預覽圖）→ AI 對決 → 天氣種類；
     **新天氣種類有硬期限（12 月北海道下雪前），AI 對決拖到的話天氣種類排到 AI 前面**。11/18 檢討停飛統計
