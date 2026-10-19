@@ -235,8 +235,9 @@ NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權�
   只算結束時間在產出時間之後的，只影響第一格；第一格的 TAF 時段全部過去時當作沒有 TAF（有警報走「只有警報」
   的路、METAR 側風照算，沒有警報退回模式）。起因是關島 10/19 03:57Z 那報第一格被 02–03Z 的 TEMPO 判高
 - 2026-10-19 HD7 前的第一格官方層可能含已過去的 TEMPO
-  （HD7 合併後第一份的 `generatedAt`：＿＿＿＿，主對話補）。`history/*.json` 不重算；回看戰績
-  （`history/ai/`、`history/cancellations/`）時 `run` 在這之前的第一格要打折看。HD7 合併後第一次 build 很多機場第一格從中／高變低而被選進 AI（`changed`），那報可能撞 `run_cap`
+  （HD7 合併後第一份的 `generatedAt`：**2026-10-19T05:25:00Z**，台北 13:25）。`history/*.json` 不重算；回看戰績
+  （`history/ai/`、`history/cancellations/`）時 `run` 在 05:25Z 之前的第一格要打折看。實際上 HD7 合併後第一報只有
+  GUM 第一格 high → low，其他 50 個機場第一格沒變，`run_cap` 4 個，沒有預期中的一次性大量
 
 ### 來源逾時與沿用（H7，2026-10-18 build #4 被 ECMWF 429 卡到被砍之後）
 
