@@ -78,8 +78,8 @@ SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa", "smg", "nws")
 
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
 # 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。
-# 總和 1020 秒（17 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒），`build.yml` 那一步的
-# 上限是 18 分鐘。
+# 總和 1080 秒（18 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒），
+# `build.yml` 那一步的上限是 20 分鐘（HD12 前 18）。
 BUDGET_S: dict[str, float] = {
     "ecmwf": 300,  # HRES＋系集，含鏡像切換
     "gfs": 180,
@@ -89,7 +89,7 @@ BUDGET_S: dict[str, float] = {
     "cwa": 45,
     "nws": 30,  # HD3：關島的颱風警報，一個請求
     "flights": 120,  # 抓＋統計＋寫檔
-    "ai": 180,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒
+    "ai": 240,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒；HD12 180 → 240
     "og": 60,  # HD1：51 張分享預覽圖，publish() 之後畫（本機約 3 秒）
 }
 

@@ -26,7 +26,8 @@ MAX_AIRPORTS = 20  # 每報最多評幾個機場
 # 每天（UTC）每個模型最多呼叫幾次；0 代表不限（開發期間，2026-10-19 定案；
 # 正式推廣前再評估，恢復時改成 80 之類的數字即可）
 DAILY_CAP = 0
-PARALLEL = {"claude": 4, "gemini": 2}  # 每個模型幾條並行（Gemini 4 條時撞過 429，HD6）
+# 每個模型幾條並行。Gemini 4 條時撞過 429、降到 2（HD6）；HD12 升回 3 再觀察，429 回來就降回 2
+PARALLEL = {"claude": 4, "gemini": 3}
 
 LEVELS = ("low", "medium", "high")
 LANGS = ("zh-TW", "zh-HK", "zh-CN", "en")
