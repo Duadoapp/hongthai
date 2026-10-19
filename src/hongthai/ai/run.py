@@ -1,7 +1,7 @@
 """AI 對決的整個流程：選機場 → 兩個模型平行評 → `latest.json` 的 `ai` 欄位與對決戰績。
 
 - 兩個模型各一條執行緒同時跑，每個模型再用 `ThreadPoolExecutor` 並行評各機場（`PARALLEL`：
-  Claude 4 條、Gemini 2 條）
+  Claude 4 條、Gemini 3 條）
 - 每日上限：`history/ai/calls-<YYYY-MM-DD>.json`（UTC 日期，`{"claude": n, "gemini": n}`）記每個模型
   今天呼叫了幾次；到 `DAILY_CAP` 之後的機場記 `error: "daily_cap"`、不呼叫。每次呼叫（成功或失敗）
   都算一次，開始呼叫前就先記。`DAILY_CAP` 是 0（或負數）代表不限：不檢查、不會有 `daily_cap`，
@@ -15,7 +15,8 @@
 - 對決戰績：`history/ai/<YYYY-MM-DD>.json`（UTC 日期，一天一檔），每機場每跑次一筆，同一跑次同一
   機場新的覆蓋舊的（同 `cancellations.store` 的寫法）；只存等級與格，不存短評全文。呼叫失敗的
   那顆多一個 `detail`：`<代碼>:<stop_reason>:<輸出 token 數>[:<標記>]`（`AiError.trace()`，
-  不記內容；HD6）
+  不記內容；HD6）。真的送出的呼叫（成功或失敗）多一個 `seconds`：從送出到收到或出錯，一位小數
+  （HD12）；`skipped`、`run_cap`、`daily_cap`、`no_api_key` 與預算到了沒送的 `timeout` 沒有
 """
 
 from __future__ import annotations
@@ -98,9 +99,13 @@ def load_calls(history: Path, now: datetime) -> dict[str, int]:
 # ---- 對決戰績 ----
 
 
-def _outcome(light: dict, detail: str | None) -> dict:
+def _outcome(light: dict, detail: str | None, seconds: float | None) -> dict:
     out = {"status": light["status"], "level": light["level"]}
-    return {**out, "detail": detail} if detail else out
+    if detail:
+        out["detail"] = detail
+    if seconds is not None:
+        out["seconds"] = seconds
+    return out
 
 
 def record(
@@ -109,9 +114,12 @@ def record(
     selected: str | None,
     lights: dict[str, dict],
     details: dict[str, str | None] | None = None,
+    seconds: dict[str, float | None] | None = None,
 ) -> dict:
-    """戰績一筆；`details` 是各模型呼叫失敗的 `AiError.trace()`（沒有就不出現 `detail`）。"""
+    """戰績一筆；`details` 是各模型呼叫失敗的 `AiError.trace()`（沒有就不出現 `detail`），
+    `seconds` 是各模型那次呼叫花的秒數（沒送出就不出現 `seconds`，HD12）。"""
     details = details or {}
+    seconds = seconds or {}
     best, first = select.max_level(airport)
     slots = [s for s in airport.get("slots") or [] if isinstance(s, dict)]
     return {
@@ -119,7 +127,7 @@ def record(
         "airport": airport.get("icao"),
         "selected": selected,
         "rule": {"maxLevel": best, "firstFrom": first},
-        **{k: _outcome(lights[k], details.get(k)) for k in KEYS},
+        **{k: _outcome(lights[k], details.get(k), seconds.get(k)) for k in KEYS},
         "slots": [{"from": s.get("from"), "level": s.get("level")} for s in slots],
     }
 
@@ -179,6 +187,7 @@ class Duel:
         self.made = dict.fromkeys(KEYS, 0)  # 這一報
         self.lights: dict[str, dict[str, dict]] = {k: {} for k in KEYS}
         self.details: dict[str, dict[str, str]] = {k: {} for k in KEYS}  # 呼叫失敗的 trace
+        self.seconds: dict[str, dict[str, float]] = {k: {} for k in KEYS}  # 送出的呼叫花幾秒
         self.model_errors: dict[str, str] = {}  # 整個模型不能用（no_api_key）
         self.stop = threading.Event()
         self.lock = threading.Lock()
@@ -206,12 +215,21 @@ class Duel:
             for icao, text in texts.items():
                 ex.submit(self._one, key, mod, client, icao, text)
 
-    def _set(self, key: str, icao: str, light: dict, detail: str | None = None) -> None:
+    def _set(
+        self,
+        key: str,
+        icao: str,
+        light: dict,
+        detail: str | None = None,
+        seconds: float | None = None,
+    ) -> None:
         with self.lock:
             if not self.stop.is_set():  # 超時之後回來的不採用
                 self.lights[key][icao] = light
                 if detail:
                     self.details[key][icao] = detail
+                if seconds is not None:
+                    self.seconds[key][icao] = round(seconds, 1)
 
     def _one(self, key: str, mod: ModuleType, client: object, icao: str, text: str) -> None:
         if self.stop.is_set():
@@ -242,7 +260,7 @@ class Duel:
         except Exception:  # SDK 內部沒預期的錯：記成 network，不讓其他機場停掉
             log.exception("AI %s %s 失敗（沒預期的例外）", key, icao)
             light = error(key, "network")
-        self._set(key, icao, light, detail)
+        self._set(key, icao, light, detail, time.monotonic() - t0)
 
     def result(self, timed_out: bool = False) -> dict:
         """`{"ai": 頂層, "airports": {icao: airports[].ai}, "source": sources.ai}`
@@ -265,7 +283,8 @@ class Duel:
                     lights = {k: skipped(k) for k in KEYS}
                 airports[icao] = airport_ai(lights, self.run_at)
                 details = {k: self.details[k].get(icao) for k in KEYS}
-                rows.append(record(a, self.run_at, reasons.get(icao), lights, details))
+                seconds = {k: self.seconds[k].get(icao) for k in KEYS}
+                rows.append(record(a, self.run_at, reasons.get(icao), lights, details, seconds))
             source = self._source(airports)
             self._result = {"ai": top_level(), "airports": airports, "source": source}
             calls = dict(self.calls)

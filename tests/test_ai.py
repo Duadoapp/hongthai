@@ -21,6 +21,7 @@ from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 from test_build import latest  # noqa: F401
 
+from hongthai import build
 from hongthai.ai import claude, config, gemini, parse, prompt, select
 from hongthai.ai import run as ai_run
 from hongthai.ai.parse import AiError
@@ -977,16 +978,16 @@ def concurrent_model(delay: float):
 
 
 def test_duel_models_run_in_parallel(tmp_path):
-    """每個模型 4 個機場、每次 0.4 秒；Claude 4 條並行約 0.4 秒、Gemini 2 條並行約 0.8 秒
-    （HD6：Gemini 4 條時撞過 429）。兩個模型同時跑，總時間約 0.8 秒（不是 1.2 秒；
-    模型內也不平行的話是 3.2 秒）。"""
-    assert config.PARALLEL == {"claude": 4, "gemini": 2}
+    """每個模型 4 個機場、每次 0.4 秒；Claude 4 條並行約 0.4 秒、Gemini 3 條並行約 0.8 秒
+    （HD6：Gemini 4 條時撞過 429、降到 2；HD12 升回 3）。兩個模型同時跑，總時間約 0.8 秒
+    （不是 1.2 秒；模型內也不平行的話是 3.2 秒）。"""
+    assert config.PARALLEL == {"claude": 4, "gemini": 3}
     ev = {"claude": concurrent_model(0.4), "gemini": concurrent_model(0.4)}
     t0 = time.monotonic()
     res = ai_run.evaluate_all(duel_doc(4, 0), None, NOW, tmp_path, evaluators=ev)
     took = time.monotonic() - t0
     assert res["source"]["calls"] == {"claude": 4, "gemini": 4}
-    assert ev["claude"].state["max"] == 4 and ev["gemini"].state["max"] == 2
+    assert ev["claude"].state["max"] == 4 and ev["gemini"].state["max"] == 3
     assert took < 1.1, took
 
 
@@ -1036,6 +1037,8 @@ def test_duel_records_written_and_merged(tmp_path):
     rows = json.loads(path.read_text("utf-8"))
     assert [r["airport"] for r in rows] == ["RC00", "RC01", "ZZ00", "ZZ01"]
     r = rows[0]
+    for k in ("claude", "gemini"):  # 秒數另外測（`test_duel_records_seconds`）
+        assert isinstance(r[k].pop("seconds"), float)
     assert r == {
         "run": RUN,
         "airport": "RC00",
@@ -1099,9 +1102,52 @@ def test_duel_detail_only_for_call_failures(tmp_path, monkeypatch):
     ev = {"claude": fake_model(exc="http_429"), "gemini": fake_model()}
     res = ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, evaluators=ev)
     row = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))[0]
+    assert isinstance(row["claude"].pop("seconds"), float)
     assert row["claude"] == {"status": "error", "level": None, "detail": "http_429:-:-"}
     assert row["gemini"] == {"status": "error", "level": None}  # daily_cap
     assert "detail" not in res["airports"]["RC00"]["claude"]
+
+
+def test_budget_and_parallel_hd12():
+    """HD12：AI 預算 180 → 240 秒、Gemini 2 → 3 條並行（429 回來就降回 2）。"""
+    assert build.BUDGET_S["ai"] == 240
+    assert config.PARALLEL == {"claude": 4, "gemini": 3}
+
+
+def test_duel_records_seconds(tmp_path, monkeypatch):
+    """戰績每筆真的送出的呼叫（成功、失敗）多 `seconds`（float、一位小數，HD12）；`skipped`、
+    `run_cap`、`daily_cap`、`no_api_key` 沒送，沒有；`latest.json` 不加。"""
+    monkeypatch.setattr(ai_run, "MAX_AIRPORTS", 2)
+    ev = {"claude": fake_model("high", delay=0.12), "gemini": fake_model(exc="http_504")}
+    res = ai_run.evaluate_all(duel_doc(3, 1), None, NOW, tmp_path, evaluators=ev)
+    rows = {
+        r["airport"]: r
+        for r in json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))
+    }
+    for icao in ("RC00", "RC01"):
+        cl, ge = rows[icao]["claude"], rows[icao]["gemini"]
+        assert cl["status"] == "ok" and ge["detail"] == "http_504:-:-"  # detail 格式不動
+        for light in (cl, ge):
+            assert isinstance(light["seconds"], float) and light["seconds"] >= 0
+            assert light["seconds"] == round(light["seconds"], 1)
+        assert cl["seconds"] >= 0.1
+        for k in ("claude", "gemini"):
+            assert "seconds" not in res["airports"][icao][k]
+    assert rows["RC02"]["claude"] == {"status": "error", "level": None}  # run_cap
+    assert rows["ZZ00"]["gemini"] == {"status": "skipped", "level": "low"}
+    # 沒送出去的：no_api_key、daily_cap
+    monkeypatch.setattr(ai_run, "DAILY_CAP", 1)
+    ev = {"claude": fake_model(client_error="no_api_key"), "gemini": fake_model()}
+    later = duel_doc(2, 0)
+    later["generatedAt"] = "2026-10-19T08:25:00Z"
+    ai_run.evaluate_all(later, None, NOW, tmp_path, evaluators=ev)
+    rows = [
+        r
+        for r in json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))
+        if r["run"] == "2026-10-19T08:25:00Z"
+    ]
+    assert [r["claude"] for r in rows] == [{"status": "error", "level": None}] * 2  # no_api_key
+    assert [r["gemini"] for r in rows] == [{"status": "error", "level": None}] * 2  # daily_cap
 
 
 # ---- 新天氣種類的用字（HD8）----

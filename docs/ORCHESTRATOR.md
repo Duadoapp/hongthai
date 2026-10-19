@@ -302,7 +302,7 @@ NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權�
 ### 來源逾時與沿用（H7，2026-10-18 build #4 被 ECMWF 429 卡到被砍之後）
 
 - 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 300（H10 起，原 240）、gfs 180、taf 45、hko 30、
-  smg 30、cwa 45、nws 30（HD3）、flights 120、ai 180（HD5）、og 60（HD1）秒，總和 17 分鐘），超過記
+  smg 30、cwa 45、nws 30（HD3）、flights 120、ai 240（HD12 起，原 180，HD5）、og 60（HD1）秒，總和 18 分鐘），超過記
   `error: "timeout"` 繼續跑下一個；Actions 那一步 18 分鐘、job 28 分鐘（HD5 前 15／25）
 - ECMWF 重試最多 3 次、間隔 10 秒、不照 Retry-After；找最新一報先問入口、下載先試 AWS 鏡像
   （→ 入口 → Google；AWS 下載不重試，S3 的 503 Slow Down 一來就換），`sources.ecmwf.mirror` 記實際來源。`ecmwf-opendata` 最低 0.3.34（有重試參數）

@@ -56,7 +56,7 @@ jobs:
       - name: 產生 latest.json
         id: build
         continue-on-error: true
-        # 每個來源有自己的時間預算（src/hongthai/build.py 的 BUDGET_S，總和 17 分鐘，HD5 加 ai 180 秒），
+        # 每個來源有自己的時間預算（src/hongthai/build.py 的 BUDGET_S，總和 18 分鐘，HD5 加 ai 180 秒、HD12 再加 60 秒），
         # 超時的來源記 ok:false 繼續跑；這裡是整步的保險。被砍時已寫的 history/timing/ 照樣推上去
         timeout-minutes: 18
         env:

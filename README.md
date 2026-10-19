@@ -216,13 +216,13 @@ H10（2026-10-18）之後：
 | cwa | 45 | 幾秒 |
 | nws（HD3，關島） | 30 | 不到 1 秒 |
 | flights（抓＋統計＋寫檔） | 120 | 約 20 |
-| ai（AI 對決，HD5；兩個模型平行，每報最多 20 個機場） | 180 | 還沒實測（單次請求逾時 60 秒） |
+| ai（AI 對決，HD5；兩個模型平行，每報最多 20 個機場） | 240（HD12；原 180） | 約 111–117，HD11 後第一報 178（單次請求逾時 60 秒） |
 | og（分享預覽圖 51 張，HD1；`publish()` 之後） | 60 | 約 3–6 |
 
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和 1020 秒（17 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒），Actions「產生 latest.json」
+- 總和 1080 秒（18 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒），Actions「產生 latest.json」
   那一步上限 18 分鐘、整個 job 28 分鐘（HD5 前是 15／25）
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
   重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
@@ -434,8 +434,9 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
     - `status: "skipped"`（沒被選、不呼叫）：`level: "low"`，`comment` 固定四語「沒看到明顯風險」
       （zh-HK「未見明顯風險」、zh-CN「未见明显风险」、en「No notable risk seen」）
     - `status: "error"`：`level: null`、`comment: null`，`error` 是代碼：`no_api_key`（沒設金鑰）、`timeout`
-      （單次請求 60 秒或整個 AI 步驟 180 秒到了）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
-      超過字數上限、被 `max_tokens` 截斷）、`http_<碼>`（API 回錯誤，例如 `http_429`）、`network`、
+      （單次請求 60 秒或整個 AI 步驟 240 秒到了）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
+      超過字數上限、被 `max_tokens` 截斷）、`http_<碼>`（API 回錯誤，例如 `http_429`；`http_504` 是 Vertex
+      閘道逾時，偶發就不處理，跟其他 5xx 一樣不重試，HD12）、`network`、
       `daily_cap`（那個模型今天已經呼叫到每日上限；目前 `DAILY_CAP=0` 不限，不會出現）；**規格以外多三個**：`run_cap`（符合條件但排在這一報前 20 個
       之後，沒評；不寫「沒看到明顯風險」，因為可能是中級）、`refusal`（模型拒答或被安全過濾擋下）、
       `bad_wording`（HD6：格式對但短評用字違規，見「AI 對決」的「用字規則與檢查」）
@@ -531,8 +532,10 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   （`DAILY_CAP=0`，2026-10-19 定案，HD11；手動 Run workflow 也照常跑 AI），正式推廣前再評估，恢復時改成 80 之類的
   數字即可，超過的記 `daily_cap`；`history/ai/calls-<日期>.json` 照常記每個模型今天呼叫幾次（成功失敗都算）；
   另有 Anthropic workspace 每月 30 美元硬上限、GCP 30 美元預算警示（在平台上設）；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
-  的自動重試都關掉）；單次請求逾時 60 秒；整個 AI 步驟預算 180 秒（`BUDGET_S["ai"]`），兩個模型**平行**
-  呼叫、每個模型的並行數 Claude 4 條、Gemini 2 條（`config.PARALLEL`，HD6），超過的機場記 `timeout`。
+  的自動重試都關掉）；單次請求逾時 60 秒；整個 AI 步驟預算 240 秒（`BUDGET_S["ai"]`；HD12 前 180 秒，
+  HD11 後第一報 178.2 秒頂到預算），兩個模型**平行**呼叫、每個模型的並行數 Claude 4 條、Gemini 3 條
+  （`config.PARALLEL`；HD6 時 4 條撞過 429、降到 2；HD12 升回 3 再觀察，若 429 回來就降回 2），超過的機場記
+  `timeout`。`http_504`（Vertex 閘道逾時）偶發就不處理、不重試，先觀察（HD12）。
   AI 失敗不影響 `latest.json` 其他內容
 - **模型參數**：Claude 用官方 `anthropic` SDK（Messages API），`max_tokens` 3000（HD6；HD5 是 1200）、
   `effort: "low"`；**不送 `temperature`**——Opus 5.5 不接受取樣參數（送了回 400），思考也關不掉、思考的
@@ -551,7 +554,7 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   在 Vertex AI（Agent Platform）的花費自動調整（Tier 1：花費 10–250 美元，Pro／Argon 優先吞吐量
   500,000 TPM；Tier 2：250–2,000 美元，1,000,000 TPM；以上類推），超過的流量有空閒容量時照樣服務，
   忙的時候先被節流回 429——**429 不代表撞到固定配額**，是當下資源競爭。新專案花費很少，大概還在 Tier 1
-  以下，所以 Gemini 降成 2 條並行、讓請求不要一次擠進去。Shawn 要做的：在 GCP 控制台
+  以下，所以 Gemini 降成 2 條並行、讓請求不要一次擠進去（HD12 升回 3 條再觀察）。Shawn 要做的：在 GCP 控制台
   「Vertex AI（Agent Platform）→ Dashboard」看組織目前的級距（要專案的 `roles/aiplatform.viewer` 與帳單帳戶的
   `roles/billing.viewer`）；要更多只能找 Google Cloud 業務談 Custom Tier，或改買 Priority PayGo／
   Provisioned Throughput——**以我們每天幾十到一兩百次的量都不值得**，先觀察 2 條並行後還有沒有 429。
@@ -601,7 +604,8 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
 ```json
 { "run": "2026-10-19T02:15:00Z", "airport": "RCKH", "selected": "level",
   "rule": { "maxLevel": "high", "firstFrom": "2026-10-23T00:00:00Z" },
-  "claude": { "status": "ok", "level": "high" }, "gemini": { "status": "ok", "level": "medium" },
+  "claude": { "status": "ok", "level": "high", "seconds": 21.7 },
+  "gemini": { "status": "ok", "level": "medium", "seconds": 34.2 },
   "slots": [ { "from": "2026-10-19T00:00:00Z", "level": "low" } ] }
 ```
 
@@ -615,6 +619,11 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   （`not_json`、`not_object`、`level`、`no_comment`、`missing_<語>`、`<語>_too_long`）或用字違規的
   `<語>/<詞>`。`daily_cap`、`run_cap`、`no_api_key`、`timeout`（預算到了沒送）沒呼叫，不寫 `detail`。
   log 也印同一串（`AI gemini RCKH 失敗：bad_wording: zh-HK：粵語口語「喺」［bad_wording:STOP:700+900:zh-HK/喺］`）
+- `claude`／`gemini` 真的送出的呼叫（成功、失敗都算）多一個 `seconds`（HD12，`latest.json` 不加）：從送出到
+  收到回應或出錯花幾秒，一位小數，例如 `{ "status": "ok", "level": "high", "seconds": 23.4 }`、
+  `{ "status": "error", "level": null, "detail": "http_504:-:-", "seconds": 60.0 }`。`skipped`、`run_cap`、
+  `daily_cap`、`no_api_key`、`timeout`（預算到了沒送）沒送出，不寫 `seconds`；送出後預算先到、結果不採用的
+  （記 `timeout`）也不寫
 
 ## 分享預覽圖
 
