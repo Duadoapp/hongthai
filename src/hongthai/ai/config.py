@@ -21,6 +21,11 @@ CLAUDE_EFFORT = "low"  # Opus 5.5 的思考關不掉、算在 max_tokens 裡；�
 # Gemini 4 只接受 `thinking_level`（送 `thinking_budget` 回 400），不支援 MINIMAL；LOW 是最低
 GEMINI_THINKING_LEVEL = "LOW"
 TIMEOUT_S = 60  # 單次請求
+# 只重試一次的錯誤（HD17）：閘道沒回應（Vertex 504 卡 57 秒才回），不是模型回了壞東西、也不計費；
+# 同一個請求、不改內容，剩餘預算 ≥ `RETRY_MIN_LEFT_S` 才重試（一次請求逾時 60 秒）。
+# 429、400、`bad_format`、`bad_wording`、`refusal` 都不重試
+RETRY_CODES = ("http_503", "http_504")
+RETRY_MIN_LEFT_S = 70
 
 MAX_AIRPORTS = 20  # 每報最多評幾個機場
 # 每天（UTC）每個模型最多呼叫幾次；0 代表不限（開發期間，2026-10-19 定案；
@@ -37,7 +42,8 @@ MAX_COMMENT_CHARS = {"zh-TW": 300, "zh-HK": 300, "zh-CN": 300, "en": 800}
 
 # ---- 用字檢查（HD6，`parse.check_wording`）；之後要加詞只改這裡 ----
 
-# 內部代號：四語都不能出現（大小寫不分、整字比對：前後不能是英文字母、數字或底線）
+# 內部代號：四語都不能出現（大小寫不分、整字比對：前後不能是英文字母、數字或底線）；
+# `EN_PLAIN_WORDS` 在 en 例外（HD17）
 FORBIDDEN_TOKENS = (
     "p29Kt",
     "p49Kt",
@@ -67,6 +73,9 @@ FORBIDDEN_TOKENS = (
     "CSNOW",
     "CFRZR",
 )
+# 英文常用字（HD17）：en 不當代號擋（"strong wind causes…"、"on the basis of"、"models are in
+# agreement"、"afternoon slots"）；中文三語照擋——中文短評裡出現這些英文字只會是抄欄位名
+EN_PLAIN_WORDS = ("causes", "basis", "agreement", "slots")
 # 可以在括號裡出現一次（「機場預報（TAF）」「airport forecast (TAF)」），沒括號或第二次以上算違規
 ONCE_IN_PARENS = ("TAF", "METAR")
 CHINESE_LANGS = ("zh-TW", "zh-HK", "zh-CN")

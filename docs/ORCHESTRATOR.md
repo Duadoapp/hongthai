@@ -161,6 +161,12 @@
       → `wx` null」正是 HD13 要改的行為，改成「有 TAF、但第一格的時段都過去了」（HD7 的當作沒有 TAF，不走
       METAR 撐起）。`test_build.test_slot_shape` 的 `official.kind` 值域多 `metar`（宮古在 fixture 裡就會出現）；
       其他既有測試一個都沒改
+    **HD17（Shawn 2026-10-20 定案）**：18:07Z 那報（HD13 合併後第一報）4 個 `bad_wording` 全是 `en/causes`、Gemini
+    4 個 `http_504` 各卡 57 秒 → ① `causes`、`basis`、`agreement`、`slots` 是英文常用字，en 不當代號擋
+    （`config.EN_PLAIN_WORDS`；中文三語照擋，其他代號四語照擋）；② `http_503`／`http_504` 同一個請求只重試一次，
+    剩餘預算 ≥ 70 秒才重試（`config.RETRY_CODES`／`RETRY_MIN_LEFT_S`，`run.py` 兩個模型共用），重試也算一次呼叫、
+    仍失敗 `detail` 加 `:retried`、`seconds` 兩次合計；其他錯誤照舊不重試；③ Gemini 維持 3 條並行（降回 2 條約 235 秒、
+    撞 240 秒預算）。`latest.json` 欄位與錯誤代碼不變。提示詞 `docs/prompts/2026-10-20-HD17-wording-false-positive-504.md`
     **已實作（HD8 PR）**：規則在 `assess.py`（開頭 docstring「新天氣種類」）、門檻在 `config.Thresholds`（12 個
     camelCase 鍵，`airports.json` 可覆寫）、TAF／METAR 的 `vis_m`／`wx`／`ceiling_ft` 在 `sources/taf.py`、
     ECMWF `tp`／`ptype`／`2t`＋`tpg25`／`tpg50`、GFS `APCP`／類別降水／`VIS`、天文台 `WRAIN`／`WTS`、
