@@ -1,10 +1,57 @@
-# HD6：AI 短評的用字規則（白話、四語語系規則、不出現內部代號）＋ 用字檢查
+# HD6：AI 對決第一次實跑的修正（bad_format、429）＋ 短評用字規則與檢查
 
-模型：Opus，強度中。只改 `src/hongthai/ai/prompt.py`（系統提示）、`src/hongthai/ai/parse.py`（檢查）、`ai/config.py`
-（代碼清單）與測試、README；不碰呼叫流程、欄位、預算。
+模型：Opus，強度高。改 `src/hongthai/ai/`（`claude.py`、`gemini.py`、`run.py`、`prompt.py`、`parse.py`、`config.py`）與測試、
+README；不改 `latest.json` 欄位、不改每日 80 次上限與 180 秒預算。
 
-先讀 `docs/prompts/2026-10-19-HD5-ai-duel.md`、`src/hongthai/ai/prompt.py`（`SYSTEM`、`airport_text`）、
-`src/hongthai/ai/parse.py`、`tests/test_ai.py`。
+先讀 `docs/prompts/2026-10-19-HD5-ai-duel.md`、`src/hongthai/ai/` 全部、`tests/test_ai.py`、`src/hongthai/og.py` 的
+`lights_for`，以及 `data` 分支 `history/ai/2026-10-19.json`（`git fetch origin data` 後 `git show data:history/ai/2026-10-19.json`）
+和 `history/20261019T0357Z.json`。
+
+## 0. 第一次實跑（2026-10-19T03:57Z）的結果，先修這些
+
+`sources.ai`：`ok: true`、62.5 秒、`calls` 各 20。但 **`bad_format` 太多：Claude 9/20、Gemini 17/20**，Gemini 另有 1 次
+`http_429`。成功的：Claude 11 個（RMQ、HUN、TTT、MZG、LZN、FOC、JJN、ISG、NRT、CTS、GUM）、Gemini 2 個（TNN、MMY）。
+`run_cap` 7 個（符合條件 27 個），和預估一樣，先不改。
+
+### 0a. `bad_format` 的原因與修法（每天 80 次的上限內解決，不靠重試）
+
+先查原因：`bad_format` 是被 `max_tokens`／`MAX_TOKENS` **截斷**，還是 JSON 外面多包了東西、或四語有缺？
+請在本機用金鑰以外的方式判斷不出來的話，就從程式邏輯與兩個模型的文件推：
+- Claude Opus 5.5 的思考關不掉、思考 token 算在 `max_tokens` 裡；HD5 用 `effort: low`＋1200，9/20 還是不夠
+- **Gemini 4 Argon 的思考 token 很可能也算在 `max_output_tokens` 裡**（17/20 失敗、比 Claude 嚴重，很像是這個）
+
+修法（都做）：
+1. `MAX_TOKENS` 1200 → **3000**（四語短評本身約 600–900 token，剩下留給思考）；Gemini 另外在 `GenerateContentConfig`
+   設 `thinking_config`：若 SDK 允許，`thinking_budget` 設 **512**（或該模型允許的最低值；不允許關就設最低），
+   `include_thoughts=False`
+2. **失敗時把 `stop_reason`／`finish_reason`、輸出 token 數（`usage`）記進 log 與 `history/ai/` 戰績那筆**（新增
+   `"detail": "<代碼>:<stop_reason>:<output_tokens>"`，**不記內容**），下次再失敗主對話直接從 `data` 分支看得到原因
+3. `parse.py` 容忍：JSON 前後有說明文字時，取第一個 `{` 到最後一個 `}` 之間再解析；仍失敗才算 `bad_format`
+4. 系統提示末尾再加一句「不要在 JSON 外面寫任何字、不要加 Markdown 標記」
+
+### 0b. Gemini 的 `http_429`
+
+新 GCP 專案 Vertex 的配額可能很低。請查：
+- 是不是 Gemini 4 條並行就撞到每分鐘請求數上限（HD5 是每個模型 4 條並行）。**Gemini 降成 2 條並行**（`config.py`
+  加 `PARALLEL = {"claude": 4, "gemini": 2}`），Claude 維持 4
+- 在 README「AI 對決」寫清楚要去 GCP 申請提高哪個配額（Vertex AI 的「Generate content requests per minute per project
+  per base model per region」之類，寫出你在文件上查到的確切名稱與路徑），Shawn 自己去申請
+
+### 0c. 預覽圖
+
+`og/khh.png` 還是一顆「高」的規則燈。查 `og.lights_for`：HD5 的設計是**兩顆 AI 都不是 `ok` 時維持一顆**，高雄兩顆都
+`bad_format`，所以一顆是對的、不是漏改（GUM 的 Claude 是 ok，`og/gum.png` 應該已是三顆，請確認）。不用改邏輯；
+在 README「分享預覽圖」補一句「AI 兩顆都失敗時仍是一顆規則燈」。
+
+### 0d. 用字問題（實跑抓到的，照第 2 節的規則修，並當測試案例）
+
+- MZG（Claude）、TNN／MMY（Gemini）的短評滿是 `p29Kt`、`p49Kt`、`EC`、`GFS`
+- NRT（Claude）的 zh-HK 用了「喺、同、啱啱」
+- MMY（Gemini）寫「高（high）」
+- TNN（Gemini）zh-CN 寫「航班取消风险」，zh-TW 卻寫「停飛風險」
+
+這四則的實際文字在 `history/20261019T0357Z.json` 的 `airports[].ai.*.comment`，**把它們（去掉機場名以外的個資沒有，
+直接用）抄進 `tests/test_ai.py` 當 `bad_wording` 的案例**。
 
 ## 用字規則（產品負責人 2026-10-19 定案，全部寫進系統提示）
 
@@ -18,7 +65,8 @@
 2. **四語照 Duado 的語系規則**：
    - zh-TW 用台灣用語
    - zh-HK 用**書面語加香港用語**，不用粵語口語（不寫喺、同、啱啱、嘅、咗、嚟）。詞彙對照（Duado 的對照表，這裡列
-     短評會用到的）：颱風警報→颱風信號／熱帶氣旋警告信號、機場預報→機場預報、陣風→陣風、停飛→停飛、
+     短評會用到的）：**颱風警報→颱風警告**（台灣、日本、其他地方發的都寫「颱風警告」；**只有提到香港天文台的
+     熱帶氣旋警告信號時才寫「信號」**，例如「八號信號」）、機場預報→機場預報、陣風→陣風、停飛→停飛、
      航班→航班、飯店→酒店、計程車→的士、公車→巴士、早上／晚上→上午／晚上
    - zh-CN 用簡體加大陸用語：颱風→台风、航班取消／停飛→航班取消（但整段的叫法見第 4 點）、側風→侧风、
      陣風→阵风、機場預報→机场预报、信號→信号、節→节
@@ -59,7 +107,9 @@
 
 - 系統提示含四條用字規則與對照表的關鍵詞（例如「歐洲模式」「不用粵語口語」「停飛風險」）
 - `parse_response`：合格的四語短評通過；各種違規各一個案例（代號、`TAF` 第二次出現、英文等級字、粵語字、
-  簡繁混用、叫法不一致）→ `bad_wording`，訊息指出哪一語哪個詞
+  簡繁混用、叫法不一致）→ `bad_wording`，訊息指出哪一語哪個詞；**第 0d 節那四則實跑的短評各一個案例**
+- JSON 外面有說明文字時仍能解析；`MAX_TOKENS`、`PARALLEL`、`thinking_config` 的參數有送到（假 SDK 檢查）；
+  戰績那筆有 `detail`
 - 既有的 `bad_format` 案例照舊
 
 ### 4. 文件
@@ -69,6 +119,8 @@
 
 ## 回報時要附
 
+- `bad_format` 的原因判斷與依據（兩個模型的文件連結）、最後用的 `MAX_TOKENS`／`thinking_budget`／`PARALLEL`
+- 要申請的 Vertex 配額名稱與路徑
 - 更新後的 `SYSTEM` 全文
 - 用一份 Pages 上的 `latest.json`（本機沒金鑰，所以用假的回應）跑 `parse_response` 的合格與違規各一個例子
 
