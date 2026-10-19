@@ -128,6 +128,9 @@
     **已實作（HD10 PR）：模式層霧封頂中**（`assess.fog_model_level`；`slots[].model.gfs.fog` 最高 `medium`，
     欄位不變）。用 06:56Z 那報重算：51 個機場只有釜山 10/20 12Z、18Z 與台東 10/24 00Z 從 high 降到 medium，
     花蓮、台東其他大雨格等級不變、`causes` 的雨排到霧前面。HD9 留給 JMA 大雪警報
+    **HD11（2026-10-19 定案）：開發期間取消 AI 每日上限**（`DAILY_CAP=0` 不限，代碼 `daily_cap` 留著不用），每報 20 個
+    機場、不重試、180 秒預算、月 30 美元硬上限不變；正式推廣前再評估。提示詞
+    `docs/prompts/2026-10-19-HD11-ai-daily-cap-off.md`，排在 HD10 之後
     **已實作（HD8 PR）**：規則在 `assess.py`（開頭 docstring「新天氣種類」）、門檻在 `config.Thresholds`（12 個
     camelCase 鍵，`airports.json` 可覆寫）、TAF／METAR 的 `vis_m`／`wx`／`ceiling_ft` 在 `sources/taf.py`、
     ECMWF `tp`／`ptype`／`2t`＋`tpg25`／`tpg50`、GFS `APCP`／類別降水／`VIS`、天文台 `WRAIN`／`WTS`、
@@ -205,8 +208,9 @@
     後交給 `service_account.Credentials.from_service_account_info`，不寫到磁碟（HD5）
   - `GOOGLE_CLOUD_PROJECT`：GCP 專案 ID（HD5）
   - `GOOGLE_CLOUD_LOCATION`：`global`（Gemini 4 Argon 只開 global、us、eu；HD5）
-- AI 的金鑰 HongThai 專屬、各月上限 30 美元、不跟 Duado 共用；程式內另有每報 20 個機場、每天每模型
-  80 次的上限（`src/hongthai/ai/config.py`）
+- AI 的金鑰 HongThai 專屬、各月上限 30 美元、不跟 Duado 共用；程式內另有每報 20 個機場的上限
+  （`src/hongthai/ai/config.py`）。每天每模型 80 次的上限**開發期間不限**（2026-10-19 定案，HD11，`DAILY_CAP=0`），
+  正式推廣前再評估；手動 Run workflow 也照常跑 AI
 
 ## 流程
 
