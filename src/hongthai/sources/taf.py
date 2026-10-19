@@ -18,7 +18,8 @@ H9（41 個機場）起一次請求帶全部 ICAO（`ids` 逗號分隔；HD3 的
 能見度、天氣現象、雲底（HD8，2026-10-19 用 `data` 分支的快照核對）：
 - `visib` 是**法定英里**：數字（公制 TAF 的 `8000` 解碼成 `4.97`、`1500` 成 `0.93`），或字串 `"6+"`
   （公制的 `9999` 也是這個）、`"10+"`（美國站的 `P6SM`／`10SM` 以上）；TEMPO 沒報能見度時是空字串
-  `""`。換成公尺：× 1609、四捨五入到整數；「以上」（`+` 結尾、`P` 開頭）記 **9999**；
+  `""`。換成公尺：× 1609 後四捨五入到最接近的 50 公尺（公制 TAF 的 1000／0400／1600 換得回
+  原值）；「以上」（`+` 結尾、`P` 開頭）記 **9999**；
   `"1/2"`、`"1 1/2"`、`"M1/4"`（`M`＝少於，照數字記）也看得懂；空的或看不懂的記 None（沒報）
 - `wxString`：例如 `+TSRA`、`TSRA BR`、`-SHRA BR`、`NSW`，空白隔開、可能 null；拆開、原樣大寫
 - 雲幕（`ceiling_ft`）：`clouds[]` 裡 `cover` 是 BKN／OVC（AviationWeather 垂直能見度用 `OVX`）
@@ -120,9 +121,12 @@ def _miles(text: str) -> float | None:
     return total if text.split() else None
 
 
+VIS_STEP_M = 50
+
+
 def _to_m(miles: float) -> int:
-    """英里 → 公尺，四捨五入（不是 `round` 的銀行家捨入：0.5 英里＝804.5 → 805）。"""
-    return floor(miles * SM_TO_M + 0.5)
+    """英里 → 公尺，四捨五入到最接近的 50 公尺（0.62 英里 → 1000、0.25 → 400、0.5 → 800）。"""
+    return floor(miles * SM_TO_M / VIS_STEP_M + 0.5) * VIS_STEP_M
 
 
 def vis_m(v) -> int | None:

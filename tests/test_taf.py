@@ -23,13 +23,17 @@ def raw() -> dict:
         ("6+", 9999),  # 公制 9999 解碼成這個
         ("10+", 9999),  # 美國站 10SM 以上
         ("P6SM", 9999),
-        (4.97, 7997),  # 8000 公尺
-        (0.75, 1207),  # 1200 公尺
-        (0.5, 805),
-        (2, 3218),
-        ("1/2", 805),
-        ("1 1/2", 2414),
-        ("M1/4", 402),
+        (4.97, 8000),  # 公制 8000
+        (0.75, 1200),  # 公制 1200
+        (0.62, 1000),  # 公制 1000
+        (0.25, 400),  # 公制 0400
+        (0.99, 1600),  # 公制 1600
+        (0.93, 1500),  # 公制 1500
+        (0.5, 800),  # 公制 0800
+        (2, 3200),
+        ("1/2", 800),
+        ("1 1/2", 2400),
+        ("M1/4", 400),
         ("", None),  # TEMPO 沒報能見度
         (None, None),
         ("abc", None),
@@ -68,9 +72,9 @@ def test_real_taf_periods(raw):
     # 主時段 9999 SCT020
     assert (main.vis_m, main.wx, main.ceiling_ft) == (9999, (), None)
     # TEMPO 5000 SHRA BKN015 FEW017CB
-    assert (tempo_shra.vis_m, tempo_shra.wx, tempo_shra.ceiling_ft) == (5004, ("SHRA",), 1500)
+    assert (tempo_shra.vis_m, tempo_shra.wx, tempo_shra.ceiling_ft) == (5000, ("SHRA",), 1500)
     # TEMPO 15015G28KT 1200 +TSRA BKN015 SCT017CB BKN040
-    assert (tempo_ts.vis_m, tempo_ts.wx, tempo_ts.ceiling_ft) == (1207, ("+TSRA",), 1500)
+    assert (tempo_ts.vis_m, tempo_ts.wx, tempo_ts.ceiling_ft) == (1200, ("+TSRA",), 1500)
     # 原本的欄位不變
     assert (tempo_ts.kind, tempo_ts.wind_kt, tempo_ts.gust_kt, tempo_ts.wdir) == (
         "tempo",
