@@ -122,7 +122,12 @@
     **HD10（2026-10-19 定案）：模式層的霧（GFS 能見度）最高只到「中」**，要到「高」必須官方層（TAF／METAR）真的有霧或
     低雲幕達 < 400 公尺或雲底 ≤ 100 呎——GFS 能見度不準、只有一個模式沒對照、大雨時也會被壓很低（06:56Z 釜山只靠
     GFS 308 公尺判 high；花蓮台東大雨格 76–92 公尺）。提示詞 `docs/prompts/2026-10-19-HD10-model-fog-cap.md`。
-    HD9 留給 JMA 大雪警報
+    **HD10 補充（產品負責人同意）：`causes` 依據是模式層（霧只來自模式、官方層沒有霧）時同級的 `rain` 排在 `fog`
+    前面**（`wind`、`snow`、`rain`、`fog`，`assess.MODEL_CAUSE_ORDER`）——模式的低能見度常是大雨造成的，主因寫雨；
+    官方層照原本 `wind`、`snow`、`fog`、`rain`。所以台東 10/24 00Z 是 `["rain", "fog"]`。
+    **已實作（HD10 PR）：模式層霧封頂中**（`assess.fog_model_level`；`slots[].model.gfs.fog` 最高 `medium`，
+    欄位不變）。用 06:56Z 那報重算：51 個機場只有釜山 10/20 12Z、18Z 與台東 10/24 00Z 從 high 降到 medium，
+    花蓮、台東其他大雨格等級不變、`causes` 的雨排到霧前面。HD9 留給 JMA 大雪警報
     **已實作（HD8 PR）**：規則在 `assess.py`（開頭 docstring「新天氣種類」）、門檻在 `config.Thresholds`（12 個
     camelCase 鍵，`airports.json` 可覆寫）、TAF／METAR 的 `vis_m`／`wx`／`ceiling_ft` 在 `sources/taf.py`、
     ECMWF `tp`／`ptype`／`2t`＋`tpg25`／`tpg50`、GFS `APCP`／類別降水／`VIS`、天文台 `WRAIN`／`WTS`、
@@ -275,7 +280,8 @@ NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權�
 - EC 系集機率是 24 小時窗，6 小時格取包住它的窗的最小值
 - 0–30 小時以官方為準；METAR 只算進現在那一格的側風
 - **三類（雨、雪、霧）門檻先照 2026-10-19 定案上線，累積一個月紀錄再調**（HD8）；**霧的模式層只有 GFS**
-  （ECMWF 開放資料沒有能見度；GFS 能見度大雨時也會很低，大雨格常常同時是霧）；**金門馬祖沒有 TAF／METAR**
+  （ECMWF 開放資料沒有能見度；GFS 能見度大雨時也會很低，大雨格常常同時是霧）；**模式層的霧只到中**（HD10，
+  依據是模式層時同級的雨排在霧前面）；**金門馬祖沒有 TAF／METAR**
   （AviationWeather 沒有這兩站），霧只有 GFS
 - 低的警報（紅雨、雷暴、天文台 1 號信號）不會自己撐起官方層（HD8）
 - 已經過去的 TAF 時段不算（HD7，2026-10-19，`docs/prompts/2026-10-19-HD7-taf-past-periods.md`）：TAF 各時段

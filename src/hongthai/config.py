@@ -36,9 +36,9 @@ class Thresholds:
     taf_rain_medium_vis_m: float = 1600  # TS 且能見度 ≤ 這個 → 中
     taf_snow_medium_vis_m: float = 1600  # SN（不是 -SN／+SN）且能見度 ≤ 這個 → 中
     fog_medium_vis_m: float = 1000  # 能見度 < 這個 → 中（官方與 GFS 同一組）
-    fog_high_vis_m: float = 400  # 能見度 < 這個 → 高
+    fog_high_vis_m: float = 400  # 能見度 < 這個 → 高；只用在官方層，模式層的霧封頂在中（HD10）
     fog_medium_ceiling_ft: float = 200  # 雲底 ≤ 這個 → 中
-    fog_high_ceiling_ft: float = 100  # 雲底 ≤ 這個 → 高
+    fog_high_ceiling_ft: float = 100  # 雲底 ≤ 這個 → 高；只用在官方層，模式層的霧封頂在中（HD10）
     model_rain_medium_mm6h: float = 30
     model_rain_high_mm6h: float = 60
     ec_p24h_rain50_medium: float = 0.3  # 系集 24 小時雨量 ≥ 50 mm 的機率

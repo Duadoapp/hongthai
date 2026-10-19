@@ -9,6 +9,7 @@ import pytest
 from conftest import utc
 
 from hongthai.assess import (
+    MODEL_CAUSE_ORDER,
     ActiveWarning,
     assess_slots,
     causes_from,
@@ -810,7 +811,7 @@ def test_model_takes_higher_of_ec_and_gfs_snow():
 
 
 @pytest.mark.parametrize(
-    ("vis", "fog"), [(900, "medium"), (300, "high"), (1000, "low"), (None, None)]
+    ("vis", "fog"), [(900, "medium"), (300, "medium"), (1000, "low"), (None, None)]
 )
 def test_model_fog_only_gfs(vis, fog):
     s = run(gfs=precip_gfs(0, "none", vis))[0]
@@ -834,7 +835,7 @@ def test_model_slot_values_use_slot_end():
     ec_v, gfs_v = s["model"]["ec"], s["model"]["gfs"]
     assert (ec_v["rain6hMm"], ec_v["ptype"], ec_v["temp2mC"]) == (12.3, "rain", 25.0)
     assert (gfs_v["rain6hMm"], gfs_v["ptype"], gfs_v["visibilityM"]) == (3.2, "rain", 300)
-    assert gfs_v["fog"] == "high"
+    assert gfs_v["fog"] == "medium"  # 模式層的霧封頂在中（HD10）
 
 
 def test_agreement_still_only_wind():
@@ -856,6 +857,55 @@ def test_causes_order():
         "wind",
     ]
     assert causes_from({"wind": "low", "rain": "low", "snow": "low", "fog": "low"}) == []
+    # 依據是模式層：同級的雨排在霧前面（HD10）
+    assert causes_from(
+        {"wind": "medium", "rain": "medium", "snow": "medium", "fog": "medium"}, MODEL_CAUSE_ORDER
+    ) == ["wind", "snow", "rain", "fog"]
+
+
+# ---- 模式層的霧封頂在中（HD10）；數字取自 2026-10-19T06:56Z 那報 ----
+
+
+def test_model_fog_capped_medium_pus():
+    """釜山 10/20 12Z：只靠 GFS 能見度 308 公尺、幾乎沒雨。HD8 判高，HD10 起是中。"""
+    s = run(ec=precip_ec(5.2, "rain", p50=0.0), gfs=precip_gfs(1.6, "rain", 308))[0]
+    assert s["model"]["gfs"]["fog"] == "medium"
+    assert (s["model"]["level"], s["level"], s["basis"]) == ("medium", "medium", "model")
+    assert s["causes"] == ["fog"]
+
+
+def test_model_fog_capped_with_heavy_rain_and_wind_hun():
+    """花蓮 10/23 06Z：GFS 能見度 76 公尺、6 小時雨量 174.4 mm、HRES 陣風 62.6 節。"""
+    s = run(
+        ec=precip_ec(44.8, "rain", p50=0.81, hres=62.6),
+        gfs=precip_gfs(174.4, "rain", 76, g=39.1),
+    )[0]
+    assert (s["model"]["gfs"]["rain"], s["model"]["gfs"]["fog"]) == ("high", "medium")
+    assert s["model"]["level"] == "high"
+    assert s["causes"] == ["wind", "rain", "fog"]
+
+
+def test_model_fog_and_rain_both_medium_rain_first_ttt():
+    """台東 10/24 00Z：GFS 能見度 92 公尺、GFS 雨 40.5 mm、EC 雨 27.7 mm、系集 47%。
+    雨、霧都是中；依據是模式層，雨排在霧前面。"""
+    s = run(
+        ec=precip_ec(27.7, "rain", p50=0.47, hres=27.9),
+        gfs=precip_gfs(40.5, "rain", 92, g=20.8),
+    )[0]
+    assert (s["model"]["ec"]["rain"], s["model"]["gfs"]["rain"]) == ("medium", "medium")
+    assert s["model"]["gfs"]["fog"] == "medium"
+    assert s["model"]["level"] == "medium"
+    assert s["causes"] == ["rain", "fog"]
+
+
+def test_official_fog_still_high():
+    """官方層的霧不封頂：TAF 能見度 300 公尺仍是高；同級的霧照原本順序排在雨前面。"""
+    s = run(taf_periods=[wxp((), 300)])[0]
+    assert s["official"]["wx"]["fog"] == "high"
+    assert (s["basis"], s["level"], s["causes"]) == ("official", "high", ["fog"])
+    s = run(taf_periods=[wxp(("+TSRA",), 800)])[0]
+    assert (s["official"]["wx"]["rain"], s["official"]["wx"]["fog"]) == ("medium", "medium")
+    assert s["causes"] == ["fog", "rain"]
 
 
 def test_causes_confirmed_and_unknown():

@@ -258,6 +258,7 @@ def test_airport_text_weather_types():
     # 規則說明有三類的門檻與「說出主因」
     assert "能見度 < 400 公尺或雲底 ≤ 100 呎 → high" in text
     assert "6 小時雨量 ≥ 60 mm → high" in text
+    assert "模式層的霧最高只到 medium" in text  # HD10
     assert "短評要說出主要是哪種天氣造成" in text
     assert "第一句要點出主因天氣" in prompt.SYSTEM
 

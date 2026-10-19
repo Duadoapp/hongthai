@@ -68,7 +68,11 @@
   - `snow`：降水型態是 `snow`／`wet_snow`／`rain_snow` 且 6 小時水當量 ≥ 10 mm → 高、
     ≥ 5 mm → 中；`freezing_rain`／`freezing_drizzle`／`ice_pellets` 且 ≥ 1 mm → 高。
     EC、GFS 各自算、取較高
-  - `fog`：只有 GFS 能見度（EC 開放資料沒有能見度），門檻同官方
+  - `fog`：只有 GFS 能見度（EC 開放資料沒有能見度），門檻同官方，但**最高只到中**（HD10，
+    Shawn 2026-10-19）：< 1000 公尺 → 中，< 400 公尺也只是中。到高要官方層（TAF／METAR）真的
+    報霧或低雲幕。理由：GFS 能見度不準、又只有一個模式沒有對照（釜山 06:56Z 那報兩格只靠 GFS
+    能見度 308 公尺、幾乎沒雨就判高），大雨時也會被壓得很低（花蓮、台東 76–92 公尺，同時 6 小時
+    雨量 63–174 mm）
   - 一格的雨量、降水型態是「格結束時間」那個時間點的（EC 是 `tp` 差、GFS 是前 6 小時那桶）；
     GFS 能見度取格頭尾兩個時間點的最小值
   - `model.agreement` **還是只看陣風**（值域不變）
@@ -79,7 +83,9 @@
 - `causes`：從決定 `level` 的那一層（`official` 或 `model`；`confirmed` 看被它蓋掉的那一層：
   有官方層就是官方層）把等級 ≥ 中的種類列出——`wind`、`rain`、`snow`、`fog`；等級高的在前，
   同級照 `wind`、`snow`、`fog`、`rain` 的固定順序（`CAUSE_ORDER`），第一個就是主因；
-  都低是 `[]`，`unknown` 是 `[]`
+  都低是 `[]`，`unknown` 是 `[]`。依據是模式層時（霧只來自 GFS 能見度、官方層沒有霧）同級改成
+  `wind`、`snow`、`rain`、`fog`（`MODEL_CAUSE_ORDER`，HD10）：模式的低能見度常是大雨造成的，
+  主因寫雨
 """
 
 from __future__ import annotations
@@ -102,6 +108,7 @@ WARNING_HORIZON_H = 12
 METAR_MAX_AGE_H = 3
 CAUSES = ("wind", "rain", "snow", "fog")
 CAUSE_ORDER = ("wind", "snow", "fog", "rain")  # 同級時的順序
+MODEL_CAUSE_ORDER = ("wind", "snow", "rain", "fog")  # 依據是模式層時（HD10）
 # 算 `rain` 的警報種類；其他（颱風、熱帶氣旋信號……）算 `wind`
 RAIN_WARNING_KINDS = frozenset(
     {"rainstorm_black", "rainstorm_red", "thunderstorm", "cwa_heavy_rain"}
@@ -145,9 +152,9 @@ def warning_cause(kind: str) -> str:
     return "rain" if kind in RAIN_WARNING_KINDS else "wind"
 
 
-def causes_from(levels: dict[str, str | None]) -> list[str]:
-    """各種類的等級 → `causes`：≥ 中的，等級高的在前、同級照 `CAUSE_ORDER`。"""
-    hits = [c for c in CAUSE_ORDER if rank(levels.get(c)) >= 1]
+def causes_from(levels: dict[str, str | None], order: Sequence[str] = CAUSE_ORDER) -> list[str]:
+    """各種類的等級 → `causes`：≥ 中的，等級高的在前、同級照 `order`。"""
+    hits = [c for c in order if rank(levels.get(c)) >= 1]
     return sorted(hits, key=lambda c: -rank(levels[c]))  # sorted 是穩定的，同級維持固定順序
 
 
@@ -458,7 +465,9 @@ def snow_model_level(mm6h: object, ptype: object, th: Thresholds) -> str | None:
 
 
 def fog_model_level(vis_m: object, th: Thresholds) -> str | None:
-    return fog_level(_num(vis_m), None, th)
+    """GFS 能見度；門檻同官方，但封頂在中（HD10）。"""
+    level = fog_level(_num(vis_m), None, th)
+    return "medium" if level == "high" else level
 
 
 def ec_rain_level(ec: dict, th: Thresholds) -> str | None:
@@ -530,7 +539,7 @@ def slot_causes(slot: dict, th: Thresholds, official_levels: dict | None = None)
     if basis == "model":
         m = slot.get("model") or {}
         levels = model_levels(m.get("ec") or {}, m.get("gfs") or {}, th)
-        return causes_from(levels or {})
+        return causes_from(levels or {}, MODEL_CAUSE_ORDER)
     return []
 
 
