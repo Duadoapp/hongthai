@@ -109,7 +109,16 @@
     `max_tokens` 3000、Gemini `thinking_level: LOW`（Gemini 4 不接受 `thinking_budget`）、字數上限中文 300／en 800（HD5 的 400 擋掉一半 en）、Gemini 2 條並行；
     戰績檔失敗那顆多 `detail`（`<代碼>:<stop_reason>:<輸出 token 數>[:<標記>]`）。Gemini 的 429：Argon 在
     `global` 的 Standard PayGo 是組織層級用量級距、沒有每專案配額可申請，見 README「AI 對決」
-  - **第五階段：新天氣種類**——大雨／雷雨、大雪／結冰、濃霧；12 月北海道下雪前上線
+  - **第五階段：新天氣種類**——大雨／雷雨、大雪／結冰、濃霧；12 月北海道下雪前上線。
+    **定案（2026-10-19，HD8）**：三類 `rain`／`snow`／`fog`（fog 含低雲幕），颱風的雨歸 `wind`；**燈號維持一種等級**，
+    種類只進每格的 `causes`（主因在前）、預覽圖小字（「・濃霧」）、AI 短評。原則：貼近實際會停飛的情況，只會延誤的
+    不升級。官方層：+TSRA 或 TS 且能見度 ≤ 1600 公尺 → 中、冰雹 → 高；SN 且 ≤ 1600 → 中、+SN／凍雨／冰粒 → 高、-SN 不升級；
+    能見度 < 1000 公尺或雲底 ≤ 200 呎 → 中、< 400 公尺或 ≤ 100 呎 → 高（METAR 只套第一格）。模式層：ECMWF `tp`／`ptype`／
+    `2t`＋系集 `tpg25`／`tpg50`、GFS `APCP`／類別降水／`VIS`；雨 6 小時 ≥ 30 mm 或系集 ≥ 50 mm 機率 ≥ 30% → 中、≥ 60 → 高；
+    雪 ≥ 5 mm 水當量 → 中、≥ 10 → 高、凍雨 ≥ 1 mm → 高；霧只有 GFS 能見度（同官方門檻）。門檻先上線、一個月後再調。
+    警報：天文台黑雨 → 中，紅雨、雷暴只列出不升級；氣象署大豪雨以上且機場在範圍 → 中；JMA 大雪警報另開 HD9；
+    澳門、韓國、越南、菲律賓這階段不加。欄位清單在 `docs/worklog/2026-10-19.md`「待網頁配合」。
+    提示詞 `docs/prompts/2026-10-19-HD8-weather-types.md`。金門、馬祖沒有 TAF／METAR，霧先只有模式層（HD8 查來源）
   - 順序（2026-10-19 定案）：HD2 → H9 → HD3（十個新機場）→ HD1（預覽圖）→ AI 對決 → 天氣種類；
     **新天氣種類有硬期限（12 月北海道下雪前），AI 對決拖到的話天氣種類排到 AI 前面**。11/18 檢討停飛統計
     能不能拿來校準等級。**階段號碼以 Duado `docs/spec.md` 第 16 節為準**，兩邊要一樣
@@ -141,6 +150,10 @@
   `typhoon_warning`／`typhoon_watch`／`ts_warning`／`ts_watch`，`code` 是 NWS 的 event；`sources.nws`。
   關島 `official.warnings: true`，越南、菲律賓、帛琉 `false`
 
+- HD8（第五階段天氣種類）加的欄位：`slots[].causes`、`slots[].official.wx`、`slots[].model.ec`／`gfs` 的雨量、降水型態、
+  能見度、三類等級，`warnings[].kind` 的 `rainstorm_black`／`rainstorm_red`／`thunderstorm`／`cwa_heavy_rain`，
+  `airports[].taf`／`metar` 的 `visibilityM`／`wx`／`ceilingFt`；完整清單與值域在 `docs/worklog/2026-10-19.md`
+  「待網頁配合」，經 Shawn 轉給 Duado 總指揮
 - HD5（AI 對決）加的欄位，要和 Duado `docs/spec.md` 第 16 節一致：頂層 `ai`（`disclaimer` 四語、`models`）、
   `airports[].ai`（`evaluatedAt`、`claude`、`gemini` 兩顆燈）、`sources.ai`（`ok`、`seconds`、`calls`、
   `errors`）。錯誤代碼比定稿多兩個，要經 Shawn 轉給 Duado 總指揮：`run_cap`（符合條件但排在前 20 個之後、
