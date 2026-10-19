@@ -131,6 +131,9 @@
     **HD11（2026-10-19 定案）：開發期間取消 AI 每日上限**（`DAILY_CAP=0` 不限，代碼 `daily_cap` 留著不用），每報 20 個
     機場、不重試、180 秒預算、月 30 美元硬上限不變；正式推廣前再評估。提示詞
     `docs/prompts/2026-10-19-HD11-ai-daily-cap-off.md`，排在 HD10 之後
+    **HD12（2026-10-19 定案）**：HD11 後第一報 AI 178 秒頂到 180 秒預算（Gemini 2 條並行、HD8 後資料變長、兩個 504）→
+    預算 240 秒、Gemini 3 條並行（429 回來就降回 2）、戰績每筆記 `seconds`。提示詞 `docs/prompts/2026-10-19-HD12-ai-budget.md`。
+    **第五階段（HD8／HD10／HD11）2026-10-19 Shawn 確認上線**，網頁端由 Duado 開 HW3
     **已實作（HD8 PR）**：規則在 `assess.py`（開頭 docstring「新天氣種類」）、門檻在 `config.Thresholds`（12 個
     camelCase 鍵，`airports.json` 可覆寫）、TAF／METAR 的 `vis_m`／`wx`／`ceiling_ft` 在 `sources/taf.py`、
     ECMWF `tp`／`ptype`／`2t`＋`tpg25`／`tpg50`、GFS `APCP`／類別降水／`VIS`、天文台 `WRAIN`／`WTS`、
