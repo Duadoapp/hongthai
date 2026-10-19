@@ -77,6 +77,9 @@ class Airport:
     cwa_areas: tuple[str, ...] = ()  # 氣象署警戒區關鍵字（`airports.json` 的 `cwaAreas`）
     region: str = ""  # 地區 id（`Region.id`）
     nws_zone: str = ""  # NWS 的 zone（`airports.json` 的 `nwsZone`，HD3），例如關島 GUZ001
+    # 氣象署局屬站站號（`airports.json` 的 `cwaStation`，HD13）：AviationWeather 沒有 METAR 時
+    # 用這站的觀測（金門 467110、馬祖 467990）
+    cwa_station: str | None = None
 
 
 @dataclass(frozen=True)
@@ -157,6 +160,7 @@ def load_airports(path: str | Path) -> list[Airport]:
                 cwa_areas=tuple(a.get("cwaAreas", [])),
                 region=a["region"],
                 nws_zone=a.get("nwsZone", ""),
+                cwa_station=a.get("cwaStation") or None,
             )
         )
     _check(_regions(raw), airports)

@@ -76,6 +76,7 @@ class Metar:
     vis_m: int | None = None
     wx: tuple[str, ...] = ()
     ceiling_ft: int | None = None
+    source: str | None = None  # None＝AviationWeather；"cwa"＝氣象署局屬站觀測（HD13）
 
 
 @dataclass

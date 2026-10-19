@@ -35,9 +35,11 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
   還沒接（日本、韓國之後另外的 HD 補；中國官方颱風預警、越南、菲律賓先不接；帛琉 NWS 查不到，見下面
   「資料來源與授權」），`airports[].official.warnings` 是 `false`、`warnings` 是 `[]`
 - **沒有 TAF 的機場**（2026-10-18 實測 AviationWeather）：花蓮 RCYU、金門 RCBS、馬祖 RCFG、溫州 ZSWZ、
-  泉州 ZSQZ、珠海 ZGSD、宮古 ROMY。這幾個 `taf: null`，官方層只剩 METAR（只有宮古有）與警報，
-  0–30 小時沒有警報的格以模式為準。宮古以外的六個 METAR 也沒有（`metar: null`）。HD3 加的十個
-  （越南、菲律賓、關島、帛琉）2026-10-18 18Z 一次請求 51 站實測都有 TAF 與 METAR
+  泉州 ZSQZ、珠海 ZGSD、宮古 ROMY。這幾個 `taf: null`，官方層只剩 METAR 與警報：METAR 在 3 小時內時
+  **第一格由 METAR 單獨撐起**（HD13，`official.kind: "metar"`），之後 0–30 小時沒有警報的格以模式為準。
+  AviationWeather 只有宮古有 METAR；**金門、馬祖用中央氣象署局屬站觀測（`O-A0003-001`，金門 467110、
+  馬祖 467990）當 METAR**（HD13，`metar.source: "cwa"`）；花蓮、溫州、泉州、珠海四個 METAR 也沒有
+  （`metar: null`）。HD3 加的十個（越南、菲律賓、關島、帛琉）2026-10-18 18Z 一次請求 51 站實測都有 TAF 與 METAR
 - 航班取消／延誤統計（`cancellations.py`）只有桃園、松山、高雄、香港、澳門五個機場有來源
 
 ## 怎麼算
@@ -50,7 +52,7 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
 | 模式（0–120 小時） | ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF HRES 10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風 | HRES 或 GFS 陣風 ≥ 48 節、或系集陣風 ≥ 49 節（25 m/s）機率 ≥ 30% → 高；HRES 或 GFS 陣風 ≥ 37 節 → 中（**中級不用系集**，見下面）；其他低 |
-| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視 | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面） |
+| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視 | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
 | 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS 的 10 米風向配各自的陣風 | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級** |
 
 - 門檻依據：陣風（TAF 與模式同一套）是桃園機場空橋規則——最大瞬間風速 37 節（蒲福 8 級）啟動空橋防護、
@@ -70,6 +72,10 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 - 已經過去的 TAF 時段不算（HD7，2026-10-19）：TAF 的主時段、TEMPO、BECMG、PROB 都只算結束時間在產出時間
   之後的（跨過產出時間的照算），所以只影響第一格（現在所在的那格）。第一格的 TAF 時段全部已經過去時當作
   沒有 TAF：有警報就是「只有警報」的官方層（METAR 側風照算），沒有警報就退回模式
+- 沒有 TAF 的機場（HD13，2026-10-19）：機場完全沒有 TAF（不是 HD7 那種「TAF 全部過去」）、METAR 在 3 小時內、
+  而且風、能見度、雲幕、天氣至少有一樣 → **第一格**的官方層由 METAR 組成（`kind: "metar"`；`windKt`／`gustKt`／
+  `crosswindKt`／`wx` 都從 METAR 來，風照 TAF 的陣風規則），警報照舊疊上去；之後的格照舊。用到的是金門、
+  馬祖（氣象署觀測）與宮古；有 TAF 的機場完全不受影響
 - `agreement`：HRES 與 GFS 的陣風落在同一級＝`agree`
 - `confirmed.json` 人工填的已確認停飛時段 → 該格 `level: "confirmed"`
 - 門檻在 `airports.json`，細節（時間格怎麼對、警報套幾小時）寫在 `src/hongthai/assess.py` 開頭
@@ -83,7 +89,7 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
 能見度公尺、雲底呎、溫度 °C。
 
 官方層（TAF 各時段與 METAR；只算 HD7 的「還有效且重疊」的時段；METAR 只進第一格、觀測 3 小時內，而且
-該格要有 TAF——只有警報的格 `wx` 是 `null`）。每個時段各自判（雷雨和能見度要在同一個時段），一格取最高：
+該格要有 TAF，或由 METAR 撐起（HD13）——只有警報的格 `wx` 是 `null`）。每個時段各自判（雷雨和能見度要在同一個時段），一格取最高：
 
 | 類 | 高 | 中 | 不升級（低） |
 | --- | --- | --- | --- |
@@ -109,8 +115,9 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
 | 香港天文台 | 黑色暴雨警告信號 `rainstorm_black` | 中 |
 | 香港天文台 | 紅色暴雨警告信號 `rainstorm_red`、雷暴警告 `thunderstorm` | 低：**只列出、不升級**（黃雨不列） |
 | 中央氣象署 | 天氣特報「大豪雨」「超大豪雨」且機場的縣市在範圍 `cwa_heavy_rain` | 中（大雨、豪雨特報不算） |
+| 中央氣象署 | 天氣特報「濃霧」且機場的縣市在範圍 `cwa_dense_fog`（HD13，台灣十個機場都適用） | 中 |
 
-- 這幾種警報算 `rain`，其他（颱風、熱帶氣旋信號）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
+- 前三列算 `rain`、濃霧特報算 `fog`，其他（颱風、熱帶氣旋信號）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
   TAF、只有低的警報時 `official` 是 `null`、退回模式；有 TAF 或有中以上的警報時照舊，
   `official.warnings[]` 列全部（含低的）。天文台 1 號信號也是低，HD8 起一樣照這條
 - JMA 大雪警報另開 HD9；澳門、韓國、越南、菲律賓這階段不加警報
@@ -132,8 +139,12 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
 - **模式層的霧只到中（HD10，2026-10-19 定案）**：GFS 能見度不準、又只有一個模式沒有對照（06:56Z 那報釜山
   10/20 12Z、18Z 只靠 GFS 能見度 308 公尺、幾乎沒雨就判高），所以 GFS 能見度 < 400 公尺也只是中；到高要官方層
   真的報霧或低雲幕。依據是模式層時同級的 `rain` 排在 `fog` 前面
-- **金門 RCBS、馬祖 RCFG 沒有 TAF／METAR**（AviationWeather 沒有這兩站），霧目前只有 GFS 的模式層；
-  其他來源的查證見 HD8 PR 說明，主對話決定要不要另開一支接進來
+- **金門 RCBS、馬祖 RCFG 沒有 TAF**（AviationWeather 沒有這兩站）。HD13 起霧的官方依據是氣象署局屬站觀測
+  （第一格）與濃霧特報（中，前 12 小時的格）；之後的格還是只有 GFS 模式層（最高到中）。飛航服務總臺 AOAWS 有
+  兩站的 METAR／SPECI，但是非正式介面，不接
+- **氣象署觀測的能見度是「描述」字串**（公里，資料標準說明文件只給 `>30` 一個例子），`<1` 這種記 950 公尺
+  （霧最多到中，要數字才看得出 < 400 公尺的高），區間取下限；局屬站不是機場跑道旁的觀測，和機場 METAR
+  可能有落差。欄位名照文件寫，**合併後第一報要對一次** `history/raw/<日期>/<時間>-cwa-obs.json`
 - AviationWeather 的能見度是法定英里，換回公尺是 × 1609 後換算到 50 公尺（公制 TAF 的 `1000`、`0400`、
   `1600`、`0800`、`1500`、`8000` 換得回原值）
 
@@ -244,7 +255,8 @@ H10（2026-10-18）之後：
   - `airports[]`：照 `regions` 的順序、地區內照顯示順序（讀的時候會檢查，順序不對、ICAO 重複、`region` 不在
     `regions` 裡、`tz` 不是 IANA 時區、跑道方位不在 0–360 都會報錯）。每個機場：ICAO、IATA、`tz`、`region`、
     四語名稱（短名、不加「機場」）、座標（機場參考點；現有五個沿用，H9 的 36 個與 HD3 的 10 個取
-    OurAirports）、跑道、看哪些官方警報、氣象署警戒區關鍵字、NWS zone、門檻
+    OurAirports）、跑道、看哪些官方警報、氣象署警戒區關鍵字、NWS zone、氣象署局屬站站號（`cwaStation`，HD13：金門、
+    馬祖沒有 METAR 時用這站的觀測）、門檻
   - `runways[].headings`：跑道兩個方向的**真北**方位（度）。提示詞寫的是磁方位，但 METAR／TAF 與模式的風向
     都是真北，用磁方位會差 3–5°，所以算側風用真北；磁方位（只有 AIP 的五個）記在 `runways[].magnetic` 備查
     （下面「跑道方位」）。`runways: []` 的機場側風是 `null`
@@ -281,7 +293,7 @@ H10（2026-10-18）之後：
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
   `/alerts/active` 的原始回應，HD3 起；氣象署天氣特報 `W-C0033-001` 是另一個檔 `<HHMM>Z-cwa-hazards.json`，
-  HD8 起，`-cwa.json` 照舊是颱風警報）與航班的
+  HD8 起，`-cwa.json` 照舊是颱風警報；金門、馬祖的局屬站觀測 `O-A0003-001` 是 `<HHMM>Z-cwa-obs.json`，HD13 起）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
   原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`、
   每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`，以及 AI 對決的戰績
@@ -474,6 +486,20 @@ HD8（2026-10-19，第五階段新天氣種類；欄位名定案，Shawn 轉給 
   不受影響）
 - 大小：2026-10-19 用 `data` 分支 05:25Z 的快照＋06:20Z 抓的模式實測，`latest.json`（不含 AI 欄位）從
   640 KB 變 1,019 KB（多約 380 KB，`indent=1` 每個新鍵一行）；gzip 後 45 KB（Pages 回應是壓縮過的）
+
+HD13（2026-10-19，金門、馬祖的霧；`schema` 維持 `1`，既有欄位不改名、不改型別）：
+
+- `airports[].metar` 多 `source: "cwa"`：金門、馬祖 AviationWeather 沒有 METAR，改用氣象署局屬站觀測
+  （`O-A0003-001`）填同樣的欄位（`windKt`／`gustKt` 由 m/s 換成節，`visibilityM` 由公里描述換算，`wx` 是
+  對到的 METAR 代碼，`ceilingFt` 永遠 `null`，`raw` 是 `CWA 467110 2026-10-19T12:00Z 能見度 0.5 km 陰有霧
+  風 090° 3 m/s`）。AviationWeather 的 METAR **沒有** `source` 這個鍵
+- `slots[].official.kind` 多一個值 `metar`（值域：`main`／`tempo`／`prob30`／`prob40`／`warning`／`metar`）：
+  沒有 TAF 的機場第一格由 METAR 撐起（上面「怎麼算」）；這種格的 `wx` 是物件（只有 METAR 一筆）
+- `airports[].warnings[]`／`slots[].official.warnings`：`kind` 多 `cwa_dense_fog`（`source: "cwa"`、`level:
+  "medium"`、`detail: "濃霧"`；四語「中央氣象署濃霧特報，金門在特報範圍」／zh-CN「中央气象署浓雾特报，金门在
+  特报范围」／en「CWA dense fog advisory; Kinmen is in the advisory area」），算 `fog`
+- `sources.cwa.obsOk: false`＋`obsError`：局屬站觀測那個請求失敗時才有（颱風警報、特報照常）
+- 大小：兩個機場的 `metar` 從 `null` 變物件、第一格多一個官方層，`latest.json` 多約 1–2 KB
 
 規格以外加的欄位與值（網頁可以忽略）：
 
@@ -696,7 +722,7 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 | [OpenStreetMap](https://www.openstreetmap.org/way/114511749)（跑道 way 114511749 的兩端座標，HD3） | 石垣跑道真北方位（用座標算出的一個數字） | © OpenStreetMap contributors，[ODbL](https://www.openstreetmap.org/copyright) |
 | [美國國家氣象局 api.weather.gov](https://www.weather.gov/documentation/services-web-api)（`/alerts/active?zone=GUZ001`，HD3） | 關島的颱風／熱帶風暴警報與守視（NWS 關島分處 Tiyan 發布） | 美國政府公有領域 |
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號；HD8 起加暴雨警告信號 `WRAIN`、雷暴警告 `WTS`，同一個請求） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
-| [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報；HD8 起加 `W-C0033-001` 天氣特報） | 海上／陸上颱風警報與警戒區（台灣十個機場）；各縣市目前的天氣特報（只用大豪雨、超大豪雨） | [政府資料開放授權條款](https://data.gov.tw/license) |
+| [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報；HD8 起加 `W-C0033-001` 天氣特報；HD13 起加 `O-A0003-001` 氣象觀測站-10分鐘綜觀氣象資料） | 海上／陸上颱風警報與警戒區（台灣十個機場）；各縣市目前的天氣特報（只用大豪雨、超大豪雨、濃霧）；金門 467110、馬祖 467990 局屬站的能見度、天氣、風（當這兩個機場的 METAR） | [政府資料開放授權條款](https://data.gov.tw/license) |
 | [澳門地球物理氣象局 XML](https://xml.smg.gov.mo/)（`c_typhoon.xml`／`e_typhoon.xml`；data.gov.mo 資料集[「熱帶氣旋信號」](https://data.gov.mo/Detail?id=15044781-1752-4f98-b87e-508208d70408)） | 熱帶氣旋信號 | [澳門政府數據開放平台使用條款](https://data.gov.mo/)：免費使用與再發布，須註明「澳門特別行政區政府數據開放平台」與取得日期 |
 | [香港機管局航班資訊](https://data.gov.hk/tc-data/dataset/aahk-team1-flight-info)（data.gov.hk） | 算每 6 小時格的取消／延誤統計（不存原始資料） | data.gov.hk 使用條款 |
 | [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
@@ -719,7 +745,13 @@ HD8 新參數（2026-10-19 查 ECMWF 18Z oper／12Z enfo ep 的 index 與 GFS 00
   陣風照抓
 - 氣象署天氣特報用 `W-C0033-001`（各縣市目前的特報，用 `cwaAreas` 比縣市名），不用 `W-C0033-002`（每則特報
   的影響區域，名稱是另一套）；沒有授權碼沒辦法實抓，格式照平台文件寫、原始回應存
-  `history/raw/<日期>/<時間>-cwa-hazards.json`，第一次實跑後要對一次
+  `history/raw/<日期>/<時間>-cwa-hazards.json`，第一次實跑後要對一次（2026-10-19 06:56Z 第一報對過，格式相符）
+- 局屬站觀測（HD13）用 `O-A0003-001`「氣象觀測站-10分鐘綜觀氣象資料」（舊名「現在天氣觀測報告」），參數
+  `StationId=467110,467990`；欄位照 [平台 API 文件](https://opendata.cwa.gov.tw/apidoc/v1)（swagger 的
+  `WeatherElement` 列舉：`Weather`、`VisibilityDescription`、`WindDirection`、`WindSpeed`、`GustInfo`…）與
+  [資料標準說明文件 V1.05](https://opendata.cwa.gov.tw/opendatadoc/Observation/O-A0003-001.pdf)（路徑
+  `//Station/WeatherElement/...`、缺測 `-99`／`X`、風向不定 `990`、天氣描述附表 2）寫。沒有授權碼沒辦法實抓，
+  原始回應存 `history/raw/<日期>/<時間>-cwa-obs.json`，合併後第一報要對一次
 
 NWS（關島、帛琉，HD3，2026-10-18 查）：
 - 關島：`/zones?area=GU` 有 `GUZ001`（public／fire，名稱 Guam，`cwa` 是 GUM＝NWS 關島分處）；PGUM 的

@@ -35,7 +35,7 @@
   依據是窄體客機常見的作業限制（737-800 濕跑道起飛約 27 節、乾跑道約 33 節）。
   和陣風規則取較高的等級（官方層、模式層各自合成）
 - 官方：一格取重疊的 TAF 時段裡最大的側風；METAR 只算進「現在」所在的那一格（觀測在 3 小時內），
-  而且只在該格本來就有官方資料（TAF 或警報）時
+  而且只在該格本來就有官方資料（TAF、警報，或下面 HD13 的「沒有 TAF 的機場由 METAR 撐起」）時
 
 已經過去的 TAF 時段（HD7，2026-10-19）：
 - TAF 只算「結束時間在現在之後」的時段（主時段、TEMPO、BECMG、PROB 都一樣）；只會影響現在所在的
@@ -53,8 +53,8 @@
   與三類取最高；種類只進每格的 `causes`、預覽圖小字與 AI 短評。原則：貼近實際會停飛的情況，
   只會延誤的不升級
 - 官方層（TAF 各時段與 METAR；HD7 的「還有效且重疊」的時段；METAR 只進第一格、觀測 3 小時內、
-  而且該格有 TAF——只有警報的格 `wx` 是 null，METAR 的天氣不算）。每個時段各自判（TS 和能見度
-  要在同一時段）：
+  而且該格有 TAF 或由 METAR 撐起（HD13，見下）——只有警報的格 `wx` 是 null，METAR 的天氣不算）。
+  每個時段各自判（TS 和能見度要在同一時段）：
   - `rain`：天氣現象含 `GR`（TSGR、+TSGR、GR、SHGR，冰雹）→ 高；`+TS` 開頭且含 `RA`（+TSRA）
     → 中；含 `TS` 且該時段能見度 ≤ 1600 公尺 → 中；其他（TS、TSRA、SHRA、+SHRA）低
   - `snow`：含 `FZRA`、`FZDZ`、`PL`（任何強度）→ 高；`+` 開頭且含 `SN`（+SN、+SHSN）→ 高；
@@ -77,7 +77,8 @@
     GFS 能見度取格頭尾兩個時間點的最小值
   - `model.agreement` **還是只看陣風**（值域不變）
 - 警報：天文台黑雨 → 中，紅雨、雷暴警告低（只列出）；氣象署大豪雨、超大豪雨特報且機場在範圍
-  → 中。這幾種算 `rain`（`RAIN_WARNING_KINDS`），其他警報算 `wind`。**低的警報不會自己撐起
+  → 中。這幾種算 `rain`（`RAIN_WARNING_KINDS`）；氣象署濃霧特報且機場在範圍 → 中，算 `fog`
+  （`FOG_WARNING_KINDS`，HD13）；其他警報算 `wind`。**低的警報不會自己撐起
   官方層**：一格沒有 TAF、只有低的警報時 `official` 是 null、退回模式（天文台 1 號信號也是低，
   HD8 起一樣照這條）；有 TAF 或有中以上的警報時，`official.warnings` 列全部（含低的）
 - `causes`：從決定 `level` 的那一層（`official` 或 `model`；`confirmed` 看被它蓋掉的那一層：
@@ -86,6 +87,16 @@
   都低是 `[]`，`unknown` 是 `[]`。依據是模式層時（霧只來自 GFS 能見度、官方層沒有霧）同級改成
   `wind`、`snow`、`rain`、`fog`（`MODEL_CAUSE_ORDER`，HD10）：模式的低能見度常是大雨造成的，
   主因寫雨
+
+沒有 TAF 的機場（HD13，Shawn 2026-10-19「金馬照建議」）：
+- 機場完全沒有 TAF（`taf_periods` 是 None 或空的）、METAR 在 3 小時內（`metar_fresh`）、而且風、
+  能見度、雲幕、天氣至少有一樣（`metar_has_data`；氣象署觀測全部缺測時不算）→ **第一格**的
+  官方層由 METAR 組成：`kind: "metar"`，`windKt`／`gustKt`／`crosswindKt`／`wx` 都從 METAR 來，
+  等級＝METAR 的風（TAF 的陣風規則）、側風、三類取最高，警報照舊疊上去。之後的格照舊（只有中以上的
+  警報才有官方層，不然退回模式）
+- 有 TAF 的機場完全不受影響（TAF 全部過去的也一樣——那是 HD7 的「當作沒有 TAF」，不走這條）
+- 會用到的：金門、馬祖（METAR 是氣象署局屬站觀測，`sources/cwa.py`）與宮古（AviationWeather 有
+  METAR 沒 TAF）；花蓮等六個連 METAR 也沒有的機場不變
 """
 
 from __future__ import annotations
@@ -113,6 +124,7 @@ MODEL_CAUSE_ORDER = ("wind", "snow", "rain", "fog")  # 依據是模式層時（H
 RAIN_WARNING_KINDS = frozenset(
     {"rainstorm_black", "rainstorm_red", "thunderstorm", "cwa_heavy_rain"}
 )
+FOG_WARNING_KINDS = frozenset({"cwa_dense_fog"})  # 算 `fog` 的警報種類（HD13）
 SNOWY_PTYPES = frozenset({"snow", "wet_snow", "rain_snow"})
 FREEZING_PTYPES = frozenset({"freezing_rain", "freezing_drizzle", "ice_pellets"})
 
@@ -123,7 +135,7 @@ class ActiveWarning:
 
     source: str  # hko／cwa／smg／nws
     # tc_signal／typhoon_land／typhoon_sea／typhoon_warning／typhoon_watch／ts_warning／ts_watch；
-    # HD8：rainstorm_black／rainstorm_red／thunderstorm／cwa_heavy_rain
+    # HD8：rainstorm_black／rainstorm_red／thunderstorm／cwa_heavy_rain；HD13：cwa_dense_fog
     kind: str
     level: str
     text: dict[str, str]
@@ -149,6 +161,8 @@ def _round(v: float | None, nd: int) -> float | None:
 
 
 def warning_cause(kind: str) -> str:
+    if kind in FOG_WARNING_KINDS:
+        return "fog"
     return "rain" if kind in RAIN_WARNING_KINDS else "wind"
 
 
@@ -310,6 +324,12 @@ def metar_fresh(metar: Metar | None, now: datetime) -> bool:
         and metar.observed is not None
         and now - metar.observed <= timedelta(hours=METAR_MAX_AGE_H)
     )
+
+
+def metar_has_data(metar: Metar) -> bool:
+    """風、陣風、能見度、雲幕、天氣現象至少有一樣（HD13：氣象署觀測可能全部缺測）。"""
+    values = (metar.wind_kt, metar.gust_kt, metar.vis_m, metar.ceiling_ft)
+    return any(v is not None for v in values) or bool(metar.wx)
 
 
 def metar_crosswind(metar: Metar | None, now: datetime, runways: Sequence[Runway]) -> float | None:
@@ -588,16 +608,35 @@ def assess_slots(
         if start < official_until:
             taf = taf_for_slot(taf_periods or [], now, start, end, thresholds, runways)
             applied = [w for w in warnings if start < warning_until]
+            first = start <= now < end
+            # 沒有 TAF 的機場，第一格由 METAR 撐起（HD13）
+            by_metar = (
+                not taf_periods
+                and first
+                and metar is not None
+                and metar_fresh(metar, now)
+                and metar_has_data(metar)
+            )
             # 低的警報不會自己撐起官方層（HD8）
-            if taf is not None or any(rank(w.level) >= rank("medium") for w in applied):
-                official = taf or {
-                    "windKt": None,
-                    "gustKt": None,
-                    "kind": None,
-                    "level": None,
-                    "crosswindKt": None,
-                }
-                first = start <= now < end
+            if taf is not None or by_metar or any(rank(w.level) >= rank("medium") for w in applied):
+                if taf is not None:
+                    official = taf
+                elif by_metar and metar is not None:
+                    official = {
+                        "windKt": metar.wind_kt,
+                        "gustKt": metar.gust_kt,
+                        "kind": "metar",
+                        "level": taf_level(metar.wind_kt, metar.gust_kt, thresholds),
+                        "crosswindKt": None,
+                    }
+                else:
+                    official = {
+                        "windKt": None,
+                        "gustKt": None,
+                        "kind": None,
+                        "level": None,
+                        "crosswindKt": None,
+                    }
                 if metar_xw is not None and first:
                     official["crosswindKt"] = _round(_max([official["crosswindKt"], metar_xw]), 1)
                 wx = None
@@ -608,6 +647,8 @@ def assess_slots(
                     if first and metar is not None and metar_fresh(metar, now):
                         items.append(metar)
                     wx = official_wx(items, thresholds)
+                elif by_metar and metar is not None:
+                    wx = official_wx([metar], thresholds)
                 off_levels = {
                     "wind": max_level(
                         [
@@ -623,12 +664,17 @@ def assess_slots(
                         ]
                     ),
                     "snow": wx["snow"] if wx else None,
-                    "fog": wx["fog"] if wx else None,
+                    "fog": max_level(
+                        [
+                            wx["fog"] if wx else None,
+                            *(w.level for w in applied if warning_cause(w.kind) == "fog"),
+                        ]
+                    ),
                 }
                 official["level"] = max_level(off_levels.values())
                 official["warnings"] = [w.kind for w in applied]
                 official["wx"] = wx
-                if taf is None:
+                if taf is None and not by_metar:
                     official["kind"] = "warning"
 
         if official is not None:

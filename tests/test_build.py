@@ -267,7 +267,7 @@ def test_slot_shape(latest):
             o = s["official"]
             if o is not None:
                 assert is_num_or_none(o["windKt"]) and is_num_or_none(o["gustKt"])
-                assert o["kind"] in ("main", "tempo", "prob30", "prob40", "warning")
+                assert o["kind"] in ("main", "tempo", "prob30", "prob40", "warning", "metar")
                 assert o["level"] in ("low", "medium", "high")
                 assert is_num_or_none(o["crosswindKt"])
             m = s["model"]
@@ -1171,6 +1171,130 @@ def test_cwa_heavy_rain_error_recorded():
         "heavyRainOk": False,
         "heavyRainError": "http_500",
     }
+
+
+def _hd13_cw(bulletins=()):
+    hz_raw = load_json("cwa_w-c0033-001_dense_fog.json")
+    obs_raw = load_json("cwa_o-a0003-001_obs.json")
+    return cwa.CwaData(
+        list(bulletins),
+        {},
+        cwa.parse_hazards(hz_raw, NOW),
+        hz_raw,
+        obs=cwa.parse_obs(obs_raw, ("467110", "467990")),
+        obs_raw=obs_raw,
+    )
+
+
+def test_hd13_kinmen_matsu_in_output(airports):
+    """金門：局屬站觀測（霧、能見度 300 公尺）撐起第一格＋濃霧特報；馬祖：觀測全部缺測、
+    退回模式。"""
+    ec, gf, tf, hk, _, sm, nw = sample_inputs(airports)
+    status = {n: {"ok": True} for n in build.SOURCE_NAMES}
+    out = build.assemble(
+        now=NOW,
+        regions=load_regions(ROOT / "airports.json"),
+        airports=airports,
+        confirmed=[],
+        status=status,
+        ec=ec,
+        gf=gf,
+        tf=tf,
+        hk=hk,
+        cw=_hd13_cw(),
+        sm=sm,
+        nw=nw,
+    )
+    out = json.loads(json.dumps(out))
+    by = {a["icao"]: a for a in out["airports"]}
+    rcbs = by["RCBS"]
+    assert rcbs["taf"] is None
+    m = rcbs["metar"]
+    assert (m["source"], m["observedAt"], m["visibilityM"], m["wx"]) == (
+        "cwa",
+        "2026-10-18T08:00:00Z",
+        300,
+        ["FG"],
+    )
+    assert (m["windDirDeg"], m["windKt"], m["gustKt"], m["ceilingFt"]) == (90, 2.9, 6.2, None)
+    assert m["raw"].startswith("CWA 467110 2026-10-18T08:00Z 能見度 0.3 km 陰有霧")
+    (fog,) = rcbs["warnings"]
+    assert (fog["source"], fog["kind"], fog["level"], fog["detail"]) == (
+        "cwa",
+        "cwa_dense_fog",
+        "medium",
+        "濃霧",
+    )
+    assert fog["text"]["zh-TW"] == "中央氣象署濃霧特報，金門在特報範圍"
+    assert set(fog["text"]) == LANGS
+    s0, s1 = rcbs["slots"][0], rcbs["slots"][1]
+    o = s0["official"]
+    assert (o["kind"], o["level"], o["warnings"]) == ("metar", "high", ["cwa_dense_fog"])
+    assert (o["windKt"], o["gustKt"]) == (2.9, 6.2)
+    assert o["wx"] == {
+        "phenomena": ["FG"],
+        "visibilityM": 300,
+        "ceilingFt": None,
+        "rain": "low",
+        "snow": "low",
+        "fog": "high",
+    }
+    assert (s0["level"], s0["basis"], s0["causes"]) == ("high", "official", ["fog"])
+    # 第二格（12Z 起，現在 + 12 小時內）只有濃霧特報 → 官方層中、主因霧
+    assert (s1["official"]["kind"], s1["level"], s1["causes"]) == ("warning", "medium", ["fog"])
+    # 馬祖：觀測全部缺測 → 有 metar（source cwa）但第一格不由它撐起
+    rcfg = by["RCFG"]
+    assert rcfg["metar"]["source"] == "cwa" and rcfg["metar"]["visibilityM"] is None
+    assert rcfg["warnings"] == [] and rcfg["slots"][0]["official"] is None
+    # AviationWeather 的 METAR 沒有 source 鍵；其他台灣機場沒有濃霧特報
+    assert "source" not in by["RCTP"]["metar"]
+    assert all(w["kind"] != "cwa_dense_fog" for w in by["RCTP"]["warnings"])
+
+
+def test_station_metar_prefers_aviationweather(airports):
+    rcbs = {a.icao: a for a in airports}["RCBS"]
+    cw = _hd13_cw()
+    aw = taf.Metar(NOW, 60, 8, None, "METAR RCBS …")
+    tf = taf.TafData({}, {"RCBS": aw}, {})
+    assert build.station_metar(rcbs, tf, cw) is aw
+    assert build.station_metar(rcbs, taf.TafData({}, {}, {}), cw) is cw.obs["467110"]
+    assert build.station_metar(rcbs, None, cw) is cw.obs["467110"]
+    assert build.station_metar(rcbs, None, None) is None
+    rctp = {a.icao: a for a in airports}["RCTP"]
+    assert build.station_metar(rctp, None, cw) is None  # 沒有 cwaStation
+
+
+def test_cwa_obs_error_recorded():
+    assert build._cwa_extra(cwa.CwaData([], {}, obs_error="http_500")) == {
+        "obsOk": False,
+        "obsError": "http_500",
+    }
+    both = cwa.CwaData([], {}, hazards_error="timeout", obs_error="api_error")
+    assert build._cwa_extra(both) == {
+        "heavyRainOk": False,
+        "heavyRainError": "timeout",
+        "obsOk": False,
+        "obsError": "api_error",
+    }
+
+
+def test_cwa_obs_raw_written_and_stations_passed(workspace, monkeypatch):
+    cw = _hd13_cw()
+    got = []
+
+    def fake_fetch(api_key, now, stations=()):
+        got.append(stations)
+        return cw
+
+    _fail_all_but(monkeypatch)
+    monkeypatch.setattr(build.cwa, "fetch", fake_fetch)
+    assert build.main([]) == 0
+    assert got == [("467110", "467990")]
+    raw = workspace / "data" / "history" / "raw" / "2026-10-18"
+    assert json.loads((raw / "0810Z-cwa-obs.json").read_text("utf-8")) == cw.obs_raw
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    rcbs = {a["icao"]: a for a in out["airports"]}["RCBS"]
+    assert rcbs["metar"]["source"] == "cwa" and rcbs["slots"][0]["official"]["kind"] == "metar"
 
 
 def test_cwa_hazards_raw_written(workspace, monkeypatch, airports):

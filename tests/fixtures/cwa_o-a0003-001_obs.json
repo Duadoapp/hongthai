@@ -1,0 +1,62 @@
+{
+ "success": "true",
+ "result": {"resource_id": "O-A0003-001", "fields": []},
+ "records": {
+  "Station": [
+   {
+    "StationName": "金門",
+    "StationId": "467110",
+    "ObsTime": {"DateTime": "2026-10-18T16:00:00+08:00"},
+    "GeoInfo": {"StationAltitude": "47.9", "CountyName": "金門縣", "TownName": "金城鎮"},
+    "WeatherElement": {
+     "Weather": "陰有霧",
+     "VisibilityDescription": "0.3",
+     "SunshineDuration": 0.0,
+     "Now": {"Precipitation": 0.0},
+     "WindDirection": 90.0,
+     "WindSpeed": 1.5,
+     "AirTemperature": 22.1,
+     "RelativeHumidity": 99.0,
+     "AirPressure": 1012.3,
+     "UVIndex": -99,
+     "Max10MinAverage": {
+      "WindSpeed": 4.2,
+      "Occurred_at": {"WindDirection": 80.0, "DateTime": "2026-10-18T09:30:00+08:00"}
+     },
+     "GustInfo": {
+      "PeakGustSpeed": 3.2,
+      "Occurred_at": {"WindDirection": 100.0, "DateTime": "2026-10-18T15:40:00+08:00"}
+     }
+    }
+   },
+   {
+    "StationName": "馬祖",
+    "StationId": "467990",
+    "ObsTime": {"DateTime": "2026-10-18T16:00:00+08:00"},
+    "GeoInfo": {"StationAltitude": "97.8", "CountyName": "連江縣", "TownName": "南竿鄉"},
+    "WeatherElement": {
+     "Weather": "多雲",
+     "VisibilityDescription": "-99",
+     "WindDirection": 990.0,
+     "WindSpeed": "X",
+     "AirTemperature": 21.0,
+     "GustInfo": {
+      "PeakGustSpeed": 12.0,
+      "Occurred_at": {"WindDirection": 20.0, "DateTime": "2026-10-18T03:10:00+08:00"}
+     }
+    }
+   },
+   {
+    "StationName": "臺北",
+    "StationId": "466920",
+    "ObsTime": {"DateTime": "2026-10-18T16:00:00+08:00"},
+    "WeatherElement": {
+     "Weather": "晴",
+     "VisibilityDescription": ">30",
+     "WindDirection": 70.0,
+     "WindSpeed": 3.0
+    }
+   }
+  ]
+ }
+}

@@ -720,9 +720,11 @@ def test_metar_weather_only_first_slot_and_fresh():
 
 
 def test_metar_weather_not_counted_without_taf():
-    """只有警報的格 `wx` 是 null，METAR 的霧不算。"""
+    """只有警報的格 `wx` 是 null，METAR 的霧不算。HD13 起限「有 TAF、但這格的時段都過去了」的機場
+    （HD7 的當作沒有 TAF）；完全沒有 TAF 的機場第一格改由 METAR 撐起（見下面 HD13 的測試）。"""
     fog = Metar(NOW - timedelta(minutes=10), 90, 5, None, "METAR …", 300, ("FG",), 100)
-    s = run(warnings=[warn("medium")], metar=fog)[0]
+    past = wxp((), 9999, start_h=0, end_h=1)  # 06–07Z，現在 08:10Z 已經過去
+    s = run(taf_periods=[past], warnings=[warn("medium")], metar=fog)[0]
     assert s["official"]["wx"] is None
     assert s["official"]["level"] == "medium"
     assert s["causes"] == ["wind"]
@@ -746,6 +748,76 @@ def test_low_warning_alone_does_not_make_official_layer():
 def test_cwa_heavy_rain_warning_is_rain_cause():
     s = run(warnings=[warn("medium", "cwa_heavy_rain", "cwa")])[0]
     assert (s["level"], s["basis"], s["causes"]) == ("medium", "official", ["rain"])
+
+
+# ---- 沒有 TAF 的機場：METAR 撐起第一格、濃霧特報（HD13）----
+
+
+def kinmen_fog(age=timedelta(minutes=10), vis=300, wind=2.9, gust=6.2, wdir=90):
+    """金門的局屬站觀測（`sources/cwa.py` 轉成的 `Metar`）。"""
+    return Metar(NOW - age, wdir, wind, gust, "CWA 467110 …", vis, ("FG",), None, "cwa")
+
+
+def test_no_taf_fresh_metar_makes_first_slot_official():
+    slots = run(metar=kinmen_fog())
+    s0, s1 = slots[0], slots[1]
+    o = s0["official"]
+    assert (o["kind"], o["level"], o["windKt"], o["gustKt"]) == ("metar", "high", 2.9, 6.2)
+    assert o["warnings"] == [] and o["crosswindKt"] is None  # 沒給跑道
+    assert (o["wx"]["phenomena"], o["wx"]["visibilityM"], o["wx"]["fog"]) == (["FG"], 300, "high")
+    assert (s0["level"], s0["basis"], s0["causes"]) == ("high", "official", ["fog"])
+    # 之後的格照舊退回模式
+    assert s1["official"] is None and s1["basis"] == "model"
+
+
+def test_no_taf_metar_wind_and_crosswind():
+    # 能見度 9999、沒有天氣；陣風 40 節 → 中；正側風 40 節（跑道 05/23，風 140°）→ 高
+    m = Metar(NOW - timedelta(minutes=30), 140, 25, 40, "METAR X", 9999)
+    o = run(metar=m)[0]["official"]
+    assert (o["kind"], o["gustKt"], o["level"]) == ("metar", 40, "medium")
+    s = run(metar=m, runways=RWY_05)[0]
+    assert (s["official"]["crosswindKt"], s["level"], s["causes"]) == (40, "high", ["wind"])
+
+
+def test_no_taf_old_metar_falls_back_to_model():
+    s = run(metar=kinmen_fog(age=timedelta(hours=4)))[0]
+    assert s["official"] is None and s["basis"] == "model"
+    # 空的 TAF 清單也算沒有 TAF
+    assert run(taf_periods=[], metar=kinmen_fog())[0]["official"]["kind"] == "metar"
+    # 全部缺測的觀測（能見度 -99、風速 X）不算
+    empty = Metar(NOW - timedelta(minutes=10), None, None, None, "CWA 467990 …", source="cwa")
+    assert run(metar=empty)[0]["official"] is None
+
+
+def test_no_taf_metar_with_warnings_overlaid():
+    s = run(metar=kinmen_fog(vis=800), warnings=[warn("high", "typhoon_land", "cwa")])[0]
+    o = s["official"]
+    assert (o["kind"], o["warnings"], o["wx"]["fog"]) == ("metar", ["typhoon_land"], "medium")
+    assert (s["level"], s["causes"]) == ("high", ["wind", "fog"])
+    # 低的警報也照列（METAR 已經撐起官方層）
+    s = run(metar=kinmen_fog(vis=9999), warnings=[warn("low", "thunderstorm")])[0]
+    assert (s["official"]["warnings"], s["level"], s["causes"]) == (["thunderstorm"], "low", [])
+
+
+def test_metar_alone_ignored_when_airport_has_taf():
+    # 有 TAF 的機場不走這條：TAF 全部過去、沒有警報 → 還是沒有官方層（HD7）
+    past = wxp((), 9999, start_h=0, end_h=1)
+    s = run(taf_periods=[past], metar=kinmen_fog())[0]
+    assert s["official"] is None and s["basis"] == "model"
+
+
+def test_dense_fog_warning_is_fog_cause():
+    # 沒有 TAF、沒有 METAR：濃霧特報（中）自己撐起官方層
+    s = run(warnings=[warn("medium", "cwa_dense_fog", "cwa")])[0]
+    o = s["official"]
+    assert (o["kind"], o["level"], o["wx"]) == ("warning", "medium", None)
+    assert (s["level"], s["basis"], s["causes"]) == ("medium", "official", ["fog"])
+    # 有 TAF 時疊上去：TAF 霧低、特報中 → 霧中
+    s = run(taf_periods=[wxp((), 9999)], warnings=[warn("medium", "cwa_dense_fog", "cwa")])[0]
+    assert (s["official"]["kind"], s["level"], s["causes"]) == ("main", "medium", ["fog"])
+    # METAR 的霧比特報高 → 高
+    s = run(metar=kinmen_fog(), warnings=[warn("medium", "cwa_dense_fog", "cwa")])[0]
+    assert (s["official"]["kind"], s["level"], s["causes"]) == ("metar", "high", ["fog"])
 
 
 def precip_ec(mm=0.0, ptype="none", p50=None, hres=5.0) -> EcmwfPoint:
