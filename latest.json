@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "generatedAt": "2026-10-19T18:07:00Z",
+ "generatedAt": "2026-10-19T19:13:00Z",
  "runs": {
   "ecmwf": "2026-10-19T06:00:00Z",
   "ecmwfEns": "2026-10-19T00:00:00Z",
@@ -9,31 +9,31 @@
  "sources": {
   "ecmwf": {
    "ok": true,
-   "seconds": 138.7,
+   "seconds": 98.1,
    "bytes": 151129634,
-   "mirror": "ecmwf"
+   "mirror": "aws"
   },
   "gfs": {
    "ok": true,
-   "seconds": 81.0,
+   "seconds": 22.1,
    "bytes": 76212311,
    "mirror": "aws"
   },
   "taf": {
    "ok": true,
-   "seconds": 18.3
+   "seconds": 1.3
   },
   "hko": {
    "ok": true,
-   "seconds": 2.9
+   "seconds": 3.2
   },
   "cwa": {
    "ok": true,
-   "seconds": 1.7
+   "seconds": 1.8
   },
   "smg": {
    "ok": true,
-   "seconds": 2.5
+   "seconds": 4.3
   },
   "nws": {
    "ok": true,
@@ -41,18 +41,18 @@
   },
   "flights": {
    "ok": true,
-   "seconds": 20.3
+   "seconds": 17.0
   },
   "ai": {
    "ok": true,
-   "seconds": 181.0,
+   "seconds": 85.2,
    "calls": {
     "claude": 20,
     "gemini": 20
    },
    "errors": {
     "claude": "bad_wording",
-    "gemini": "http_504"
+    "gemini": "bad_wording"
    }
   }
  },
@@ -156,11 +156,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": null,
-    "windKt": 2,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 130,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR RCTP 191800Z VRB02KT 9999 FEW015 26/24 Q1014 NOSIG RMK A2996",
+    "raw": "METAR RCTP 191900Z 13004KT 9999 FEW015 26/24 Q1014 NOSIG RMK A2996",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -1111,24 +1111,28 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風／側風。10/23 08 時至 10/24 14 時連續多格陣風達 49 至 59.3 節，陣風超過 49 節的機率最高 68%；10/24 02–14 時側風達 39.3 至 48.7 節。同期 6 小時雨量最多 24.3 毫米，24 小時雨量超過 50 毫米的機率 53%，大雨為次要因素。歐洲模式與美國模式陣風一致，停飛風險評為高。",
-      "zh-HK": "主因是強風／側風。10/23 08 時至 10/24 14 時連續多個時段陣風達 49 至 59.3 節，陣風超過 49 節的機率最高 68%；10/24 02–14 時側風達 39.3 至 48.7 節。同期 6 小時雨量最多 24.3 毫米，24 小時雨量超過 50 毫米的機率 53%，大雨為次要因素。歐洲模式與美國模式陣風一致，停飛風險評為高。",
-      "zh-CN": "主因是强风／侧风。10/23 08 时至 10/24 14 时连续多个时段阵风达 49 至 59.3 节，阵风超过 49 节的概率最高 68%；10/24 02–14 时侧风达 39.3 至 48.7 节。同期 6 小时雨量最多 24.3 毫米，24 小时雨量超过 50 毫米的概率 53%，大雨为次要因素。欧洲模式与美国模式阵风一致，停飞风险评为高。",
-      "en": "The main cause is strong wind/crosswind. From 10/23 08:00 to 10/24 14:00, several consecutive periods show gusts of 49 to 59.3 kt, with up to a 68% chance of gusts over 49 kt; on 10/24 02:00-14:00 the crosswind reaches 39.3 to 48.7 kt. Over the same time, up to 24.3 mm of rain in 6 hours is expected, with a 53% chance of more than 50 mm in 24 hours, making heavy rain a secondary factor. The European model and US model agree on gusts, so the disruption risk is rated High."
+      "zh-TW": "主因是強風／側風，其次大雨。10/23 08 時起陣風明顯增強，10/23 14 時至 10/24 02 時歐洲模式陣風達 59 節，陣風超過 49 節的機率 68%；10/24 02–08 時美國模式側風 41 節。10/23 08–14 時 24 小時雨量超過 50 毫米的機率 53%。歐洲模式與美國模式陣風一致，停飛風險評為高。",
+      "zh-HK": "主因是強風／側風，其次大雨。10/23 08 時起陣風明顯增強，10/23 14 時至 10/24 02 時歐洲模式陣風達 59 節，陣風超過 49 節的機率 68%；10/24 02–08 時美國模式側風 41 節。10/23 08–14 時 24 小時雨量超過 50 毫米的機率 53%。歐洲模式與美國模式陣風一致，停飛風險評為高。",
+      "zh-CN": "主因是强风／侧风，其次大雨。10/23 08 时起阵风明显增强，10/23 14 时至 10/24 02 时欧洲模式阵风达 59 节，阵风超过 49 节的概率 68%；10/24 02–08 时美国模式侧风 41 节。10/23 08–14 时 24 小时雨量超过 50 毫米的概率 53%。欧洲模式与美国模式阵风一致，停飞风险评为高。",
+      "en": "The main cause is strong wind/crosswind, followed by heavy rain. Gusts strengthen markedly from 10/23 08:00; from 10/23 14:00 to 10/24 02:00 the European model shows gusts up to 59 kt, with a 68% chance of gusts over 49 kt. From 10/24 02:00-08:00 the US model shows a 41 kt crosswind. For 10/23 08:00-14:00 there is a 53% chance of more than 50 mm of rain in 24 hours. The European and US models agree on gusts, so the disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
     "gemini": {
-     "status": "error",
-     "level": null,
-     "comment": null,
-     "model": "gemini-4-argon",
-     "error": "bad_wording"
+     "status": "ok",
+     "level": "high",
+     "comment": {
+      "zh-TW": "未來五天停飛風險為高，主因是強風／側風，並伴隨大雨／雷雨。10/22 20 時起風勢轉強；10/23 08 時至 10/24 14 時風險達高，歐洲模式與美國模式一致預報強風，歐洲模式陣風最高達 59.3 節、側風達 48.7 節，美國模式陣風亦達 56.2 節、側風 41 節。期間陣風超過 49 節的機率達 66% 至 68%，且 24 小時雨量超過 50 毫米的機率達 30% 至 53%。",
+      "zh-HK": "未來五天停飛風險為高，主因是強風／側風，並伴隨大雨／雷雨。10/22 20 時起風勢轉強；10/23 08 時至 10/24 14 時風險達高，歐洲模式與美國模式一致預報強風，歐洲模式陣風最高達 59.3 節、側風達 48.7 節，美國模式陣風亦達 56.2 節、側風 41 節。期間陣風超過 49 節的機率達 66% 至 68%，且 24 小時雨量超過 50 毫米的機率達 30% 至 53%。",
+      "zh-CN": "未来五天停飞风险为高，主因是强风／侧风，并伴随大雨／雷雨。10/22 20 时起风势转强；10/23 08 时至 10/24 14 时风险达高，欧洲模式与美国模式一致预报强风，欧洲模式阵风最高达 59.3 节、侧风达 48.7 节，美国模式阵风亦达 56.2 节、侧风 41 节。期间阵风超过 49 节的概率达 66% 至 68%，且 24 小时雨量超过 50 毫米的概率达 30% 至 53%。",
+      "en": "The disruption risk over the next five days is High, mainly due to strong winds/crosswinds accompanied by heavy rain/thunderstorms. Winds strengthen from 10/22 20:00; the risk reaches High from 10/23 08:00 to 10/24 14:00 as the European model and US model agree on strong winds, with the European model forecasting gusts up to 59.3 kt and crosswinds up to 48.7 kt, and the US model reaching 56.2 kt gusts and 41 kt crosswinds. During this period, there is a 66% to 68% chance of gusts over 49 kt and a 30% to 53% chance of 24-hour rainfall exceeding 50 mm."
+     },
+     "model": "gemini-4-argon"
     }
    }
   },
@@ -1148,11 +1152,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 90,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 150,
     "windKt": 4,
     "gustKt": null,
-    "raw": "METAR RCSS 191800Z 09004KT 9999 FEW020 27/24 Q1014 NOSIG RMK A2995",
+    "raw": "METAR RCSS 191900Z 15004KT 9999 FEW020 27/24 Q1014 NOSIG RMK A2996",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -1178,7 +1182,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 0.2,
+      "crosswindKt": 3.4,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -2086,15 +2090,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風，大雨次之。10/23 08 時起歐洲模式陣風 48.1 至 55.6 節，10/23 20 時–10/24 08 時陣風超過 49 節的機率 64%，兩模式一致；同時段歐洲模式 6 小時雨量 47.9 毫米、24 小時雨量超過 50 毫米的機率 60%。10/24 08–14 時歐洲模式側風達 44 節，停飛風險高，10/24 晚間轉弱。",
-      "zh-HK": "主因是強風，大雨次之。10/23 08 時起歐洲模式陣風 48.1 至 55.6 節，10/23 20 時–10/24 08 時陣風超過 49 節的機率 64%，兩模式一致；同時段歐洲模式 6 小時雨量 47.9 毫米、24 小時雨量超過 50 毫米的機率 60%。10/24 08–14 時歐洲模式側風達 44 節，停飛風險高，10/24 晚間轉弱。",
-      "zh-CN": "主因是强风，大雨次之。10/23 08 时起欧洲模式阵风 48.1 至 55.6 节，10/23 20 时–10/24 08 时阵风超过 49 节的概率 64%，两模式一致；同时段欧洲模式 6 小时雨量 47.9 毫米、24 小时雨量超过 50 毫米的概率 60%。10/24 08–14 时欧洲模式侧风达 44 节，停飞风险高，10/24 晚间转弱。",
-      "en": "Strong wind is the main cause, with heavy rain secondary. From 10/23 08 h local the European model shows gusts of 48.1 to 55.6 kt, and from 10/23 20 h to 10/24 08 h local there is a 64% chance of gusts over 49 kt, with the models agreeing; in the same period the European model shows 47.9 mm of rain in 6 hours and a 60% chance of over 50 mm of rain in 24 hours. On 10/24 08–14 h local the European model crosswind reaches 44 kt. Disruption risk is High, easing on the evening of 10/24."
+      "zh-TW": "主因是強風，大雨次之。10/23 08 時起陣風明顯增強，10/23 20 時至 10/24 08 時歐洲模式陣風 54.7 節、美國模式陣風 53.3 節，兩模式一致，陣風超過 49 節的機率 64%；10/24 08–14 時歐洲模式側風達 44 節。10/23 20 時–10/24 02 時歐洲模式 6 小時雨量 47.9 毫米。整體評為高。",
+      "zh-HK": "主因是強風，大雨次之。10/23 08 時起陣風明顯增強，10/23 20 時至 10/24 08 時歐洲模式陣風 54.7 節、美國模式陣風 53.3 節，兩模式一致，陣風超過 49 節的機率 64%；10/24 08–14 時歐洲模式側風達 44 節。10/23 20 時–10/24 02 時歐洲模式 6 小時雨量 47.9 毫米。整體評為高。",
+      "zh-CN": "主因是强风，大雨次之。10/23 08 时起阵风明显增强，10/23 20 时至 10/24 08 时欧洲模式阵风 54.7 节、美国模式阵风 53.3 节，两模式一致，阵风超过 49 节的概率 64%；10/24 08–14 时欧洲模式侧风达 44 节。10/23 20 时–10/24 02 时欧洲模式 6 小时雨量 47.9 毫米。整体评为高。",
+      "en": "Strong wind is the main driver, with heavy rain secondary. Gusts strengthen markedly from 10/23 08 h local; from 10/23 20 h to 10/24 08 h local the European model shows gusts of 54.7 kt and the US model 53.3 kt, the models agree, with a 64% chance of gusts over 49 kt; on 10/24 08-14 h local the European model crosswind reaches 44 kt. On 10/23 20 h to 10/24 02 h local the European model shows 47.9 mm of rain in 6 hours. Overall disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
@@ -2102,10 +2106,10 @@
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "強風／側風與大雨／雷雨使停飛風險為高。10/23 08 時至 10/24 14 時風險達高：歐洲模式與美國模式預報陣風分別高達 55.6 節與 53.3 節，10/24 08–14 時歐洲模式側風達 44 節；10/23 20 時至 10/24 08 時陣風超過 49 節的機率達 64%。此外 10/23 08–20 時 24 小時雨量超過 50 毫米的機率達 70%，10/23 20 時–10/24 02 時歐洲模式 6 小時雨量達 47.9 毫米。",
-      "zh-HK": "強風／側風與大雨／雷雨使停飛風險為高。10/23 08 時至 10/24 14 時風險達高：歐洲模式與美國模式預報陣風分別高達 55.6 節與 53.3 節，10/24 08–14 時歐洲模式側風達 44 節；10/23 20 時至 10/24 08 時陣風超過 49 節的機率達 64%。此外 10/23 08–20 時 24 小時雨量超過 50 毫米的機率達 70%，10/23 20 時–10/24 02 時歐洲模式 6 小時雨量達 47.9 毫米。",
-      "zh-CN": "强风／侧风与大雨／雷雨使停飞风险为高。10/23 08 时至 10/24 14 时风险达高：欧洲模式与美国模式预报阵风分别高达 55.6 节与 53.3 节，10/24 08–14 时欧洲模式侧风达 44 节；10/23 20 时至 10/24 08 时阵风超过 49 节的概率达 64%。此外 10/23 08–20 时 24 小时雨量超过 50 毫米的概率达 70%，10/23 20 时–10/24 02 时欧洲模式 6 小时雨量达 47.9 毫米。",
-      "en": "Strong winds/crosswinds and heavy rain/thunderstorms bring a High disruption risk. From 10/23 08:00 to 10/24 14:00 local, the risk is High: the European model and US model forecast gusts up to 55.6 kt and 53.3 kt respectively, with European model crosswinds reaching 44 kt during 10/24 08:00–14:00; from 10/23 20:00 to 10/24 08:00, there is a 64% chance of gusts over 49 kt. Additionally, during 10/23 08:00–20:00, the chance of 24-hour rainfall over 50 mm reaches 70%, and the European model forecasts 47.9 mm of rain in 6 hours for 10/23 20:00–10/24 02:00."
+      "zh-TW": "未來5天停飛風險為高，主因為強風與側風，並伴隨大雨。10/20至10/22風險低，但10/23 08時至10/24 14時風險升為高：歐洲模式與美國模式陣風分別達48.1至55.6節與43.4至53.3節，陣風超過49節的機率達47%至64%，10/24 08–14時歐洲模式側風更達44節；期間6小時雨量最高47.9毫米，24小時雨量超過50毫米的機率達70%。",
+      "zh-HK": "未來5天停飛風險為高，主因為強風與側風，並伴隨大雨。10/20至10/22風險低，但10/23 08時至10/24 14時風險升為高：歐洲模式與美國模式陣風分別達48.1至55.6節與43.4至53.3節，陣風超過49節的機率達47%至64%，10/24 08–14時歐洲模式側風更達44節；期間6小時雨量最高47.9毫米，24小時雨量超過50毫米的機率達70%。",
+      "zh-CN": "未来5天停飞风险为高，主因为强风与侧风，并伴随大雨。10/20至10/22风险低，但10/23 08时至10/24 14时风险升为高：欧洲模式与美国模式阵风分别达48.1至55.6节与43.4至53.3节，阵风超过49节的概率达47%至64%，10/24 08–14时欧洲模式侧风更达44节；期间6小时雨量最高47.9毫米，24小时雨量超过50毫米的概率达70%。",
+      "en": "The disruption risk over the next 5 days is High, mainly due to strong winds and crosswinds, accompanied by heavy rain. Risk is Low from 10/20 to 10/22, but rises to High from 10/23 08:00 to 10/24 14:00: gusts in the European model and US model reach 48.1–55.6 kt and 43.4–53.3 kt respectively, with a 47%–64% chance of gusts over 49 kt, and European model crosswinds reaching 44 kt on 10/24 08:00–14:00; during this period, 6-hour rainfall peaks at 47.9 mm with a 70% chance of 24-hour rainfall exceeding 50 mm."
      },
      "model": "gemini-4-argon"
     }
@@ -2127,11 +2131,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 70,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 40,
     "windKt": 3,
     "gustKt": null,
-    "raw": "METAR RCKH 191800Z 07003KT 9999 FEW018 SCT150 26/23 Q1014 NOSIG RMK A2996",
+    "raw": "METAR RCKH 191900Z 04003KT 9999 FEW018 SCT150 26/23 Q1014 NOSIG RMK A2995",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -3086,24 +3090,28 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風／側風。10/23 14–20 時歐洲模式陣風 69.5 節、側風 43.9 節；10/23 20 時–10/24 08 時兩個模式陣風一致，陣風超過 49 節的機率 82%，10/24 02–08 時美國模式 6 小時雨量 72.2 毫米，大雨使情況更嚴重。停飛風險評為高。",
-      "zh-HK": "主因是強風／側風。10/23 14–20 時歐洲模式陣風 69.5 節、側風 43.9 節；10/23 20 時–10/24 08 時兩個模式陣風一致，陣風超過 49 節的機率 82%，10/24 02–08 時美國模式 6 小時雨量 72.2 毫米，大雨使情況更嚴重。停飛風險評為高。",
-      "zh-CN": "主因是强风／侧风。10/23 14–20 时欧洲模式阵风 69.5 节、侧风 43.9 节；10/23 20 时–10/24 08 时两个模式阵风一致，阵风超过 49 节的概率 82%，10/24 02–08 时美国模式 6 小时雨量 72.2 毫米，大雨使情况更严重。停飞风险评为高。",
-      "en": "The main driver is strong wind and crosswind. On 10/23 14-20 h local the European model shows gusts of 69.5 kt and crosswind of 43.9 kt; from 10/23 20 h to 10/24 08 h local the models agree on gusts, with an 82% chance of gusts over 49 kt, and on 10/24 02-08 h local the US model shows 72.2 mm of rain in 6 hours, with heavy rain making conditions worse. Disruption risk is rated High."
+      "zh-TW": "主因是強風與側風。機場預報（TAF）到10/21 08時風僅5–10節；10/23 08–20時歐洲模式陣風57.5–69.5節，陣風超過49節的機率76%，美國模式較弱；10/23 20時–10/24 08時兩模式陣風都在55.8節以上，機率82%，並伴隨大雨，10/24 08–14時6小時雨量最多45.5毫米。停飛風險評為高。",
+      "zh-HK": "主因是強風與側風。機場預報（TAF）到10/21 08時風僅5–10節；10/23 08–20時歐洲模式陣風57.5–69.5節，陣風超過49節的機率76%，美國模式較弱；10/23 20時–10/24 08時兩個模式陣風都在55.8節以上，機率82%，並伴隨大雨，10/24 08–14時6小時雨量最多45.5毫米。停飛風險評為高。",
+      "zh-CN": "主因是强风与侧风。机场预报（TAF）到10/21 08时风仅5–10节；10/23 08–20时欧洲模式阵风57.5–69.5节，阵风超过49节的概率76%，美国模式较弱；10/23 20时–10/24 08时两个模式阵风都在55.8节以上，概率82%，并伴随大雨，10/24 08–14时6小时雨量最多45.5毫米。停飞风险评为高。",
+      "en": "The main cause is strong wind and crosswind. The airport forecast (TAF) shows only 5-10 kt of wind through 10/21 08:00; on 10/23 08:00-20:00 the European model has gusts of 57.5-69.5 kt with a 76% chance of gusts over 49 kt, while the US model is weaker; from 10/23 20:00 to 10/24 08:00 both models show gusts of 55.8 kt or more, with an 82% chance, along with heavy rain, peaking at 45.5 mm of rain in 6 hours on 10/24 08:00-14:00. Disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
     "gemini": {
-     "status": "error",
-     "level": null,
-     "comment": null,
-     "model": "gemini-4-argon",
-     "error": "http_504"
+     "status": "ok",
+     "level": "high",
+     "comment": {
+      "zh-TW": "未來五天停飛風險為高，主因是強風／側風與大雨／雷雨。10/22 20 時至 10/24 20 時風險達高：10/23 14–20 時歐洲模式陣風達 69.5 節、側風 43.9 節；10/23 20 時至 10/24 08 時兩模式一致，美國模式陣風與側風達 55.8 節，陣風超過 49 節的機率 82%。此外 10/24 02–08 時美國模式 6 小時雨量達 72.2 毫米。",
+      "zh-HK": "未來五天停飛風險為高，主因是強風／側風與大雨／雷雨。10/22 20 時至 10/24 20 時風險達高：10/23 14–20 時歐洲模式陣風達 69.5 節、側風 43.9 節；10/23 20 時至 10/24 08 時兩模式一致，美國模式陣風與側風達 55.8 節，陣風超過 49 節的機率 82%。此外 10/24 02–08 時美國模式 6 小時雨量達 72.2 毫米。",
+      "zh-CN": "未来五天停飞风险为高，主因是强风／侧风与大雨／雷雨。10/22 20 时至 10/24 20 时风险达高：10/23 14–20 时欧洲模式阵风达 69.5 节、侧风 43.9 节；10/23 20 时至 10/24 08 时两模式一致，美国模式阵风与侧风达 55.8 节，阵风超过 49 节的概率 82%。此外 10/24 02–08 时美国模式 6 小时雨量达 72.2 毫米。",
+      "en": "The disruption risk over the next five days is High, mainly due to strong winds/crosswinds and heavy rain/thunderstorms. The risk reaches High from 10/22 20:00 to 10/24 20:00: during 10/23 14:00–20:00, the European model shows gusts of 69.5 kt and crosswinds of 43.9 kt; from 10/23 20:00 to 10/24 08:00, both models agree, with the US model showing gusts and crosswinds of 55.8 kt and an 82% chance of gusts over 49 kt. Additionally, during 10/24 02:00–08:00, the US model forecasts 72.2 mm of rain in 6 hours."
+     },
+     "model": "gemini-4-argon"
     }
    }
   },
@@ -3123,12 +3131,12 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 170,
-    "windKt": 1,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 190,
+    "windKt": 2,
     "gustKt": null,
-    "raw": "METAR RCMQ 191800Z 17001KT 9000 FEW010 25/24 Q1016 RMK A3000",
-    "visibilityM": 9000,
+    "raw": "METAR RCMQ 191900Z 19002KT 8000 FEW010 24/23 Q1015 RMK A3000",
+    "visibilityM": 8000,
     "wx": [],
     "ceilingFt": null
    },
@@ -4075,15 +4083,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風。10/22 08 時至 10/23 20 時陣風超過 49 節的機率達 94%–100%，歐洲模式陣風 57–87.8 節、美國模式 47.1–53.3 節，兩模式陣風多數一致；10/23 20 時–10/24 02 時歐洲模式側風 66.2 節、美國模式僅 16.7 節，落差大。目前機場預報（TAF）只到 10/21 02 時，僅有靄、陣風未達門檻。停飛風險評為高。",
-      "zh-HK": "主因是強風。10/22 08 時至 10/23 20 時陣風超過 49 節的機率達 94%–100%，歐洲模式陣風 57–87.8 節、美國模式 47.1–53.3 節，兩模式陣風多數一致；10/23 20 時–10/24 02 時歐洲模式側風 66.2 節、美國模式僅 16.7 節，落差大。目前機場預報（TAF）只到 10/21 02 時，僅有靄、陣風未達門檻。停飛風險評為高。",
-      "zh-CN": "主因是强风。10/22 08 时至 10/23 20 时阵风超过 49 节的概率达 94%–100%，欧洲模式阵风 57–87.8 节、美国模式 47.1–53.3 节，两模式阵风多数一致；10/23 20 时–10/24 02 时欧洲模式侧风 66.2 节、美国模式仅 16.7 节，差距大。目前机场预报（TAF）只到 10/21 02 时，仅有霭、阵风未达门槛。停飞风险评为高。",
-      "en": "Strong wind is the main cause. From 10/22 08:00 to 10/23 20:00 local, the chance of gusts over 49 kt is 94%-100%, with gusts of 57-87.8 kt in the European model and 47.1-53.3 kt in the US model; the models mostly agree on gusts. For 10/23 20:00 to 10/24 02:00, the European model shows a 66.2 kt crosswind versus only 16.7 kt in the US model, a large gap. The airport forecast (TAF) currently runs only to 10/21 02:00, showing just mist, with gusts below thresholds. Disruption risk is rated High."
+      "zh-TW": "主因是強風。10/22 08 時至 10/23 20 時，陣風超過 49 節的機率維持 94–100%，歐洲模式陣風 57 至 87.8 節，美國模式也有 47.1 至 53.3 節，側風約 20 至 25.6 節；10/23 20 時–10/24 02 時歐洲模式側風達 66.2 節。10/24 起轉弱，停飛風險評為高。",
+      "zh-HK": "主因是強風。10/22 08 時至 10/23 20 時，陣風超過 49 節的機率維持 94–100%，歐洲模式陣風 57 至 87.8 節，美國模式亦有 47.1 至 53.3 節，側風約 20 至 25.6 節；10/23 20 時–10/24 02 時歐洲模式側風達 66.2 節。10/24 起轉弱，停飛風險評為高。",
+      "zh-CN": "主因是强风。10/22 08 时至 10/23 20 时，阵风超过 49 节的概率维持 94–100%，欧洲模式阵风 57 至 87.8 节，美国模式也有 47.1 至 53.3 节，侧风约 20 至 25.6 节；10/23 20 时–10/24 02 时欧洲模式侧风达 66.2 节。10/24 起转弱，停飞风险评为高。",
+      "en": "Strong wind is the main cause. From 10/22 08:00 to 10/23 20:00, the chance of gusts over 49 kt stays at 94-100%, with the European model showing gusts of 57 to 87.8 kt and the US model 47.1 to 53.3 kt, and crosswind around 20 to 25.6 kt; from 10/23 20:00 to 10/24 02:00 the European model shows crosswind of 66.2 kt. Winds weaken from 10/24. Disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
@@ -4091,10 +4099,10 @@
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "未來五天停飛風險為高，主因是強風／側風。10/20 02時至10/21 08時風力平穩，風險為低。10/21 08時起風勢增強，自10/21 20時至10/24 08時連續十個時段達高等級；其中10/22 08時至10/23 08時陣風超過49節的機率達100%，10/23 14–20時歐洲模式陣風高達87.8節、美國模式50.2節，10/23 20時–10/24 02時歐洲模式側風亦達66.2節。",
-      "zh-HK": "未來五天停飛風險為高，主因是強風／側風。10/20 02時至10/21 08時風力平穩，風險為低。10/21 08時起風勢增強，自10/21 20時至10/24 08時連續十個時段達高等級；其中10/22 08時至10/23 08時陣風超過49節的機率達100%，10/23 14–20時歐洲模式陣風高達87.8節、美國模式50.2節，10/23 20時–10/24 02時歐洲模式側風亦達66.2節。",
-      "zh-CN": "未来五天停飞风险为高，主因是强风／侧风。10/20 02时至10/21 08时风力平稳，风险为低。10/21 08时起风势增强，自10/21 20时至10/24 08时连续十个时段达高等级；其中10/22 08时至10/23 08时阵风超过49节的概率达100%，10/23 14–20时欧洲模式阵风高达87.8节、美国模式50.2节，10/23 20时–10/24 02时欧洲模式侧风亦达66.2节。",
-      "en": "The disruption risk over the next five days is High, mainly due to strong winds and crosswinds. From 10/20 02:00 to 10/21 08:00, winds are calm with Low risk. Winds strengthen from 10/21 08:00, reaching High risk for ten consecutive periods from 10/21 20:00 to 10/24 08:00. From 10/22 08:00 to 10/23 08:00, the chance of gusts over 49 kt reaches 100%. During 10/23 14:00–20:00, gusts reach 87.8 kt in the European model and 50.2 kt in the US model, while the European model crosswind hits 66.2 kt during 10/23 20:00–10/24 02:00."
+      "zh-TW": "未來五天停飛風險為高，主因是強風／側風。10/21 20 時至 10/24 08 時連續多段達高等級，陣風超過 49 節的機率達 68% 至 100%。其中 10/23 14–20 時歐洲模式陣風高達 87.8 節、美國模式 50.2 節；10/23 20 時–10/24 02 時歐洲模式側風更達 66.2 節。",
+      "zh-HK": "未來五天停飛風險為高，主因是強風／側風。10/21 20 時至 10/24 08 時連續多段達高等級，陣風超過 49 節的機率達 68% 至 100%。其中 10/23 14–20 時歐洲模式陣風高達 87.8 節、美國模式 50.2 節；10/23 20 時–10/24 02 時歐洲模式側風更達 66.2 節。",
+      "zh-CN": "未来五天停飞风险为高，主因是强风／侧风。10/21 20 时至 10/24 08 时连续多段达高等级，阵风超过 49 节的概率达 68% 至 100%。其中 10/23 14–20 时欧洲模式阵风高达 87.8 节、美国模式 50.2 节；10/23 20 时–10/24 02 时欧洲模式侧风更达 66.2 节。",
+      "en": "The disruption risk over the next five days is High, mainly due to strong winds and crosswinds. Multiple consecutive periods from 10/21 20:00 to 10/24 08:00 local reach the High level, with a 68% to 100% chance of gusts over 49 kt. During 10/23 14:00–20:00, gusts reach 87.8 kt in the European model and 50.2 kt in the US model; during 10/23 20:00–10/24 02:00, crosswinds in the European model reach 66.2 kt."
      },
      "model": "gemini-4-argon"
     }
@@ -4116,11 +4124,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
+    "observedAt": "2026-10-19T19:00:00Z",
     "windDirDeg": 0,
     "windKt": 0,
     "gustKt": null,
-    "raw": "METAR RCNN 191800Z 00000KT 7000 FEW012 22/22 Q1015 RMK A2997",
+    "raw": "METAR RCNN 191900Z 00000KT 7000 FEW012 22/22 Q1014 RMK A2996",
     "visibilityM": 7000,
     "wx": [],
     "ceilingFt": null
@@ -5057,15 +5065,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風／側風。10/23 08–20 時陣風超過 49 節的機率 65%，歐洲模式陣風 57.3 至 70 節；10/23 20 時–10/24 02 時歐洲模式側風達 47.7 節，10/24 02–08 時兩模式陣風 49.9 與 53.8 節一致。10/24 08–14 時歐洲模式 6 小時雨量 58.6 毫米。美國模式在 10/23 明顯偏弱，但高峰時段兩模式一致，評為高。",
-      "zh-HK": "主因是強風／側風。10/23 08–20 時陣風超過 49 節的機率 65%，歐洲模式陣風 57.3 至 70 節；10/23 20 時–10/24 02 時歐洲模式側風達 47.7 節，10/24 02–08 時兩模式陣風 49.9 與 53.8 節一致。10/24 08–14 時歐洲模式 6 小時雨量 58.6 毫米。美國模式在 10/23 明顯偏弱，但高峰時段兩模式一致，評為高。",
-      "zh-CN": "主因是强风／侧风。10/23 08–20 时阵风超过 49 节的概率 65%，欧洲模式阵风 57.3 至 70 节；10/23 20 时–10/24 02 时欧洲模式侧风达 47.7 节，10/24 02–08 时两模式阵风 49.9 与 53.8 节一致。10/24 08–14 时欧洲模式 6 小时雨量 58.6 毫米。美国模式在 10/23 明显偏弱，但高峰时段两模式一致，评为高。",
-      "en": "The main cause is strong wind/crosswind. On 10/23 08:00-20:00 there is a 65% chance of gusts over 49 kt, with the European model showing gusts of 57.3 to 70 kt; on 10/23 20:00-10/24 02:00 the European model crosswind reaches 47.7 kt, and on 10/24 02:00-08:00 the two models agree on gusts of 49.9 and 53.8 kt. On 10/24 08:00-14:00 the European model shows 58.6 mm of rain in 6 hours. The US model is clearly weaker on 10/23, but the two models agree at the peak period, so the rating is High."
+      "zh-TW": "主因是強風／側風，大雨為次。10/23 08–14 時起歐洲模式陣風 57.3 節、陣風超過 49 節的機率 65%，10/23 20 時–10/24 02 時陣風 71.2 節、側風 47.7 節；美國模式較弱，但 10/24 02–08 時陣風 53.8 節、側風 34.5 節，兩模式一致。10/24 08–14 時歐洲模式 6 小時雨量 58.6 毫米，24 小時雨量超過 50 毫米的機率 44%。停飛風險高。",
+      "zh-HK": "主因是強風／側風，大雨為次。10/23 08–14 時起歐洲模式陣風 57.3 節、陣風超過 49 節的機率 65%，10/23 20 時–10/24 02 時陣風 71.2 節、側風 47.7 節；美國模式較弱，但 10/24 02–08 時陣風 53.8 節、側風 34.5 節，兩模式一致。10/24 08–14 時歐洲模式 6 小時雨量 58.6 毫米，24 小時雨量超過 50 毫米的機率 44%。停飛風險高。",
+      "zh-CN": "主因是强风／侧风，大雨为次。10/23 08–14 时起欧洲模式阵风 57.3 节、阵风超过 49 节的概率 65%，10/23 20 时–10/24 02 时阵风 71.2 节、侧风 47.7 节；美国模式较弱，但 10/24 02–08 时阵风 53.8 节、侧风 34.5 节，两模式一致。10/24 08–14 时欧洲模式 6 小时雨量 58.6 毫米，24 小时雨量超过 50 毫米的概率 44%。停飞风险高。",
+      "en": "The main cause is strong wind/crosswind, with heavy rain secondary. From 10/23 08:00–14:00 the European model shows gusts of 57.3 kt with a 65% chance of gusts over 49 kt, and on 10/23 20:00–10/24 02:00 gusts of 71.2 kt and crosswind of 47.7 kt. The US model is weaker, but on 10/24 02:00–08:00 it shows gusts of 53.8 kt and crosswind of 34.5 kt, and the models agree. On 10/24 08:00–14:00 the European model shows 58.6 mm of rain in 6 hours, with a 44% chance of over 50 mm of rain in 24 hours. Disruption risk is High."
      },
      "model": "claude-opus-5-5"
     },
@@ -5073,10 +5081,10 @@
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "強風／側風與大雨／雷雨使台南機場停飛風險為高。10/23 08–20 時歐洲模式陣風 57.3 至 70 節，陣風超過 49 節的機率 65%。10/23 20 時–10/24 02 時歐洲模式陣風達 71.2 節、側風 47.7 節。10/24 02–08 時兩模式一致預報強風，美國模式陣風 53.8 節、6 小時雨量 41 毫米；10/24 08–14 時歐洲模式 6 小時雨量達 58.6 毫米。",
-      "zh-HK": "強風／側風與大雨／雷雨使台南機場停飛風險為高。10/23 08–20 時歐洲模式陣風 57.3 至 70 節，陣風超過 49 節的機率 65%。10/23 20 時–10/24 02 時歐洲模式陣風達 71.2 節、側風 47.7 節。10/24 02–08 時兩模式一致預報強風，美國模式陣風 53.8 節、6 小時雨量 41 毫米；10/24 08–14 時歐洲模式 6 小時雨量達 58.6 毫米。",
-      "zh-CN": "强风／侧风与大雨／雷雨使台南机场停飞风险为高。10/23 08–20 时欧洲模式阵风 57.3 至 70 节，阵风超过 49 节的概率 65%。10/23 20 时–10/24 02 时欧洲模式阵风达 71.2 节、侧风 47.7 节。10/24 02–08 时两模式一致预报强风，美国模式阵风 53.8 节、6 小时雨量 41 毫米；10/24 08–14 时欧洲模式 6 小时雨量达 58.6 毫米。",
-      "en": "Strong winds/crosswinds and heavy rain/thunderstorms bring a High disruption risk to Tainan Airport. During 10/23 08:00–20:00, the European model forecasts gusts of 57.3 to 70 kt, with a 65% chance of gusts over 49 kt. From 10/23 20:00 to 10/24 02:00, European model gusts reach 71.2 kt with a 47.7 kt crosswind. During 10/24 02:00–08:00, the models agree on strong winds, with the US model showing 53.8 kt gusts and 41 mm of rain in 6 hours; during 10/24 08:00–14:00, the European model forecasts 58.6 mm of rain in 6 hours."
+      "zh-TW": "停飛風險為高，主因是強風／側風與大雨／雷雨。10/22 20 時前風險為低。10/23 08 時–10/24 14 時升至高：10/23 20 時–10/24 02 時歐洲模式陣風 71.2 節、側風 47.7 節；10/24 02–08 時兩模式一致，美國模式陣風 53.8 節、6 小時雨量 41 毫米，陣風超過 49 節的機率 47%；10/24 08–14 時歐洲模式 6 小時雨量 58.6 毫米，24 小時雨量超過 50 毫米的機率 44%。",
+      "zh-HK": "停飛風險為高，主因是強風／側風與大雨／雷雨。10/22 20 時前風險為低。10/23 08 時–10/24 14 時升至高：10/23 20 時–10/24 02 時歐洲模式陣風 71.2 節、側風 47.7 節；10/24 02–08 時兩模式一致，美國模式陣風 53.8 節、6 小時雨量 41 毫米，陣風超過 49 節的機率 47%；10/24 08–14 時歐洲模式 6 小時雨量 58.6 毫米，24 小時雨量超過 50 毫米的機率 44%。",
+      "zh-CN": "停飞风险为高，主因是强风／侧风与大雨／雷雨。10/22 20 时前风险为低。10/23 08 时–10/24 14 时升至高：10/23 20 时–10/24 02 时欧洲模式阵风 71.2 节、侧风 47.7 节；10/24 02–08 时两模式一致，美国模式阵风 53.8 节、6 小时雨量 41 毫米，阵风超过 49 节的概率 47%；10/24 08–14 时欧洲模式 6 小时雨量 58.6 毫米，24 小时雨量超过 50 毫米的概率 44%。",
+      "en": "Disruption risk is High, mainly due to strong wind/crosswind and heavy rain/thunderstorms. Risk is Low before 10/22 20:00. It rises to High from 10/23 08:00 to 10/24 14:00: during 10/23 20:00–10/24 02:00, the European model shows gusts of 71.2 kt and crosswind of 47.7 kt; during 10/24 02:00–08:00, both models agree, with the US model showing gusts of 53.8 kt, 41 mm of rain in 6 hours, and a 47% chance of gusts over 49 kt; during 10/24 08:00–14:00, the European model shows 58.6 mm of rain in 6 hours, with a 44% chance of 24-hour rainfall over 50 mm."
      },
      "model": "gemini-4-argon"
     }
@@ -5976,7 +5984,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "error",
      "level": null,
@@ -5988,10 +5996,10 @@
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "強風與側風、大雨及濃霧共同推高花蓮的停飛風險至高等級。10/22 14 時至 10/24 14 時風險最高，其中 10/23 14–20 時歐洲模式陣風達 102.1 節、側風 70.5 節（美國模式陣風 32.9 節），陣風超過 49 節的機率達 74%；6 小時雨量達 250 毫米（美國模式 165.9 毫米），能見度降至 78 公尺。",
-      "zh-HK": "強風與側風、大雨及濃霧共同推高花蓮的停飛風險至高等級。10/22 14 時至 10/24 14 時風險最高，其中 10/23 14–20 時歐洲模式陣風達 102.1 節、側風 70.5 節（美國模式陣風 32.9 節），陣風超過 49 節的機率達 74%；6 小時雨量達 250 毫米（美國模式 165.9 毫米），能見度降至 78 公尺。",
-      "zh-CN": "强风与侧风、大雨及浓雾共同推高花莲的停飞风险至高等级。10/22 14 时至 10/24 14 时风险最高，其中 10/23 14–20 时欧洲模式阵风达 102.1 节、侧风 70.5 节（美国模式阵风 32.9 节），阵风超过 49 节的概率达 74%；6 小时雨量达 250 毫米（美国模式 165.9 毫米），能见度降至 78 米。",
-      "en": "Strong winds, crosswinds, heavy rain, and dense fog raise Hualien's disruption risk to High. Risk peaks from 10/22 14:00 to 10/24 14:00. During 10/23 14:00–20:00, the European model shows gusts of 102.1 kt and crosswind of 70.5 kt (US model gusts 32.9 kt), with a 74% chance of gusts over 49 kt; 6-hour rainfall reaches 250 mm (US model 165.9 mm), and visibility drops to 78 m."
+      "zh-TW": "強風／側風與大雨／雷雨是未來幾天的主要風險，同時伴隨濃霧／低雲。10/22 14 時至 10/24 14 時停飛風險為高。10/23 14–20 時最劇烈，歐洲模式陣風達 102.1 節、側風 70.5 節，陣風超過 49 節的機率 74%，6 小時雨量達 250 毫米；美國模式陣風 32.9 節、6 小時雨量 165.9 毫米、能見度 78 公尺。",
+      "zh-HK": "強風／側風與大雨／雷雨是未來幾天的主要風險，同時伴隨濃霧／低雲。10/22 14 時至 10/24 14 時停飛風險為高。10/23 14–20 時最劇烈，歐洲模式陣風達 102.1 節、側風 70.5 節，陣風超過 49 節的機率 74%，6 小時雨量達 250 毫米；美國模式陣風 32.9 節、6 小時雨量 165.9 毫米、能見度 78 公尺。",
+      "zh-CN": "强风／侧风与大雨／雷雨是未来几天的主要风险，同时伴随浓雾／低云。10/22 14 时至 10/24 14 时停飞风险为高。10/23 14–20 时最剧烈，欧洲模式阵风达 102.1 节、侧风 70.5 节，阵风超过 49 节的概率 74%，6 小时雨量达 250 毫米；美国模式阵风 32.9 节、6 小时雨量 165.9 毫米、能见度 78 米。",
+      "en": "Strong winds/crosswinds and heavy rain/thunderstorms are the main risks in the coming days, accompanied by dense fog/low clouds. The disruption risk is High from 10/22 14:00 to 10/24 14:00 local. Conditions peak during 10/23 14:00–20:00, with the European model showing gusts of 102.1 kt, crosswinds of 70.5 kt, a 74% chance of gusts over 49 kt, and 250 mm of rain in 6 hours; the US model shows gusts of 32.9 kt, 165.9 mm of rain in 6 hours, and visibility of 78 m."
      },
      "model": "gemini-4-argon"
     }
@@ -6960,24 +6968,28 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風／側風，並伴隨大雨。前兩天機場預報（TAF）與模式都平穩，風險在 10/23 下午起升高：10/23 14 時–10/24 02 時歐洲模式與美國模式陣風都達 63 節以上，歐洲模式側風逾 51 節，陣風超過 49 節的機率 55%；10/23 20 時–10/24 02 時美國模式 6 小時雨量 235.9 毫米，24 小時雨量超過 50 毫米的機率 59%。停飛風險評為高。",
-      "zh-HK": "主因是強風／側風，並伴隨大雨。前兩天機場預報（TAF）與模式均平穩，風險在 10/23 下午起升高：10/23 14 時至 10/24 02 時歐洲模式與美國模式陣風均達 63 節以上，歐洲模式側風逾 51 節，陣風超過 49 節的機率 55%；10/23 20 時至 10/24 02 時美國模式 6 小時雨量 235.9 毫米，24 小時雨量超過 50 毫米的機率 59%。停飛風險評為高。",
-      "zh-CN": "主因是强风／侧风，并伴随大雨。前两天机场预报（TAF）与模式都平稳，风险在 10/23 下午起升高：10/23 14 时–10/24 02 时欧洲模式与美国模式阵风都达 63 节以上，欧洲模式侧风超过 51 节，阵风超过 49 节的概率 55%；10/23 20 时–10/24 02 时美国模式 6 小时雨量 235.9 毫米，24 小时雨量超过 50 毫米的概率 59%。停飞风险评为高。",
-      "en": "The main cause is strong wind and crosswind, along with heavy rain. The airport forecast (TAF) and the models are calm for the first two days, but risk rises from the afternoon of 10/23: from 10/23 14:00 to 10/24 02:00 both the European model and the US model show gusts of 63 kt or more, the European model shows crosswind above 51 kt, and there is a 55% chance of gusts over 49 kt; from 10/23 20:00 to 10/24 02:00 the US model shows 235.9 mm of rain in 6 hours, with a 59% chance of more than 50 mm of rain in 24 hours. Disruption risk is rated High."
+      "zh-TW": "主因是強風與側風，其次是大雨。10/23 14時至10/24 02時，歐洲模式與美國模式陣風都在63.2–64.9節，陣風超過49節的機率55%、45%，歐洲模式側風達52.3節；10/23 20時–10/24 02時美國模式6小時雨量235.9毫米。停飛風險評為高。",
+      "zh-HK": "主因是強風與側風，其次是大雨。10/23 14時至10/24 02時，歐洲模式與美國模式陣風均在63.2–64.9節，陣風超過49節的機率55%、45%，歐洲模式側風達52.3節；10/23 20時–10/24 02時美國模式6小時雨量235.9毫米。停飛風險評為高。",
+      "zh-CN": "主因是强风与侧风，其次是大雨。10/23 14时至10/24 02时，欧洲模式与美国模式阵风都在63.2–64.9节，阵风超过49节的概率55%、45%，欧洲模式侧风达52.3节；10/23 20时–10/24 02时美国模式6小时雨量235.9毫米。停飞风险评为高。",
+      "en": "The main cause is strong wind and crosswind, followed by heavy rain. From 10/23 14:00 to 10/24 02:00, gusts in both the European model and the US model are 63.2-64.9 kt, with a 55% and 45% chance of gusts over 49 kt, and the European model's crosswind reaches 52.3 kt; for 10/23 20:00-10/24 02:00 the US model shows 235.9 mm of rain in 6 hours. Disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
     "gemini": {
-     "status": "error",
-     "level": null,
-     "comment": null,
-     "model": "gemini-4-argon",
-     "error": "bad_wording"
+     "status": "ok",
+     "level": "high",
+     "comment": {
+      "zh-TW": "主因為強風與側風，伴隨大雨及濃霧，停飛風險為高。10/20 至 10/22 風險為低，但 10/23 08 時至 10/24 08 時轉高：期間歐洲模式陣風最高達 64.9 節、側風 52.3 節，美國模式陣風達 63.8 節，陣風超過 49 節的機率達 55%；10/23 20 時至 10/24 02 時美國模式 6 小時雨量達 235.9 毫米、能見度 79 公尺。",
+      "zh-HK": "主因為強風與側風，伴隨大雨及濃霧，停飛風險為高。10/20 至 10/22 風險為低，但 10/23 08 時至 10/24 08 時轉高：期間歐洲模式陣風最高達 64.9 節、側風 52.3 節，美國模式陣風達 63.8 節，陣風超過 49 節的機率達 55%；10/23 20 時至 10/24 02 時美國模式 6 小時雨量達 235.9 毫米、能見度 79 公尺。",
+      "zh-CN": "主因为强风与侧风，伴随大雨及浓雾，停飞风险为高。10/20 至 10/22 风险为低，但 10/23 08 时至 10/24 08 时转高：期间欧洲模式阵风最高达 64.9 节、侧风 52.3 节，美国模式阵风达 63.8 节，阵风超过 49 节的概率达 55%；10/23 20 时至 10/24 02 时美国模式 6 小时雨量达 235.9 毫米、能见度 79 米。",
+      "en": "The main cause is strong winds and crosswind, accompanied by heavy rain and dense fog, bringing a High disruption risk. Risk is Low from 10/20 to 10/22, turning High from 10/23 08:00 to 10/24 08:00: during this time, European model gusts reach 64.9 kt with crosswind at 52.3 kt, US model gusts reach 63.8 kt, and the chance of gusts over 49 kt reaches 55%; from 10/23 20:00 to 10/24 02:00, the US model shows 235.9 mm of rain in 6 hours and visibility 79 m."
+     },
+     "model": "gemini-4-argon"
     }
    }
   },
@@ -6997,11 +7009,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 360,
-    "windKt": 2,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 10,
+    "windKt": 3,
     "gustKt": null,
-    "raw": "METAR RCQC 191800Z 36002KT 9999 FEW012 27/25 Q1014 RMK A2996",
+    "raw": "METAR RCQC 191900Z 01003KT 9999 FEW012 26/25 Q1014 RMK A2996",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -7949,28 +7961,24 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風。10/21 20 時起，陣風超過 49 節的機率達 97%。10/22 08 時至 10/23 20 時，這個機率升到 98–100%。歐洲模式的陣風在 10/23 14–20 時最高達 92.4 節，美國模式為 62.6 節。10/24 02–08 時，歐洲模式側風 74.6 節，美國模式則是 11.3 節。機場預報（TAF）只涵蓋到 10/21 02 時，期間平穩。停飛風險評為高。",
-      "zh-HK": "主因是強風。10/21 20 時起，陣風超過 49 節的機率達 97%。10/22 08 時至 10/23 20 時，此機率升至 98–100%。歐洲模式的陣風在 10/23 14–20 時最高達 92.4 節，美國模式為 62.6 節。10/24 02–08 時，歐洲模式側風 74.6 節，美國模式則是 11.3 節。機場預報（TAF）只涵蓋至 10/21 02 時，期間平穩。停飛風險評為高。",
-      "zh-CN": "主因是强风。10/21 20 时起，阵风超过 49 节的概率达 97%。10/22 08 时至 10/23 20 时，这一概率升到 98–100%。欧洲模式的阵风在 10/23 14–20 时最高达 92.4 节，美国模式为 62.6 节。10/24 02–08 时，欧洲模式侧风 74.6 节，美国模式则是 11.3 节。机场预报（TAF）只覆盖到 10/21 02 时，期间平稳。停飞风险评为高。",
-      "en": "The main cause is strong wind. From 10/21 20 h local, the chance of gusts over 49 kt reaches 97%. From 10/22 08 h to 10/23 20 h local, that chance rises to 98–100%. The European model's gusts peak at 92.4 kt on 10/23 14–20 h local, while the US model shows 62.6 kt. On 10/24 02–08 h local, the European model's crosswind is 74.6 kt, versus 11.3 kt in the US model. The airport forecast (TAF) only covers up to 10/21 02 h local and is calm over that time. Disruption risk is rated High."
+      "zh-TW": "主因是強風與側風。10/21 20 時起陣風超過 49 節的機率達 97%，10/22 08 時至 10/23 20 時升到 98–100%；歐洲模式陣風 10/23 14–20 時達 92.4 節，10/24 02–08 時側風 74.6 節，美國模式陣風也在 55–62.6 節。10/24 14–20 時歐洲模式 6 小時雨量 23.1 毫米。目前機場預報（TAF）與機場觀測（METAR）風勢平穩，停飛風險評為高。",
+      "zh-HK": "主因是強風與側風。10/21 20 時起陣風超過 49 節的機率達 97%，10/22 08 時至 10/23 20 時升到 98–100%；歐洲模式陣風 10/23 14–20 時達 92.4 節，10/24 02–08 時側風 74.6 節，美國模式陣風亦在 55–62.6 節。10/24 14–20 時歐洲模式 6 小時雨量 23.1 毫米。目前機場預報（TAF）與機場觀測（METAR）風勢平穩，停飛風險評為高。",
+      "zh-CN": "主因是强风与侧风。10/21 20 时起阵风超过 49 节的概率达 97%，10/22 08 时至 10/23 20 时升到 98–100%；欧洲模式阵风 10/23 14–20 时达 92.4 节，10/24 02–08 时侧风 74.6 节，美国模式阵风也在 55–62.6 节。10/24 14–20 时欧洲模式 6 小时雨量 23.1 毫米。目前机场预报（TAF）与机场观测（METAR）风势平稳，停飞风险评为高。",
+      "en": "The main cause is strong wind and crosswind. From 10/21 20:00 the chance of gusts over 49 kt reaches 97%, rising to 98-100% from 10/22 08:00 to 10/23 20:00; the European model shows gusts of 92.4 kt on 10/23 14:00-20:00 and a crosswind of 74.6 kt on 10/24 02:00-08:00, while the US model also has gusts of 55-62.6 kt. On 10/24 14:00-20:00 the European model shows 23.1 mm of rain in 6 hours. The current airport forecast (TAF) and airport observation (METAR) show calm winds. Disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
     "gemini": {
-     "status": "ok",
-     "level": "high",
-     "comment": {
-      "zh-TW": "強風與側風是未來五天最主要的停飛風險來源，大雨亦構成次要影響。10/21 20 時至 10/24 20 時風險持續為高，期間陣風超過 49 節的機率達 54% 至 100%。尤其 10/23 14–20 時，歐洲模式與美國模式陣風分別達 92.4 節與 62.6 節；10/24 02–08 時歐洲模式側風更達 74.6 節。此外，10/24 08–20 時 24 小時雨量超過 50 毫米的機率達 32%，整體停飛風險極高。",
-      "zh-HK": "強風與側風是未來五天最主要的停飛風險來源，大雨亦構成次要影響。10/21 20 時至 10/24 20 時風險持續為高，期間陣風超過 49 節的機率達 54% 至 100%。尤其 10/23 14–20 時，歐洲模式與美國模式陣風分別達 92.4 節與 62.6 節；10/24 02–08 時歐洲模式側風更達 74.6 節。此外，10/24 08–20 時 24 小時雨量超過 50 毫米的機率達 32%，整體停飛風險極高。",
-      "zh-CN": "强风与侧风是未来五天最主要的停飞风险来源，大雨亦构成次要影响。10/21 20 时至 10/24 20 时风险持续为高，期间阵风超过 49 节的概率达 54% 至 100%。尤其 10/23 14–20 时，欧洲模式与美国模式阵风分别达 92.4 节与 62.6 节；10/24 02–08 时欧洲模式侧风更达 74.6 节。此外，10/24 08–20 时 24 小时雨量超过 50 毫米的概率达 32%，整体停飞风险极高。",
-      "en": "Strong winds and crosswinds are the primary sources of disruption risk over the next five days, with heavy rain as a secondary factor. The risk remains High from 10/21 20:00 to 10/24 20:00, with a 54% to 100% chance of gusts over 49 kt. Notably, during 10/23 14:00–20:00, gusts reach 92.4 kt in the European model and 62.6 kt in the US model, while crosswinds in the European model hit 74.6 kt during 10/24 02:00–08:00. Additionally, there is a 32% chance of 24-hour rainfall exceeding 50 mm during 10/24 08:00–20:00, making the overall disruption risk High."
-     },
-     "model": "gemini-4-argon"
+     "status": "error",
+     "level": null,
+     "comment": null,
+     "model": "gemini-4-argon",
+     "error": "bad_wording"
     }
    }
   },
@@ -7990,11 +7998,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 10,
-    "windKt": 4.3,
-    "gustKt": 6.0,
-    "raw": "CWA 467110 2026-10-19T18:00Z 能見度 >30 km 晴 風 010° 2.2 m/s 陣風 3.1 m/s",
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 350,
+    "windKt": 3.1,
+    "gustKt": 5.8,
+    "raw": "CWA 467110 2026-10-19T19:00Z 能見度 >30 km 晴 風 350° 1.6 m/s 陣風 3 m/s",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null,
@@ -8009,11 +8017,11 @@
      "basis": "official",
      "causes": [],
      "official": {
-      "windKt": 4.3,
-      "gustKt": 6.0,
+      "windKt": 3.1,
+      "gustKt": 5.8,
       "kind": "metar",
       "level": "low",
-      "crosswindKt": 4.9,
+      "crosswindKt": 5.6,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -8876,15 +8884,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "medium",
      "comment": {
-      "zh-TW": "主因是強風／側風，集中在 10/23 14 時至 10/24 14 時。美國模式陣風 45.2 節、側風 36.7 節，達高標；但歐洲模式陣風僅 31.6 節、側風 30.7 節，陣風超過 49 節的機率只有 5–7%，高等級只靠單一模式支撐，因此評為中。10/24 20 時起歐洲模式 6 小時雨量 33.3 毫米，另有大雨風險。",
-      "zh-HK": "主因是強風／側風，集中在 10/23 14 時至 10/24 14 時。美國模式陣風 45.2 節、側風 36.7 節，達高標；但歐洲模式陣風僅 31.6 節、側風 30.7 節，陣風超過 49 節的機率只有 5–7%，高等級只靠單一模式支撐，因此評為中。10/24 20 時起歐洲模式 6 小時雨量 33.3 毫米，另有大雨風險。",
-      "zh-CN": "主因是强风／侧风，集中在 10/23 14 时至 10/24 14 时。美国模式阵风 45.2 节、侧风 36.7 节，达高标；但欧洲模式阵风仅 31.6 节、侧风 30.7 节，阵风超过 49 节的概率只有 5–7%，高等级只靠单一模式支撑，因此评为中。10/24 20 时起欧洲模式 6 小时雨量 33.3 毫米，另有大雨风险。",
-      "en": "The main cause is strong wind and crosswind, concentrated from 10/23 14:00 to 10/24 14:00. The US model shows gusts of 45.2 kt and crosswind of 36.7 kt, reaching the High threshold; but the European model shows gusts of only 31.6 kt and crosswind of 30.7 kt, with just a 5-7% chance of gusts over 49 kt, so High rests on a single model and the rating is Medium. From 10/24 20:00, the European model shows 33.3 mm of rain in 6 hours, adding a heavy rain risk."
+      "zh-TW": "主因是強風／側風。10/23 14時至10/24 14時，美國模式陣風達45.2節、側風36.7節；歐洲模式陣風僅27.3–31.6節、側風最高30.7節。兩個模式不一致，陣風超過49節的機率最高僅7%，故評為中。10/24 20時起歐洲模式6小時雨量33.3毫米，另有大雨風險。",
+      "zh-HK": "主因是強風／側風。10/23 14時至10/24 14時，美國模式陣風達45.2節、側風36.7節；歐洲模式陣風僅27.3–31.6節、側風最高30.7節。兩個模式不一致，陣風超過49節的機率最高僅7%，故評為中。10/24 20時起歐洲模式6小時雨量33.3毫米，另有大雨風險。",
+      "zh-CN": "主因是强风／侧风。10/23 14时至10/24 14时，美国模式阵风达45.2节、侧风36.7节；欧洲模式阵风仅27.3–31.6节、侧风最高30.7节。两个模式不一致，阵风超过49节的概率最高仅7%，故评为中。10/24 20时起欧洲模式6小时雨量33.3毫米，另有大雨风险。",
+      "en": "The main cause is strong wind and crosswind. From 10/23 14:00 to 10/24 14:00 local, the US model shows gusts up to 45.2 kt and crosswind of 36.7 kt, while the European model shows gusts of only 27.3-31.6 kt and crosswind of up to 30.7 kt. The models do not agree, and the chance of gusts over 49 kt peaks at only 7%, so the disruption risk is rated Medium. From 10/24 20:00 local, the European model shows 33.3 mm of rain in 6 hours, adding a heavy rain risk."
      },
      "model": "claude-opus-5-5"
     },
@@ -8892,10 +8900,10 @@
      "status": "ok",
      "level": "medium",
      "comment": {
-      "zh-TW": "未來5天主要受強風／側風及後期大雨影響，整體停飛風險評為中。雖然10/23 14時至10/24 14時美國模式預報陣風達42至45.2節、側風35.9至36.7節而達高風險標準，但歐洲模式同期的陣風僅26.9至31.6節、側風23.6至30.7節，且陣風超過49節的機率僅5%至7%，兩模式存在分歧。此外，10/24 20時至10/25 02時歐洲模式預報6小時雨量達33.3毫米，亦屬中度風險。",
-      "zh-HK": "未來5天主要受強風／側風及後期大雨影響，整體停飛風險評為中。雖然10/23 14時至10/24 14時美國模式預報陣風達42至45.2節、側風35.9至36.7節而達高風險標準，但歐洲模式同期的陣風僅26.9至31.6節、側風23.6至30.7節，且陣風超過49節的機率僅5%至7%，兩模式存在分歧。此外，10/24 20時至10/25 02時歐洲模式預報6小時雨量達33.3毫米，亦屬中度風險。",
-      "zh-CN": "未来5天主要受强风／侧风及后期大雨影响，整体停飞风险评为中。虽然10/23 14时至10/24 14时美国模式预报阵风达42至45.2节、侧风35.9至36.7节而达高风险标准，但欧洲模式同期的阵风仅26.9至31.6节、侧风23.6至30.7节，且阵风超过49节的概率仅5%至7%，两模式存在分歧。此外，10/24 20时至10/25 02时欧洲模式预报6小时雨量达33.3毫米，亦属中度风险。",
-      "en": "Over the next 5 days, the overall disruption risk is rated Medium, mainly due to strong winds/crosswinds and heavy rain later in the period. Although the US model forecasts gusts of 42 to 45.2 kt and crosswinds of 35.9 to 36.7 kt from 10/23 14:00 to 10/24 14:00 (reaching High risk criteria), the European model shows only 26.9 to 31.6 kt gusts and 23.6 to 30.7 kt crosswinds for the same periods, with just a 5% to 7% chance of gusts over 49 kt, indicating model divergence. Additionally, from 10/24 20:00 to 10/25 02:00, the European model forecasts 33.3 mm of rain in 6 hours, which also poses a Medium risk."
+      "zh-TW": "未來5天停飛風險主要受強風／側風及大雨影響，整體評為中等。10/21 14時至10/22 02時美國模式預報陣風37節。10/23 08時至10/24 14時風力增強，10/23 14時至10/24 14時美國模式陣風42至45.2節、側風35.9至36.7節，但歐洲模式陣風僅26.9至31.6節、側風23.6至30.7節，且陣風超過49節的機率僅5%至7%，兩模式分歧大。10/24 20時至10/25 02時歐洲模式預報6小時雨量33.3毫米。",
+      "zh-HK": "未來5天停飛風險主要受強風／側風及大雨影響，整體評為中等。10/21 14時至10/22 02時美國模式預報陣風37節。10/23 08時至10/24 14時風力增強，10/23 14時至10/24 14時美國模式陣風42至45.2節、側風35.9至36.7節，但歐洲模式陣風僅26.9至31.6節、側風23.6至30.7節，且陣風超過49節的機率僅5%至7%，兩模式分歧大。10/24 20時至10/25 02時歐洲模式預報6小時雨量33.3毫米。",
+      "zh-CN": "未来5天停飞风险主要受强风／侧风及大雨影响，整体评为中等。10/21 14时至10/22 02时美国模式预报阵风37节。10/23 08时至10/24 14时风力增强，10/23 14时至10/24 14时美国模式阵风42至45.2节、侧风35.9至36.7节，但欧洲模式阵风仅26.9至31.6节、侧风23.6至30.7节，且阵风超过49节的概率仅5%至7%，两模式分歧大。10/24 20时至10/25 02时欧洲模式预报6小时雨量33.3毫米。",
+      "en": "The disruption risk over the next 5 days is mainly driven by strong winds/crosswinds and heavy rain, rated as Medium overall. From 10/21 14:00 to 10/22 02:00, the US model forecasts gusts of 37 kt. Winds strengthen from 10/23 08:00 to 10/24 14:00; between 10/23 14:00 and 10/24 14:00, the US model predicts gusts of 42 to 45.2 kt and crosswinds of 35.9 to 36.7 kt, whereas the European model shows gusts of only 26.9 to 31.6 kt and crosswinds of 23.6 to 30.7 kt, with only a 5% to 7% chance of gusts over 49 kt, showing a large divergence between the two models. From 10/24 20:00 to 10/25 02:00, the European model forecasts 33.3 mm of rain in 6 hours."
      },
      "model": "gemini-4-argon"
     }
@@ -8917,11 +8925,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 0,
-    "windKt": 6.4,
-    "gustKt": 13.4,
-    "raw": "CWA 467990 2026-10-19T18:00Z 能見度 >30 km 多雲 風 360° 3.3 m/s 陣風 6.9 m/s",
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 10,
+    "windKt": 5.6,
+    "gustKt": 12.6,
+    "raw": "CWA 467990 2026-10-19T19:00Z 能見度 11-15 km 多雲 風 010° 2.9 m/s 陣風 6.5 m/s",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null,
@@ -8936,11 +8944,11 @@
      "basis": "official",
      "causes": [],
      "official": {
-      "windKt": 6.4,
-      "gustKt": 13.4,
+      "windKt": 5.6,
+      "gustKt": 12.6,
       "kind": "metar",
       "level": "low",
-      "crosswindKt": 5.9,
+      "crosswindKt": 3.5,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -9813,24 +9821,28 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風與側風。10/22 08 時起連續多格達高等級，陣風超過 49 節的機率由 37% 升到 10/23 20 時–10/24 08 時的 73%，歐洲模式陣風最高 56.1 節，美國模式約 42 節，兩模式陣風等級多半不一致。10/24 08–14 時歐洲模式側風 48.7 節、美國模式 34.7 節，兩者都超過高門檻。雨量偏少，24 小時雨量超過 50 毫米的機率最高僅 8%，停飛風險評為高。",
-      "zh-HK": "主因是強風與側風。10/22 08 時起連續多格達高等級，陣風超過 49 節的機率由 37% 升至 10/23 20 時–10/24 08 時的 73%，歐洲模式陣風最高 56.1 節，美國模式約 42 節，兩個模式的陣風等級大多不一致。10/24 08–14 時歐洲模式側風 48.7 節、美國模式 34.7 節，兩者均超過高門檻。雨量偏少，24 小時雨量超過 50 毫米的機率最高僅 8%，停飛風險評為高。",
-      "zh-CN": "主因是强风与侧风。10/22 08 时起连续多个时段达高等级，阵风超过 49 节的概率由 37% 升至 10/23 20 时–10/24 08 时的 73%，欧洲模式阵风最高 56.1 节，美国模式约 42 节，两个模式的阵风等级多数不一致。10/24 08–14 时欧洲模式侧风 48.7 节、美国模式 34.7 节，两者均超过高门槛。雨量偏少，24 小时雨量超过 50 毫米的概率最高仅 8%，停飞风险评为高。",
-      "en": "The main cause is strong wind and crosswind. From 10/22 08:00, consecutive periods reach High, and the chance of gusts over 49 kt rises from 37% to 73% during 10/23 20:00 to 10/24 08:00. The European model peaks at 56.1 kt gusts and the US model at about 42 kt; for most of these periods the two models do not agree on the gust level. During 10/24 08:00-14:00, the crosswind is 48.7 kt in the European model and 34.7 kt in the US model, both above the High threshold. Rainfall is light, with at most an 8% chance of more than 50 mm of rain in 24 hours. Disruption risk is rated High."
+      "zh-TW": "主因是強風與側風。10/22 08 時起陣風超過 49 節的機率都在 37% 以上，10/23 20 時至 10/24 08 時達 73%，歐洲模式陣風最高 56.1 節；10/24 08–14 時側風歐洲模式 48.7 節、美國模式 34.7 節。雨量最多 6 小時 14.2 毫米，判定停飛風險高。",
+      "zh-HK": "主因是強風與側風。10/22 08 時起陣風超過 49 節的機率均在 37% 以上，10/23 20 時至 10/24 08 時達 73%，歐洲模式陣風最高 56.1 節；10/24 08–14 時側風歐洲模式 48.7 節、美國模式 34.7 節。雨量最多 6 小時 14.2 毫米，判定停飛風險高。",
+      "zh-CN": "主因是强风与侧风。10/22 08 时起阵风超过 49 节的概率都在 37% 以上，10/23 20 时至 10/24 08 时达 73%，欧洲模式阵风最高 56.1 节；10/24 08–14 时侧风欧洲模式 48.7 节、美国模式 34.7 节。雨量最多 6 小时 14.2 毫米，判定停飞风险高。",
+      "en": "The main cause is strong wind and crosswind. From 10/22 08 h local, the chance of gusts over 49 kt stays at 37% or more, reaching 73% from 10/23 20 h to 10/24 08 h local, with European model gusts peaking at 56.1 kt; on 10/24 08-14 h local the crosswind is 48.7 kt in the European model and 34.7 kt in the US model. Rain peaks at 14.2 mm in 6 hours. Disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
     "gemini": {
-     "status": "error",
-     "level": null,
-     "comment": null,
-     "model": "gemini-4-argon",
-     "error": "http_504"
+     "status": "ok",
+     "level": "high",
+     "comment": {
+      "zh-TW": "未來5天停飛風險為高，主因是強風／側風。10/21 14時起風力增強，10/22 08時至10/24 20時連續10個時段達高風險。其中10/24 02–08時歐洲模式陣風達56.1節、美國模式42.6節，陣風超過49節的機率73%；10/24 08–14時歐洲模式與美國模式側風更分別達48.7節與34.7節。",
+      "zh-HK": "未來5天停飛風險為高，主因是強風／側風。10/21 14時起風力增強，10/22 08時至10/24 20時連續10個時段達高風險。其中10/24 02–08時歐洲模式陣風達56.1節、美國模式42.6節，陣風超過49節的機率73%；10/24 08–14時歐洲模式與美國模式側風更分別達48.7節與34.7節。",
+      "zh-CN": "未来5天停飞风险为高，主因是强风／侧风。10/21 14时起风力增强，10/22 08时至10/24 20时连续10个时段达高风险。其中10/24 02–08时欧洲模式阵风达56.1节、美国模式42.6节，阵风超过49节的概率73%；10/24 08–14时欧洲模式与美国模式侧风更分别达48.7节与34.7节。",
+      "en": "The disruption risk over the next 5 days is High, mainly due to strong winds and crosswinds. Winds strengthen from 10/21 14:00, reaching High risk for 10 consecutive periods from 10/22 08:00 to 10/24 20:00. Specifically, during 10/24 02:00-08:00, gusts reach 56.1 kt in the European model and 42.6 kt in the US model, with a 73% chance of gusts over 49 kt; during 10/24 08:00-14:00, crosswinds in the European and US models further reach 48.7 kt and 34.7 kt respectively."
+     },
+     "model": "gemini-4-argon"
     }
    }
   },
@@ -9850,11 +9862,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 160,
-    "windKt": 2,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 170,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR ZSPD 191800Z 16001MPS 7000 NSC 23/23 Q1016 NOSIG",
+    "raw": "METAR ZSPD 191900Z 17002MPS 7000 SCT023 23/23 Q1015 NOSIG",
     "visibilityM": 7000,
     "wx": [],
     "ceilingFt": null
@@ -10832,14 +10844,14 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
+    "observedAt": "2026-10-19T19:00:00Z",
     "windDirDeg": 360,
-    "windKt": 6,
+    "windKt": 2,
     "gustKt": null,
-    "raw": "METAR ZSSS 191800Z 36003MPS 6000 BKN011 23/22 Q1016 BECMG TL1930 BKN015",
-    "visibilityM": 6000,
+    "raw": "METAR ZSSS 191900Z 36001MPS 7000 BKN015 23/22 Q1015 NOSIG",
+    "visibilityM": 7000,
     "wx": [],
-    "ceilingFt": 1100
+    "ceilingFt": 1500
    },
    "taf": {
     "issuedAt": "2026-10-19T15:05:00Z",
@@ -10866,8 +10878,8 @@
       "warnings": [],
       "wx": {
        "phenomena": [],
-       "visibilityM": 6000,
-       "ceilingFt": 1100,
+       "visibilityM": 7000,
+       "ceilingFt": 1500,
        "rain": "low",
        "snow": "low",
        "fog": "low"
@@ -11777,7 +11789,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -11818,11 +11830,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 330,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 340,
     "windKt": 4,
     "gustKt": null,
-    "raw": "METAR ZSHC 191800Z 33002MPS 4500 BR BKN020 23/21 Q1016 NOSIG",
+    "raw": "METAR ZSHC 191900Z 34002MPS 4500 BR BKN020 23/21 Q1016 NOSIG",
     "visibilityM": 4500,
     "wx": [
      "BR"
@@ -12752,7 +12764,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -12793,11 +12805,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 180,
-    "windKt": 4,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 190,
+    "windKt": 2,
     "gustKt": null,
-    "raw": "METAR ZSNB 191800Z 18002MPS CAVOK 23/21 Q1016 NOSIG",
+    "raw": "METAR ZSNB 191900Z 19001MPS CAVOK 22/20 Q1015 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -13715,7 +13727,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -14638,11 +14650,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 340,
-    "windKt": 6,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 330,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR ZSFZ 191800Z 34003MPS 300V020 9999 BKN017 26/23 Q1015 NOSIG",
+    "raw": "METAR ZSFZ 191900Z 33002MPS 280V350 9999 BKN017 26/23 Q1015 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": 1700
@@ -14670,7 +14682,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 4.4,
+      "crosswindKt": 3.4,
       "warnings": [],
       "wx": {
        "phenomena": [
@@ -15596,15 +15608,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風／側風。機場預報（TAF）涵蓋的10/20各時段平均風僅8節，屬低。風勢自10/21午後增強，10/22 08–14時起陣風超過49節的機率達31%；10/24 02–14時歐洲模式陣風57.6節、美國模式46.7節，08–14時側風歐洲模式47.8節、美國模式28.7節，兩模式陣風不一致，但機率支持停飛風險高。",
-      "zh-HK": "主因是強風／側風。機場預報（TAF）涵蓋的10/20各時段平均風僅8節，屬低。風勢自10/21午後增強，10/22 08–14時起陣風超過49節的機率達31%；10/24 02–14時歐洲模式陣風57.6節、美國模式46.7節，08–14時側風歐洲模式47.8節、美國模式28.7節，兩模式陣風不一致，但機率支持停飛風險高。",
-      "zh-CN": "主因是强风／侧风。机场预报（TAF）涵盖的10/20各时段平均风仅8节，属低。风势自10/21午后增强，10/22 08–14时起阵风超过49节的概率达31%；10/24 02–14时欧洲模式阵风57.6节、美国模式46.7节，08–14时侧风欧洲模式47.8节、美国模式28.7节，两模式阵风不一致，但概率支持停飞风险高。",
-      "en": "The main cause is strong wind/crosswind. Through 10/20, the airport forecast (TAF) shows a mean wind of only 8 kt, which is Low. Winds strengthen from the afternoon of 10/21, and from 10/22 08:00-14:00 there is a 31% chance of gusts over 49 kt. On 10/24 02:00-14:00, the European model shows gusts of 57.6 kt and the US model 46.7 kt. For 08:00-14:00, the European model shows a crosswind of 47.8 kt and the US model 28.7 kt. The models do not agree on gusts, but the probabilities support a High disruption risk."
+      "zh-TW": "主因是強風與側風。10/22 08 時起陣風超過 49 節的機率達 31%，10/23 20 時至 10/24 08 時升至 60%，歐洲模式陣風最高 57.6 節；10/24 08–14 時歐洲模式側風 47.8 節、美國模式 28.7 節。美國模式陣風多半偏低，兩模式時有不一致，但機率持續偏高，停飛風險評為高。",
+      "zh-HK": "主因是強風與側風。10/22 08 時起陣風超過 49 節的機率達 31%，10/23 20 時至 10/24 08 時升至 60%，歐洲模式陣風最高 57.6 節；10/24 08–14 時歐洲模式側風 47.8 節、美國模式 28.7 節。美國模式陣風多半偏低，兩模式時有不一致，但機率持續偏高，停飛風險評為高。",
+      "zh-CN": "主因是强风与侧风。10/22 08 时起阵风超过 49 节的概率达 31%，10/23 20 时至 10/24 08 时升至 60%，欧洲模式阵风最高 57.6 节；10/24 08–14 时欧洲模式侧风 47.8 节、美国模式 28.7 节。美国模式阵风大多偏低，两模式时有不一致，但概率持续偏高，停飞风险评为高。",
+      "en": "The main cause is strong wind and crosswind. From 10/22 08:00 the chance of gusts over 49 kt reaches 31%, rising to 60% from 10/23 20:00 to 10/24 08:00, with European model gusts peaking at 57.6 kt; on 10/24 08:00-14:00 the European model shows a 47.8 kt crosswind and the US model 28.7 kt. US model gusts are mostly lower and the two models sometimes disagree, but the probabilities stay elevated, so disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
@@ -15612,10 +15624,10 @@
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "未來五天停飛風險為高，主因是強風／側風。10/21 14 時起風力增強，10/22 08 時至 10/24 20 時風險達高。其中 10/23 20 時至 10/24 08 時陣風超過 49 節的機率達 60%，且 10/24 08–14 時歐洲模式預估陣風高達 57.6 節、側風 47.8 節，美國模式陣風亦達 46.7 節、側風 28.7 節。",
-      "zh-HK": "未來五天停飛風險為高，主因是強風／側風。10/21 14 時起風力增強，10/22 08 時至 10/24 20 時風險達高。其中 10/23 20 時至 10/24 08 時陣風超過 49 節的機率達 60%，且 10/24 08–14 時歐洲模式預估陣風高達 57.6 節、側風 47.8 節，美國模式陣風亦達 46.7 節、側風 28.7 節。",
-      "zh-CN": "未来五天停飞风险为高，主因是强风／侧风。10/21 14 时起风力增强，10/22 08 时至 10/24 20 时风险达高。其中 10/23 20 时至 10/24 08 时阵风超过 49 节的概率达 60%，且 10/24 08–14 时欧洲模式预估阵风高达 57.6 节、侧风 47.8 节，美国模式阵风亦达 46.7 节、侧风 28.7 节。",
-      "en": "The disruption risk over the next five days is High, mainly due to strong winds and crosswinds. Winds strengthen from 10/21 14:00, with the risk reaching High from 10/22 08:00 to 10/24 20:00. Between 10/23 20:00 and 10/24 08:00, there is a 60% chance of gusts over 49 kt. During 10/24 08:00–14:00, the European model forecasts gusts up to 57.6 kt and crosswinds of 47.8 kt, while the US model also shows gusts reaching 46.7 kt and crosswinds of 28.7 kt."
+      "zh-TW": "未來五天停飛風險為高，主因是強風／側風。10/21 14 時起風力增強，10/22 08 時至 10/24 20 時連續達高等級，陣風超過 49 節的機率達 31% 至 60%。其中 10/24 08–14 時最劇烈，歐洲模式預估陣風 57.6 節、側風 47.8 節，美國模式陣風 46.7 節、側風 28.7 節。10/24 20 時後轉為低風險。",
+      "zh-HK": "未來五天停飛風險為高，主因是強風／側風。10/21 14 時起風力增強，10/22 08 時至 10/24 20 時連續達高等級，陣風超過 49 節的機率達 31% 至 60%。其中 10/24 08–14 時最劇烈，歐洲模式預估陣風 57.6 節、側風 47.8 節，美國模式陣風 46.7 節、側風 28.7 節。10/24 20 時後轉為低風險。",
+      "zh-CN": "未来五天停飞风险为高，主因是强风／侧风。10/21 14 时起风力增强，10/22 08 时至 10/24 20 时连续达高等级，阵风超过 49 节的概率达 31% 至 60%。其中 10/24 08–14 时最剧烈，欧洲模式预估阵风 57.6 节、侧风 47.8 节，美国模式阵风 46.7 节、侧风 28.7 节。10/24 20 时后转为低风险。",
+      "en": "The disruption risk over the next five days is High, mainly due to strong winds and crosswinds. Winds strengthen from 10/21 14:00, reaching High consecutively from 10/22 08:00 to 10/24 20:00, with a 31% to 60% chance of gusts over 49 kt. Conditions peak on 10/24 08:00–14:00, with the European model forecasting gusts of 57.6 kt and crosswinds of 47.8 kt, and the US model forecasting gusts of 46.7 kt and crosswinds of 28.7 kt. The risk drops to Low after 10/24 20:00."
      },
      "model": "gemini-4-argon"
     }
@@ -15637,11 +15649,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
+    "observedAt": "2026-10-19T19:00:00Z",
     "windDirDeg": 270,
     "windKt": 4,
     "gustKt": null,
-    "raw": "METAR ZSAM 191800Z 27002MPS 240V300 CAVOK 27/24 Q1015 NOSIG",
+    "raw": "METAR ZSAM 191900Z 27002MPS 240V300 9999 FEW050 26/24 Q1015 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -17464,24 +17476,28 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "medium",
      "comment": {
-      "zh-TW": "主因是強風與側風：10/23 08 時至 10/24 14 時，兩個模式的陣風都在 37.4 至 45.5 節之間；10/24 02–14 時歐洲模式的側風達 34.4、41.6 節，但美國模式只有約 20 節。陣風超過 49 節的機率也只有 8% 至 9%，強側風只出現在單一模式，因此停飛風險評為中。",
-      "zh-HK": "主因是強風與側風：10/23 08 時至 10/24 14 時，兩個模式的陣風均在 37.4 至 45.5 節之間；10/24 02–14 時歐洲模式的側風達 34.4、41.6 節，但美國模式只有約 20 節。陣風超過 49 節的機率亦只有 8% 至 9%，強側風只出現在單一模式，因此停飛風險評為中。",
-      "zh-CN": "主因是强风与侧风：10/23 08 时至 10/24 14 时，两个模式的阵风都在 37.4 至 45.5 节之间；10/24 02–14 时欧洲模式的侧风达 34.4、41.6 节，但美国模式只有约 20 节。阵风超过 49 节的概率也只有 8% 至 9%，强侧风只出现在单一模式，因此停飞风险评为中。",
-      "en": "The main cause is strong wind and crosswind: from 10/23 08:00 to 10/24 14:00, gusts in both models range from 37.4 to 45.5 kt. On 10/24 02:00–14:00 the European model shows crosswind of 34.4 and 41.6 kt, but the US model shows only about 20 kt. The chance of gusts over 49 kt is also only 8% to 9%, and the strong crosswind appears in only one model, so the disruption risk is rated Medium."
+      "zh-TW": "主因是強風／側風：10/23 08 時至 10/24 14 時陣風約 37–45 節，10/24 08–14 時歐洲模式側風達 41.6 節，但美國模式只有 19.6 節，兩者落差大；陣風超過 49 節的機率最高僅 9%，停飛風險評為中。10/24 20 時起歐洲模式 6 小時雨量 23.9 毫米，未達門檻。",
+      "zh-HK": "主因是強風／側風：10/23 08 時至 10/24 14 時陣風約 37–45 節，10/24 08–14 時歐洲模式側風達 41.6 節，但美國模式只有 19.6 節，兩者落差大；陣風超過 49 節的機率最高僅 9%，停飛風險評為中。10/24 20 時起歐洲模式 6 小時雨量 23.9 毫米，未達門檻。",
+      "zh-CN": "主因是强风／侧风：10/23 08 时至 10/24 14 时阵风约 37–45 节，10/24 08–14 时欧洲模式侧风达 41.6 节，但美国模式只有 19.6 节，两者差距大；阵风超过 49 节的概率最高仅 9%，停飞风险评为中。10/24 20 时起欧洲模式 6 小时雨量 23.9 毫米，未达门槛。",
+      "en": "The main driver is strong wind/crosswind: gusts of about 37-45 kt from 10/23 08:00 to 10/24 14:00, and the European model shows crosswind reaching 41.6 kt on 10/24 08:00-14:00, but the US model shows only 19.6 kt, a large gap between them; the chance of gusts over 49 kt peaks at only 9%, so disruption risk is rated Medium. From 10/24 20:00 the European model shows 23.9 mm of rain in 6 hours, below the threshold."
      },
      "model": "claude-opus-5-5"
     },
     "gemini": {
-     "status": "error",
-     "level": null,
-     "comment": null,
-     "model": "gemini-4-argon",
-     "error": "http_504"
+     "status": "ok",
+     "level": "high",
+     "comment": {
+      "zh-TW": "未來五天停飛風險為高，主因是強風／側風。10/23 08 時至 10/24 02 時風險升至中級，歐洲與美國模式預測陣風達 37.4 至 44.8 節，側風達 28.6 節。10/24 02–14 時風險達高級，歐洲模式側風飆升至 34.4 與 41.6 節，美國模式陣風達 45.5 節，陣風超過 49 節的機率為 8% 至 9%。10/24 14 時後風力減弱，風險降回低級。",
+      "zh-HK": "未來五天停飛風險為高，主因是強風／側風。10/23 08 時至 10/24 02 時風險升至中級，歐洲與美國模式預測陣風達 37.4 至 44.8 節，側風達 28.6 節。10/24 02–14 時風險達高級，歐洲模式側風飆升至 34.4 與 41.6 節，美國模式陣風達 45.5 節，陣風超過 49 節的機率為 8% 至 9%。10/24 14 時後風力減弱，風險降回低級。",
+      "zh-CN": "未来五天停飞风险为高，主因是强风／侧风。10/23 08 时至 10/24 02 时风险升至中级，欧洲与美国模式预测阵风达 37.4 至 44.8 节，侧风达 28.6 节。10/24 02–14 时风险达高级，欧洲模式侧风飙升至 34.4 与 41.6 节，美国模式阵风达 45.5 节，阵风超过 49 节的概率为 8% 至 9%。10/24 14 时后风力减弱，风险降回低级。",
+      "en": "The disruption risk over the next five days is High, mainly due to strong winds and crosswinds. From 10/23 08:00 to 10/24 02:00, the risk rises to Medium, with the European and US models forecasting gusts of 37.4 to 44.8 kt and crosswinds up to 28.6 kt. During 10/24 02:00–14:00, the risk reaches High as European model crosswinds surge to 34.4 and 41.6 kt, US model gusts reach 45.5 kt, and the chance of gusts over 49 kt is 8% to 9%. Winds weaken after 10/24 14:00, lowering the risk back to Low."
+     },
+     "model": "gemini-4-argon"
     }
    }
   },
@@ -17501,12 +17517,12 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
+    "observedAt": "2026-10-19T19:00:00Z",
     "windDirDeg": 320,
     "windKt": 2,
     "gustKt": null,
-    "raw": "METAR ZGOW 191800Z 32001MPS CAVOK 24/24 Q1015 NOSIG",
-    "visibilityM": 9999,
+    "raw": "METAR ZGOW 191900Z 32001MPS 8000 NSC 23/23 Q1015 NOSIG",
+    "visibilityM": 8000,
     "wx": [],
     "ceilingFt": null
    },
@@ -18433,7 +18449,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -18474,11 +18490,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 100,
-    "windKt": 4,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": null,
+    "windKt": 2,
     "gustKt": null,
-    "raw": "METAR ZGSZ 191800Z 10002MPS 070V140 CAVOK 27/22 Q1014 NOSIG",
+    "raw": "METAR ZGSZ 191900Z VRB01MPS CAVOK 27/22 Q1014 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -19411,7 +19427,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -19452,11 +19468,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 110,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 90,
     "windKt": 4,
     "gustKt": null,
-    "raw": "METAR ZGGG 191800Z 11002MPS CAVOK 28/23 Q1014 NOSIG",
+    "raw": "METAR ZGGG 191900Z 09002MPS CAVOK 27/23 Q1014 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -20389,7 +20405,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -20430,11 +20446,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 90,
-    "windKt": 12,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 100,
+    "windKt": 10,
     "gustKt": null,
-    "raw": "METAR VHHH 191800Z 09012KT 9999 FEW015 27/23 Q1014 NOSIG",
+    "raw": "METAR VHHH 191900Z 10010KT 9999 FEW015 27/23 Q1014 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -21408,11 +21424,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 100,
-    "windKt": 9,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 80,
+    "windKt": 6,
     "gustKt": null,
-    "raw": "METAR VMMC 191800Z 10009KT 9999 FEW012 SCT022 27/24 Q1014 NOSIG",
+    "raw": "METAR VMMC 191900Z 08006KT 040V120 9999 FEW015 27/24 Q1014 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -21438,7 +21454,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 7.9,
+      "crosswindKt": 7.6,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -22345,7 +22361,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -23268,11 +23284,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 120,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 110,
     "windKt": 2,
     "gustKt": null,
-    "raw": "METAR ZJHK 191800Z 12001MPS CAVOK 25/24 Q1014 NOSIG",
+    "raw": "METAR ZJHK 191900Z 11001MPS CAVOK 24/23 Q1014 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -23298,7 +23314,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 1.0,
+      "crosswindKt": 0.7,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -24209,7 +24225,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -24250,11 +24266,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 360,
-    "windKt": 2,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 350,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR ZJSY 191800Z 36001MPS CAVOK 26/21 Q1013 NOSIG",
+    "raw": "METAR ZJSY 191900Z 35002MPS CAVOK 25/21 Q1013 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -24280,7 +24296,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 2.0,
+      "crosswindKt": 4.0,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -25172,7 +25188,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -25213,11 +25229,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 90,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 100,
     "windKt": 7,
     "gustKt": null,
-    "raw": "METAR ROAH 191800Z AUTO 09007KT 9999 NCD 27/24 Q1016",
+    "raw": "METAR ROAH 191900Z AUTO 10007KT 9999 NCD 27/24 Q1015",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -25243,7 +25259,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 7.0,
+      "crosswindKt": 6.8,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -26164,15 +26180,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "medium",
      "comment": {
-      "zh-TW": "主因是強風／側風。10/22 09時至10/23 03時，歐洲模式側風達34–38.6節、陣風最高38.8節，陣風超過29節的機率95%；但美國模式側風僅24.6–26.3節，兩模式陣風自10/22 15時起不一致，陣風超過49節的機率最高僅10%，故停飛風險評為中。",
-      "zh-HK": "主因是強風／側風。10/22 09時至10/23 03時，歐洲模式側風達34–38.6節、陣風最高38.8節，陣風超過29節的機率95%；但美國模式側風僅24.6–26.3節，兩模式陣風自10/22 15時起不一致，陣風超過49節的機率最高僅10%，故停飛風險評為中。",
-      "zh-CN": "主因是强风／侧风。10/22 09时至10/23 03时，欧洲模式侧风达34–38.6节、阵风最高38.8节，阵风超过29节的概率95%；但美国模式侧风仅24.6–26.3节，两模式阵风自10/22 15时起不一致，阵风超过49节的概率最高仅10%，故停飞风险评为中。",
-      "en": "The main driver is strong wind/crosswind. From 10/22 09:00 to 10/23 03:00, the European model shows crosswind of 34-38.6 kt and gusts up to 38.8 kt, with a 95% chance of gusts over 29 kt; however, the US model shows crosswind of only 24.6-26.3 kt, the two models disagree on gusts from 10/22 15:00, and the chance of gusts over 49 kt peaks at only 10%, so the disruption risk is rated Medium."
+      "zh-TW": "主因是強風／側風。10/22 09 時至 10/23 03 時，歐洲模式側風達 34–38.6 節，已達高等級，但美國模式只有 24.6–26.3 節，兩模式差距大。陣風超過 29 節的機率 95%，陣風超過 49 節的機率僅 3%–10%，雨量也偏小，因此評為中。",
+      "zh-HK": "主因是強風／側風。10/22 09 時至 10/23 03 時，歐洲模式側風達 34–38.6 節，已達高等級，但美國模式只有 24.6–26.3 節，兩模式差距大。陣風超過 29 節的機率 95%，陣風超過 49 節的機率僅 3%–10%，雨量亦偏小，因此評為中。",
+      "zh-CN": "主因是强风／侧风。10/22 09 时至 10/23 03 时，欧洲模式侧风达 34–38.6 节，已达高等级，但美国模式只有 24.6–26.3 节，两个模式差距大。阵风超过 29 节的概率 95%，阵风超过 49 节的概率仅 3%–10%，雨量也偏小，因此评为中。",
+      "en": "The main cause is strong wind and crosswind. From 10/22 09:00 to 10/23 03:00 local, the European model shows crosswind of 34-38.6 kt, which reaches the High level, but the US model shows only 24.6-26.3 kt, so the two models differ widely. There is a 95% chance of gusts over 29 kt but only a 3%-10% chance of gusts over 49 kt, and rainfall is also light, so the disruption risk is rated Medium."
      },
      "model": "claude-opus-5-5"
     },
@@ -26180,10 +26196,10 @@
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因為強風／側風。10/20 03 時至 10/21 09 時機場預報（TAF）顯示平均風僅 6 節。但 10/22 03 時至 10/23 21 時風力顯著增強，歐洲模式預估 10/22 09 時至 10/23 03 時側風達 34 至 38.6 節，且 10/23 09–15 時陣風達 40.3 節，陣風超過 29 節的機率高達 91% 至 95%，因此停飛風險評為高。",
-      "zh-HK": "主因為強風／側風。10/20 03 時至 10/21 09 時機場預報（TAF）顯示平均風僅 6 節。但 10/22 03 時至 10/23 21 時風力顯著增強，歐洲模式預估 10/22 09 時至 10/23 03 時側風達 34 至 38.6 節，且 10/23 09–15 時陣風達 40.3 節，陣風超過 29 節的機率高達 91% 至 95%，因此停飛風險評為高。",
-      "zh-CN": "主因为强风／侧风。10/20 03 时至 10/21 09 时机场预报（TAF）显示平均风仅 6 节。但 10/22 03 时至 10/23 21 时风力显著增强，欧洲模式预估 10/22 09 时至 10/23 03 时侧风达 34 至 38.6 节，且 10/23 09–15 时阵风达 40.3 节，阵风超过 29 节的概率高达 91% 至 95%，因此停飞风险评为高。",
-      "en": "The main cause is strong winds and crosswinds. From 10/20 03:00 to 10/21 09:00, the airport forecast (TAF) shows a mean wind of only 6 kt. However, winds strengthen significantly from 10/22 03:00 to 10/23 21:00. The European model projects crosswinds of 34 to 38.6 kt from 10/22 09:00 to 10/23 03:00, and gusts reaching 40.3 kt during 10/23 09:00–15:00, with a 91% to 95% chance of gusts over 29 kt, resulting in a High disruption risk."
+      "zh-TW": "主因為強風／側風。10/20 03 時至 10/21 09 時依據機場預報（TAF）平均風 6 節，停飛風險為低。10/22 03 時起風力增強，09 時至 10/23 03 時風險升至高，歐洲模式預報側風達 34 至 38.6 節、陣風 36.1 至 38.8 節，陣風超過 29 節的機率 95%。但美國模式預報側風僅 24.6 至 26.3 節，兩模式在 10/22 15 時後有落差。10/23 03–21 時風險降為中，之後轉低。",
+      "zh-HK": "主因為強風／側風。10/20 03 時至 10/21 09 時依據機場預報（TAF）平均風 6 節，停飛風險為低。10/22 03 時起風力增強，09 時至 10/23 03 時風險升至高，歐洲模式預報側風達 34 至 38.6 節、陣風 36.1 至 38.8 節，陣風超過 29 節的機率 95%。但美國模式預報側風僅 24.6 至 26.3 節，兩模式在 10/22 15 時後有落差。10/23 03–21 時風險降為中，之後轉低。",
+      "zh-CN": "主因为强风／侧风。10/20 03 时至 10/21 09 时依据机场预报（TAF）平均风 6 节，停飞风险为低。10/22 03 时起风力增强，09 时至 10/23 03 时风险升至高，欧洲模式预报侧风达 34 至 38.6 节、阵风 36.1 至 38.8 节，阵风超过 29 节的概率 95%。但美国模式预报侧风仅 24.6 至 26.3 节，两模式在 10/22 15 时后有落差。10/23 03–21 时风险降为中，之后转低。",
+      "en": "The main cause is strong winds and crosswinds. From 10/20 03:00 to 10/21 09:00, based on the airport forecast (TAF) with mean wind at 6 kt, the disruption risk is Low. Winds strengthen from 10/22 03:00, raising the risk to High from 09:00 to 10/23 03:00, as the European model forecasts crosswinds of 34 to 38.6 kt, gusts of 36.1 to 38.8 kt, and a 95% chance of gusts over 29 kt. However, the US model forecasts crosswinds of only 24.6 to 26.3 kt, showing a divergence between the two models after 10/22 15:00. The risk drops to Medium during 10/23 03:00-21:00, then turns Low afterward."
      },
      "model": "gemini-4-argon"
     }
@@ -26205,14 +26221,14 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 90,
-    "windKt": 5,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 80,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR ROIG 191800Z AUTO 09005KT 9999 SCT014 SCT017 BKN021 27/25 Q1015",
+    "raw": "METAR ROIG 191900Z AUTO 08004KT 9999 SCT014 BKN027 27/25 Q1014",
     "visibilityM": 9999,
     "wx": [],
-    "ceilingFt": 2100
+    "ceilingFt": 2700
    },
    "taf": {
     "issuedAt": "2026-10-19T17:05:00Z",
@@ -27174,24 +27190,28 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風／側風，大雨為輔。10/22 起歐洲與美國模式陣風都到 48 節以上，陣風超過 49 節的機率 67%–77%；10/23 03–15 時歐洲模式陣風 65 節、側風 63.6 節，美國模式側風 40.8 節，6 小時雨量最多 38.5 毫米。強風一路延續到 10/24 白天，判停飛風險高。",
-      "zh-HK": "主因是強風／側風，大雨為輔。10/22 起歐洲與美國模式陣風都達 48 節以上，陣風超過 49 節的機率 67%–77%；10/23 03–15 時歐洲模式陣風 65 節、側風 63.6 節，美國模式側風 40.8 節，6 小時雨量最多 38.5 毫米。強風一直延續至 10/24 日間，判停飛風險高。",
-      "zh-CN": "主因是强风／侧风，大雨为辅。10/22 起欧洲与美国模式阵风都达 48 节以上，阵风超过 49 节的概率 67%–77%；10/23 03–15 时欧洲模式阵风 65 节、侧风 63.6 节，美国模式侧风 40.8 节，6 小时雨量最多 38.5 毫米。强风一直持续到 10/24 白天，判停飞风险高。",
-      "en": "The main cause is strong wind/crosswind, with heavy rain secondary. From 10/22, both the European and US models show gusts of 48 kt or more, with a 67%-77% chance of gusts over 49 kt; on 10/23 03:00-15:00 the European model shows gusts of 65 kt and crosswind of 63.6 kt, the US model crosswind of 40.8 kt, and up to 38.5 mm of rain in 6 hours. Strong wind persists into daytime 10/24, so the disruption risk is High."
+      "zh-TW": "主因是強風與側風。機場預報（TAF）只到10/21 09時，最多陣風29節；之後靠模式：10/22 09–15時起陣風超過49節的機率67%，10/23 03–15時歐洲模式陣風65.1節、側風63.6節，美國模式側風也達40.8節，6小時雨量最多38.5毫米。強風持續到10/24，停飛風險評為高。",
+      "zh-HK": "主因是強風與側風。機場預報（TAF）只到10/21 09時，最多陣風29節；之後依靠模式：10/22 09–15時起陣風超過49節的機率67%，10/23 03–15時歐洲模式陣風65.1節、側風63.6節，美國模式側風亦達40.8節，6小時雨量最多38.5毫米。強風持續至10/24，停飛風險評為高。",
+      "zh-CN": "主因是强风与侧风。机场预报（TAF）只到10/21 09时，最多阵风29节；之后依靠模式：10/22 09–15时起阵风超过49节的概率67%，10/23 03–15时欧洲模式阵风65.1节、侧风63.6节，美国模式侧风也达40.8节，6小时雨量最多38.5毫米。强风持续到10/24，停飞风险评为高。",
+      "en": "The main cause is strong wind and crosswind. The airport forecast (TAF) only runs to 10/21 09:00, with gusts up to 29 kt; after that the models take over: from 10/22 09:00-15:00 there is a 67% chance of gusts over 49 kt, and on 10/23 03:00-15:00 the European model shows gusts of 65.1 kt and crosswind of 63.6 kt, while the US model crosswind also reaches 40.8 kt, with up to 38.5 mm of rain in 6 hours. Strong wind persists into 10/24, so the disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
     "gemini": {
-     "status": "error",
-     "level": null,
-     "comment": null,
-     "model": "gemini-4-argon",
-     "error": "http_504"
+     "status": "ok",
+     "level": "high",
+     "comment": {
+      "zh-TW": "未來5天石垣機場的停飛風險為高，主因是強風／側風與大雨。10/21 21時至10/24 15時風險持續為高，期間陣風超過49節的機率最高達77%。尤其在10/23 03–15時，歐洲模式預估陣風高達65.1節、側風達63.6節，6小時雨量達38.5毫米；美國模式陣風亦達47.5節、側風40.8節。",
+      "zh-HK": "未來5天石垣機場的停飛風險為高，主因是強風／側風與大雨。10/21 21時至10/24 15時風險持續為高，期間陣風超過49節的機率最高達77%。尤其在10/23 03–15時，歐洲模式預估陣風高達65.1節、側風達63.6節，6小時雨量達38.5毫米；美國模式陣風亦達47.5節、側風40.8節。",
+      "zh-CN": "未来5天石垣机场的停飞风险为高，主因是强风／侧风与大雨。10/21 21时至10/24 15时风险持续为高，期间阵风超过49节的概率最高达77%。尤其在10/23 03–15时，欧洲模式预估阵风高达65.1节、侧风达63.6节，6小时雨量达38.5毫米；美国模式阵风亦达47.5节、侧风40.8节。",
+      "en": "The disruption risk at Ishigaki Airport over the next 5 days is High, mainly due to strong winds/crosswinds and heavy rain. The risk remains High from 10/21 21:00 to 10/24 15:00 local, with up to a 77% chance of gusts over 49 kt. Especially during 10/23 03:00-15:00 local, the European model forecasts gusts up to 65.1 kt, crosswinds up to 63.6 kt, and 38.5 mm of rain in 6 hours, while the US model also shows gusts up to 47.5 kt and crosswinds of 40.8 kt."
+     },
+     "model": "gemini-4-argon"
     }
    }
   },
@@ -27211,11 +27231,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
+    "observedAt": "2026-10-19T19:00:00Z",
     "windDirDeg": 90,
     "windKt": 5,
     "gustKt": null,
-    "raw": "METAR ROMY 191800Z AUTO 09005KT 9999 FEW016 26/24 Q1015",
+    "raw": "METAR ROMY 191900Z AUTO 09005KT 9999 FEW012 26/25 Q1015",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -28108,24 +28128,28 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風／側風。目前機場觀測（METAR）風僅 5 節，但 10/22 起陣風轉強，10/22 21 時–10/23 03 時陣風超過 49 節的機率 64%，歐洲模式陣風 49.3 節、側風 33 節；10/23 09–15 時歐洲模式側風 48 節、美國模式 35.5 節，兩模式陣風雖不一致，側風都偏強，10/23 03–09 時 6 小時雨量最多 10.4 毫米，判停飛風險高。",
-      "zh-HK": "主因是強風／側風。目前機場觀測（METAR）風僅 5 節，但 10/22 起陣風轉強，10/22 21 時至 10/23 03 時陣風超過 49 節的機率 64%，歐洲模式陣風 49.3 節、側風 33 節；10/23 09–15 時歐洲模式側風 48 節、美國模式 35.5 節，兩模式陣風雖不一致，側風均偏強，10/23 03–09 時 6 小時雨量最多 10.4 毫米，判停飛風險高。",
-      "zh-CN": "主因是强风／侧风。目前机场观测（METAR）风仅 5 节，但 10/22 起阵风转强，10/22 21 时至 10/23 03 时阵风超过 49 节的概率 64%，欧洲模式阵风 49.3 节、侧风 33 节；10/23 09–15 时欧洲模式侧风 48 节、美国模式 35.5 节，两模式阵风虽不一致，侧风都偏强，10/23 03–09 时 6 小时雨量最多 10.4 毫米，判停飞风险高。",
-      "en": "The main cause is strong wind and crosswind. The airport observation (METAR) currently shows only 5 kt, but gusts strengthen from 10/22: for 10/22 21:00 to 10/23 03:00 there is a 64% chance of gusts over 49 kt, with the European model at 49.3 kt gusts and 33 kt crosswind; for 10/23 09:00-15:00 the European model shows 48 kt crosswind and the US model 35.5 kt. Although the two models differ on gusts, both show strong crosswind, and for 10/23 03:00-09:00 rain reaches at most 10.4 mm in 6 hours. Disruption risk: High."
+      "zh-TW": "主因是強風與側風。10/22 21 時起陣風超過 49 節的機率達 64%，歐洲模式 10/23 03–09 時陣風 50.7 節；側風更明顯，歐洲模式 10/23 09–15 時達 48 節、美國模式 35.5 節，強側風延續到 10/24 下午。兩模式陣風強度有落差，但側風都超過 33 節，停飛風險評為高。",
+      "zh-HK": "主因是強風與側風。10/22 21 時起陣風超過 49 節的機率達 64%，歐洲模式 10/23 03–09 時陣風 50.7 節；側風更明顯，歐洲模式 10/23 09–15 時達 48 節、美國模式 35.5 節，強側風延續至 10/24 下午。兩模式陣風強度有落差，但側風均超過 33 節，停飛風險評為高。",
+      "zh-CN": "主因是强风与侧风。10/22 21 时起阵风超过 49 节的概率达 64%，欧洲模式 10/23 03–09 时阵风 50.7 节；侧风更明显，欧洲模式 10/23 09–15 时达 48 节、美国模式 35.5 节，强侧风持续到 10/24 下午。两模式阵风强度有差异，但侧风都超过 33 节，停飞风险评为高。",
+      "en": "Strong winds and crosswinds are the main cause. From 10/22 21 h local, there is a 64% chance of gusts over 49 kt, and the European model shows gusts of 50.7 kt on 10/23 03-09 h. Crosswinds are more pronounced: 48 kt in the European model and 35.5 kt in the US model on 10/23 09-15 h, with strong crosswinds lasting into the afternoon of 10/24. The two models differ on gust strength, but both put crosswinds above 33 kt, so disruption risk is rated High."
      },
      "model": "claude-opus-5-5"
     },
     "gemini": {
-     "status": "error",
-     "level": null,
-     "comment": null,
-     "model": "gemini-4-argon",
-     "error": "bad_wording"
+     "status": "ok",
+     "level": "high",
+     "comment": {
+      "zh-TW": "未來5天主要受強風／側風影響，停飛風險為高。10/22 03時至10/24 21時風險持續為高，期間陣風超過49節的機率在10/22 21時至10/23 09時達64%。歐洲模式預估10/23 03–09時陣風達50.7節，10/23 09–15時側風達48節。此外，10/22 21時至10/23 09時24小時雨量超過50毫米的機率為47%，伴隨大雨。",
+      "zh-HK": "未來5天主要受強風／側風影響，停飛風險為高。10/22 03時至10/24 21時風險持續為高，期間陣風超過49節的機率在10/22 21時至10/23 09時達64%。歐洲模式預估10/23 03–09時陣風達50.7節，10/23 09–15時側風達48節。此外，10/22 21時至10/23 09時24小時雨量超過50毫米的機率為47%，伴隨大雨。",
+      "zh-CN": "未来5天主要受强风／侧风影响，停飞风险为高。10/22 03时至10/24 21时风险持续为高，期间阵风超过49节的概率在10/22 21时至10/23 09时达64%。欧洲模式预估10/23 03–09时阵风达50.7节，10/23 09–15时侧风达48节。此外，10/22 21时至10/23 09时24小时雨量超过50毫米的概率为47%，伴随大雨。",
+      "en": "Over the next 5 days, the disruption risk is High, mainly due to strong winds and crosswinds. The risk remains High from 10/22 03:00 to 10/24 21:00, with a 64% chance of gusts over 49 kt between 10/22 21:00 and 10/23 09:00. The European model forecasts gusts up to 50.7 kt during 10/23 03:00–09:00 and crosswinds up to 48 kt during 10/23 09:00–15:00. Additionally, there is a 47% chance of 24-hour rainfall exceeding 50 mm from 10/22 21:00 to 10/23 09:00, bringing heavy rain."
+     },
+     "model": "gemini-4-argon"
     }
    }
   },
@@ -29095,15 +29119,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "medium",
      "comment": {
-      "zh-TW": "主因是強風／側風。10/23 09–21 時歐洲模式側風達 35.1 節、34.1 節，美國模式僅 26 節、19 節；陣風超過 29 節的機率 88%，超過 49 節的機率 0%。10/23 09–15 時歐洲模式 6 小時雨量 30.6 毫米，美國模式 0 毫米。兩模式差距大，停飛風險評為中。",
-      "zh-HK": "主因是強風／側風。10/23 09–21 時歐洲模式側風達 35.1 節、34.1 節，美國模式僅 26 節、19 節；陣風超過 29 節的機率 88%，超過 49 節的機率 0%。10/23 09–15 時歐洲模式 6 小時雨量 30.6 毫米，美國模式 0 毫米。兩模式差距大，停飛風險評為中。",
-      "zh-CN": "主因是强风／侧风。10/23 09–21 时欧洲模式侧风达 35.1 节、34.1 节，美国模式仅 26 节、19 节；阵风超过 29 节的概率 88%，超过 49 节的概率 0%。10/23 09–15 时欧洲模式 6 小时雨量 30.6 毫米，美国模式 0 毫米。两模式差距大，停飞风险评为中。",
-      "en": "The main cause is strong wind/crosswind. On 10/23 09:00-21:00 the European model shows crosswind of 35.1 kt and 34.1 kt, while the US model shows only 26 kt and 19 kt; 88% chance of gusts over 29 kt, 0% chance of gusts over 49 kt. On 10/23 09:00-15:00 the European model gives 30.6 mm of rain in 6 hours, the US model 0 mm. With the two models far apart, disruption risk is rated Medium."
+      "zh-TW": "主因是強風／側風：10/23 09–21 時歐洲模式側風達 35.1 與 34.1 節，陣風超過 29 節的機率 88%；但美國模式側風只有 26 與 19 節，陣風超過 49 節的機率 0%。同日 09–15 時歐洲模式 6 小時雨量 30.6 毫米。只有單一模式達到高門檻，停飛風險判為中。",
+      "zh-HK": "主因是強風／側風：10/23 09–21 時歐洲模式側風達 35.1 與 34.1 節，陣風超過 29 節的機率 88%；但美國模式側風只有 26 與 19 節，陣風超過 49 節的機率 0%。同日 09–15 時歐洲模式 6 小時雨量 30.6 毫米。只有單一模式達到高門檻，停飛風險判為中。",
+      "zh-CN": "主因是强风／侧风：10/23 09–21 时欧洲模式侧风达 35.1 与 34.1 节，阵风超过 29 节的概率 88%；但美国模式侧风只有 26 与 19 节，阵风超过 49 节的概率 0%。同日 09–15 时欧洲模式 6 小时雨量 30.6 毫米。只有单一模式达到高门槛，停飞风险判为中。",
+      "en": "The main cause is strong wind/crosswind: on 10/23 09:00-21:00 the European model shows crosswind of 35.1 and 34.1 kt, with an 88% chance of gusts over 29 kt; but the US model shows crosswind of only 26 and 19 kt, and the chance of gusts over 49 kt is 0%. On the same day 09:00-15:00 the European model shows 30.6 mm of rain in 6 hours. Only one model reaches the High threshold, so the disruption risk is rated Medium."
      },
      "model": "claude-opus-5-5"
     },
@@ -29111,10 +29135,10 @@
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "強風／側風與大雨／雷雨是未來五天的主要風險，整體停飛風險評為高。10/20 至 10/22 停飛風險為低。10/23 03 時至 10/24 03 時風雨增強，其中 10/23 09–21 時歐洲模式預報側風達 34.1 至 35.1 節、陣風 35.3 至 35.5 節，陣風超過 29 節的機率 88%，且 09–15 時 6 小時雨量達 30.6 毫米，但美國模式同期間側風僅 19 至 26 節、6 小時雨量 0 至 0.7 毫米。",
-      "zh-HK": "強風／側風與大雨／雷雨是未來五天的主要風險，整體停飛風險評為高。10/20 至 10/22 停飛風險為低。10/23 03 時至 10/24 03 時風雨增強，其中 10/23 09–21 時歐洲模式預報側風達 34.1 至 35.1 節、陣風 35.3 至 35.5 節，陣風超過 29 節的機率 88%，且 09–15 時 6 小時雨量達 30.6 毫米，但美國模式同期間側風僅 19 至 26 節、6 小時雨量 0 至 0.7 毫米。",
-      "zh-CN": "强风／侧风与大雨／雷雨是未来五天的主要风险，整体停飞风险评为高。10/20 至 10/22 停飞风险为低。10/23 03 时至 10/24 03 时风雨增强，其中 10/23 09–21 时欧洲模式预报侧风达 34.1 至 35.1 节、阵风 35.3 至 35.5 节，阵风超过 29 节的概率 88%，且 09–15 时 6 小时雨量达 30.6 毫米，但美国模式同期间侧风仅 19 至 26 节、6 小时雨量 0 至 0.7 毫米。",
-      "en": "Strong winds/crosswinds and heavy rain/thunderstorms are the main risks over the next five days, with overall disruption risk rated High. From 10/20 to 10/22, disruption risk is Low. Wind and rain strengthen from 10/23 03:00 to 10/24 03:00; during 10/23 09:00–21:00, the European model forecasts crosswinds of 34.1 to 35.1 kt, gusts of 35.3 to 35.5 kt, an 88% chance of gusts over 29 kt, and 30.6 mm of rain in 6 hours during 09:00–15:00, whereas the US model shows crosswinds of only 19 to 26 kt and 0 to 0.7 mm of rain in 6 hours for the same period."
+      "zh-TW": "強風／側風與大雨／雷雨是未來五天的主要風險。10/20至10/22天氣穩定。但10/23 03時至10/24 03時風雨增強，尤其10/23 09–21時，歐洲模式預估側風高達34.1至35.1節、陣風35.3至35.5節，陣風超過29節的機率達88%，且09–15時6小時雨量達30.6毫米，停飛風險升為高。",
+      "zh-HK": "強風／側風與大雨／雷雨是未來五天的主要風險。10/20至10/22天氣穩定。但10/23 03時至10/24 03時風雨增強，尤其10/23 09–21時，歐洲模式預估側風高達34.1至35.1節、陣風35.3至35.5節，陣風超過29節的機率達88%，且09–15時6小時雨量達30.6毫米，停飛風險升為高。",
+      "zh-CN": "强风／侧风与大雨／雷雨是未来五天的主要风险。10/20至10/22天气稳定。但10/23 03时至10/24 03时风雨增强，尤其10/23 09–21时，欧洲模式预估侧风高达34.1至35.1节、阵风35.3至35.5节，阵风超过29节的概率达88%，且09–15时6小时雨量达30.6毫米，停飞风险升为高。",
+      "en": "Strong winds/crosswinds and heavy rain/thunderstorms are the main risks over the next five days. Weather is stable from 10/20 to 10/22. However, wind and rain intensify from 10/23 03:00 to 10/24 03:00. Especially during 10/23 09:00–21:00, the European model projects crosswinds reaching 34.1 to 35.1 kt and gusts of 35.3 to 35.5 kt, with an 88% chance of gusts over 29 kt, plus 30.6 mm of rain in 6 hours during 09:00–15:00, raising the disruption risk to High."
      },
      "model": "gemini-4-argon"
     }
@@ -29136,11 +29160,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 160,
-    "windKt": 5,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 140,
+    "windKt": 7,
     "gustKt": null,
-    "raw": "METAR RJFF 191800Z AUTO 16005KT 9999 NSC 24/20 Q1017 NOSIG",
+    "raw": "METAR RJFF 191900Z AUTO 14007KT 9999 NSC 24/20 Q1017 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -29166,7 +29190,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 1.0,
+      "crosswindKt": 1.2,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -30076,7 +30100,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -30117,14 +30141,14 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 70,
-    "windKt": 5,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 90,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR RJBB 191800Z AUTO 07005KT 9999 FEW024 SCT028 22/21 Q1017 NOSIG",
+    "raw": "METAR RJBB 191900Z AUTO 09004KT 9999 FEW022 SCT027 OVC029 22/21 Q1017 NOSIG",
     "visibilityM": 9999,
     "wx": [],
-    "ceilingFt": null
+    "ceilingFt": 2900
    },
    "taf": {
     "issuedAt": "2026-10-19T17:05:00Z",
@@ -30156,7 +30180,7 @@
         "-SHRA"
        ],
        "visibilityM": 9000,
-       "ceilingFt": 3000,
+       "ceilingFt": 2900,
        "rain": "low",
        "snow": "low",
        "fog": "low"
@@ -31068,15 +31092,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "medium",
      "comment": {
-      "zh-TW": "主因是強風／側風：10/21 15–21 時歐洲模式側風 33.5 節、陣風 36.2 節，剛碰到高門檻；但美國模式側風僅 15.9 節、陣風 21.6 節，陣風超過 49 節的機率 0%，陣風超過 29 節的機率 87%。只有單一模式擦邊，判為中。其餘時段風雨都弱。",
-      "zh-HK": "主因是強風／側風：10/21 15–21 時歐洲模式側風 33.5 節、陣風 36.2 節，剛觸及高門檻；但美國模式側風僅 15.9 節、陣風 21.6 節，陣風超過 49 節的機率 0%，陣風超過 29 節的機率 87%。只有單一模式擦邊，判為中。其餘時段風雨都弱。",
-      "zh-CN": "主因是强风／侧风：10/21 15–21 时欧洲模式侧风 33.5 节、阵风 36.2 节，刚触及高门槛；但美国模式侧风仅 15.9 节、阵风 21.6 节，阵风超过 49 节的概率 0%，阵风超过 29 节的概率 87%。只有单一模式擦边，判为中。其余时段风雨都弱。",
-      "en": "The main cause is strong wind/crosswind: for 10/21 15-21 h local, the European model shows a crosswind of 33.5 kt and gusts of 36.2 kt, just touching the High threshold; but the US model shows only a 15.9 kt crosswind and 21.6 kt gusts, with a 0% chance of gusts over 49 kt and an 87% chance of gusts over 29 kt. Only one model is borderline, so this is rated Medium. Wind and rain are weak in all other periods."
+      "zh-TW": "主因是強風／側風。10/21 15–21 時歐洲模式側風 33.5 節、陣風 36.2 節，觸發高等級；但美國模式只有側風 15.9 節、陣風 21.6 節。陣風超過 29 節的機率 87%，超過 49 節的機率 0%。兩模式側風差距大，且只有這一個時段，因此判為中。其餘時段的雨量與能見度都不構成威脅。",
+      "zh-HK": "主因是強風／側風。10/21 15–21 時歐洲模式側風 33.5 節、陣風 36.2 節，觸發高等級；但美國模式只有側風 15.9 節、陣風 21.6 節。陣風超過 29 節的機率 87%，超過 49 節的機率 0%。兩個模式的側風差距大，而且只有這一個時段，因此判為中。其餘時段的雨量與能見度都不構成威脅。",
+      "zh-CN": "主因是强风／侧风。10/21 15–21 时欧洲模式侧风 33.5 节、阵风 36.2 节，触发高等级；但美国模式只有侧风 15.9 节、阵风 21.6 节。阵风超过 29 节的概率 87%，超过 49 节的概率 0%。两个模式的侧风差距大，而且只有这一个时段，因此判为中。其余时段的雨量与能见度都不构成威胁。",
+      "en": "The main cause is strong wind and crosswind. For 10/21 15-21 h local, the European model shows a crosswind of 33.5 kt and gusts of 36.2 kt, triggering a High rating; however, the US model shows only a 15.9 kt crosswind and 21.6 kt gusts. There is an 87% chance of gusts over 29 kt and a 0% chance of gusts over 49 kt. The two models differ widely on crosswind, and only this one period is affected, so the disruption risk is rated Medium. Rainfall and visibility in all other periods pose no threat."
      },
      "model": "claude-opus-5-5"
     },
@@ -31084,10 +31108,10 @@
      "status": "ok",
      "level": "medium",
      "comment": {
-      "zh-TW": "強風／側風是未來五天的主要風險。10/21 15–21 時歐洲模式預估陣風 36.2 節、側風達 33.5 節，陣風超過 29 節的機率 87%。不過同時間美國模式僅報陣風 21.6 節、側風 15.9 節，且陣風超過 49 節的機率為 0%，僅單一模式在單一時段側風偏強，其餘時段風雨皆緩，整體停飛風險評為中。",
-      "zh-HK": "強風／側風是未來五天的主要風險。10/21 15–21 時歐洲模式預估陣風 36.2 節、側風達 33.5 節，陣風超過 29 節的機率 87%。不過同時間美國模式僅報陣風 21.6 節、側風 15.9 節，且陣風超過 49 節的機率為 0%，僅單一模式在單一時段側風偏強，其餘時段風雨皆緩，整體停飛風險評為中。",
-      "zh-CN": "强风／侧风是未来五天的主要风险。10/21 15–21 时欧洲模式预估阵风 36.2 节、侧风达 33.5 节，阵风超过 29 节的概率 87%。不过同时间美国模式仅报阵风 21.6 节、侧风 15.9 节，且阵风超过 49 节的概率为 0%，仅单一模式在单一时段侧风偏强，其余时段风雨皆缓，整体停飞风险评为中。",
-      "en": "Strong winds and crosswinds are the main risk over the next five days. For 10/21 15:00–21:00, the European model forecasts gusts of 36.2 kt and crosswinds reaching 33.5 kt, with an 87% chance of gusts over 29 kt. However, the US model shows gusts of only 21.6 kt and crosswinds of 15.9 kt for the same period, with a 0% chance of gusts over 49 kt. Since only one model indicates strong crosswinds in a single period and wind and rain remain mild across other periods, the overall disruption risk is rated Medium."
+      "zh-TW": "主因是強風／側風，整體停飛風險評為中。僅 10/21 15–21 時受影響，歐洲模式預估陣風 36.2 節、側風達 33.5 節，陣風超過 29 節的機率 87%，但美國模式預估陣風僅 21.6 節、側風 15.9 節，且陣風超過 49 節的機率為 0%，因此由高下修為中。其餘時段風雨皆緩，停飛風險為低。",
+      "zh-HK": "主因是強風／側風，整體停飛風險評為中。僅 10/21 15–21 時受影響，歐洲模式預估陣風 36.2 節、側風達 33.5 節，陣風超過 29 節的機率 87%，但美國模式預估陣風僅 21.6 節、側風 15.9 節，且陣風超過 49 節的機率為 0%，因此由高下修為中。其餘時段風雨皆緩，停飛風險為低。",
+      "zh-CN": "主因是强风／侧风，整体停飞风险评为中。仅 10/21 15–21 时受影响，欧洲模式预估阵风 36.2 节、侧风达 33.5 节，阵风超过 29 节的概率 87%，但美国模式预估阵风仅 21.6 节、侧风 15.9 节，且阵风超过 49 节的概率为 0%，因此由高下调为中。其余时段风雨皆缓，停飞风险为低。",
+      "en": "The main factor is strong winds and crosswinds, with overall disruption risk rated Medium. Only the 10/21 15:00–21:00 local period is affected: the European model projects gusts of 36.2 kt, crosswinds reaching 33.5 kt, and an 87% chance of gusts over 29 kt, whereas the US model projects gusts of only 21.6 kt and crosswinds of 15.9 kt, with a 0% chance of gusts over 49 kt, justifying a downgrade from High to Medium. Winds and rain remain mild in all other periods, keeping disruption risk Low."
      },
      "model": "gemini-4-argon"
     }
@@ -31109,13 +31133,15 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 10,
-    "windKt": 6,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 360,
+    "windKt": 7,
     "gustKt": null,
-    "raw": "METAR RJGG 191800Z AUTO 01006KT 9999 OVC013 21/20 Q1018 TEMPO FEW005 BKN008",
+    "raw": "METAR RJGG 191900Z AUTO 36007KT 9999 -RA OVC013 21/20 Q1017 TEMPO FEW005 BKN008",
     "visibilityM": 9999,
-    "wx": [],
+    "wx": [
+     "-RA"
+    ],
     "ceilingFt": 1300
    },
    "taf": {
@@ -31142,7 +31168,9 @@
       "crosswindKt": 2.9,
       "warnings": [],
       "wx": {
-       "phenomena": [],
+       "phenomena": [
+        "-RA"
+       ],
        "visibilityM": 9999,
        "ceilingFt": 800,
        "rain": "low",
@@ -32086,11 +32114,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
+    "observedAt": "2026-10-19T19:00:00Z",
     "windDirDeg": 20,
     "windKt": 4,
     "gustKt": null,
-    "raw": "METAR RJTT 191800Z 02004KT 9999 FEW030 BKN/// 22/17 Q1018 NOSIG",
+    "raw": "METAR RJTT 191900Z 02004KT CAVOK 22/16 Q1017 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -33027,15 +33055,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
-     "level": "low",
+     "level": "medium",
      "comment": {
-      "zh-TW": "主因是強風。10/21 09–21 時美國模式陣風 43.5 節，歐洲模式只有 33.4、32.2 節，兩者不一致；陣風超過 29 節的機率 88%，但陣風超過 49 節的機率 0%。側風僅 1.8–8.6 節，遠低於門檻。機場預報（TAF）10/20 09–15 時陣風 35 節也未達中級，故評為低。",
-      "zh-HK": "主因是強風。10/21 09–21 時美國模式陣風 43.5 節，歐洲模式只有 33.4、32.2 節，兩者不一致；陣風超過 29 節的機率 88%，但陣風超過 49 節的機率 0%。側風僅 1.8–8.6 節，遠低於門檻。機場預報（TAF）10/20 09–15 時陣風 35 節也未達中級，故評為低。",
-      "zh-CN": "主因是强风。10/21 09–21 时美国模式阵风 43.5 节，欧洲模式只有 33.4、32.2 节，两者不一致；阵风超过 29 节的概率 88%，但阵风超过 49 节的概率 0%。侧风仅 1.8–8.6 节，远低于门槛。机场预报（TAF）10/20 09–15 时阵风 35 节也未达中级，故评为低。",
-      "en": "The main factor is strong wind. On 10/21 09:00–21:00 the US model shows gusts of 43.5 kt, while the European model shows only 33.4 and 32.2 kt, so the models disagree; there is an 88% chance of gusts over 29 kt but a 0% chance of gusts over 49 kt. Crosswind is only 1.8–8.6 kt, well below the threshold. The airport forecast (TAF) gusts of 35 kt on 10/20 09:00–15:00 also stay below Medium, so the rating is Low."
+      "zh-TW": "主因是強風。10/21 09–21 時美國模式陣風 43.5 節，歐洲模式 32.2–33.4 節，兩模式不一致；陣風超過 29 節的機率 88%，超過 49 節的機率 0%，側風最多 8.6 節。機場預報（TAF）10/20 09–14 時陣風 35 節，仍屬低。整體停飛風險評為中。",
+      "zh-HK": "主因是強風。10/21 09–21 時美國模式陣風 43.5 節，歐洲模式 32.2–33.4 節，兩個模式不一致；陣風超過 29 節的機率 88%，超過 49 節的機率 0%，側風最多 8.6 節。機場預報（TAF）10/20 09–14 時陣風 35 節，仍屬低。整體停飛風險評為中。",
+      "zh-CN": "主因是强风。10/21 09–21 时美国模式阵风 43.5 节，欧洲模式 32.2–33.4 节，两个模式不一致；阵风超过 29 节的概率 88%，超过 49 节的概率 0%，侧风最多 8.6 节。机场预报（TAF）10/20 09–14 时阵风 35 节，仍属低。整体停飞风险评为中。",
+      "en": "The main cause is strong wind. On 10/21 09:00–21:00 the US model shows gusts of 43.5 kt and the European model 32.2–33.4 kt, so the models disagree; 88% chance of gusts over 29 kt, 0% chance of gusts over 49 kt, with crosswind at most 8.6 kt. The airport forecast (TAF) gives gusts of 35 kt on 10/20 09:00–14:00, still Low. Overall disruption risk is rated Medium."
      },
      "model": "claude-opus-5-5"
     },
@@ -33043,10 +33071,10 @@
      "status": "ok",
      "level": "medium",
      "comment": {
-      "zh-TW": "未來5天羽田機場的停飛風險為中，主因是強風／側風。10/21 09–21時，美國模式預報陣風達43.5節，歐洲模式為32.2至33.4節，陣風超過29節的機率為88%，不過側風僅1.8至8.6節。此外，10/20 09–15時機場預報（TAF）陣風35節；10/24 09–21時有雨，6小時雨量最高13.9毫米，皆為低風險。",
-      "zh-HK": "未來5天羽田機場的停飛風險為中，主因是強風／側風。10/21 09–21時，美國模式預報陣風達43.5節，歐洲模式為32.2至33.4節，陣風超過29節的機率為88%，不過側風僅1.8至8.6節。此外，10/20 09–15時機場預報（TAF）陣風35節；10/24 09–21時有雨，6小時雨量最高13.9毫米，皆為低風險。",
-      "zh-CN": "未来5天羽田机场的停飞风险为中，主因是强风／侧风。10/21 09–21时，美国模式预报阵风达43.5节，欧洲模式为32.2至33.4节，阵风超过29节的概率为88%，不过侧风仅1.8至8.6节。此外，10/20 09–15时机场预报（TAF）阵风35节；10/24 09–21时有雨，6小时雨量最高13.9毫米，皆为低风险。",
-      "en": "The disruption risk at Haneda Airport over the next 5 days is Medium, mainly due to strong winds and crosswinds. During 10/21 09:00–21:00, the US model forecasts gusts up to 43.5 kt and the European model 32.2 to 33.4 kt, with an 88% chance of gusts over 29 kt, though crosswinds are only 1.8 to 8.6 kt. Additionally, the airport forecast (TAF) for 10/20 09:00–15:00 shows gusts of 35 kt, and rain is expected during 10/24 09:00–21:00 with up to 13.9 mm of rain in 6 hours, both posing a Low risk."
+      "zh-TW": "強風／側風為主要影響因素，整體停飛風險為中。依據 10/21 09–21 時的資料，美國模式預報陣風達 43.5 節，歐洲模式則為 32.2 至 33.4 節，且陣風超過 29 節的機率高達 88%。其餘時段如 10/20 09–15 時機場預報（TAF）陣風 35 節，及 10/24 09–21 時的 6 小時雨量至多 13.9 毫米，停飛風險皆為低。",
+      "zh-HK": "強風／側風為主要影響因素，整體停飛風險為中。依據 10/21 09–21 時的資料，美國模式預報陣風達 43.5 節，歐洲模式則為 32.2 至 33.4 節，且陣風超過 29 節的機率高達 88%。其餘時段如 10/20 09–15 時機場預報（TAF）陣風 35 節，及 10/24 09–21 時的 6 小時雨量至多 13.9 毫米，停飛風險皆為低。",
+      "zh-CN": "强风／侧风为主要影响因素，整体停飞风险为中。依据 10/21 09–21 时的数据，美国模式预报阵风达 43.5 节，欧洲模式则为 32.2 至 33.4 节，且阵风超过 29 节的概率高达 88%。其余时段如 10/20 09–15 时机场预报（TAF）阵风 35 节，及 10/24 09–21 时的 6 小时雨量至多 13.9 毫米，停飞风险皆为低。",
+      "en": "Strong winds/crosswinds are the main factor, bringing an overall Medium disruption risk. Based on the 10/21 09:00–21:00 periods, the US model forecasts gusts of 43.5 kt while the European model shows 32.2 to 33.4 kt, with an 88% chance of gusts over 29 kt. Other periods, such as 10/20 09:00–15:00 with airport forecast (TAF) gusts of 35 kt and 10/24 09:00–21:00 with up to 13.9 mm of rain in 6 hours, all carry a Low disruption risk."
      },
      "model": "gemini-4-argon"
     }
@@ -33068,11 +33096,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 180,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 300,
     "windKt": 3,
     "gustKt": null,
-    "raw": "METAR RJAA 191800Z AUTO 18003KT 9999 NSC 20/18 Q1018 NOSIG",
+    "raw": "METAR RJAA 191900Z AUTO 30003KT 9999 NSC 20/18 Q1017 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -34028,15 +34056,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "主因是強風／側風。10/21 09–21 時歐洲模式陣風 33.8–36.5 節、美國模式 39.1 節，陣風超過 29 節的機率 100%；15–21 時兩個模式的側風分別達 33.3 與 35.1 節，已到高門檻。陣風超過 49 節的機率雖是 0%，但側風足以撐起高停飛風險。機場預報（TAF）的雷雨與低雲時段雲底仍有 500 呎，判讀為低。",
-      "zh-HK": "主因是強風／側風。10/21 09–21 時歐洲模式陣風 33.8–36.5 節、美國模式 39.1 節，陣風超過 29 節的機率 100%；15–21 時兩個模式的側風分別達 33.3 與 35.1 節，已到高門檻。陣風超過 49 節的機率雖是 0%，但側風足以支持高停飛風險。機場預報（TAF）的雷雨與低雲時段雲底仍有 500 呎，判讀為低。",
-      "zh-CN": "主因是强风／侧风。10/21 09–21 时欧洲模式阵风 33.8–36.5 节、美国模式 39.1 节，阵风超过 29 节的概率 100%；15–21 时两个模式的侧风分别达 33.3 与 35.1 节，已到高门槛。阵风超过 49 节的概率虽是 0%，但侧风足以支撑高停飞风险。机场预报（TAF）的雷雨与低云时段云底仍有 500 英尺，判读为低。",
-      "en": "The main driver is strong wind and crosswind. On 10/21 09–21 h local, the European model shows gusts of 33.8–36.5 kt and the US model 39.1 kt, with a 100% chance of gusts over 29 kt; during 15–21 h, the two models put the crosswind at 33.3 and 35.1 kt, reaching the High threshold. Although the chance of gusts over 49 kt is 0%, the crosswind alone supports a High disruption risk. In the airport forecast (TAF), the thunderstorm and low-cloud periods still keep the cloud base at 500 ft, assessed as Low."
+      "zh-TW": "主因是強風／側風。10/21 09–21 時歐洲模式陣風 33.8–36.5 節、美國模式陣風 39.1 節，陣風超過 29 節的機率 100%；15–21 時兩個模式的側風分別為 33.3 節與 35.1 節，都已達高門檻。陣風超過 49 節的機率為 0%，且這段時間已超出機場預報（TAF）範圍，只能依據模式，但兩個模式側風都偏強，停飛風險仍評為高。",
+      "zh-HK": "主因是強風／側風。10/21 09–21 時歐洲模式陣風 33.8–36.5 節、美國模式陣風 39.1 節，陣風超過 29 節的機率 100%；15–21 時兩個模式的側風分別為 33.3 節與 35.1 節，均已達高門檻。陣風超過 49 節的機率為 0%，而且這段時間已超出機場預報（TAF）範圍，只能依據模式，但兩個模式側風均偏強，停飛風險仍評為高。",
+      "zh-CN": "主因是强风／侧风。10/21 09–21 时欧洲模式阵风 33.8–36.5 节、美国模式阵风 39.1 节，阵风超过 29 节的概率 100%；15–21 时两个模式的侧风分别为 33.3 节和 35.1 节，均已达到高门槛。阵风超过 49 节的概率为 0%，而且这段时间已超出机场预报（TAF）范围，只能依据模式，但两个模式侧风均偏强，停飞风险仍评为高。",
+      "en": "The main cause is strong wind/crosswind. On 10/21 09–21 h local, the European model shows gusts of 33.8–36.5 kt and the US model 39.1 kt, with a 100% chance of gusts over 29 kt; during 15–21 h local the two models give crosswinds of 33.3 kt and 35.1 kt, both reaching the high threshold. The chance of gusts over 49 kt is 0%, and this period is beyond the airport forecast (TAF) range, so the assessment is based on the models only, but with strong crosswinds in both models the disruption risk is still rated High."
      },
      "model": "claude-opus-5-5"
     },
@@ -34044,10 +34072,10 @@
      "status": "ok",
      "level": "high",
      "comment": {
-      "zh-TW": "未來5天主要受強風／側風影響，停飛風險為高。10/21 09–21時陣風超過29節的機率達100%，美國模式預估陣風39.1節、側風35.1節；歐洲模式預估陣風33.8至36.5節、側風27.8至33.3節。10/21 21時–10/22 03時美國模式側風仍達29.1節，風險為中，其餘時段風險皆為低。",
-      "zh-HK": "未來5天主要受強風／側風影響，停飛風險為高。10/21 09–21時陣風超過29節的機率達100%，美國模式預估陣風39.1節、側風35.1節；歐洲模式預估陣風33.8至36.5節、側風27.8至33.3節。10/21 21時–10/22 03時美國模式側風仍達29.1節，風險為中，其餘時段風險皆為低。",
-      "zh-CN": "未来5天主要受强风／侧风影响，停飞风险为高。10/21 09–21时阵风超过29节的概率达100%，美国模式预估阵风39.1节、侧风35.1节；欧洲模式预估阵风33.8至36.5节、侧风27.8至33.3节。10/21 21时–10/22 03时美国模式侧风仍达29.1节，风险为中，其余时段风险皆为低。",
-      "en": "Over the next 5 days, the disruption risk is High, mainly due to strong winds and crosswinds. During 10/21 09:00–21:00, the chance of gusts over 29 kt reaches 100%, with the US model forecasting gusts of 39.1 kt and crosswinds of 35.1 kt, while the European model forecasts gusts of 33.8 to 36.5 kt and crosswinds of 27.8 to 33.3 kt. From 10/21 21:00 to 10/22 03:00, US model crosswinds remain at 29.1 kt with Medium risk, while all other periods have Low risk."
+      "zh-TW": "未來5天主要受強風／側風影響，停飛風險為高。10/21 09–21時，歐洲模式陣風達33.8至36.5節、側風27.8至33.3節，美國模式陣風達39.1節、側風35.1節，陣風超過29節的機率為100%。10/21 21時–10/22 03時美國模式側風仍達29.1節，風險為中；其餘時段風險為低。",
+      "zh-HK": "未來5天主要受強風／側風影響，停飛風險為高。10/21 09–21時，歐洲模式陣風達33.8至36.5節、側風27.8至33.3節，美國模式陣風達39.1節、側風35.1節，陣風超過29節的機率為100%。10/21 21時–10/22 03時美國模式側風仍達29.1節，風險為中；其餘時段風險為低。",
+      "zh-CN": "未来5天主要受强风／侧风影响，停飞风险为高。10/21 09–21时，欧洲模式阵风达33.8至36.5节、侧风27.8至33.3节，美国模式阵风达39.1节、侧风35.1节，阵风超过29节的概率为100%。10/21 21时–10/22 03时美国模式侧风仍达29.1节，风险为中；其余时段风险为低。",
+      "en": "Over the next 5 days, strong winds and crosswinds are the main factor, bringing a High disruption risk. During 10/21 09:00-21:00, the European model shows gusts of 33.8 to 36.5 kt and crosswinds of 27.8 to 33.3 kt, while the US model reaches 39.1 kt gusts and 35.1 kt crosswinds, with a 100% chance of gusts over 29 kt. From 10/21 21:00 to 10/22 03:00, US model crosswinds remain at 29.1 kt with Medium risk; other periods are Low."
      },
      "model": "gemini-4-argon"
     }
@@ -34069,11 +34097,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 240,
-    "windKt": 2,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": null,
+    "windKt": 1,
     "gustKt": null,
-    "raw": "METAR RJCC 191800Z 24002KT 9999 R19R/P2000N R01R/P2000N BCFG FEW005 08/07 Q1018",
+    "raw": "METAR RJCC 191900Z VRB01KT 9999 BCFG FEW005 BKN/// 07/07 Q1018",
     "visibilityM": 9999,
     "wx": [
      "BCFG"
@@ -34101,7 +34129,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 1.8,
+      "crosswindKt": 1.6,
       "warnings": [],
       "wx": {
        "phenomena": [
@@ -35047,16 +35075,16 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 240,
-    "windKt": 3,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 220,
+    "windKt": 5,
     "gustKt": null,
-    "raw": "METAR RJSS 191800Z AUTO 24003KT 170V310 9999 -RA FEW070 SCT100 BKN110 19/16 Q1017",
+    "raw": "METAR RJSS 191900Z AUTO 22005KT 9999 -RA NSC 18/17 Q1016",
     "visibilityM": 9999,
     "wx": [
      "-RA"
     ],
-    "ceilingFt": 11000
+    "ceilingFt": null
    },
    "taf": {
     "issuedAt": "2026-10-19T17:06:00Z",
@@ -36004,20 +36032,28 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": null,
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
-     "status": "error",
-     "level": null,
-     "comment": null,
-     "model": "claude-opus-5-5",
-     "error": "run_cap"
+     "status": "skipped",
+     "level": "low",
+     "comment": {
+      "zh-TW": "沒看到明顯風險",
+      "zh-HK": "未見明顯風險",
+      "zh-CN": "未见明显风险",
+      "en": "No notable risk seen"
+     },
+     "model": "claude-opus-5-5"
     },
     "gemini": {
-     "status": "error",
-     "level": null,
-     "comment": null,
-     "model": "gemini-4-argon",
-     "error": "run_cap"
+     "status": "skipped",
+     "level": "low",
+     "comment": {
+      "zh-TW": "沒看到明顯風險",
+      "zh-HK": "未見明顯風險",
+      "zh-CN": "未见明显风险",
+      "en": "No notable risk seen"
+     },
+     "model": "gemini-4-argon"
     }
    }
   },
@@ -36037,12 +36073,12 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 330,
-    "windKt": 7,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 20,
+    "windKt": 5,
     "gustKt": null,
-    "raw": "METAR RKPC 191800Z 33007KT 6000 -RA FEW013 BKN030 OVC070 18/15 Q1018 NOSIG",
-    "visibilityM": 6000,
+    "raw": "METAR RKPC 191900Z 02005KT 9999 -RA FEW010 BKN030 OVC070 17/16 Q1018 NOSIG",
+    "visibilityM": 9999,
     "wx": [
      "-RA"
     ],
@@ -36069,7 +36105,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 2.9,
+      "crosswindKt": 3.1,
       "warnings": [],
       "wx": {
        "phenomena": [
@@ -37026,11 +37062,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 300,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 320,
     "windKt": 6,
     "gustKt": null,
-    "raw": "METAR RKPK 191800Z 30006KT 3200 -RA BR FEW005 SCT008 BKN018 OVC025 18/17 Q1018",
+    "raw": "METAR RKPK 191900Z 32006KT 3200 -RA BR FEW005 SCT008 BKN018 OVC025 18/17 Q1018",
     "visibilityM": 3200,
     "wx": [
      "-RA",
@@ -37062,7 +37098,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 4.9,
+      "crosswindKt": 3.5,
       "warnings": [],
       "wx": {
        "phenomena": [
@@ -37981,7 +38017,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -38022,11 +38058,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 40,
-    "windKt": 7,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 50,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR RKSI 191800Z 04007KT 020V080 CAVOK 14/10 Q1019 NOSIG",
+    "raw": "METAR RKSI 191900Z 05004KT CAVOK 14/10 Q1020 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -38052,7 +38088,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 6.8,
+      "crosswindKt": 4.5,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -38961,7 +38997,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -39002,11 +39038,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 360,
-    "windKt": 3,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 320,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR RKSS 191800Z 36003KT CAVOK 13/13 Q1019 NOSIG",
+    "raw": "METAR RKSS 191900Z 32004KT CAVOK 12/12 Q1020 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -39941,7 +39977,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -39982,11 +40018,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 150,
-    "windKt": 4,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 130,
+    "windKt": 3,
     "gustKt": null,
-    "raw": "METAR VVNB 191800Z 15004KT 120V180 9999 FEW021 27/24 Q1014 NOSIG",
+    "raw": "METAR VVNB 191900Z 13003KT 090V190 9999 FEW020 27/25 Q1014 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -40913,7 +40949,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -40954,11 +40990,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 20,
-    "windKt": 4,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 360,
+    "windKt": 2,
     "gustKt": null,
-    "raw": "METAR VVTS 191800Z 02004KT CAVOK 26/25 Q1011 NOSIG",
+    "raw": "METAR VVTS 191900Z 36002KT CAVOK 26/25 Q1011 NOSIG",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -41897,7 +41933,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -41938,11 +41974,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 0,
-    "windKt": 0,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 210,
+    "windKt": 1,
     "gustKt": null,
-    "raw": "METAR VVDN 191800Z 00000KT 8000 FEW020 SCT070 25/24 Q1013 NOSIG",
+    "raw": "METAR VVDN 191900Z 21001KT 8000 FEW020 SCT060 25/24 Q1013 NOSIG",
     "visibilityM": 8000,
     "wx": [],
     "ceilingFt": null
@@ -42866,7 +42902,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -42907,13 +42943,15 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": null,
-    "windKt": 2,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": 20,
+    "windKt": 3,
     "gustKt": null,
-    "raw": "METAR VVCR 191800Z VRB02KT 9999 FEW020 26/24 Q1012 TEMPO FM1820 TL1930 4000 SHRA BKN013 FEW015CB",
+    "raw": "METAR VVCR 191900Z 02003KT 340V080 9999 -RA FEW032 SCT060 26/24 Q1012 TEMPO TL1930 4000 SHRA",
     "visibilityM": 9999,
-    "wx": [],
+    "wx": [
+     "-RA"
+    ],
     "ceilingFt": null
    },
    "taf": {
@@ -42941,7 +42979,8 @@
       "warnings": [],
       "wx": {
        "phenomena": [
-        "TSRA"
+        "TSRA",
+        "-RA"
        ],
        "visibilityM": 3500,
        "ceilingFt": 5000,
@@ -43840,15 +43879,15 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "ok",
      "level": "low",
      "comment": {
-      "zh-TW": "主因是大雨／雷雨：機場預報（TAF）在 10/20 13–19 時報短暫強雷雨，能見度 2500 公尺，規則燈因此亮中。但這是短暫性質，能見度未低於 1600 公尺；歐洲模式 6 小時雨量 2.4 毫米、美國模式 9.7 毫米，24 小時雨量超過 50 毫米的機率 0%。陣風超過 49 節的機率全程 0%，側風最大 12.3 節，整體停飛風險判為低。",
-      "zh-HK": "主因是大雨／雷雨：機場預報（TAF）在 10/20 13–19 時報短暫強雷雨，能見度 2500 公尺，規則燈因此亮中。但這是短暫性質，能見度未低於 1600 公尺；歐洲模式 6 小時雨量 2.4 毫米、美國模式 9.7 毫米，24 小時雨量超過 50 毫米的機率 0%。陣風超過 49 節的機率全程 0%，側風最大 12.3 節，整體停飛風險判為低。",
-      "zh-CN": "主因是大雨／雷雨：机场预报（TAF）在 10/20 13–19 时报短暂强雷雨，能见度 2500 米，规则灯因此亮中。但这是短暂性质，能见度未低于 1600 米；欧洲模式 6 小时雨量 2.4 毫米、美国模式 9.7 毫米，24 小时雨量超过 50 毫米的概率 0%。阵风超过 49 节的概率全程 0%，侧风最大 12.3 节，整体停飞风险判为低。",
-      "en": "The main cause is heavy rain/thunderstorms: the airport forecast (TAF) calls for temporary heavy thunderstorms on 10/20 13:00-19:00 with visibility 2500 m, which is why the rule light shows Medium. But this is temporary, and visibility stays above 1600 m; the European model gives 2.4 mm of rain in 6 hours and the US model 9.7 mm, with a 0% chance of more than 50 mm of rain in 24 hours. The chance of gusts over 49 kt is 0% throughout and crosswind peaks at 12.3 kt, so overall disruption risk is rated Low."
+      "zh-TW": "主因是大雨／雷雨：機場預報（TAF）在 10/20 13–19 時有短暫強雷雨，能見度 2500 公尺、雲底 5000 呎，規則燈因此給中；但歐洲模式 6 小時雨量僅 2.4 毫米、美國模式 9.7 毫米，24 小時雨量超過 50 毫米的機率 0%。其餘時段陣風最高 25 節，陣風超過 29 節的機率最多 8%，整體停飛風險評為低。",
+      "zh-HK": "主因是大雨／雷雨：機場預報（TAF）在 10/20 13–19 時有短暫強雷雨，能見度 2500 公尺、雲底 5000 呎，規則燈因此給中；但歐洲模式 6 小時雨量僅 2.4 毫米、美國模式 9.7 毫米，24 小時雨量超過 50 毫米的機率 0%。其餘時段陣風最高 25 節，陣風超過 29 節的機率最多 8%，整體停飛風險評為低。",
+      "zh-CN": "主因是大雨／雷雨：机场预报（TAF）在 10/20 13–19 时有短暂强雷雨，能见度 2500 米、云底 5000 英尺，规则灯因此给中；但欧洲模式 6 小时雨量仅 2.4 毫米、美国模式 9.7 毫米，24 小时雨量超过 50 毫米的概率 0%。其余时段阵风最高 25 节，阵风超过 29 节的概率最多 8%，整体停飞风险评为低。",
+      "en": "The main cause is heavy rain/thunderstorms: the airport forecast (TAF) shows temporary heavy thunderstorms on 10/20 13–19 h local, with visibility 2500 m and cloud base 5000 ft, so the rule light gives Medium. However, the European model has only 2.4 mm of rain in 6 hours and the US model 9.7 mm, with a 0% chance of more than 50 mm of rain in 24 hours. In the other periods gusts peak at 25 kt and the chance of gusts over 29 kt is at most 8%, so overall disruption risk is rated Low."
      },
      "model": "claude-opus-5-5"
     },
@@ -43856,10 +43895,10 @@
      "status": "ok",
      "level": "medium",
      "comment": {
-      "zh-TW": "未來 5 天停飛風險為中，主因是大雨與雷雨。依據機場預報（TAF），10/20 13–19 時將出現強雷雨，能見度降至 2500 公尺。此期間歐洲模式與美國模式的 6 小時雨量分別為 2.4 與 9.7 毫米，官方預報較模式嚴峻。其餘時段風險皆為低，最大陣風僅 25 節。",
-      "zh-HK": "未來 5 天停飛風險為中，主因是大雨與雷雨。依據機場預報（TAF），10/20 13–19 時將出現強雷雨，能見度降至 2500 公尺。此期間歐洲模式與美國模式的 6 小時雨量分別為 2.4 與 9.7 毫米，官方預報較模式嚴峻。其餘時段風險皆為低，最大陣風僅 25 節。",
-      "zh-CN": "未来 5 天停飞风险为中，主因是大雨与雷雨。依据机场预报（TAF），10/20 13–19 时将出现强雷雨，能见度降至 2500 米。此期间欧洲模式与美国模式的 6 小时雨量分别为 2.4 与 9.7 毫米，官方预报较模式严峻。其余时段风险皆为低，最大阵风仅 25 节。",
-      "en": "The disruption risk over the next 5 days is Medium, mainly due to heavy rain and thunderstorms. Based on the airport forecast (TAF), 10/20 13:00–19:00 will see heavy thunderstorms with visibility dropping to 2500 m. During this period, the European model and US model show 2.4 and 9.7 mm of rain in 6 hours respectively, making the official forecast more severe than the models. The risk is Low for all other periods, with maximum gusts of only 25 kt."
+      "zh-TW": "大雨／雷雨是影響未來五天停飛風險的主因。依據機場預報（TAF），10/20 13–19 時有強雷雨，能見度降至 2500 公尺，停飛風險為中。同段歐洲模式與美國模式 6 小時雨量僅 2.4 與 9.7 毫米，但短線以官方預報為準。其餘時段至 10/25 01 時風險皆為低，陣風最高為 10/22 07–13 時歐洲模式的 25 節。",
+      "zh-HK": "大雨／雷雨是影響未來五天停飛風險的主因。依據機場預報（TAF），10/20 13–19 時有強雷雨，能見度降至 2500 公尺，停飛風險為中。同段歐洲模式與美國模式 6 小時雨量僅 2.4 與 9.7 毫米，但短線以官方預報為準。其餘時段至 10/25 01 時風險皆為低，陣風最高為 10/22 07–13 時歐洲模式的 25 節。",
+      "zh-CN": "大雨／雷雨是影响未来五天停飞风险的主因。依据机场预报（TAF），10/20 13–19 时有强雷雨，能见度降至 2500 米，停飞风险为中。同段欧洲模式与美国模式 6 小时雨量仅 2.4 与 9.7 毫米，但短线以官方预报为准。其余时段至 10/25 01 时风险皆为低，阵风最高为 10/22 07–13 时欧洲模式的 25 节。",
+      "en": "Heavy rain and thunderstorms are the main cause of disruption risk over the next five days. Based on the airport forecast (TAF), heavy thunderstorms during 10/20 13:00–19:00 local will reduce visibility to 2500 m, bringing a Medium disruption risk. In the same period, the European model and US model show only 2.4 mm and 9.7 mm of rain in 6 hours, but the official forecast takes precedence in the short term. All other periods through 10/25 01:00 local have Low risk, with gusts peaking at 25 kt in the European model during 10/22 07:00–13:00 local."
      },
      "model": "gemini-4-argon"
     }
@@ -43881,11 +43920,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 100,
+    "observedAt": "2026-10-19T18:30:00Z",
+    "windDirDeg": 70,
     "windKt": 2,
     "gustKt": null,
-    "raw": "METAR VVPQ 191800Z 10002KT 8000 SCT015 FEW017CB 25/25 Q1011 NOSIG",
+    "raw": "METAR VVPQ 191830Z 07002KT 8000 SCT015 FEW017CB 26/25 Q1011 NOSIG",
     "visibilityM": 8000,
     "wx": [],
     "ceilingFt": null
@@ -43911,7 +43950,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 0.8,
+      "crosswindKt": 0.9,
       "warnings": [],
       "wx": {
        "phenomena": [
@@ -44807,7 +44846,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -44848,11 +44887,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
-    "windDirDeg": 110,
-    "windKt": 3,
+    "observedAt": "2026-10-19T19:00:00Z",
+    "windDirDeg": null,
+    "windKt": 2,
     "gustKt": null,
-    "raw": "METAR RPLL 191800Z 11003KT 9999 FEW025 SCT100 28/24 Q1011 NOSIG RMK A2985",
+    "raw": "METAR RPLL 191900Z VRB02KT 9999 FEW025 28/24 Q1010 NOSIG RMK A2983",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -44878,7 +44917,7 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 1.5,
+      "crosswindKt": 2.0,
       "warnings": [],
       "wx": {
        "phenomena": [],
@@ -45789,7 +45828,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -45830,11 +45869,11 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
+    "observedAt": "2026-10-19T19:00:00Z",
     "windDirDeg": null,
     "windKt": 1,
     "gustKt": null,
-    "raw": "METAR RPVM 191800Z VRB01KT 9999 FEW018CB 27/25 Q1009 NOSIG RMK A2980 CB NW",
+    "raw": "METAR RPVM 191900Z VRB01KT 9999 FEW011 27/25 Q1009 NOSIG RMK A2980",
     "visibilityM": 9999,
     "wx": [],
     "ceilingFt": null
@@ -46767,7 +46806,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -46808,14 +46847,14 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T18:00:00Z",
+    "observedAt": "2026-10-19T19:00:00Z",
     "windDirDeg": 270,
     "windKt": 2,
     "gustKt": null,
-    "raw": "METAR RPLC 191800Z 27002KT 9999 SCT020 BKN100 27/24 Q1012 NOSIG RMK A2988",
+    "raw": "METAR RPLC 191900Z 27002KT 9999 SCT020 27/24 Q1012 NOSIG RMK A2988",
     "visibilityM": 9999,
     "wx": [],
-    "ceilingFt": 10000
+    "ceilingFt": null
    },
    "taf": {
     "issuedAt": "2026-10-19T17:00:00Z",
@@ -46843,7 +46882,7 @@
       "wx": {
        "phenomena": [],
        "visibilityM": 9999,
-       "ceilingFt": 10000,
+       "ceilingFt": null,
        "rain": "low",
        "snow": "low",
        "fog": "low"
@@ -47747,7 +47786,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -47788,14 +47827,14 @@
    },
    "warnings": [],
    "metar": {
-    "observedAt": "2026-10-19T17:54:00Z",
-    "windDirDeg": 110,
-    "windKt": 10,
+    "observedAt": "2026-10-19T18:54:00Z",
+    "windDirDeg": null,
+    "windKt": 4,
     "gustKt": null,
-    "raw": "METAR PGUM 191754Z 11010KT 7SM SCT013 27/26 A2988 RMK AO2 SLP110 T02670256 10267 20261 56005 $",
+    "raw": "METAR PGUM 191854Z VRB04KT 7SM FEW009 BKN017 BKN024 27/26 A2988 RMK AO2 SLP111 T02670256 $",
     "visibilityM": 11250,
     "wx": [],
-    "ceilingFt": null
+    "ceilingFt": 1700
    },
    "taf": {
     "issuedAt": "2026-10-19T17:27:00Z",
@@ -47820,14 +47859,14 @@
       "gustKt": null,
       "kind": "main",
       "level": "low",
-      "crosswindKt": 7.1,
+      "crosswindKt": 6.4,
       "warnings": [],
       "wx": {
        "phenomena": [
         "VCSH"
        ],
        "visibilityM": 9999,
-       "ceilingFt": 15000,
+       "ceilingFt": 1700,
        "rain": "low",
        "snow": "low",
        "fog": "low"
@@ -48737,7 +48776,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
@@ -49710,7 +49749,7 @@
    ],
    "confirmed": [],
    "ai": {
-    "evaluatedAt": "2026-10-19T18:07:00Z",
+    "evaluatedAt": "2026-10-19T19:13:00Z",
     "claude": {
      "status": "skipped",
      "level": "low",
