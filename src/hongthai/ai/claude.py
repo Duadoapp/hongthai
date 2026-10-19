@@ -1,9 +1,10 @@
 """Claude（Anthropic Messages API，官方 `anthropic` SDK）。金鑰只從環境變數 `ANTHROPIC_API_KEY` 讀。
 
-- `max_tokens` 1200、單次請求逾時 60 秒、SDK 不重試（`max_retries=0`）
+- `max_tokens` 3000（HD6；HD5 的 1200 不夠）、單次請求逾時 60 秒、SDK 不重試（`max_retries=0`）
 - 不送 `temperature`：Claude Opus 5.5 不接受取樣參數（送了回 400）。Opus 5.5 的思考關不掉、
   思考的 token 也算在 `max_tokens` 裡，所以 `effort` 用 `low`（`config.CLAUDE_EFFORT`）
 - `stop_reason` 是 `refusal` → `AiError("refusal")`；`max_tokens`（被截斷）→ `bad_format`
+- 拿到回應之後的失敗都附 `stop_reason` 與 `usage.output_tokens`（含思考），給戰績的 `detail`
 - 不開 server-side fallback：對決要的是這個模型自己的判斷，換模型回答會記錯人
 """
 
@@ -14,7 +15,7 @@ import os
 import anthropic
 
 from .config import CLAUDE_EFFORT, MAX_TOKENS, MODELS, TIMEOUT_S
-from .parse import AiError, parse_response
+from .parse import AiError, parse_response, with_response
 from .prompt import SYSTEM
 
 
@@ -44,8 +45,13 @@ def evaluate(
         raise AiError(f"http_{e.status_code}") from e
     except anthropic.APIConnectionError as e:
         raise AiError("network") from e
-    if msg.stop_reason == "refusal":
-        raise AiError("refusal")
-    if msg.stop_reason == "max_tokens":
-        raise AiError("bad_format", "超過 max_tokens 被截斷")
-    return parse_response("".join(b.text for b in msg.content if b.type == "text"))
+    usage = getattr(msg, "usage", None)
+    try:
+        if msg.stop_reason == "refusal":
+            raise AiError("refusal")
+        if msg.stop_reason == "max_tokens":
+            raise AiError("bad_format", "超過 max_tokens 被截斷")
+        return parse_response("".join(b.text for b in msg.content if b.type == "text"))
+    except AiError as e:
+        with_response(e, msg.stop_reason, getattr(usage, "output_tokens", None))
+        raise

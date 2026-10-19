@@ -101,7 +101,13 @@
     `og.lights_for` 有 `ok` 的 AI 燈時畫三顆。戰績 `data` 分支 `history/ai/<日期>.json`、每日次數
     `history/ai/calls-<日期>.json`。和提示詞不一樣的地方：Claude 不送 `temperature`（Opus 5.5 送了回 400）、
     `effort: "low"`；多兩個錯誤代碼 `run_cap`（排在 20 個之後沒評）、`refusal`（拒答）。欄位與代碼見 README
-    「輸出」的 HD5 那段與「AI 對決」
+    「輸出」的 HD5 那段與「AI 對決」。
+    **HD6（第一次實跑的修正＋短評用字規則，已實作）**：短評用字規則見 HD6
+    （`docs/prompts/2026-10-19-HD6-ai-wording.md`；系統提示「用字」那段、`ai/parse.py` 的 `check_wording`、
+    詞表在 `ai/config.py`，違規記 `bad_wording`）。`max_tokens` 3000、Gemini `thinking_level: LOW`（Gemini 4
+    不接受 `thinking_budget`）、字數上限中文 300／en 800（HD5 的 400 擋掉一半 en）、Gemini 2 條並行；
+    戰績檔失敗那顆多 `detail`（`<代碼>:<stop_reason>:<輸出 token 數>[:<標記>]`）。Gemini 的 429：Argon 在
+    `global` 的 Standard PayGo 是組織層級用量級距、沒有每專案配額可申請，見 README「AI 對決」
   - **第五階段：新天氣種類**——大雨／雷雨、大雪／結冰、濃霧；12 月北海道下雪前上線
   - 順序（2026-10-19 定案）：HD2 → H9 → HD3（十個新機場）→ HD1（預覽圖）→ AI 對決 → 天氣種類；
     **新天氣種類有硬期限（12 月北海道下雪前），AI 對決拖到的話天氣種類排到 AI 前面**。11/18 檢討停飛統計
