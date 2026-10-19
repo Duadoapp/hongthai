@@ -1,4 +1,4 @@
-# HD7：規則燈不再把「產出時間之前就結束」的 TAF 時段算進第一格；en 短評不能有中日文字
+# HD7：規則燈不再把「產出時間之前就結束」的 TAF 時段算進第一格；en 短評不能有中日文字；zh-CN 補兩組用語
 
 模型：Opus，強度高。改 `src/hongthai/assess.py`（等級規則）、`src/hongthai/ai/parse.py`／`config.py`（用字檢查）、測試、
 README。`latest.json` 既有欄位不改名、不改型別、不加欄位。
@@ -41,6 +41,19 @@ README。`latest.json` 既有欄位不改名、不改型別、不加欄位。
 - 系統提示「用字」那段加一句：英文短評的時間寫法用 `10/19 12:00–13:00` 或 `12–13 h local`，不寫「時」
 - 測試：GUM 那則英文短評（在 `history/20261019T0357Z.json`）當案例；一則合格的英文通過
 - 如果 HD6 已經先做了這條（看 `parse.py` 有沒有 CJK 檢查），這節只補測試案例
+
+## 2b. zh-CN 用語再補兩組：机率→概率、资料→数据（HD6 後第二次實跑抓到的，Gemini）
+
+實例：2026-10-19T04:39Z 那報，Gemini 的 zh-CN 短評寫「机率」「资料」——這是台灣用語，大陸寫「概率」「数据」。
+
+- 系統提示（`prompt.py` 的 `SYSTEM`）「用字」那段的 zh-CN 對照表加：**機率→概率**（不是「机率」）、**資料→数据**
+  （不是「资料」）
+- `config.py` 加一個 zh-CN 專用的禁用詞表（例如 `ZH_CN_TAIWAN_TERMS = ("机率", "资料")`），`parse.py` 的 `bad_wording`
+  抽查：zh-CN 出現其中任一個 → `bad_wording`，訊息「zh-CN 用了台灣用語：机率」這類；zh-TW、zh-HK 不受這條影響
+  （它們本來就該寫「機率」「資料」）
+- 測試：04:39Z 那報 Gemini 的 zh-CN 短評（`data` 分支 `history/20261019T0439Z.json`，`airports[].ai.gemini.comment["zh-CN"]`
+  裡含「机率」或「资料」的任一則）當違規案例；同一則把兩個詞換成「概率」「数据」當合格案例
+- README「AI 對決」用字規則那段同步
 
 ## 3. 文件
 
