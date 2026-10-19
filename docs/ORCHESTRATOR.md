@@ -134,6 +134,10 @@
     **HD12（2026-10-19 定案）**：HD11 後第一報 AI 178 秒頂到 180 秒預算（Gemini 2 條並行、HD8 後資料變長、兩個 504）→
     預算 240 秒、Gemini 3 條並行（429 回來就降回 2）、戰績每筆記 `seconds`。提示詞 `docs/prompts/2026-10-19-HD12-ai-budget.md`。
     **第五階段（HD8／HD10／HD11）2026-10-19 Shawn 確認上線**，網頁端由 Duado 開 HW3
+    **HD13（2026-10-19 定案，「金馬照建議」）：金門、馬祖的霧**——氣象署濃霧特報（`W-C0033-001` 已在抓）→ 警報
+    `cwa_dense_fog`（中，台灣十個機場都適用）；氣象署局屬站觀測 `O-A0003-001`（金門 467110、馬祖 467990）當 METAR 用
+    （`metar.source: "cwa"`）；沒有 TAF 的機場第一格可由 3 小時內的 METAR 單獨撐起官方層（`official.kind: "metar"`，宮古
+    也會受益）；AOAWS 非正式介面不接。提示詞 `docs/prompts/2026-10-19-HD13-kinmen-matsu-fog.md`
     **已實作（HD8 PR）**：規則在 `assess.py`（開頭 docstring「新天氣種類」）、門檻在 `config.Thresholds`（12 個
     camelCase 鍵，`airports.json` 可覆寫）、TAF／METAR 的 `vis_m`／`wx`／`ceiling_ft` 在 `sources/taf.py`、
     ECMWF `tp`／`ptype`／`2t`＋`tpg25`／`tpg50`、GFS `APCP`／類別降水／`VIS`、天文台 `WRAIN`／`WTS`、
