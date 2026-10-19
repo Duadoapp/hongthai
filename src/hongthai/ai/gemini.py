@@ -6,9 +6,13 @@
 - `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`（`global`；Argon 只開 global、us、eu）
 少任一個或 JSON 讀不了 → `no_api_key`。
 
-- `max_output_tokens` 1200、`temperature` 0.3、回應要求 JSON（`response_mime_type`）
+- `max_output_tokens` 3000、`temperature` 0.3、回應要求 JSON（`response_mime_type`）
+- 思考：`thinking_level` LOW（`config.GEMINI_THINKING_LEVEL`）、`include_thoughts=False`。
+  Gemini 4 的思考關不掉、不接受 `thinking_budget`（送了回 400）、不支援 MINIMAL，LOW 是最低（HD6）
 - 單次請求逾時 60 秒；SDK 沒設 `retry_options` 就不重試
 - `finish_reason` 是 `MAX_TOKENS`（被截斷）→ `bad_format`；安全過濾之類擋下 → `refusal`
+- 拿到回應之後的失敗都附 `finish_reason` 與輸出 token 數（`candidates_token_count`，有思考時寫成
+  `<回答>+<思考>`），給戰績的 `detail`
 """
 
 from __future__ import annotations
@@ -23,8 +27,8 @@ from google.auth import exceptions as auth_exceptions
 from google.genai import errors, types
 from google.oauth2 import service_account
 
-from .config import ENV, MAX_TOKENS, MODELS, TEMPERATURE, TIMEOUT_S
-from .parse import AiError, parse_response
+from .config import ENV, GEMINI_THINKING_LEVEL, MAX_TOKENS, MODELS, TEMPERATURE, TIMEOUT_S
+from .parse import AiError, parse_response, with_response
 from .prompt import SYSTEM
 
 SCOPES = ("https://www.googleapis.com/auth/cloud-platform",)
@@ -56,6 +60,9 @@ def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = 
         temperature=TEMPERATURE,
         max_output_tokens=MAX_TOKENS,
         response_mime_type="application/json",
+        thinking_config=types.ThinkingConfig(
+            thinking_level=types.ThinkingLevel(GEMINI_THINKING_LEVEL), include_thoughts=False
+        ),
         http_options=types.HttpOptions(timeout=int(timeout * 1000)),  # 毫秒
     )
     try:
@@ -70,10 +77,23 @@ def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = 
         raise AiError("network") from e
     cands = resp.candidates or []
     reason = cands[0].finish_reason if cands else None
-    if reason == types.FinishReason.MAX_TOKENS:
-        raise AiError("bad_format", "超過 max_output_tokens 被截斷")
-    if not cands or reason not in (None, types.FinishReason.STOP):
-        raise AiError("refusal", str(reason or (resp.prompt_feedback or "沒有 candidates")))
-    parts = (cands[0].content.parts if cands[0].content else None) or []
-    text = "".join(p.text for p in parts if isinstance(p.text, str) and not p.thought)
-    return parse_response(text)
+    try:
+        if reason == types.FinishReason.MAX_TOKENS:
+            raise AiError("bad_format", "超過 max_output_tokens 被截斷")
+        if not cands or reason not in (None, types.FinishReason.STOP):
+            raise AiError("refusal", str(reason or (resp.prompt_feedback or "沒有 candidates")))
+        parts = (cands[0].content.parts if cands[0].content else None) or []
+        text = "".join(p.text for p in parts if isinstance(p.text, str) and not p.thought)
+        return parse_response(text)
+    except AiError as e:
+        with_response(e, getattr(reason, "name", reason), output_tokens(resp))
+        raise
+
+
+def output_tokens(resp: types.GenerateContentResponse) -> str | None:
+    """`<回答>` 或 `<回答>+<思考>` 的 token 數；沒有 `usage_metadata` 時 `None`。"""
+    u = resp.usage_metadata
+    if u is None:
+        return None
+    out = str(u.candidates_token_count or 0)
+    return f"{out}+{u.thoughts_token_count}" if u.thoughts_token_count else out

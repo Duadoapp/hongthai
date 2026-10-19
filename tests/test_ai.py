@@ -1,4 +1,5 @@
-"""AI 對決（HD5）：選機場、提示文字、回應解析、兩個模型的呼叫、每日上限、輸出結構、戰績檔。
+"""AI 對決（HD5、HD6）：選機場、提示文字、回應解析與用字檢查、兩個模型的呼叫、每日上限、輸出結構、
+戰績檔。
 
 全部不連網：SDK 用假物件，`Duel` 的模型換成假的 `evaluate`。
 """
@@ -29,10 +30,11 @@ RUN = "2026-10-19T02:15:00Z"
 NOW = utc(2026, 10, 19, 2, 15)
 LANGS = ("zh-TW", "zh-HK", "zh-CN", "en")
 COMMENT = {
-    "zh-TW": "10/23 14–20 時 EC 陣風 75 節、側風 51 節，高。",
-    "zh-HK": "10/23 14–20 時 EC 陣風 75 節、側風 51 節，高。",
-    "zh-CN": "10/23 14–20 时 EC 阵风 75 节、侧风 51 节，高。",
-    "en": "10/23 14–20: EC gust 75 kt, crosswind 51 kt; high.",
+    "zh-TW": "10/23 14–20 時歐洲模式陣風 75 節、側風 51 節，陣風超過 49 節的機率 56%，停飛風險高。",
+    "zh-HK": "10/23 14–20 時歐洲模式陣風 75 節、側風 51 節，陣風超過 49 節的機率 56%，停飛風險高。",
+    "zh-CN": "10/23 14–20 时欧洲模式阵风 75 节、侧风 51 节，阵风超过 49 节的机率 56%，停飞风险高。",
+    "en": "10/23 14:00–20:00: European model gusts 75 kt, crosswind 51 kt, 56% chance of gusts "
+    "over 49 kt; disruption risk High.",
 }
 ENV_KEYS = [k for keys in config.ENV.values() for k in keys]
 
@@ -150,7 +152,38 @@ def test_system_prompt_rules():
         '"level"',
     ):
         assert must in s
-    assert "颱風信號" in s and "航班取消" in s
+    # 用字四條與對照表（HD6）
+    for must in (
+        "用字：",
+        "不出現內部代號",
+        "歐洲模式",
+        "美國模式",
+        "陣風超過 49 節的機率 56%",
+        "機場預報（TAF）",
+        "機場觀測",
+        "不用粵語口語",
+        "颱風警報 → 颱風警告",
+        "八號信號",
+        "飯店 → 酒店",
+        "計程車 → 的士",
+        "公車 → 巴士",
+        "颱風 → 台风",
+        "側風 → 侧风",
+        "機場預報 → 机场预报",
+        "信號 → 信号",
+        "節 → 节",
+        "不寫英文等級字",
+        "高（high）",
+        "停飛風險",
+        "停飞风险",
+        "disruption risk",
+        "12–13 h local",
+        "不增不減",
+    ):
+        assert must in s, must
+    assert s.index("規則：") < s.index("用字：")
+    assert s.endswith("不要在 JSON 外面寫任何字、不要加 Markdown 標記。")
+    assert "p49Kt 30%" not in s  # 規則 2 的例子改成白話
 
 
 def test_airport_text_contains_data_and_units(latest):  # noqa: F811
@@ -171,6 +204,9 @@ def test_airport_text_contains_data_and_units(latest):  # noqa: F811
     for t in ("≥ 48 節 → high", "≥ 37 節 → medium", "≥ 33 節 → high", "≥ 27 節 → medium", "≥ 30%"):
         assert t in text
     assert "{" not in text  # 不是整段 JSON
+    assert text.endswith(
+        "短評裡請用白話，不要照抄上面的欄位名（EC、GFS、p29Kt、p49Kt、TAF、METAR 這些）。"
+    )
 
 
 def test_airport_text_without_optional_data():
@@ -207,14 +243,29 @@ def test_parse_ok_and_fenced():
 @pytest.mark.parametrize(
     "text",
     [
+        "以下是評論：\n" + _resp() + "\n以上。",
+        "Here is the JSON:\n```json\n" + _resp() + "\n```",
+        _resp() + "\n（依據第 3–5 格）",
+    ],
+)
+def test_parse_json_with_surrounding_text(text):
+    assert parse.parse_response(text) == {"level": "high", "comment": COMMENT}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
         "這不是 JSON",
         "[1, 2]",
         _resp(level="severe"),
         _resp(level="confirmed"),
         _resp(comment={k: v for k, v in COMMENT.items() if k != "zh-CN"}),
         _resp(comment={**COMMENT, "en": "  "}),
-        _resp(comment={**COMMENT, "zh-HK": "長" * 401}),
+        _resp(comment={**COMMENT, "zh-HK": "長" * 301}),
+        _resp(comment={**COMMENT, "en": "x" * 801}),
         _resp(comment="一段"),
+        "說明 { 不是 JSON }",
+        _resp()[:-30],  # 被截斷
     ],
 )
 def test_parse_bad_format(text):
@@ -223,8 +274,182 @@ def test_parse_bad_format(text):
     assert e.value.code == "bad_format"
 
 
-def test_parse_400_chars_ok():
-    assert parse.parse_response(_resp(comment={**COMMENT, "en": "x" * 400}))["level"] == "high"
+def test_parse_length_limits():
+    """中文每語 300 字、en 800 字（HD6；HD5 四語都 400，第一次實跑的 en 有一半卡在這裡）。"""
+    assert config.MAX_COMMENT_CHARS == {"zh-TW": 300, "zh-HK": 300, "zh-CN": 300, "en": 800}
+    ok = {**COMMENT, "zh-TW": "長" * 300, "en": "x" * 800}
+    assert parse.parse_response(_resp(comment=ok))["level"] == "high"
+    with pytest.raises(AiError) as e:
+        parse.parse_response(_resp(comment={**COMMENT, "en": "x" * 801}))
+    assert e.value.tag == "en_too_long"
+
+
+# ---- 用字檢查（HD6） ----
+
+
+def _wording(**langs: str) -> AiError:
+    with pytest.raises(AiError) as e:
+        parse.parse_response(_resp(comment={**COMMENT, **langs}))
+    assert e.value.code == "bad_wording"
+    return e.value
+
+
+ZH = "10/23 14–20 時歐洲模式陣風 75 節，停飛風險高。"
+
+
+@pytest.mark.parametrize(
+    ("langs", "message"),
+    [
+        # 內部代號（大小寫不分、整字比對；中文字旁邊也抓得到）
+        ({"zh-TW": "10/23 EC陣風 75 節，停飛風險高。"}, "zh-TW：內部代號 EC"),
+        ({"zh-HK": "p49kt 56%，停飛風險高。"}, "zh-HK：內部代號 p49Kt"),
+        ({"zh-CN": "GFS 阵风 51 节，停飞风险高。"}, "zh-CN：內部代號 GFS"),
+        ({"en": "HRES gusts 75 kt; disruption risk High."}, "en：內部代號 HRES"),
+        ({"en": "The models are in agreement; disruption risk High."}, "en：內部代號 agreement"),
+        ({"en": "Nine slots are high; disruption risk High."}, "en：內部代號 slots"),
+        ({"zh-TW": "crosswindKt 51，停飛風險高。"}, "zh-TW：內部代號 crosswindKt"),
+        ({"zh-TW": "依 latest.json，停飛風險高。"}, "zh-TW：內部代號 latest.json"),
+        # TAF／METAR：括號裡一次可以，沒括號或第二次以上不行
+        ({"zh-TW": "機場預報（TAF）陣風 46 節，TAF 之後轉弱。"}, "zh-TW：TAF 出現第 2 次"),
+        ({"zh-HK": "TAF 陣風 46 節，停飛風險高。"}, "zh-HK：TAF 沒放在括號裡"),
+        ({"en": "METAR shows 11 kt; disruption risk Low."}, "en：METAR 沒放在括號裡"),
+        # 英文等級字
+        ({"zh-TW": "停飛風險為高（high）。"}, "zh-TW：英文等級字 （high）"),
+        ({"zh-CN": "停飞风险为中(medium)。"}, "zh-CN：英文等級字 (medium)"),
+        # 粵語口語
+        ({"zh-HK": "風險集中喺 10/21，停飛風險中。"}, "zh-HK：粵語口語「喺」"),
+        ({"zh-HK": "陣風啱啱達到門檻，停飛風險中。"}, "zh-HK：粵語口語「啱啱」"),
+        # 簡繁混用
+        ({"zh-CN": "10/23 阵風 75 节，停飞风险高。"}, "zh-CN：繁體字「風」"),
+        ({"zh-TW": "10/23 陣风 75 節，停飛風險高。"}, "zh-TW：簡體字「风」"),
+        ({"zh-HK": "機场預報陣風 46 節，停飛風險高。"}, "zh-HK：簡體字「场」"),
+        # 叫法不一致
+        (
+            {"zh-CN": "10/23 阵风 75 节，航班取消风险高。"},
+            "zh-CN：叫法不一致「航班取消」（要用停飛風險）",
+        ),
+        (
+            {"en": "Flight cancellation risk is High."},
+            "en：叫法不一致「cancellation risk」（要用 disruption risk）",
+        ),
+        # en 含中日文字
+        ({"en": "10/23 14–20 時: gusts 75 kt; disruption risk High."}, "en 含中日文字「時」"),
+        ({"en": "Gusts 75 kt，disruption risk High."}, "en 含中日文字「，」"),
+    ],
+)
+def test_parse_bad_wording(langs, message):
+    e = _wording(**langs)
+    assert str(e) == f"bad_wording: {message}"
+    lang = message.split("：")[0].split(" ")[0]
+    assert e.tag.startswith(f"{lang}/")
+
+
+@pytest.mark.parametrize(
+    "langs",
+    [
+        {"zh-TW": "機場預報（TAF）陣風 46 節，停飛風險高。"},
+        {"zh-HK": "機場預報 (TAF) 陣風 46 節，機場觀測（METAR）風 11 節，停飛風險高。"},
+        {"en": "The airport forecast (TAF) shows 46-kt gusts; disruption risk High."},
+        {"en": "TAFF and ECMWF are not field names; disruption risk Low."},  # 整字比對
+        {"zh-TW": "同時段歐洲模式與美國模式一致，停飛風險中。"},  # 「同」不算粵語
+    ],
+)
+def test_parse_wording_ok(langs):
+    assert parse.parse_response(_resp(comment={**COMMENT, **langs}))["level"] == "high"
+
+
+# 第一次實跑（2026-10-19T03:57Z，`data` 分支 `history/20261019T0357Z.json`）抓到的短評，原文照抄
+REAL_MZG_CLAUDE = {
+    "zh-TW": "近兩天風弱，TAF 平均風 4–6 節。轉折在 10/21 08–14 時，p29Kt 100%、p49Kt 31%。10/22 起 EC 與 GFS 一致，p49Kt 100%，10/22 08–14 時陣風達 57.1／48 節。10/23 14–20 時 EC 陣風 73.6 節、EC 側風 47.9 節。後段全靠模式，尚無官方 TAF 或警報。",  # noqa: E501
+    "zh-HK": "近兩日風弱，TAF 平均風 4–6 節。轉捩點在 10/21 08–14 時，p29Kt 100%、p49Kt 31%。10/22 起 EC 與 GFS 一致，p49Kt 100%，10/22 08–14 時陣風達 57.1／48 節。10/23 14–20 時 EC 陣風 73.6 節、EC 側風 47.9 節。後段全靠模式，暫未有官方 TAF 或警告。",  # noqa: E501
+    "zh-CN": "近两天风弱，TAF 平均风 4–6 节。转折在 10/21 08–14 时，p29Kt 100%、p49Kt 31%。10/22 起 EC 与 GFS 一致，p49Kt 100%，10/22 08–14 时阵风达 57.1／48 节。10/23 14–20 时 EC 阵风 73.6 节、EC 侧风 47.9 节。后段全靠模式，尚无官方 TAF 或预警。",  # noqa: E501
+    "en": "Winds are light for the next two days, with TAF mean wind 4–6 kt. The turning point is 10/21 08–14, with p29Kt 100% and p49Kt 31%. From 10/22, EC and GFS agree, p49Kt is 100%, and gusts reach 57.1/48 kt on 10/22 08–14. On 10/23 14–20, EC gusts are 73.6 kt and EC crosswind is 47.9 kt. The later period relies entirely on models, with no official TAF or warning yet.",  # noqa: E501
+}
+REAL_NRT_CLAUDE = {
+    "zh-TW": "風險集中在10/21 09–21時：EC與GFS陣風34.2–36.9節，未達37節中級門檻；含陣風側風EC約30節、GFS 33節，高等級只靠GFS剛觸及33節門檻撐起。p29Kt達100%，但p49Kt為0%。TAF時段最高陣風僅25節，整體評為中。",  # noqa: E501
+    "zh-HK": "風險集中喺10/21 09–21時：EC同GFS陣風34.2–36.9節，未達37節中級門檻；含陣風側風EC約30節、GFS 33節，高等級只靠GFS啱啱觸及33節門檻撐起。p29Kt達100%，但p49Kt為0%。TAF時段最高陣風只有25節，整體評為中。",  # noqa: E501
+    "zh-CN": "风险集中在10/21 09–21时：EC与GFS阵风34.2–36.9节，未达37节中级门槛；含阵风侧风EC约30节、GFS 33节，高等级只靠GFS刚触及33节门槛支撑。p29Kt达100%，但p49Kt为0%。TAF时段最高阵风仅25节，整体评为中。",  # noqa: E501
+    "en": "Risk is concentrated on 10/21 09–21: EC and GFS gusts of 34.2–36.9 kt, below the 37 kt medium threshold; gust-inclusive crosswind is about 30 kt on EC and 33 kt on GFS, so the high rating rests only on GFS just touching the 33 kt threshold. p29Kt reaches 100%, but p49Kt is 0%. The highest TAF gust is only 25 kt. Overall rated medium.",  # noqa: E501
+}
+REAL_TNN_GEMINI = {
+    "zh-TW": "10/19 08 時至 10/23 02 時停飛風險為低。10/23 02–08 時升為中等，EC 陣風 47.5 節。10/23 08 時至 10/24 08 時轉為高風險，期間 p49Kt 達 51%–59%，尤其 10/23 14 時至 10/24 02 時 EC 與 GFS 一致，EC 陣風最高 63.4 節、側風 48.4 節，GFS 陣風亦達 51.1 節。",  # noqa: E501
+    "zh-HK": "10/19 08 時至 10/23 02 時停飛風險為低。10/23 02–08 時升為中等，EC 陣風 47.5 節。10/23 08 時至 10/24 08 時轉為高風險，期間 p49Kt 達 51%–59%，尤其 10/23 14 時至 10/24 02 時 EC 與 GFS 一致，EC 陣風最高 63.4 節、側風 48.4 節，GFS 陣風亦達 51.1 節。",  # noqa: E501
+    "zh-CN": "10/19 08 时至 10/23 02 时航班取消风险为低。10/23 02–08 时升为中等，EC 阵风 47.5 节。10/23 08 时至 10/24 08 时转为高风险，期间 p49Kt 达 51%–59%，尤其 10/23 14 时至 10/24 02 时 EC 与 GFS 一致，EC 阵风最高 63.4 节、侧风 48.4 节，GFS 阵风亦达 51.1 节。",  # noqa: E501
+    "en": "Flight cancellation risk is low from 10/19 08:00 to 10/23 02:00. It rises to medium during 10/23 02:00–08:00 with EC gusts at 47.5 kt. From 10/23 08:00 to 10/24 08:00, the risk turns high with p49Kt reaching 51%–59%. Specifically from 10/23 14:00 to 10/24 02:00, EC and GFS agree, showing EC gusts up to 63.4 kt, crosswind at 48.4 kt, and GFS gusts reaching 51.1 kt.",  # noqa: E501
+}
+REAL_MMY_GEMINI = {
+    "zh-TW": "宮古機場未來 5 天停飛風險為高（high）。10/21 15–21 時起轉為中風險（EC 陣風 38.9 節、GFS 41.2 節）。10/22 03–09 時至 10/24 03–09 時連續 9 格高風險，p49Kt 達 21%–56%。峰值在 10/23 09–15 時，EC 陣風 76.7 節、側風 76.6 節，GFS 陣風 48.8 節、側風 46.9 節，模式一致。",  # noqa: E501
+    "zh-HK": "宮古機場未來 5 天停飛風險為高（high）。10/21 15–21 時起轉為中風險（EC 陣風 38.9 節、GFS 41.2 節）。10/22 03–09 時至 10/24 03–09 時連續 9 格高風險，p49Kt 達 21%–56%。峰值在 10/23 09–15 時，EC 陣風 76.7 節、側風 76.6 節，GFS 陣風 48.8 節、側風 46.9 節，模式一致。",  # noqa: E501
+    "zh-CN": "宫古机场未来 5 天停飞风险为高（high）。10/21 15–21 时起转为中风险（EC 阵风 38.9 节、GFS 41.2 节）。10/22 03–09 时至 10/24 03–09 时连续 9 格高风险，p49Kt 达 21%–56%。峰值在 10/23 09–15 时，EC 阵风 76.7 节、侧风 76.6 节，GFS 阵风 48.8 节、侧风 46.9 节，模式一致。",  # noqa: E501
+    "en": "Miyako Airport faces a high flight suspension risk over the next 5 days. Risk turns medium from 10/21 15–21h (EC gusts 38.9 kt, GFS 41.2 kt). High risk spans 9 consecutive slots from 10/22 03–09h to 10/24 03–09h, with p49Kt reaching 21%–56%. The peak occurs at 10/23 09–15h with EC gusts of 76.7 kt, crosswind 76.6 kt, and GFS gusts of 48.8 kt, crosswind 46.9 kt, showing model agreement.",  # noqa: E501
+}
+REAL_GUM_CLAUDE_EN = "Slot 1 shows a high light from a TAF TEMPO period (10/19 12–13 時) with 46-knot gusts, but that period has already passed; the 10/19 13:54 observation shows only 11 knots, gusting 19 knots. After that, the main TAF gives 16 knots mean wind, gusting 27 knots, with a 24.5-knot crosswind below the medium threshold; the highest model gust is EC's 30.5 knots, and p49Kt stays at 0% throughout. Rated low."  # noqa: E501
+
+# 把內部代號換成白話，用來看「代號以外」還抓得到什麼
+_PLAIN = {
+    "zh-TW": [("p29Kt", "陣風超過 29 節的機率"), ("p49Kt", "陣風超過 49 節的機率"),
+              ("EC", "歐洲模式"), ("GFS", "美國模式"), ("TAF", "機場預報")],
+    "zh-CN": [("p29Kt", "阵风超过 29 节的机率"), ("p49Kt", "阵风超过 49 节的机率"),
+              ("EC", "欧洲模式"), ("GFS", "美国模式"), ("TAF", "机场预报")],
+    "en": [("p29Kt", "the chance of gusts over 29 kt"), ("p49Kt", "the chance of gusts over 49 kt"),
+           ("EC's", "the European model's"), ("EC", "the European model"), ("GFS", "the US model"),
+           ("TAF", "airport forecast"), ("slots", "periods"), ("Slot", "Period"),
+           ("agreement", "consensus")],
+}  # fmt: skip
+_PLAIN["zh-HK"] = _PLAIN["zh-TW"]
+
+
+def plain(comment: dict[str, str]) -> dict[str, str]:
+    out = {}
+    for lang, text in comment.items():
+        for a, b in _PLAIN[lang]:
+            text = text.replace(a, b)
+        out[lang] = text
+    return out
+
+
+@pytest.mark.parametrize(
+    ("comment", "raw_message", "plain_message"),
+    [
+        # MZG（Claude）：滿是 p29Kt、p49Kt、EC、GFS、TAF；換成白話後就合格
+        (REAL_MZG_CLAUDE, "zh-TW：內部代號 p29Kt", None),
+        # NRT（Claude）：zh-HK 用了「喺、同、啱啱」
+        (REAL_NRT_CLAUDE, "zh-TW：內部代號 p29Kt", "zh-HK：粵語口語「喺」"),
+        # TNN（Gemini）：zh-CN「航班取消风险」、zh-TW 卻是「停飛風險」
+        (REAL_TNN_GEMINI, "zh-CN：叫法不一致「航班取消」（要用停飛風險）", None),
+        # MMY（Gemini）：「高（high）」
+        (REAL_MMY_GEMINI, "zh-TW：內部代號 p49Kt", "zh-TW：英文等級字 （high）"),
+        # GUM（Claude）的 en：「10/19 12–13 時」
+        ({**COMMENT, "en": REAL_GUM_CLAUDE_EN}, "en：內部代號 p49Kt", "en 含中日文字「時」"),
+    ],
+)
+def test_parse_real_run_comments(comment, raw_message, plain_message):
+    with pytest.raises(AiError) as e:
+        parse.parse_response(_resp(comment=comment))
+    assert e.value.code == "bad_wording"
+    assert str(e.value) == f"bad_wording: {raw_message}"
+    cleaned = plain(comment)
+    if plain_message is None:
+        if comment is REAL_TNN_GEMINI:  # 叫法不一致不是代號，換白話也還在
+            with pytest.raises(AiError) as e:
+                parse.parse_response(_resp(comment=cleaned))
+            assert str(e.value) == f"bad_wording: {raw_message}"
+        else:
+            assert parse.parse_response(_resp(comment=cleaned))["level"] == "high"
+    else:
+        with pytest.raises(AiError) as e:
+            parse.parse_response(_resp(comment=cleaned))
+        assert str(e.value) == f"bad_wording: {plain_message}"
+
+
+def test_ai_error_trace():
+    e = AiError("bad_format", "en 超過 800 字", tag="en_too_long")
+    assert e.trace() == "bad_format:-:-:en_too_long"
+    parse.with_response(e, "end_turn", 812)
+    assert e.trace() == "bad_format:end_turn:812:en_too_long"
+    e = AiError("bad_format", "超過 max_tokens 被截斷")
+    parse.with_response(e, "max_tokens", 3000)
+    assert e.trace() == "bad_format:max_tokens:3000"
 
 
 # ---- Claude ----
@@ -246,19 +471,20 @@ class FakeAnthropic:
         return self.result
 
 
-def _msg(text: str, stop: str = "end_turn"):
+def _msg(text: str, stop: str = "end_turn", output_tokens: int = 812):
     blocks = [
         SimpleNamespace(type="thinking", thinking=""),
         SimpleNamespace(type="text", text=text),
     ]
-    return SimpleNamespace(stop_reason=stop, content=blocks)
+    usage = SimpleNamespace(input_tokens=4000, output_tokens=output_tokens)
+    return SimpleNamespace(stop_reason=stop, content=blocks, usage=usage)
 
 
 def test_claude_request_and_parse():
     fake = FakeAnthropic(_msg(_resp()))
     assert claude.evaluate("文字", client=fake, timeout=42)["comment"] == COMMENT
     kw = fake.calls[0]
-    assert kw["model"] == "claude-opus-5-5" and kw["max_tokens"] == 1200
+    assert kw["model"] == "claude-opus-5-5" and kw["max_tokens"] == config.MAX_TOKENS == 3000
     assert kw["system"] == prompt.SYSTEM
     assert kw["messages"] == [{"role": "user", "content": "文字"}]
     assert "temperature" not in kw  # Opus 5.5 不接受取樣參數
@@ -296,11 +522,29 @@ def test_claude_errors(exc, code):
     assert len(fake.calls) == 1  # 不重試
 
 
-@pytest.mark.parametrize(("stop", "code"), [("refusal", "refusal"), ("max_tokens", "bad_format")])
-def test_claude_stop_reasons(stop, code):
+@pytest.mark.parametrize(
+    ("stop", "code", "trace"),
+    [
+        ("refusal", "refusal", "refusal:refusal:3000"),
+        ("max_tokens", "bad_format", "bad_format:max_tokens:3000"),
+    ],
+)
+def test_claude_stop_reasons(stop, code, trace):
     with pytest.raises(AiError) as e:
-        claude.evaluate("文字", client=FakeAnthropic(_msg(_resp(), stop)))
+        claude.evaluate("文字", client=FakeAnthropic(_msg(_resp(), stop, 3000)))
     assert e.value.code == code
+    assert e.value.trace() == trace
+
+
+def test_claude_trace_on_parse_errors():
+    with pytest.raises(AiError) as e:
+        claude.evaluate("文字", client=FakeAnthropic(_msg("不是 JSON", output_tokens=640)))
+    assert e.value.trace() == "bad_format:end_turn:640:not_json"
+    bad = _resp(comment={**COMMENT, "zh-HK": "風險集中喺 10/21，停飛風險高。"})
+    with pytest.raises(AiError) as e:
+        claude.evaluate("文字", client=FakeAnthropic(_msg(bad)))
+    assert e.value.code == "bad_wording"
+    assert e.value.trace() == "bad_wording:end_turn:812:zh-HK/喺"
 
 
 def test_claude_no_api_key(monkeypatch):
@@ -328,8 +572,11 @@ class FakeGenai:
         return self.result
 
 
-def _gresp(text: str, reason=genai_types.FinishReason.STOP):
+def _gresp(text: str, reason=genai_types.FinishReason.STOP, out: int = 700, thoughts: int = 900):
     return genai_types.GenerateContentResponse(
+        usage_metadata=genai_types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=4000, candidates_token_count=out, thoughts_token_count=thoughts
+        ),
         candidates=[
             genai_types.Candidate(
                 content=genai_types.Content(
@@ -341,7 +588,7 @@ def _gresp(text: str, reason=genai_types.FinishReason.STOP):
                 ),
                 finish_reason=reason,
             )
-        ]
+        ],
     )
 
 
@@ -352,9 +599,13 @@ def test_gemini_request_and_parse():
     assert kw["model"] == "gemini-4-argon" and kw["contents"] == "文字"
     cfg = kw["config"]
     assert cfg.system_instruction == prompt.SYSTEM
-    assert (cfg.temperature, cfg.max_output_tokens) == (0.3, 1200)
+    assert (cfg.temperature, cfg.max_output_tokens) == (0.3, 3000)
     assert cfg.response_mime_type == "application/json"
     assert cfg.http_options.timeout == 30_000
+    # Gemini 4 只接受 thinking_level（送 thinking_budget 回 400），LOW 是最低
+    assert cfg.thinking_config.thinking_level == genai_types.ThinkingLevel.LOW
+    assert cfg.thinking_config.thinking_budget is None
+    assert cfg.thinking_config.include_thoughts is False
 
 
 @pytest.mark.parametrize(
@@ -376,22 +627,32 @@ def test_gemini_errors(exc, code):
 
 
 @pytest.mark.parametrize(
-    ("reason", "code"),
+    ("reason", "code", "trace"),
     [
-        (genai_types.FinishReason.MAX_TOKENS, "bad_format"),
-        (genai_types.FinishReason.SAFETY, "refusal"),
+        (genai_types.FinishReason.MAX_TOKENS, "bad_format", "bad_format:MAX_TOKENS:700+900"),
+        (genai_types.FinishReason.SAFETY, "refusal", "refusal:SAFETY:700+900"),
     ],
 )
-def test_gemini_finish_reasons(reason, code):
+def test_gemini_finish_reasons(reason, code, trace):
     with pytest.raises(AiError) as e:
         gemini.evaluate("文字", client=FakeGenai(_gresp(_resp(), reason)))
     assert e.value.code == code
+    assert e.value.trace() == trace
 
 
 def test_gemini_bad_json_response():
     with pytest.raises(AiError) as e:
-        gemini.evaluate("文字", client=FakeGenai(_gresp("not json")))
+        gemini.evaluate("文字", client=FakeGenai(_gresp("not json", thoughts=0)))
     assert e.value.code == "bad_format"
+    assert e.value.trace() == "bad_format:STOP:700:not_json"
+
+
+def test_gemini_json_with_preamble_and_bad_wording():
+    assert gemini.evaluate("文字", client=FakeGenai(_gresp("好的：" + _resp())))["level"] == "high"
+    bad = _resp(comment={**COMMENT, "zh-TW": "停飛風險為高（high）。"})
+    with pytest.raises(AiError) as e:
+        gemini.evaluate("文字", client=FakeGenai(_gresp(bad)))
+    assert e.value.trace() == "bad_wording:STOP:700+900:zh-TW/（high）"
 
 
 @pytest.mark.parametrize("missing", config.ENV["gemini"])
@@ -419,7 +680,13 @@ def test_gemini_bad_service_account_json(monkeypatch):
 # ---- 流程 ----
 
 
-def fake_model(level="high", delay=0.0, exc: str | None = None, client_error: str | None = None):
+def fake_model(
+    level="high",
+    delay=0.0,
+    exc: str | None = None,
+    client_error: str | None = None,
+    response: tuple[str, int] | None = None,
+):
     calls: list[str] = []
     lock = threading.Lock()
 
@@ -434,7 +701,10 @@ def fake_model(level="high", delay=0.0, exc: str | None = None, client_error: st
         if delay:
             time.sleep(delay)
         if exc:
-            raise AiError(exc)
+            e = AiError(exc, tag="not_json" if exc == "bad_format" else "")
+            if response:  # 有拿到回應（stop_reason、輸出 token 數）
+                parse.with_response(e, *response)
+            raise e
         return {"level": level, "comment": dict(COMMENT)}
 
     return SimpleNamespace(make_client=make_client, evaluate=evaluate, calls=calls)
@@ -585,15 +855,35 @@ def test_duel_run_cap(tmp_path, monkeypatch):
     assert res["source"]["ok"] is True and "errors" not in res["source"]
 
 
+def concurrent_model(delay: float):
+    """記下同時在跑的最大呼叫數。"""
+    state = {"now": 0, "max": 0}
+    lock = threading.Lock()
+
+    def evaluate(text, *, client=None, timeout=60):
+        with lock:
+            state["now"] += 1
+            state["max"] = max(state["max"], state["now"])
+        time.sleep(delay)
+        with lock:
+            state["now"] -= 1
+        return {"level": "high", "comment": dict(COMMENT)}
+
+    return SimpleNamespace(make_client=object, evaluate=evaluate, state=state)
+
+
 def test_duel_models_run_in_parallel(tmp_path):
-    """每個模型 4 個機場、每次 0.4 秒、4 條並行 → 一個模型約 0.4 秒；兩個模型同時跑，總時間
-    也約 0.4 秒（不是 0.8 秒；模型內也不平行的話是 3.2 秒）。"""
-    ev = {"claude": fake_model(delay=0.4), "gemini": fake_model(delay=0.4)}
+    """每個模型 4 個機場、每次 0.4 秒；Claude 4 條並行約 0.4 秒、Gemini 2 條並行約 0.8 秒
+    （HD6：Gemini 4 條時撞過 429）。兩個模型同時跑，總時間約 0.8 秒（不是 1.2 秒；
+    模型內也不平行的話是 3.2 秒）。"""
+    assert config.PARALLEL == {"claude": 4, "gemini": 2}
+    ev = {"claude": concurrent_model(0.4), "gemini": concurrent_model(0.4)}
     t0 = time.monotonic()
     res = ai_run.evaluate_all(duel_doc(4, 0), None, NOW, tmp_path, evaluators=ev)
     took = time.monotonic() - t0
     assert res["source"]["calls"] == {"claude": 4, "gemini": 4}
-    assert took < 0.7, took
+    assert ev["claude"].state["max"] == 4 and ev["gemini"].state["max"] == 2
+    assert took < 1.1, took
 
 
 def test_duel_timeout_marks_unfinished(tmp_path):
@@ -630,7 +920,10 @@ def test_duel_request_timeout_capped_by_budget(tmp_path):
 
 
 def test_duel_records_written_and_merged(tmp_path):
-    ev = {"claude": fake_model("high"), "gemini": fake_model(exc="bad_format")}
+    ev = {
+        "claude": fake_model("high"),
+        "gemini": fake_model(exc="bad_format", response=("MAX_TOKENS", "2400+600")),
+    }
     prev = duel_doc(2, 2)
     cur = duel_doc(2, 2)
     cur["airports"][3]["slots"][5]["level"] = "unknown"  # ZZ01 有變
@@ -645,7 +938,12 @@ def test_duel_records_written_and_merged(tmp_path):
         "selected": "level",
         "rule": {"maxLevel": "high", "firstFrom": "2026-10-19T00:00:00Z"},
         "claude": {"status": "ok", "level": "high"},
-        "gemini": {"status": "error", "level": None},
+        # 呼叫失敗的那顆有 detail（HD6）：<代碼>:<stop_reason>:<輸出 token 數>[:<標記>]，不記內容
+        "gemini": {
+            "status": "error",
+            "level": None,
+            "detail": "bad_format:MAX_TOKENS:2400+600:not_json",
+        },
         "slots": [{"from": s["from"], "level": s["level"]} for s in cur["airports"][0]["slots"]],
     }
     assert len(r["slots"]) == 20 and set(r["slots"][0]) == {"from", "level"}
@@ -654,6 +952,7 @@ def test_duel_records_written_and_merged(tmp_path):
         "level": "low",
     }
     assert rows[3]["selected"] == "changed"
+    assert "detail" not in rows[0]["claude"] and "detail" not in rows[2]["gemini"]
     assert "comment" not in path.read_text("utf-8")  # 不存短評
     # 同一跑次再跑一次：覆蓋，不重複
     ai_run.evaluate_all(cur, prev, NOW, tmp_path, evaluators=ev)
@@ -684,3 +983,17 @@ def test_no_keys_in_code():
         text = p.read_text("utf-8")
         assert "sk-" + "ant-" not in text, p
         assert "BEGIN PRIVATE" + " KEY" not in text, p
+
+
+def test_duel_detail_only_for_call_failures(tmp_path):
+    """`detail` 只在真的呼叫失敗時有（HTTP 錯誤沒有回應，stop_reason／token 寫 `-`）；
+    `daily_cap`、`no_api_key`、`run_cap` 沒呼叫，沒有 `detail`；`latest.json` 那邊不加欄位。"""
+    path = tmp_path / "ai" / "calls-2026-10-19.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"claude": 0, "gemini": 80}), "utf-8")
+    ev = {"claude": fake_model(exc="http_429"), "gemini": fake_model()}
+    res = ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, evaluators=ev)
+    row = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))[0]
+    assert row["claude"] == {"status": "error", "level": None, "detail": "http_429:-:-"}
+    assert row["gemini"] == {"status": "error", "level": None}  # daily_cap
+    assert "detail" not in res["airports"]["RC00"]["claude"]

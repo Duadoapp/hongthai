@@ -363,14 +363,15 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
   - `evaluatedAt`：這一報的時間（＝`generatedAt`）；兩顆燈都是 `error` 時 `null`（`skipped` 也填時間）
   - `<燈>`：`{ "status", "level", "comment", "model" }`，`error` 時多 `"error"`
     - `status: "ok"`：`level` 是 `low`／`medium`／`high`，`comment` 是四語短評（以 zh-TW 為準、其他三語是
-      忠實翻譯，每語最多 400 字）
+      忠實翻譯，中文每語最多 300 字、en 最多 800 字；HD5 是四語都 400，HD6 放寬）
     - `status: "skipped"`（沒被選、不呼叫）：`level: "low"`，`comment` 固定四語「沒看到明顯風險」
       （zh-HK「未見明顯風險」、zh-CN「未见明显风险」、en「No notable risk seen」）
     - `status: "error"`：`level: null`、`comment: null`，`error` 是代碼：`no_api_key`（沒設金鑰）、`timeout`
       （單次請求 60 秒或整個 AI 步驟 180 秒到了）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
-      超過 400 字、被 `max_tokens` 截斷）、`http_<碼>`（API 回錯誤，例如 `http_429`）、`network`、
-      `daily_cap`（那個模型今天已經呼叫 80 次）；**規格以外多兩個**：`run_cap`（符合條件但排在這一報前 20 個
-      之後，沒評；不寫「沒看到明顯風險」，因為可能是中級）、`refusal`（模型拒答或被安全過濾擋下）
+      超過字數上限、被 `max_tokens` 截斷）、`http_<碼>`（API 回錯誤，例如 `http_429`）、`network`、
+      `daily_cap`（那個模型今天已經呼叫 80 次）；**規格以外多三個**：`run_cap`（符合條件但排在這一報前 20 個
+      之後，沒評；不寫「沒看到明顯風險」，因為可能是中級）、`refusal`（模型拒答或被安全過濾擋下）、
+      `bad_wording`（HD6：格式對但短評用字違規，見「AI 對決」的「用字規則與檢查」）
 - `sources.ai`：`{ "ok": <兩個模型至少一個有成功>, "seconds", "calls": { "claude": n, "gemini": n },
   "errors": { "<模型>": "<代碼>" } }`；`calls` 是這一報的呼叫次數，`errors` 只列有失敗的模型（那個模型
   最多的代碼，`run_cap` 不算），沒有就不出現。這一報沒有要評的機場、金鑰也都在時 `ok: true`。
@@ -420,17 +421,69 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
 - **規則**：AI 只能根據給它的數據講，不能用其他知識或外部資訊、不能自己估機率；短評 zh-TW 60–120 字，說明
   依據哪幾格、哪些數字，只講風險判讀、不給乘客建議；**一次輸出四語，以 zh-TW 為準，zh-HK、zh-CN、en 是
   忠實翻譯，內容完全一樣、不得增減**，zh-HK、zh-CN 用當地用語。回應一定要是
-  `{"level", "comment": {四語}}` 的 JSON，不然記 `bad_format`
+  `{"level", "comment": {四語}}` 的 JSON，不然記 `bad_format`（外面包了 ``` 或前後多了說明文字時，取第一個
+  `{` 到最後一個 `}` 之間再解析，HD6）；字數上限中文每語 300 字、en 800 字（`config.MAX_COMMENT_CHARS`）
 - **免責**：頂層 `ai.disclaimer`「AI 評論僅供參考，以航空公司與機場公告為準」（四語）
 - **保險**（`ai/config.py`）：每報最多評 20 個機場；每天（UTC）每個模型最多 80 次呼叫（`history/ai/calls-<日期>.json`
   記次數，成功失敗都算），超過的記 `daily_cap`；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
   的自動重試都關掉）；單次請求逾時 60 秒；整個 AI 步驟預算 180 秒（`BUDGET_S["ai"]`），兩個模型**平行**
-  呼叫、每個模型 4 條並行，超過的機場記 `timeout`。AI 失敗不影響 `latest.json` 其他內容
-- **模型參數**：Claude 用官方 `anthropic` SDK（Messages API），`max_tokens` 1200、`effort: "low"`；
-  **不送 `temperature`**——Opus 5.5 不接受取樣參數（送了回 400），思考也關不掉、思考的 token 算在
-  `max_tokens` 裡，所以用 `low` 留空間給四語短評；沒開 server-side fallback（換別的模型回答，戰績會記錯人）。
-  Gemini 用 `google-genai` SDK（`vertexai=True`、`location` 用 `GOOGLE_CLOUD_LOCATION`、服務帳號憑證），
-  `max_output_tokens` 1200、`temperature` 0.3、`response_mime_type: application/json`
+  呼叫、每個模型的並行數 Claude 4 條、Gemini 2 條（`config.PARALLEL`，HD6），超過的機場記 `timeout`。
+  AI 失敗不影響 `latest.json` 其他內容
+- **模型參數**：Claude 用官方 `anthropic` SDK（Messages API），`max_tokens` 3000（HD6；HD5 是 1200）、
+  `effort: "low"`；**不送 `temperature`**——Opus 5.5 不接受取樣參數（送了回 400），思考也關不掉、思考的
+  token 算在 `max_tokens` 裡，所以用 `low` 留空間給四語短評；沒開 server-side fallback（換別的模型回答，
+  戰績會記錯人）。Gemini 用 `google-genai` SDK（`vertexai=True`、`location` 用 `GOOGLE_CLOUD_LOCATION`、
+  服務帳號憑證），`max_output_tokens` 3000、`temperature` 0.3、`response_mime_type: application/json`、
+  `thinking_config` 的 `thinking_level: LOW`、`include_thoughts: false`（HD6）——Gemini 4 的思考關不掉、
+  **送 `thinking_budget` 回 400**、不支援 `MINIMAL`，`LOW` 是能設的最低；思考的 token 也很可能算在
+  `max_output_tokens` 裡
+- **第一次實跑（2026-10-19T03:57Z）與 HD6 的修正**：`bad_format` Claude 9/20、Gemini 17/20。成功的 13 則
+  en 短評長度 318–400 字（關島剛好 400）、中文 127–192 字——en 被 HD5 的 400 字上限擋下應是大宗，所以 en
+  放寬到 800、中文 300；另外 `max_tokens` 加到 3000、Gemini 思考設最低，防思考吃掉輸出上限而被截斷。
+  之後失敗的原因直接看戰績檔的 `detail`（見下面「對決戰績」）
+- **Gemini 的 `http_429`**：`gemini-4-argon` 走 `global` endpoint 的 Standard PayGo，**沒有可以在 GCP
+  申請提高的每專案每分鐘請求數配額**：吞吐量是**組織層級的用量級距（usage tier）**，依整個組織過去 30 天
+  在 Vertex AI（Agent Platform）的花費自動調整（Tier 1：花費 10–250 美元，Pro／Argon 優先吞吐量
+  500,000 TPM；Tier 2：250–2,000 美元，1,000,000 TPM；以上類推），超過的流量有空閒容量時照樣服務，
+  忙的時候先被節流回 429——**429 不代表撞到固定配額**，是當下資源競爭。新專案花費很少，大概還在 Tier 1
+  以下，所以 Gemini 降成 2 條並行、讓請求不要一次擠進去。Shawn 要做的：在 GCP 控制台
+  「Vertex AI（Agent Platform）→ Dashboard」看組織目前的級距（要專案的 `roles/aiplatform.viewer` 與帳單帳戶的
+  `roles/billing.viewer`）；要更多只能找 Google Cloud 業務談 Custom Tier，或改買 Priority PayGo／
+  Provisioned Throughput——**以我們每天 80 次的量都不值得**，先觀察 2 條並行後還有沒有 429。
+  「IAM 與管理 → 配額與系統限制」裡 `aiplatform.googleapis.com` 的
+  `global_generate_content_requests_per_minute_per_project_per_base_model` 這類配額，文件寫的是 Gemini Omni、
+  Lyria 這些生成媒體模型用的，不是 Argon 文字生成。來源：
+  [Standard PayGo](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/standard-paygo)、
+  [Troubleshooting error code 429](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/deploy/error-code-429)、
+  [Quotas and system limits](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/quotas)
+- **用字規則與檢查**（HD6，產品負責人 2026-10-19 定案；規則寫在系統提示的「用字」那段，檢查在
+  `ai/parse.py` 的 `check_wording`，詞表集中在 `ai/config.py`，之後要加詞只改那裡）：
+  1. **不出現內部代號**：`p29Kt`、`p49Kt`、`EC`、`GFS`、`HRES`、`TAF`、`METAR`、`crosswindKt`、`gustKt`、
+     `basis`、`agreement` 等欄位名或縮寫都不寫，改成白話——「歐洲模式」「美國模式」、「陣風超過 49 節的機率
+     56%」、「機場預報（TAF）」第一次可以括號附原名、之後只寫「機場預報」，「機場觀測」（METAR）同樣；
+     側風、陣風、平均風直接用中文；數字照抄資料
+  2. **四語照 Duado 的語系規則**：zh-TW 台灣用語；zh-HK 書面語加香港用語、不用粵語口語（颱風警報 →
+     颱風警告，只有香港天文台的熱帶氣旋警告信號才寫「信號」；飯店 → 酒店、計程車 → 的士、公車 → 巴士…）；
+     zh-CN 簡體加大陸用語（台风、侧风、阵风、机场预报、信号、节）；en 自然英文，時間寫 `10/19 12:00–13:00`
+     或 `12–13 h local`、不寫「時」；四語內容完全一樣，只換用語
+  3. **不寫英文等級字**：不出現「高（high）」；中文「低／中／高」，英文 Low／Medium／High
+  4. **叫法一致**：中文三語統一「停飛風險」（zh-CN「停飞风险」）；英文統一 disruption risk
+
+  格式檢查通過後再檢查用字，不過就記 `error: "bad_wording"`（不採用、不重試，和其他錯誤一樣）：
+  - 四語任一語出現內部代號（`config.FORBIDDEN_TOKENS`：`p29Kt`、`p49Kt`、`p37Kt`、`p10`、`p15`、`p25`、
+    `HRES`、`GFS`、`EC`、`crosswindKt`、`gustKt`、`hresGustKt`、`basis`、`agreement`、`slots`、
+    `latest.json`）；大小寫不分、整字比對（前後不能是英文字母、數字、底線，所以「EC陣風」抓得到、
+    `ECMWF`、`TAFF` 不算）
+  - `TAF`／`METAR` 可以在括號裡出現一次（「機場預報（TAF）」「airport forecast (TAF)」），沒括號或第二次以上算違規
+  - 中文三語出現「（high）」「(medium)」這類英文等級字
+  - zh-HK 出現粵語口語字：喺、嘅、咗、嚟、啱啱、唔、佢、冇、咁
+  - zh-CN 有繁體常見字（颱 風 機 場 預 報 節 側 陣）；zh-TW、zh-HK 有簡體常見字（风 机 场 预 报 节 侧 阵）
+  - 中文三語裡有一語寫「停飛／停飞」、又有一語寫「航班取消」；en 寫 cancellation risk 或 suspension risk
+  - en 有任何中日文字或全形字（Unicode `\u3000–\u30ff`、`\u3400–\u4dbf`、`\u4e00–\u9fff`、`\uff00–\uffef`）
+
+  log 會寫是哪一語、哪個詞（例如 `zh-HK：粵語口語「喺」`、`en 含中日文字「時」`）。第一次實跑抓到的四則
+  （MZG 滿是代號、NRT 的 zh-HK 用了「喺、同、啱啱」、MMY 寫「高（high）」、TNN zh-CN「航班取消风险」
+  zh-TW 卻是「停飛風險」）和 GUM 的 en「10/19 12–13 時」都在 `tests/test_ai.py` 當案例
 - **金鑰**：見上面「怎麼跑」的四個環境變數；HongThai 專屬（各月上限 30 美元、不跟 Duado 共用），只放 Actions secrets
 - **對決戰績**（`data` 分支 `history/ai/<YYYY-MM-DD>.json`，UTC 日期一天一檔；不進 Pages、不進 `latest.json`）：
   每報每個機場一筆，同一跑次同一機場新的覆蓋舊的（同 `cancellations` 的寫法），依 `run`、`airport` 排序。
@@ -446,6 +499,14 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
 
 - `selected`：被選的原因 `"level"`／`"changed"`，沒被選（含 `run_cap`）是 `null`；`rule.maxLevel` 是 5 天內最高
   等級（全部 `unknown` 是 `null`）、`firstFrom` 是第一個達到那級的格；`slots` 是 20 格的 `from` 與 `level`
+- `claude`／`gemini` 呼叫失敗時多一個 `detail`（HD6，不記短評內容；`latest.json` 不加）：
+  `"<代碼>:<stop_reason>:<輸出 token 數>[:<標記>]"`，例如 `"bad_format:max_tokens:3000"`（被截斷）、
+  `"bad_format:end_turn:1650:en_too_long"`、`"bad_wording:STOP:700+900:zh-HK/喺"`、`"http_429:-:-"`（沒拿到
+  回應的欄位寫 `-`）。Claude 的 token 數是 `usage.output_tokens`（含思考）；Gemini 是
+  `candidates_token_count`，有思考時寫成 `<回答>+<思考>`（`thoughts_token_count`）。標記是解析失敗的種類
+  （`not_json`、`not_object`、`level`、`no_comment`、`missing_<語>`、`<語>_too_long`）或用字違規的
+  `<語>/<詞>`。`daily_cap`、`run_cap`、`no_api_key`、`timeout`（預算到了沒送）沒呼叫，不寫 `detail`。
+  log 也印同一串（`AI gemini RCKH 失敗：bad_wording: zh-HK：粵語口語「喺」［bad_wording:STOP:700+900:zh-HK/喺］`）
 
 ## 分享預覽圖
 
@@ -478,7 +539,8 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 - 三顆燈（HD5，`og.lights_for`）：機場的 `ai` 兩顆都是 `skipped` 或 `error` 時照舊一顆規則燈（不畫標籤）；
   任一顆 `ok` 時畫三顆，標籤「規則」「Claude」「Gemini」：規則燈同上（等級與小字），AI 燈畫模型的等級，
   短評不畫、小字留空；`error` 的那顆用資料不足色塊寫「資料不足」，`skipped` 的用低。色塊並排、寬度自動縮，
-  時間軸移到燈號下方整排
+  時間軸移到燈號下方整排。**AI 兩顆都失敗（`error`）時仍是一顆規則燈**（例如 2026-10-19T03:57Z 那報的
+  高雄，兩顆都 `bad_format`；同一報關島的 Claude 是 `ok`，就是三顆）
 - PNG 用固定調色盤（品牌色＋反鋸齒的中間色）＋`optimize=True`：每張約 17–20 KB，51 張約 0.9 MB；
   本機畫 51 張約 3.5 秒（HD4 加了時間軸後，2026-10-19 用 Pages 上 19:02Z 那份 `latest.json` 實測
   943 KB、3.5 秒；HD1 時是 893 KB、3.2 秒）
