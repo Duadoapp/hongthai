@@ -211,6 +211,57 @@ def test_airport_text_contains_data_and_units(latest):  # noqa: F811
     )
 
 
+def test_airport_text_weather_types():
+    """HD8：每格的 causes、官方層 wx、模式層雨量／型態／能見度；METAR 的能見度與天氣。"""
+    ap = airport("RCKH", lv(2, "medium"))
+    ap["metar"] = {
+        "observedAt": RUN,
+        "windDirDeg": 90,
+        "windKt": 5,
+        "gustKt": None,
+        "raw": "METAR RCKH 0300 FG VV001",
+        "visibilityM": 300,
+        "wx": ["FG"],
+        "ceilingFt": 100,
+    }
+    s0 = ap["slots"][0]
+    s0["causes"] = ["fog", "rain"]
+    s0["official"] = {
+        "windKt": 5,
+        "gustKt": None,
+        "kind": "main",
+        "level": "high",
+        "crosswindKt": None,
+        "warnings": [],
+        "wx": {
+            "phenomena": ["FG", "+TSRA"],
+            "visibilityM": 300,
+            "ceilingFt": 100,
+            "rain": "medium",
+            "snow": "low",
+            "fog": "high",
+        },
+    }
+    s0["model"]["ec"].update(rain6hMm=35.2, ptype="rain", p24hRain50=0.4)
+    s0["model"]["gfs"].update(rain6hMm=12.0, ptype="snow", visibilityM=800)
+    text = prompt.airport_text(ap, RUN)
+    line = next(ln for ln in text.splitlines() if ln.startswith("1. "))
+    assert "causes fog（濃霧）、rain（大雨）" in line
+    assert (
+        "wx（現象 FG +TSRA、能見度 300 公尺、雲底 100 呎、rain medium、snow low、fog high）" in line
+    )
+    assert "EC rain6hMm 35.2 mm、EC ptype rain、p24hRain50 40%" in line
+    assert "GFS rain6hMm 12 mm、GFS ptype snow、GFS visibilityM 800 公尺" in line
+    assert "能見度 300 公尺、天氣 FG、雲底 100 呎" in text  # METAR
+    second = next(ln for ln in text.splitlines() if ln.startswith("2. "))
+    assert "causes 無" in second
+    # 規則說明有三類的門檻與「說出主因」
+    assert "能見度 < 400 公尺或雲底 ≤ 100 呎 → high" in text
+    assert "6 小時雨量 ≥ 60 mm → high" in text
+    assert "短評要說出主要是哪種天氣造成" in text
+    assert "第一句要點出主因天氣" in prompt.SYSTEM
+
+
 def test_airport_text_without_optional_data():
     ap = airport("RCKH", lv(2, "medium"))
     ap["official"] = {"warnings": False}
@@ -1029,3 +1080,41 @@ def test_duel_detail_only_for_call_failures(tmp_path):
     assert row["claude"] == {"status": "error", "level": None, "detail": "http_429:-:-"}
     assert row["gemini"] == {"status": "error", "level": None}  # daily_cap
     assert "detail" not in res["airports"]["RC00"]["claude"]
+
+
+# ---- 新天氣種類的用字（HD8）----
+
+
+@pytest.mark.parametrize(
+    ("langs", "message"),
+    [
+        ({"zh-TW": "rain6hMm 35，停飛風險中。"}, "zh-TW：內部代號 rain6hMm"),
+        ({"zh-HK": "visibilityM 300，停飛風險高。"}, "zh-HK：內部代號 visibilityM"),
+        ({"zh-CN": "ptype 是 snow，停飞风险高。"}, "zh-CN：內部代號 ptype"),
+        ({"en": "ceilingFt 100; disruption risk High."}, "en：內部代號 ceilingFt"),
+        ({"en": "The causes are fog; disruption risk High."}, "en：內部代號 causes"),
+        ({"zh-TW": "p24hRain50 40%，停飛風險中。"}, "zh-TW：內部代號 p24hRain50"),
+        ({"zh-TW": "p24hRain25 40%，停飛風險中。"}, "zh-TW：內部代號 p24hRain25"),
+        ({"en": "APCP 35 mm; disruption risk Medium."}, "en：內部代號 APCP"),
+        ({"en": "CSNOW is on; disruption risk High."}, "en：內部代號 CSNOW"),
+        ({"en": "CFRZR is on; disruption risk High."}, "en：內部代號 CFRZR"),
+        # 簡繁
+        ({"zh-CN": "10/23 浓霧，停飞风险高。"}, "zh-CN：繁體字「霧」"),
+        ({"zh-CN": "10/23 能見度 300 米，停飞风险高。"}, "zh-CN：繁體字「見」"),
+        ({"zh-TW": "10/23 濃雾，停飛風險高。"}, "zh-TW：簡體字「雾」"),
+        ({"zh-HK": "10/23 能见度 300 公尺，停飛風險高。"}, "zh-HK：簡體字「见」"),
+    ],
+)
+def test_bad_wording_hd8(langs, message):
+    assert str(_wording(**langs)) == f"bad_wording: {message}"
+
+
+def test_good_wording_hd8():
+    comment = {
+        "zh-TW": "主因是濃霧：10/23 08–14 時能見度 300 公尺、雲底 100 呎，停飛風險高。",
+        "zh-HK": "主因是濃霧：10/23 08–14 時能見度 300 公尺、雲底 100 呎，停飛風險高。",
+        "zh-CN": "主因是浓雾：10/23 08–14 时能见度 300 米、云底 100 英尺，停飞风险高。",
+        "en": "Mainly dense fog: visibility 300 m and cloud base 100 ft on 10/23 08:00–14:00; "
+        "disruption risk High.",
+    }
+    assert parse.parse_response(_resp(comment=comment))["comment"] == comment

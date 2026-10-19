@@ -11,6 +11,7 @@ from conftest import utc
 from hongthai.assess import (
     ActiveWarning,
     assess_slots,
+    causes_from,
     crosswind_kt,
     crosswind_level,
     fill_kt,
@@ -21,7 +22,7 @@ from hongthai.assess import (
 )
 from hongthai.config import ConfirmedPeriod, Runway, Thresholds
 from hongthai.grib import wind_dir_from_uv
-from hongthai.sources.ecmwf import EcmwfPoint, GustInterval, ProbWindow
+from hongthai.sources.ecmwf import EcmwfPoint, GustInterval, PrecipStep, ProbWindow
 from hongthai.sources.gfs import GustPoint
 from hongthai.sources.taf import Metar, TafPeriod
 from hongthai.timeutil import slot_bounds
@@ -157,13 +158,32 @@ def test_ec_slot_uses_hres_max_and_min_of_containing_windows():
         "hresGustMs": 19.1,  # 37.04 節換回 m/s
         "hresGustKt": 37.0,
         "crosswindKt": None,
+        # HD8：沒有降水資料時都是 None
+        "rain6hMm": None,
+        "ptype": None,
+        "p24hRain25": None,
+        "p24hRain50": None,
+        "temp2mC": None,
+        "rain": None,
+        "snow": None,
     }
     assert s["model"]["level"] == "medium"
 
 
 def test_gfs_slot_outputs_knots_and_ms():
     s = run(gfs=flat_gfs(50.0))[0]
-    assert s["model"]["gfs"] == {"gustMs": 25.7, "gustKt": 50.0, "crosswindKt": None}
+    assert s["model"]["gfs"] == {
+        "gustMs": 25.7,
+        "gustKt": 50.0,
+        "crosswindKt": None,
+        # HD8：沒有降水與能見度時都是 None
+        "rain6hMm": None,
+        "ptype": None,
+        "visibilityM": None,
+        "rain": None,
+        "snow": None,
+        "fog": None,
+    }
 
 
 def test_fill_kt_from_ms_fields():
@@ -554,3 +574,305 @@ def test_all_taf_periods_past_only_metar_and_warnings():
     # 沒有警報：沒有官方層（TAF 全部過去＝過期，跟沒有 TAF 一樣），退回模式
     s = gum(taf_periods=[main, tempo], metar=metar, ec=flat_ec(5), gfs=flat_gfs(5))
     assert s[0]["official"] is None and s[0]["basis"] == "model"
+
+
+# ---- 新天氣種類（HD8）----
+
+
+def wxp(wx=(), vis=None, ceil=None, start_h=0, end_h=6, kind="main", gust=None):
+    """一段 TAF 時段（風很小），只看天氣現象、能見度（公尺）、雲底（呎）。"""
+    return TafPeriod(
+        S0 + timedelta(hours=start_h),
+        S0 + timedelta(hours=end_h),
+        kind,
+        90,
+        5,
+        gust,
+        vis,
+        tuple(wx),
+        ceil,
+    )
+
+
+def off_wx(*periods, **kw):
+    """第一格官方層的 `wx`。"""
+    return run(taf_periods=list(periods), **kw)[0]["official"]["wx"]
+
+
+@pytest.mark.parametrize(
+    ("wx", "vis", "level"),
+    [
+        (("+TSRA",), 9999, "medium"),
+        (("+TSRA", "BR"), 3000, "medium"),
+        (("TSGR",), 9999, "high"),
+        (("+TSGR",), 9999, "high"),
+        (("SHGR",), 9999, "high"),
+        (("TSRA",), 1600, "medium"),  # TS 且能見度 ≤ 1600
+        (("TS",), 1200, "medium"),
+        (("TSRA",), 1700, "low"),
+        (("TSRA",), 9999, "low"),  # 單純 TSRA 不升級
+        (("TS",), None, "low"),  # 沒報能見度
+        (("SHRA",), 800, "low"),  # 不是雷雨（能見度另外走 fog）
+        (("+SHRA",), 9999, "low"),
+    ],
+)
+def test_official_rain_levels(wx, vis, level):
+    assert off_wx(wxp(wx, vis))["rain"] == level
+
+
+@pytest.mark.parametrize(
+    ("wx", "vis", "level"),
+    [
+        (("SN",), 1600, "medium"),
+        (("SHSN",), 1200, "medium"),
+        (("SN",), 2000, "low"),  # SN 但能見度 > 1600 不升級
+        (("-SN",), 800, "low"),  # 小雪不升級
+        (("-SHSN",), 800, "low"),
+        (("+SN",), 9999, "high"),
+        (("+SHSN",), 9999, "high"),
+        (("FZRA",), 9999, "high"),
+        (("-FZRA",), 9999, "high"),
+        (("FZDZ",), 9999, "high"),
+        (("PL",), 9999, "high"),
+        (("FZFG",), 300, "low"),  # 凍霧不走 snow
+    ],
+)
+def test_official_snow_levels(wx, vis, level):
+    assert off_wx(wxp(wx, vis))["snow"] == level
+
+
+@pytest.mark.parametrize(
+    ("vis", "ceil", "level"),
+    [
+        (800, None, "medium"),
+        (999, None, "medium"),
+        (1000, None, "low"),
+        (300, None, "high"),
+        (399, None, "high"),
+        (400, None, "medium"),
+        (None, 200, "medium"),
+        (None, 300, "low"),
+        (None, 100, "high"),
+        (9999, 100, "high"),  # 雲底低就算
+        (None, None, "low"),  # 都沒報
+    ],
+)
+def test_official_fog_levels(vis, ceil, level):
+    assert off_wx(wxp((), vis, ceil))["fog"] == level
+
+
+def test_fzfg_goes_to_fog():
+    w = off_wx(wxp(("FZFG",), 300))
+    assert (w["snow"], w["fog"]) == ("low", "high")
+
+
+def test_official_wx_object():
+    w = off_wx(
+        wxp(("-SHRA", "BR"), 3000, 800),
+        wxp(("+TSRA", "BR"), 800, 200, kind="tempo"),
+    )
+    assert w == {
+        "phenomena": ["-SHRA", "BR", "+TSRA"],  # 去重、照出現順序
+        "visibilityM": 800,
+        "ceilingFt": 200,
+        "rain": "medium",
+        "snow": "low",
+        "fog": "medium",
+    }
+
+
+def test_ts_and_low_visibility_must_be_same_period():
+    """TS 在一段、低能見度在另一段 → 雷雨不升級（霧照算）。"""
+    w = off_wx(wxp(("TSRA",), 9999), wxp(("BR",), 1500, kind="tempo"))
+    assert (w["rain"], w["fog"]) == ("low", "low")
+
+
+def test_official_level_is_max_of_wind_and_weather():
+    # 陣風 40 節（中）＋能見度 300（高）→ 高，主因霧
+    s = run(taf_periods=[wxp((), 300, gust=40)])[0]
+    assert (s["official"]["level"], s["level"], s["basis"]) == ("high", "high", "official")
+    assert s["causes"] == ["fog", "wind"]
+    assert s["official"]["kind"] == "main"  # kind 還是風的時段種類
+    # 只有天氣、風很小
+    s = run(taf_periods=[wxp(("+SN",), 600)])[0]
+    assert s["official"]["level"] == "high"
+    assert s["causes"] == ["snow", "fog"]  # 雪高、霧中
+
+
+def test_weather_does_not_change_wind_fields():
+    s = run(taf_periods=[wxp(("+TSRA",), 800, gust=40)])[0]
+    o = s["official"]
+    assert (o["windKt"], o["gustKt"], o["kind"]) == (5, 40, "main")
+
+
+def test_metar_weather_only_first_slot_and_fresh():
+    periods = [wxp((), 9999, start_h=0, end_h=24)]
+    fog = Metar(
+        NOW - timedelta(minutes=10), 90, 5, None, "METAR … 0300 FG VV001", 300, ("FG",), 100
+    )
+    slots = run(taf_periods=periods, metar=fog)
+    w0, w1 = slots[0]["official"]["wx"], slots[1]["official"]["wx"]
+    assert (w0["fog"], w0["phenomena"], w0["visibilityM"]) == ("high", ["FG"], 300)
+    assert (w1["fog"], w1["phenomena"]) == ("low", [])
+    old = Metar(NOW - timedelta(hours=4), 90, 5, None, "METAR …", 300, ("FG",), 100)
+    assert run(taf_periods=periods, metar=old)[0]["official"]["wx"]["fog"] == "low"
+
+
+def test_metar_weather_not_counted_without_taf():
+    """只有警報的格 `wx` 是 null，METAR 的霧不算。"""
+    fog = Metar(NOW - timedelta(minutes=10), 90, 5, None, "METAR …", 300, ("FG",), 100)
+    s = run(warnings=[warn("medium")], metar=fog)[0]
+    assert s["official"]["wx"] is None
+    assert s["official"]["level"] == "medium"
+    assert s["causes"] == ["wind"]
+
+
+def test_low_warning_alone_does_not_make_official_layer():
+    # 雷暴警告（低）只有它、沒有 TAF → 官方層 null、退回模式
+    s = run(ec=flat_ec(40), warnings=[warn("low", "thunderstorm")])[0]
+    assert s["official"] is None
+    assert (s["level"], s["basis"]) == ("medium", "model")
+    # 有中以上的警報時列全部（含低的）
+    s = run(warnings=[warn("low", "thunderstorm"), warn("medium", "rainstorm_black")])[0]
+    assert s["official"]["warnings"] == ["thunderstorm", "rainstorm_black"]
+    assert (s["official"]["level"], s["causes"]) == ("medium", ["rain"])
+    # 有 TAF 時低的警報照樣列出、不升級
+    s = run(taf_periods=[wxp()], warnings=[warn("low", "rainstorm_red")])[0]
+    assert s["official"]["warnings"] == ["rainstorm_red"]
+    assert (s["official"]["level"], s["causes"]) == ("low", [])
+
+
+def test_cwa_heavy_rain_warning_is_rain_cause():
+    s = run(warnings=[warn("medium", "cwa_heavy_rain", "cwa")])[0]
+    assert (s["level"], s["basis"], s["causes"]) == ("medium", "official", ["rain"])
+
+
+def precip_ec(mm=0.0, ptype="none", p50=None, hres=5.0) -> EcmwfPoint:
+    """整段一樣的 EC：每 6 小時一筆雨量與型態；`p50` 是系集 24 小時 ≥ 50 mm 的機率。"""
+    pt = flat_ec(hres)
+    pt.precip = [PrecipStep(S0 + timedelta(hours=h), mm, ptype, 1.0) for h in range(6, 121, 6)]
+    pt.ens = [ProbWindow(w.start, w.end, w.p10, w.p15, w.p25, None, p50) for w in pt.ens]
+    return pt
+
+
+def precip_gfs(mm=None, ptype=None, vis=None, g=5.0) -> list[GustPoint]:
+    return [GustPoint(S0 + timedelta(hours=h), g, None, mm, ptype, vis) for h in range(0, 121, 6)]
+
+
+@pytest.mark.parametrize(
+    ("ec_kw", "gfs_kw", "rain"),
+    [
+        ({"mm": 29.9}, {}, "low"),
+        ({"mm": 30}, {}, "medium"),
+        ({"mm": 60}, {}, "high"),
+        ({}, {"mm": 30}, "medium"),
+        ({}, {"mm": 60}, "high"),
+        ({"p50": 0.3}, {}, "medium"),  # 系集 24 小時 ≥ 50 mm 機率 ≥ 30%
+        ({"p50": 0.29}, {}, "low"),
+        ({"mm": 60, "p50": 0.3}, {}, "high"),
+    ],
+)
+def test_model_rain_levels(ec_kw, gfs_kw, rain):
+    s = run(ec=precip_ec(**ec_kw), gfs=precip_gfs(**gfs_kw))[0]
+    assert s["model"]["level"] == rain
+    assert s["causes"] == ([] if rain == "low" else ["rain"])
+
+
+@pytest.mark.parametrize(
+    ("mm", "ptype", "snow"),
+    [
+        (4.9, "snow", "low"),
+        (5, "snow", "medium"),
+        (5, "wet_snow", "medium"),
+        (9, "rain_snow", "medium"),
+        (10, "snow", "high"),
+        (10, "rain", "low"),  # 雨不算雪
+        (1, "freezing_rain", "high"),
+        (1, "freezing_drizzle", "high"),
+        (1, "ice_pellets", "high"),
+        (0.9, "freezing_rain", "low"),
+        (20, "none", "low"),
+    ],
+)
+def test_model_snow_levels(mm, ptype, snow):
+    s = run(ec=precip_ec(mm, ptype))[0]
+    assert s["model"]["ec"]["snow"] == snow
+    # GFS 同一套（型態來自類別欄位）
+    g = run(ec=flat_ec(5), gfs=precip_gfs(mm, ptype))[0]
+    assert g["model"]["gfs"]["snow"] == snow
+
+
+def test_model_takes_higher_of_ec_and_gfs_snow():
+    s = run(ec=precip_ec(5, "snow"), gfs=precip_gfs(12, "snow"))[0]
+    assert (s["model"]["ec"]["snow"], s["model"]["gfs"]["snow"]) == ("medium", "high")
+    assert s["model"]["level"] == "high"
+    assert s["causes"] == ["snow"]
+
+
+@pytest.mark.parametrize(
+    ("vis", "fog"), [(900, "medium"), (300, "high"), (1000, "low"), (None, None)]
+)
+def test_model_fog_only_gfs(vis, fog):
+    s = run(gfs=precip_gfs(0, "none", vis))[0]
+    assert s["model"]["gfs"]["fog"] == fog
+    assert "fog" not in s["model"]["ec"]  # EC 沒有能見度
+    assert s["model"]["level"] == (fog if fog in ("medium", "high") else "low")
+
+
+def test_model_slot_values_use_slot_end():
+    """一格的雨量與型態用格結束那個時間點；GFS 能見度取格內最小。"""
+    pt = flat_ec(5)
+    pt.precip = [
+        PrecipStep(S0 + timedelta(hours=6), 12.34, "rain", 25.04),
+        PrecipStep(S0 + timedelta(hours=12), 50.0, "snow", -1.0),
+    ]
+    g = [
+        GustPoint(S0, 5, None, 99.0, "snow", 300.4),
+        GustPoint(S0 + timedelta(hours=6), 5, None, 3.21, "rain", 5000.0),
+    ]
+    s = run(ec=pt, gfs=g)[0]
+    ec_v, gfs_v = s["model"]["ec"], s["model"]["gfs"]
+    assert (ec_v["rain6hMm"], ec_v["ptype"], ec_v["temp2mC"]) == (12.3, "rain", 25.0)
+    assert (gfs_v["rain6hMm"], gfs_v["ptype"], gfs_v["visibilityM"]) == (3.2, "rain", 300)
+    assert gfs_v["fog"] == "high"
+
+
+def test_agreement_still_only_wind():
+    s = run(ec=precip_ec(80, hres=40), gfs=precip_gfs(0, "none", g=40))[0]
+    assert s["model"]["agreement"] == "agree"  # 陣風都是中；雨量差很多也不影響
+    assert s["model"]["level"] == "high"
+    assert s["causes"] == ["rain", "wind"]
+
+
+def test_causes_order():
+    assert causes_from({"wind": "medium", "rain": "medium", "snow": "medium", "fog": "medium"}) == [
+        "wind",
+        "snow",
+        "fog",
+        "rain",
+    ]
+    assert causes_from({"wind": "medium", "rain": "high", "snow": "low", "fog": None}) == [
+        "rain",
+        "wind",
+    ]
+    assert causes_from({"wind": "low", "rain": "low", "snow": "low", "fog": "low"}) == []
+
+
+def test_causes_confirmed_and_unknown():
+    confirmed = [ConfirmedPeriod("RCTP", S0, S0 + timedelta(hours=6), {})]
+    # 0–30 小時有 TAF：蓋掉的是官方層
+    s = run(taf_periods=[wxp((), 300)], ec=precip_ec(80), confirmed=confirmed)[0]
+    assert (s["level"], s["basis"], s["causes"]) == ("confirmed", "confirmed", ["fog"])
+    # 沒有官方層：看模式層
+    s = run(ec=precip_ec(80), confirmed=confirmed)[0]
+    assert (s["basis"], s["causes"]) == ("confirmed", ["rain"])
+    # 沒有任何資料
+    s = run(ec=None, gfs=None)[0]
+    assert (s["level"], s["causes"]) == ("unknown", [])
+
+
+def test_causes_from_official_layer_ignore_model():
+    """依據是官方層時 causes 只看官方層（模式的大雨不列）。"""
+    s = run(taf_periods=[wxp((), 9999, gust=40)], ec=precip_ec(80))[0]
+    assert (s["basis"], s["level"], s["causes"]) == ("official", "medium", ["wind"])
+    assert s["gap"] is True  # 模式層是高

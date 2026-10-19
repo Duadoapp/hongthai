@@ -42,6 +42,18 @@
   2026-10-18 實測約三成回 `503 Slow Down`，每次等 10 秒重試，148 秒後才失敗、預算就沒了。
   所以 AWS 第一個 503 就換下一個 source
 - 實際從哪裡下載記在 `EcmwfData.mirror`（`sources.ecmwf.mirror`）；系集照同一套，記在 `ens_mirror`
+
+降水（HD8，第五階段天氣種類；2026-10-19 查 18Z oper 與 12Z enfo ep 的 index）：
+- HRES 有 `tp`（總降水，**從起報累積**，單位 m）、`ptype`（降水型態，瞬時）、`2t`（2 米溫度，K），
+  每個步長各約 0.88–1.05、0.94–0.95、0.66 MB；**沒有能見度**（index 裡沒有 `vis`），所以 EC
+  不算霧（備案）
+- 三個都和 `10u`／`10v` 放同一個請求、只抓 6 小時整的步長（`precip_steps`＝`wind_steps` 再加第一格的
+  開始步長，6 小時雨量要 `tp(格結束) − tp(格開始)`；開始步長是 0 時 `tp(0)` 當 0）。m → mm、K → °C
+- `ptype` 的代碼（ECMWF 參數 260015，<https://codes.ecmwf.int/grib/param-db/260015>）：
+  0 無、1 雨、3 凍雨、5 雪、6 濕雪、7 雨雪混合、8 冰粒、12 凍毛毛雨；其他代碼記 `other`
+  （`PTYPE_NAMES`）
+- 系集機率多 `tpg25`、`tpg50`（24 小時總降水 ≥ 25／50 mm 的機率，%；窗和 `10fgg*` 一樣、每個約
+  0.07–0.15 MB），和陣風機率同一個請求
 """
 
 from __future__ import annotations
@@ -81,20 +93,34 @@ class GustInterval:
 
 
 @dataclass
+class PrecipStep:
+    """HRES 一個 6 小時整的時間點（HD8）：前 6 小時雨量（mm）、那時的降水型態與 2 米溫度（°C）。"""
+
+    valid: datetime
+    rain6h_mm: float | None
+    ptype: str | None  # `PTYPE_NAMES` 的值
+    temp2m_c: float | None = None
+
+
+@dataclass
 class ProbWindow:
-    """系集機率的 24 小時窗（start, end]，機率 0–1；`p10`／`p15`／`p25` 是陣風 ≥ 10／15／25 m/s。"""
+    """系集機率的 24 小時窗（start, end]，機率 0–1；`p10`／`p15`／`p25` 是陣風 ≥ 10／15／25 m/s，
+    `tp25`／`tp50` 是 24 小時總降水 ≥ 25／50 mm（HD8）。"""
 
     start: datetime
     end: datetime
     p10: float | None
     p15: float | None
     p25: float | None
+    tp25: float | None = None
+    tp50: float | None = None
 
 
 @dataclass
 class EcmwfPoint:
     hres: list[GustInterval] = field(default_factory=list)
     ens: list[ProbWindow] = field(default_factory=list)
+    precip: list[PrecipStep] = field(default_factory=list)
 
 
 @dataclass
@@ -111,7 +137,19 @@ class EcmwfData:
 HRES_GUST_PARAMS = ("10fg", "10fg3")
 HRES_WIND_PARAMS = ("10u", "10v")
 HRES_WIND_STRIDE_H = 6
-ENS_PARAMS = ("10fgg10", "10fgg15", "10fgg25")
+# HD8：和 10u／10v 同一個請求、同樣只抓 6 小時整的步長
+HRES_PRECIP_PARAMS = ("tp", "ptype", "2t")
+PTYPE_NAMES = {
+    0: "none",
+    1: "rain",
+    3: "freezing_rain",
+    5: "snow",
+    6: "wet_snow",
+    7: "rain_snow",
+    8: "ice_pellets",
+    12: "freezing_drizzle",
+}
+ENS_PARAMS = ("10fgg10", "10fgg15", "10fgg25", "tpg25", "tpg50")
 ENS_WINDOW_H = 24
 ENS_STRIDE_H = 12
 ENS_MAX_END_H = 240
@@ -155,6 +193,43 @@ def wind_steps(steps: list[int]) -> list[int]:
     return sorted({wind_step(s) for s in steps})
 
 
+def precip_steps(steps: list[int], rel0: float) -> list[int]:
+    """10 米風與降水要抓的步長：`wind_steps` 再加第一格的開始步長（算第一格的 6 小時雨量）。"""
+    base = {int(rel0)} if rel0 > 0 else set()
+    return sorted(set(wind_steps(steps)) | base)
+
+
+def ptype_name(code: float | None) -> str | None:
+    if code is None:
+        return None
+    return PTYPE_NAMES.get(round(code), "other")
+
+
+def parse_precip(series: dict, run: datetime) -> list[PrecipStep]:
+    """一個點的 `tp`／`ptype`／`2t` → 每個步長一筆（6 小時雨量＝和前 6 小時的 `tp` 差）。"""
+
+    def table(key: str) -> dict[float, float | None]:
+        s = series.get(key)
+        return dict(zip(s.steps, s.values, strict=True)) if s is not None else {}
+
+    tp, ptype, t2 = table("tp"), table("ptype"), table("2t")
+    out = []
+    for step in sorted(set(tp) | set(ptype)):
+        cur = tp.get(step)
+        prev = 0.0 if step - HRES_WIND_STRIDE_H == 0 else tp.get(step - HRES_WIND_STRIDE_H)
+        rain = None if cur is None or prev is None else max(0.0, (cur - prev) * 1000)
+        temp = t2.get(step)
+        out.append(
+            PrecipStep(
+                run + timedelta(hours=step),
+                rain,
+                ptype_name(ptype.get(step)),
+                None if temp is None else temp - 273.15,
+            )
+        )
+    return out
+
+
 def ens_windows(rel0: float, span_h: int = 120, slot_h: int = 6) -> list[str]:
     """完整包住任一 6 小時格的 24 小時窗（`"s-e"` 字串）。"""
     needed: set[int] = set()
@@ -167,11 +242,15 @@ def ens_windows(rel0: float, span_h: int = 120, slot_h: int = 6) -> list[str]:
 
 
 def parse_hres(
-    path: str | Path, airports: list[Airport], wind_path: str | Path | None = None
+    path: str | Path,
+    airports: list[Airport],
+    wind_path: str | Path | None = None,
+    precip: dict[str, list[PrecipStep]] | None = None,
 ) -> tuple[datetime, dict[str, list]]:
     """陣風（`path`）配 10 米風（`wind_path`；沒給就在 `path` 裡找）。
 
-    風向取 `wind_step` 那個步長的 `10u`／`10v`；陣風換算成節。
+    風向取 `wind_step` 那個步長的 `10u`／`10v`；陣風換算成節。給了 `precip` 時順便把 `wind_path`
+    裡的 `tp`／`ptype`／`2t` 解析進去（HD8，`parse_precip`）。
     """
     where = {a.icao: (a.lat, a.lon) for a in airports}
     pts = read_points(path, where)
@@ -195,6 +274,8 @@ def parse_hres(
                 wdir = wind_dir_from_uv(uv.get("10u", {}).get(ws), uv.get("10v", {}).get(ws))
                 intervals.append(GustInterval(start, end, ms_to_kt(v), wdir))
         out[icao] = sorted(intervals, key=lambda g: g.end)
+        if precip is not None and run is not None:
+            precip[icao] = parse_precip(w, run)
     if run is None:
         raise EcmwfError("HRES GRIB 裡沒有陣風資料", "empty")
     return run, out
@@ -220,6 +301,8 @@ def parse_ens(path: str | Path, airports: list[Airport]) -> tuple[datetime, dict
                     vals.get("10fgg10"),
                     vals.get("10fgg15"),
                     vals.get("10fgg25"),
+                    vals.get("tpg25"),
+                    vals.get("tpg50"),
                 )
             )
         out[icao] = windows
@@ -355,20 +438,21 @@ def fetch(airports: list[Airport], slot0: datetime, workdir: str | Path | None =
     size, mirror = _download(
         clients, tmp / "hres.grib2", param=list(HRES_GUST_PARAMS), step=steps, **oper
     )
-    # 風先試陣風成功的那個 source
+    # 風（＋降水，HD8）先試陣風成功的那個 source
     wind_sources = (mirror, *(s for s in DOWNLOAD_SOURCES if s != mirror))
     wind_size, wind_mirror = _download(
         clients,
         tmp / "hres-wind.grib2",
         wind_sources,
-        param=list(HRES_WIND_PARAMS),
-        step=wind_steps(steps),
+        param=[*HRES_WIND_PARAMS, *HRES_PRECIP_PARAMS],
+        step=precip_steps(steps, hours_between(run, slot0)),
         **oper,
     )
     size += wind_size
     if wind_mirror != mirror:
         log.info("ECMWF HRES 陣風從 %s、10 米風從 %s 下載", mirror, wind_mirror)
-    hres_run, hres = parse_hres(tmp / "hres.grib2", airports, tmp / "hres-wind.grib2")
+    precip: dict[str, list[PrecipStep]] = {}
+    hres_run, hres = parse_hres(tmp / "hres.grib2", airports, tmp / "hres-wind.grib2", precip)
 
     ens_run = None
     ens: dict[str, list[ProbWindow]] = {}
@@ -395,6 +479,9 @@ def fetch(airports: list[Airport], slot0: datetime, workdir: str | Path | None =
         ens_mirror = None
 
     points = {
-        a.icao: EcmwfPoint(hres=hres.get(a.icao, []), ens=ens.get(a.icao, [])) for a in airports
+        a.icao: EcmwfPoint(
+            hres=hres.get(a.icao, []), ens=ens.get(a.icao, []), precip=precip.get(a.icao, [])
+        )
+        for a in airports
     }
     return EcmwfData(hres_run, ens_run, ens_error, points, size, mirror, ens_mirror)

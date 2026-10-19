@@ -1,0 +1,59 @@
+{
+ "success": "true",
+ "result": {"resource_id": "W-C0033-001", "fields": []},
+ "records": {
+  "location": [
+   {
+    "locationName": "金門縣",
+    "geocode": "09020",
+    "hazardConditions": {
+     "hazards": [
+      {
+       "info": {"language": "zh-TW", "phenomena": "大豪雨", "significance": "特報"},
+       "validTime": {"startTime": "2026-10-20 08:00:00", "endTime": "2026-10-20 20:00:00"}
+      },
+      {
+       "info": {"language": "zh-TW", "phenomena": "濃霧", "significance": "特報"},
+       "validTime": {"startTime": "2026-10-20 05:00:00", "endTime": "2026-10-20 11:00:00"}
+      }
+     ]
+    }
+   },
+   {
+    "locationName": "連江縣",
+    "geocode": "09007",
+    "hazardConditions": {
+     "hazards": [
+      {
+       "info": {"language": "zh-TW", "phenomena": "豪雨", "significance": "特報"},
+       "validTime": {"startTime": "2026-10-20 08:00:00", "endTime": "2026-10-20 20:00:00"}
+      }
+     ]
+    }
+   },
+   {
+    "locationName": "高雄市",
+    "geocode": "64",
+    "hazardConditions": {
+     "hazards": {
+      "info": {"language": "zh-TW", "phenomena": "超大豪雨", "significance": "特報"},
+      "validTime": {"startTime": "2026-10-20 08:00:00", "endTime": "2026-10-20 20:00:00"}
+     }
+    }
+   },
+   {
+    "locationName": "臺北市",
+    "geocode": "63",
+    "hazardConditions": {
+     "hazards": [
+      {
+       "info": {"language": "zh-TW", "phenomena": "大豪雨", "significance": "特報"},
+       "validTime": {"startTime": "2026-10-19 08:00:00", "endTime": "2026-10-19 20:00:00"}
+      }
+     ]
+    }
+   },
+   {"locationName": "臺中市", "geocode": "66", "hazardConditions": {"hazards": []}}
+  ]
+ }
+}

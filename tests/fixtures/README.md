@@ -46,3 +46,10 @@
 - `hko_warnsum_tc8ne_{tc,en,sc}.json`：依天文台 API 文件的回應範例格式，8 號東北信號
 - `cwa_w-c0034-001_land.json`、`cwa_w-c0034-001_sea.json`：把真實的解除警報改成生效中的
   海上陸上／海上颱風警報
+
+HD8（新天氣種類）：
+- `taf_metar_wx_20261018.json`：`data` 分支的真實快照片段（只留解析用到的欄位）——TAF VVTS（2026-10-18 18:15Z，
+  `TEMPO … 1200 +TSRA BKN015`）、RCTP（04:22Z，TEMPO 只有風、`visib` 是空字串）；METAR RJFK（22:30Z，
+  `9999 BCFG FEW001`）、PGUM（18:15Z，`10SM BKN017 OVC022`）
+- `cwa_w-c0033-001_heavy_rain.json`：**照平台文件組的格式，不是真實回應**（沒有授權碼抓不到）——金門縣大豪雨
+  ＋濃霧、連江縣豪雨、高雄市超大豪雨（`hazards` 是物件）、臺北市已結束的大豪雨、臺中市沒有特報

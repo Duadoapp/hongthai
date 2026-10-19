@@ -50,6 +50,32 @@ def test_rule_light_highest_level_and_first_slot():
     assert og.rule_light(a) == og.Light(None, "medium", "最高：中　10/20 14–20 時")
 
 
+def test_rule_light_cause_suffix():
+    """HD8：最高那格的主因（`causes[0]`）接在小字後面。"""
+    a = airport("TPE", ["low"] * 5 + ["medium", "high"] + ["low"] * 13)
+    a["slots"][5]["causes"] = ["rain"]
+    a["slots"][6]["causes"] = ["fog", "wind"]
+    assert og.rule_light(a).note == "最高：高　10/20 20 時–10/21 02 時・濃霧"
+    for cause, text in (("wind", "強風"), ("rain", "大雨"), ("snow", "大雪"), ("fog", "濃霧")):
+        a["slots"][6]["causes"] = [cause]
+        assert og.rule_light(a).note.endswith(f"・{text}")
+    # causes 空或沒有這個鍵（HD8 以前的結果）→ 不加
+    a["slots"][6]["causes"] = []
+    assert og.rule_light(a).note == "最高：高　10/20 20 時–10/21 02 時"
+    del a["slots"][6]["causes"]
+    assert og.rule_light(a).note == "最高：高　10/20 20 時–10/21 02 時"
+    # 全部低：維持「未來 5 天：低」
+    low = airport("GUM")
+    low["slots"][0]["causes"] = []
+    assert og.rule_light(low).note == "未來 5 天：低"
+
+
+def test_cause_text_in_font_subset():
+    cmap = TTFont(og.font_dir() / og.FONT_FILES["cjk"], lazy=True).getBestCmap()
+    for ch in "".join(og.CAUSE_TEXT.values()) + "・":
+        assert ord(ch) in cmap, ch
+
+
 def test_rule_light_all_low_unknown_and_mixed():
     assert og.rule_light(airport("GUM")).note == "未來 5 天：低"
     assert og.rule_light(airport("GUM")).level == "low"

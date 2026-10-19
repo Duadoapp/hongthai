@@ -1,0 +1,245 @@
+{
+ "taf": [
+  {
+   "icaoId": "VVTS",
+   "issueTime": "2026-10-18T17:00:00.000Z",
+   "validTimeFrom": 1792346400,
+   "validTimeTo": 1792454400,
+   "rawTAF": "TAF VVTS 181700Z 1818/1924 12006KT 9999 SCT020 TEMPO 1904/1909 5000 SHRA BKN015 FEW017CB TEMPO 1909/1910 15015G28KT 1200 +TSRA BKN015 SCT017CB BKN040",
+   "fcsts": [
+    {
+     "timeFrom": 1792346400,
+     "timeTo": 1792454400,
+     "fcstChange": null,
+     "probability": null,
+     "wdir": 120,
+     "wspd": 6,
+     "wgst": null,
+     "visib": "6+",
+     "vertVis": null,
+     "wxString": null,
+     "clouds": [
+      {
+       "cover": "SCT",
+       "base": 2000,
+       "type": null
+      }
+     ]
+    },
+    {
+     "timeFrom": 1792382400,
+     "timeTo": 1792400400,
+     "fcstChange": "TEMPO",
+     "probability": null,
+     "wdir": null,
+     "wspd": null,
+     "wgst": null,
+     "visib": 3.11,
+     "vertVis": null,
+     "wxString": "SHRA",
+     "clouds": [
+      {
+       "cover": "BKN",
+       "base": 1500,
+       "type": null
+      },
+      {
+       "cover": "FEW",
+       "base": 1700,
+       "type": "CB"
+      }
+     ]
+    },
+    {
+     "timeFrom": 1792400400,
+     "timeTo": 1792404000,
+     "fcstChange": "TEMPO",
+     "probability": null,
+     "wdir": 150,
+     "wspd": 15,
+     "wgst": 28,
+     "visib": 0.75,
+     "vertVis": null,
+     "wxString": "+TSRA",
+     "clouds": [
+      {
+       "cover": "BKN",
+       "base": 1500,
+       "type": null
+      },
+      {
+       "cover": "SCT",
+       "base": 1700,
+       "type": "CB"
+      },
+      {
+       "cover": "BKN",
+       "base": 4000,
+       "type": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "icaoId": "RCTP",
+   "issueTime": "2026-10-17T23:00:00.000Z",
+   "validTimeFrom": 1792281600,
+   "validTimeTo": 1792389600,
+   "rawTAF": "TAF RCTP 172300Z 1800/1906 17005KT 9999 FEW015 BKN032 BECMG 1802/1804 34005KT BECMG 1810/1812 09010KT TEMPO 1820/1901 12005KT BECMG 1904/1906 01005KT",
+   "fcsts": [
+    {
+     "timeFrom": 1792281600,
+     "timeTo": 1792288800,
+     "fcstChange": null,
+     "probability": null,
+     "wdir": 170,
+     "wspd": 5,
+     "wgst": null,
+     "visib": "6+",
+     "vertVis": null,
+     "wxString": null,
+     "clouds": [
+      {
+       "cover": "FEW",
+       "base": 1500,
+       "type": null
+      },
+      {
+       "cover": "BKN",
+       "base": 3200,
+       "type": null
+      }
+     ]
+    },
+    {
+     "timeFrom": 1792288800,
+     "timeTo": 1792317600,
+     "fcstChange": "BECMG",
+     "probability": null,
+     "wdir": 340,
+     "wspd": 5,
+     "wgst": null,
+     "visib": "6+",
+     "vertVis": null,
+     "wxString": null,
+     "clouds": [
+      {
+       "cover": "FEW",
+       "base": 1500,
+       "type": null
+      },
+      {
+       "cover": "BKN",
+       "base": 3200,
+       "type": null
+      }
+     ]
+    },
+    {
+     "timeFrom": 1792317600,
+     "timeTo": 1792382400,
+     "fcstChange": "BECMG",
+     "probability": null,
+     "wdir": 90,
+     "wspd": 10,
+     "wgst": null,
+     "visib": "6+",
+     "vertVis": null,
+     "wxString": null,
+     "clouds": [
+      {
+       "cover": "FEW",
+       "base": 1500,
+       "type": null
+      },
+      {
+       "cover": "BKN",
+       "base": 3200,
+       "type": null
+      }
+     ]
+    },
+    {
+     "timeFrom": 1792353600,
+     "timeTo": 1792371600,
+     "fcstChange": "TEMPO",
+     "probability": null,
+     "wdir": 120,
+     "wspd": 5,
+     "wgst": null,
+     "visib": "",
+     "vertVis": null,
+     "wxString": null,
+     "clouds": []
+    },
+    {
+     "timeFrom": 1792382400,
+     "timeTo": 1792389600,
+     "fcstChange": "BECMG",
+     "probability": null,
+     "wdir": 10,
+     "wspd": 5,
+     "wgst": null,
+     "visib": "6+",
+     "vertVis": null,
+     "wxString": null,
+     "clouds": [
+      {
+       "cover": "FEW",
+       "base": 1500,
+       "type": null
+      },
+      {
+       "cover": "BKN",
+       "base": 3200,
+       "type": null
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "metar": [
+  {
+   "icaoId": "RJFK",
+   "obsTime": 1792360800,
+   "reportTime": "2026-10-18T22:00:00.000Z",
+   "wdir": 10,
+   "wspd": 4,
+   "wgst": null,
+   "visib": "6+",
+   "vertVis": null,
+   "wxString": "BCFG",
+   "clouds": [
+    {
+     "cover": "FEW",
+     "base": 100
+    }
+   ],
+   "rawOb": "METAR RJFK 182200Z 01004KT 9999 BCFG FEW001 21/21 Q1020"
+  },
+  {
+   "icaoId": "PGUM",
+   "obsTime": 1792346040,
+   "reportTime": "2026-10-18T18:00:00.000Z",
+   "wdir": 140,
+   "wspd": 16,
+   "wgst": 26,
+   "visib": "10+",
+   "vertVis": null,
+   "wxString": null,
+   "clouds": [
+    {
+     "cover": "BKN",
+     "base": 1700
+    },
+    {
+     "cover": "OVC",
+     "base": 2200
+    }
+   ],
+   "rawOb": "METAR PGUM 181754Z AUTO 14016G26KT 10SM BKN017 OVC022 27/25 A2976 RMK AO2 PK WND 14028/1657 SLP068 60002 T02720250 10278 20261 55003 $"
+  }
+ ]
+}

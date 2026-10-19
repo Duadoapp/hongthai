@@ -40,7 +40,8 @@ def read_points(
 ) -> dict[str, dict[str, PointSeries]]:
     """回傳 `{點名稱: {GRIB shortName: PointSeries}}`。
 
-    shortName 例如 `10fg`、`10fg3`、`10fgg25`、`gust`。
+    shortName 例如 `10fg`、`10fg3`、`10fgg25`、`gust`。時段平均型（`stepType` 是 `avg`，例如 GFS 的
+    `0-6 hour ave` 類別降水）的鍵加 `:avg`（`csnow:avg`），不和同名的瞬時值混在一起（HD8）。
     """
     import cfgrib  # 延後載入：沒有 eccodes 的環境也能跑其他測試
 
@@ -67,6 +68,8 @@ def _read_points(cfgrib, path, points) -> dict[str, dict[str, PointSeries]]:
         for var in ds.data_vars:
             da = ds[var]
             key = da.attrs.get("GRIB_shortName") or str(var)
+            if da.attrs.get("GRIB_stepType") == "avg":
+                key += ":avg"
             picked = da.sel(latitude=lats, longitude=lons, method="nearest")
             table = picked.transpose(..., "point").values.reshape(-1, len(names))
             for i, name in enumerate(names):

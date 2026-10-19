@@ -7,7 +7,7 @@
 | --- | --- | --- | --- | --- | --- |
 | `Fraunces-Soft600.subset.ttf` | Fraunces（SuperSoft SemiBold，opsz 9） | ASCII 與數字的小字（英文名、日期時間、時間軸日期、`duado.app/hongthai`） | [undercasetype/Fraunces](https://github.com/undercasetype/Fraunces) commit `7ccdec31`，`fonts/variable/Fraunces[SOFT,WONK,opsz,wght].ttf`，Version 1.003 | ASCII 可印字元 95 個＋`–—’“”·`，共 101 字，25 KB | `OFL-Fraunces.txt` |
 | `Fraunces-Soft600-Display.subset.ttf` | Fraunces（144pt SuperSoft SemiBold，opsz 144） | 只給 IATA 大字（HD4） | 同上 | 同上，101 字，25 KB | `OFL-Fraunces.txt`（共用） |
-| `Iansui-Regular.subset.ttf` | 芫荽 Iansui | 其他字（中文、全形標點） | [ButTaiwan/iansui](https://github.com/ButTaiwan/iansui) commit `9d9a8e68`，`fonts/ttf/Iansui-Regular.ttf`，Version 1.012 | 145 字，79 KB | `OFL-Iansui.txt` |
+| `Iansui-Regular.subset.ttf` | 芫荽 Iansui | 其他字（中文、全形標點） | [ButTaiwan/iansui](https://github.com/ButTaiwan/iansui) commit `9d9a8e68`，`fonts/ttf/Iansui-Regular.ttf`，Version 1.012 | 150 字，82 KB | `OFL-Iansui.txt` |
 | `NotoSansTC-Regular.subset.ttf` | Noto Sans TC（Regular） | 芫荽缺的字（備援） | [google/fonts](https://github.com/google/fonts/tree/main/ofl/notosanstc) commit `47d54ca1`，`ofl/notosanstc/NotoSansTC[wght].ttf`，Version 2.004 | 芫荽缺的字＋全形空白；2026-10-19 芫荽全都有，所以只有全形空白 1 字，3 KB | `OFL-NotoSansTC.txt` |
 
 - Fraunces 是可變字型，用 fontTools `varLib.instancer` 固定 `SOFT` 100（最圓）、`wght` 600，產生兩個
@@ -16,7 +16,7 @@
 - 程式逐字選字型：ASCII（含數字）→ Fraunces（IATA 大字用 opsz 144 那個，其他用 opsz 9 那個）；其他字芫荽子集有就用芫荽，沒有用 Noto（`og.font_key`）
 - 子集涵蓋的字（`og.required_chars`）：`airports.json` 的機場名（zh-TW、en）與地區名（zh-TW）、
   `og.TEXTS`（燈號、小字、更新時間、品牌字樣等固定字串，也先放了 AI 對決要用的「規則」「Claude」
-  「Gemini」「沒看到明顯風險」）、`og.PUNCTUATION`（全形標點、`–`、`・`），以及全部 ASCII
+  「Gemini」「沒看到明顯風險」，HD8 加主因的「強風」「大雨」「大雪」「濃霧」）、`og.PUNCTUATION`（全形標點、`–`、`・`），以及全部 ASCII
 - Reserved Font Name：芫荽、Fraunces 沒有；Noto 的授權保留的是「Source」，子集的名稱不含這個字
 
 ## 怎麼重做

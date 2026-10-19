@@ -38,6 +38,23 @@ TAIWAN = REGIONS["taiwan"]
 TAF_ICAOS = {"RCTP", "RCSS", "RCKH", "VHHH", "VMMC", "ZSPD", "ROAH", "RJTT", "RKSI"}
 METAR_ICAOS = TAF_ICAOS | {"ROMY"}
 ISO_Z = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+LEVELS_OR_NONE = ("low", "medium", "high", None)
+# HD8 加的模式欄位，沒有降水資料時都是 None
+EC_HD8_NONE = dict.fromkeys(
+    ("rain6hMm", "ptype", "p24hRain25", "p24hRain50", "temp2mC", "rain", "snow")
+)
+GFS_HD8_NONE = dict.fromkeys(("rain6hMm", "ptype", "visibilityM", "rain", "snow", "fog"))
+PTYPES = (
+    "none",
+    "rain",
+    "freezing_rain",
+    "snow",
+    "wet_snow",
+    "rain_snow",
+    "ice_pellets",
+    "freezing_drizzle",
+    "other",
+)
 LANGS = {"zh-TW", "zh-HK", "zh-CN", "en"}
 NOW = utc(2026, 10, 18, 8, 10)
 
@@ -174,6 +191,11 @@ def test_airport_shape(latest):
         if t is not None:
             assert all(ISO_Z.match(t[k]) for k in ("issuedAt", "validFrom", "validTo"))
             assert isinstance(t["raw"], str)
+        for d in (m, t):  # HD8：能見度（公尺）、天氣現象、雲幕（呎）
+            if d is not None:
+                assert d["visibilityM"] is None or isinstance(d["visibilityM"], int)
+                assert d["ceilingFt"] is None or isinstance(d["ceilingFt"], int)
+                assert isinstance(d["wx"], list) and all(isinstance(w, str) for w in d["wx"])
         for c in a["confirmed"]:
             assert ISO_Z.match(c["from"]) and ISO_Z.match(c["to"])
             assert isinstance(c["note"], dict)
@@ -259,13 +281,55 @@ def test_slot_shape(latest):
                 "hresGustMs",
                 "hresGustKt",
                 "crosswindKt",
+                # HD8
+                "rain6hMm",
+                "ptype",
+                "p24hRain25",
+                "p24hRain50",
+                "temp2mC",
+                "rain",
+                "snow",
             }
-            assert all(is_num_or_none(v) for v in m["ec"].values())
+            ec_ptype = m["ec"]["ptype"]
+            assert ec_ptype is None or ec_ptype in PTYPES
+            assert m["ec"]["rain"] in LEVELS_OR_NONE and m["ec"]["snow"] in LEVELS_OR_NONE
+            assert all(
+                is_num_or_none(v) for k, v in m["ec"].items() if k not in ("ptype", "rain", "snow")
+            )
             # 節的欄位（HD2）：系集機率的節欄位就是 m/s 門檻的那兩個，37 節沒有來源
             assert m["ec"]["p29Kt"] == m["ec"]["p15"] and m["ec"]["p49Kt"] == m["ec"]["p25"]
             assert m["ec"]["p37Kt"] is None
-            assert set(m["gfs"]) == {"gustMs", "gustKt", "crosswindKt"}
-            assert all(is_num_or_none(v) for v in m["gfs"].values())
+            assert set(m["gfs"]) == {
+                "gustMs",
+                "gustKt",
+                "crosswindKt",
+                "rain6hMm",
+                "ptype",
+                "visibilityM",
+                "rain",
+                "snow",
+                "fog",
+            }
+            assert m["gfs"]["ptype"] is None or m["gfs"]["ptype"] in PTYPES
+            assert all(m["gfs"][k] in LEVELS_OR_NONE for k in ("rain", "snow", "fog"))
+            assert all(
+                is_num_or_none(v)
+                for k, v in m["gfs"].items()
+                if k not in ("ptype", "rain", "snow", "fog")
+            )
+            # HD8：causes 是主因在前的種類清單；官方層有 TAF 時 wx 是物件
+            assert isinstance(s["causes"], list)
+            assert set(s["causes"]) <= {"wind", "rain", "snow", "fog"}
+            if o is not None:
+                assert o["wx"] is None or set(o["wx"]) == {
+                    "phenomena",
+                    "visibilityM",
+                    "ceilingFt",
+                    "rain",
+                    "snow",
+                    "fog",
+                }
+                assert (o["wx"] is None) == (o["kind"] == "warning")
             assert m["level"] in ("low", "medium", "high", None)
             assert m["agreement"] in ("agree", "disagree", None)
 
@@ -682,8 +746,14 @@ def test_ecmwf_failure_reuses_previous_model(workspace, monkeypatch):
         "hresGustMs": 26.0,
         "hresGustKt": 50.5,
         "crosswindKt": 12.5,
+        **EC_HD8_NONE,
     }
-    assert s0["model"]["gfs"] == {"gustMs": None, "gustKt": None, "crosswindKt": None}
+    assert s0["model"]["gfs"] == {
+        "gustMs": None,
+        "gustKt": None,
+        "crosswindKt": None,
+        **GFS_HD8_NONE,
+    }
     # 等級照常用抄來的值算：HRES 26 m/s ≈ 50.5 節 → 高
     assert (s0["level"], s0["basis"], s0["model"]["level"]) == ("high", "model", "high")
     assert s0["model"]["agreement"] is None
@@ -731,7 +801,12 @@ def test_gfs_failure_reuses_previous_gfs(workspace, monkeypatch, airports):
     slots = _airport(out, "VHHH")["slots"]
     s12 = slots[12]
     assert s12["from"] == "2026-10-21T06:00:00Z"
-    assert s12["model"]["gfs"] == {"gustMs": 20.6, "gustKt": 40.0, "crosswindKt": 20.0}
+    assert s12["model"]["gfs"] == {
+        "gustMs": 20.6,
+        "gustKt": 40.0,
+        "crosswindKt": 20.0,
+        **GFS_HD8_NONE,
+    }
     assert isinstance(s12["model"]["ec"]["hresGustKt"], float)
     # 兩個模式都有了，一致性照常算
     assert s12["model"]["agreement"] in ("agree", "disagree")
@@ -793,7 +868,12 @@ def test_reuse_searches_back_to_last_good_run(workspace, monkeypatch, airports):
     s12 = _airport(out, "VHHH")["slots"][12]
     assert s12["from"] == "2026-10-21T06:00:00Z"
     # HD2 以前的格式：gustKt 由 gustMs 補（16 m/s ≈ 31.1 節）
-    assert s12["model"]["gfs"] == {"gustMs": 16.0, "gustKt": 31.1, "crosswindKt": 20.0}
+    assert s12["model"]["gfs"] == {
+        "gustMs": 16.0,
+        "gustKt": 31.1,
+        "crosswindKt": 20.0,
+        **GFS_HD8_NONE,
+    }
 
 
 def test_reuse_search_all_older_than_24h(workspace, monkeypatch, airports):
@@ -965,3 +1045,158 @@ def test_build_ai_crash_does_not_break_build(workspace, monkeypatch, airports):
     assert out["sources"]["ai"]["ok"] is False
     assert all(a["ai"]["claude"]["error"] == "network" for a in out["airports"])
     assert any(s["level"] == "high" for a in out["airports"] for s in a["slots"])
+
+
+# ---- 新天氣種類（HD8）----
+
+
+def test_metar_and_taf_json_weather_fields(latest):
+    """舊的 fixtures 去掉了 `visib`／`wxString`／`clouds`：欄位照出、值是空的。"""
+    by = {a["icao"]: a for a in latest["airports"]}
+    for icao in TAF_ICAOS:
+        assert {k: by[icao]["taf"][k] for k in ("visibilityM", "wx", "ceilingFt")} == {
+            "visibilityM": None,
+            "wx": [],
+            "ceilingFt": None,
+        }
+    m = build.metar_json(taf.Metar(NOW, 90, 5, None, "METAR … 0300 FG VV001", 300, ("FG",), 100))
+    assert (m["visibilityM"], m["wx"], m["ceilingFt"]) == (300, ["FG"], 100)
+
+
+def test_main_period_covers_now():
+    t0 = utc(2026, 10, 18, 6)
+
+    def period(kind, a, b, vis):
+        return taf.TafPeriod(
+            t0 + timedelta(hours=a), t0 + timedelta(hours=b), kind, 0, 5, None, vis
+        )
+
+    info = taf.TafInfo(
+        None,
+        None,
+        None,
+        "",
+        [
+            period("main", 0, 4, 9999),
+            period("tempo", 0, 6, 800),
+            period("main", 4, 24, 3000),  # BECMG 之後的主時段
+        ],
+    )
+    assert build.main_period(info, t0 + timedelta(hours=1)).vis_m == 9999
+    assert build.main_period(info, t0 + timedelta(hours=5)).vis_m == 3000
+    assert build.main_period(info, t0 + timedelta(hours=30)).vis_m == 9999  # 都過了取第一個
+    assert build.taf_json(info, t0 + timedelta(hours=5))["visibilityM"] == 3000
+
+
+def _hd8_inputs(airports):
+    ec, gf, tf, hk, cw, sm, nw = sample_inputs(airports)
+    by_lang = {lang: load_json(f"hko_warnsum_tc8ne_{lang}.json") for lang in ("tc", "en", "sc")}
+    for lang, name, color in (
+        ("tc", "暴雨警告信號", "黑色"),
+        ("en", "Rainstorm Warning Signal", "Black"),
+        ("sc", "暴雨警告信号", "黑色"),
+    ):
+        by_lang[lang]["WRAIN"] = {
+            "name": name,
+            "code": "WRAINB",
+            "type": color,
+            "actionCode": "ISSUE",
+            "issueTime": "2026-10-18T15:00:00+08:00",
+        }
+        by_lang[lang]["WTS"] = {
+            "name": "Thunderstorm Warning",
+            "code": "WTS",
+            "actionCode": "ISSUE",
+            "issueTime": "2026-10-18T15:00:00+08:00",
+        }
+    hk = hko.HkoData(hko.parse_signal(by_lang), by_lang, hko.parse_warnings(by_lang))
+    hz_raw = load_json("cwa_w-c0033-001_heavy_rain.json")
+    cw = cwa.CwaData(cw.bulletins, {}, cwa.parse_hazards(hz_raw, utc(2026, 10, 20, 2)), hz_raw)
+    return ec, gf, tf, hk, cw, sm, nw
+
+
+def test_hd8_warnings_in_output(airports):
+    ec, gf, tf, hk, cw, sm, nw = _hd8_inputs(airports)
+    status = {n: {"ok": True} for n in build.SOURCE_NAMES}
+    out = build.assemble(
+        now=NOW,
+        regions=load_regions(ROOT / "airports.json"),
+        airports=airports,
+        confirmed=[],
+        status=status,
+        ec=ec,
+        gf=gf,
+        tf=tf,
+        hk=hk,
+        cw=cw,
+        sm=sm,
+        nw=nw,
+    )
+    out = json.loads(json.dumps(out))
+    by = {a["icao"]: a for a in out["airports"]}
+    vhhh = {w["kind"]: w for w in by["VHHH"]["warnings"]}
+    assert set(vhhh) == {"tc_signal", "rainstorm_black", "thunderstorm"}
+    assert (vhhh["rainstorm_black"]["source"], vhhh["rainstorm_black"]["code"]) == ("hko", "WRAINB")
+    assert vhhh["rainstorm_black"]["level"] == "medium"
+    assert vhhh["thunderstorm"]["level"] == "low" and vhhh["thunderstorm"]["code"] == "WTS"
+    assert by["VHHH"]["slots"][0]["official"]["warnings"] == [
+        "tc_signal",
+        "rainstorm_black",
+        "thunderstorm",
+    ]
+    # 澳門不看天文台
+    assert all(w["source"] != "hko" for w in by["VMMC"]["warnings"])
+    # 金門：氣象署大豪雨特報（fixture 的金門縣）→ 中，主因雨
+    (kinmen,) = [w for w in by["RCBS"]["warnings"] if w["kind"] == "cwa_heavy_rain"]
+    assert (kinmen["source"], kinmen["kind"], kinmen["level"], kinmen["detail"]) == (
+        "cwa",
+        "cwa_heavy_rain",
+        "medium",
+        "大豪雨",
+    )
+    assert set(kinmen["text"]) == LANGS
+    s0 = by["RCBS"]["slots"][0]
+    assert (s0["basis"], s0["official"]["kind"], s0["official"]["wx"]) == (
+        "official",
+        "warning",
+        None,
+    )
+    assert "cwa_heavy_rain" in s0["official"]["warnings"]
+    assert "rain" in s0["causes"]  # fixture 同時有陸上颱風警報（算 wind）
+
+
+def test_cwa_heavy_rain_error_recorded():
+    assert build._cwa_extra(cwa.CwaData([], {})) == {}
+    assert build._cwa_extra(cwa.CwaData([], {}, hazards_error="http_500")) == {
+        "heavyRainOk": False,
+        "heavyRainError": "http_500",
+    }
+
+
+def test_cwa_hazards_raw_written(workspace, monkeypatch, airports):
+    *_, cw, _, _ = _hd8_inputs(airports)
+    _fail_all_but(monkeypatch)
+    monkeypatch.setattr(build.cwa, "fetch", lambda *a: cw)
+    assert build.main([]) == 0
+    raw = workspace / "data" / "history" / "raw" / "2026-10-18"
+    assert json.loads((raw / "0810Z-cwa-hazards.json").read_text("utf-8")) == cw.hazards_raw
+    assert (raw / "0810Z-cwa.json").exists()
+
+
+def test_reuse_copies_rain_and_rescores_causes(workspace, monkeypatch):
+    ec = {"p10": 0.1, "p15": 0.0, "p25": 0.0, "hresGustMs": 5.0, "crosswindKt": 2.0}
+    ec |= {"rain6hMm": 12.0, "ptype": "snow", "temp2mC": -2.0, "rain": "low", "snow": "high"}
+    prev = _prev(
+        "2026-10-18T02:10:00Z",
+        {"ecmwf": "2026-10-18T00:00:00Z", "ecmwfEns": None, "gfs": None},
+        ec=ec,
+    )
+    _write_prev(workspace, prev)
+    _fail_all_but(monkeypatch)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    s0 = _airport(out, "VHHH")["slots"][0]
+    m = s0["model"]["ec"]
+    assert (m["rain6hMm"], m["ptype"], m["temp2mC"]) == (12.0, "snow", -2.0)
+    assert (m["rain"], m["snow"]) == ("low", "high")  # 照抄來的雨量重算（不是抄等級）
+    assert (s0["level"], s0["basis"], s0["causes"]) == ("high", "model", ["snow"])
