@@ -94,6 +94,13 @@
     `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`＝`global`）。模型 `claude-opus-5-5`、`gemini-4-argon`（Vertex）。
     保險：每報最多評 20 個機場、每天每模型 80 次、不重試、預算 180 秒、兩模型平行。提示詞
     `docs/prompts/2026-10-19-HD5-ai-duel.md`
+    **已實作（HD5 PR）**：`src/hongthai/ai/`——`config.py`（模型字串、免責四語、上限，換模型只改這裡）、
+    `select.py`（選機場）、`prompt.py`（系統提示 `SYSTEM` 與精簡文字）、`parse.py`（回應檢查、錯誤代碼）、
+    `claude.py`、`gemini.py`、`run.py`（平行呼叫、每日上限、`ai` 欄位、戰績）；`build.run_ai` 在寫檔前跑、
+    `og.lights_for` 有 `ok` 的 AI 燈時畫三顆。戰績 `data` 分支 `history/ai/<日期>.json`、每日次數
+    `history/ai/calls-<日期>.json`。和提示詞不一樣的地方：Claude 不送 `temperature`（Opus 5.5 送了回 400）、
+    `effort: "low"`；多兩個錯誤代碼 `run_cap`（排在 20 個之後沒評）、`refusal`（拒答）。欄位與代碼見 README
+    「輸出」的 HD5 那段與「AI 對決」
   - **第五階段：新天氣種類**——大雨／雷雨、大雪／結冰、濃霧；12 月北海道下雪前上線
   - 順序（2026-10-19 定案）：HD2 → H9 → HD3（十個新機場）→ HD1（預覽圖）→ AI 對決 → 天氣種類；
     **新天氣種類有硬期限（12 月北海道下雪前），AI 對決拖到的話天氣種類排到 AI 前面**。11/18 檢討停飛統計
@@ -126,6 +133,25 @@
   `typhoon_warning`／`typhoon_watch`／`ts_warning`／`ts_watch`，`code` 是 NWS 的 event；`sources.nws`。
   關島 `official.warnings: true`，越南、菲律賓、帛琉 `false`
 
+- HD5（AI 對決）加的欄位，要和 Duado `docs/spec.md` 第 16 節一致：頂層 `ai`（`disclaimer` 四語、`models`）、
+  `airports[].ai`（`evaluatedAt`、`claude`、`gemini` 兩顆燈）、`sources.ai`（`ok`、`seconds`、`calls`、
+  `errors`）。錯誤代碼比定稿多兩個，要經 Shawn 轉給 Duado 總指揮：`run_cap`（符合條件但排在前 20 個之後、
+  沒評）、`refusal`（模型拒答或被安全過濾擋下）；網頁照 `error` 處理（燈顯示資料不足）即可
+
+## 安全與隱私
+
+- 公開 repo：程式、測試、PR、提示詞、截圖裡都不能有金鑰或個資；這個 repo 不碰任何個資
+- 金鑰只由 Shawn 放進 **Settings → Secrets and variables → Actions**，程式只從環境變數讀
+  （`build.yml` 的「產生 latest.json」那一步把 secrets 帶進環境變數）：
+  - `CWA_API_KEY`：中央氣象署開放資料授權碼
+  - `ANTHROPIC_API_KEY`：Claude Console「HongThai」Workspace 的金鑰（AI 對決，HD5）
+  - `GOOGLE_SERVICE_ACCOUNT_JSON`：GCP 服務帳號金鑰 **JSON 整份原文**（不是 base64）；程式 `json.loads`
+    後交給 `service_account.Credentials.from_service_account_info`，不寫到磁碟（HD5）
+  - `GOOGLE_CLOUD_PROJECT`：GCP 專案 ID（HD5）
+  - `GOOGLE_CLOUD_LOCATION`：`global`（Gemini 4 Argon 只開 global、us、eu；HD5）
+- AI 的金鑰 HongThai 專屬、各月上限 30 美元、不跟 Duado 共用；程式內另有每報 20 個機場、每天每模型
+  80 次的上限（`src/hongthai/ai/config.py`）
+
 ## 流程
 
 1. 主對話寫提示詞（`docs/prompts/…`）→ 雲端對話實作、開 PR 到 `main`
@@ -133,7 +159,8 @@
 3. 主對話審 PR → 回 Shawn「可以合併」→ Shawn 合併（或開 auto-merge）
 4. `build`（`.github/workflows/build.yml`）排程每天 UTC 01:05、08:25、13:05、20:25 跑
    `python -m hongthai.build`，結果推 `data` 分支、發布 GitHub Pages；`publish()` 之後畫 51 張分享預覽圖
-   `public/og/<iata>.png`（HD1，只在 Pages、不進 `data` 分支；畫不出來只 log，`history/timing/` 有 `og` 那行）
+   `public/og/<iata>.png`（HD1，只在 Pages、不進 `data` 分支；畫不出來只 log，`history/timing/` 有 `og` 那行）。
+   寫檔前跑 AI 對決（HD5，`history/timing/` 有 `ai` 那行，`calls` 是兩個模型的呼叫次數）
 5. 改了來源或格式的 PR，合併後請 Shawn 到 **Actions → build → Run workflow** 手動跑一次，
    然後開 latest.json 確認
 
@@ -200,8 +227,8 @@ NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權�
 ### 來源逾時與沿用（H7，2026-10-18 build #4 被 ECMWF 429 卡到被砍之後）
 
 - 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 300（H10 起，原 240）、gfs 180、taf 45、hko 30、
-  smg 30、cwa 45、nws 30（HD3）、flights 120 秒，總和 13 分鐘），超過記 `error: "timeout"` 繼續跑下一個；
-  Actions 那一步 15 分鐘、job 25 分鐘
+  smg 30、cwa 45、nws 30（HD3）、flights 120、ai 180（HD5）、og 60（HD1）秒，總和 17 分鐘），超過記
+  `error: "timeout"` 繼續跑下一個；Actions 那一步 18 分鐘、job 28 分鐘（HD5 前 15／25）
 - ECMWF 重試最多 3 次、間隔 10 秒、不照 Retry-After；找最新一報先問入口、下載先試 AWS 鏡像
   （→ 入口 → Google；AWS 下載不重試，S3 的 503 Slow Down 一來就換），`sources.ecmwf.mirror` 記實際來源。`ecmwf-opendata` 最低 0.3.34（有重試參數）
 - GFS（H10）：先 AWS 開放資料鏡像（`.idx`＋HTTP `Range` 只抓三筆），失敗才 NOMADS（2026-10-18 12:42Z 起
@@ -232,6 +259,9 @@ Actions 自動推，不要手動改。內容：
   `done`；每個來源一跑完就寫，所以被 Actions 砍掉也留得下來，沒有 `done` 就是那次被砍了。
   欄位見 README「輸出」
 - `history/flights/2026-10-18/`：H6 之前存的一天份航班快照（gz），留著不管
+- `history/ai/<YYYY-MM-DD>.json`：AI 對決戰績（HD5），每報每機場一筆三方等級＋20 格的 `from`／`level`，
+  不存短評；`history/ai/calls-<YYYY-MM-DD>.json`：每個模型今天（UTC）呼叫了幾次（每日上限 80 用）。
+  11/18 拿戰績對 `history/cancellations/` 回看誰事前比較準
 
 GitHub Pages（`public/`）只放 `latest.json` 與**最近 7 天**的 `history/<時間>.json`（H9 起，一份約 515 KB；HD3 起約 642 KB，2026-10-18 實測；
 `build.py` 的 `PAGES_HISTORY_DAYS`，Shawn 確認中），以及分享預覽圖 `og/<iata 小寫>.png`（HD1，每報重畫，

@@ -18,6 +18,9 @@ dependencies = [
     "requests>=2.31",
     "pillow>=10.4",  # 分享預覽圖（HD1）
     "fonttools>=4.53",  # 分享預覽圖的字型 cmap、tools/make_font_subset.py
+    "anthropic>=1.15.0",  # AI 對決（HD5）：Claude
+    "google-genai>=2.31.0",  # AI 對決（HD5）：Gemini（Vertex AI）
+    "google-auth>=2.62.0",  # AI 對決（HD5）：Vertex 的服務帳號
 ]
 
 [project.optional-dependencies]

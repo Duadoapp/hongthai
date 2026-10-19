@@ -7,12 +7,15 @@ import re
 import threading
 import time
 from datetime import timedelta
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
 from conftest import FIXTURES, ROOT, load_json, utc
 
 from hongthai import budget, build, grib
+from hongthai.ai import config as ai_config
+from hongthai.ai.parse import AiError
 from hongthai.config import ConfirmedPeriod, Thresholds, load_airports, load_regions
 from hongthai.sources import cwa, ecmwf, gfs, hko, nws, smg, taf
 from hongthai.sources.gfs import GfsData, GustPoint
@@ -75,8 +78,23 @@ def sample_inputs(airports):
     return ec, gf, tf, hk, cw, sm, nw
 
 
+AI_COMMENT = {"zh-TW": "高。", "zh-HK": "高。", "zh-CN": "高。", "en": "High."}
+
+
+def fake_ai(level: str | None = "high", code: str | None = None, delay: float = 0.0):
+    """假的 AI 模型（`ai.run.EVALUATORS` 的一個值）：`level` 給 None 時每次丟 `AiError(code)`。"""
+
+    def evaluate(text, *, client=None, timeout=60):
+        time.sleep(delay)
+        if level is None:
+            raise AiError(code or "bad_format")
+        return {"level": level, "comment": dict(AI_COMMENT)}
+
+    return SimpleNamespace(make_client=object, evaluate=evaluate)
+
+
 @pytest.fixture
-def latest(airports):
+def latest(airports, tmp_path):
     ec, gf, tf, hk, cw, sm, nw = sample_inputs(airports)
     regions = load_regions(ROOT / "airports.json")
     status = {n: {"ok": True} for n in build.SOURCE_NAMES}
@@ -98,6 +116,11 @@ def latest(airports):
         sm=sm,
         nw=nw,
     )
+    # AI 對決（HD5）：Claude 成功、Gemini 格式不對
+    evaluators = {"claude": fake_ai("high"), "gemini": fake_ai(None, "bad_format")}
+    duel = build.ai.Duel(out, None, NOW, tmp_path, evaluators=evaluators)
+    res = duel.run()
+    build.ai.apply(out, res, {"ok": res["source"]["ok"], "seconds": 0.1, **res["source"]})
     # 確認可以序列化成 JSON，並用序列化後的結果檢查
     return json.loads(json.dumps(out))
 
@@ -108,7 +131,7 @@ def test_top_level(latest):
     assert set(latest["runs"]) >= {"ecmwf", "gfs"}
     for v in latest["runs"].values():
         assert v is None or ISO_Z.match(v)
-    assert set(latest["sources"]) >= {"ecmwf", "gfs", "taf", "hko", "cwa", "smg", "nws"}
+    assert set(latest["sources"]) >= {"ecmwf", "gfs", "taf", "hko", "cwa", "smg", "nws", "ai"}
     for s in latest["sources"].values():
         assert isinstance(s["ok"], bool)
         if not s["ok"]:
@@ -154,6 +177,59 @@ def test_airport_shape(latest):
         for c in a["confirmed"]:
             assert ISO_Z.match(c["from"]) and ISO_Z.match(c["to"])
             assert isinstance(c["note"], dict)
+
+
+def test_ai_shape(latest):
+    """AI 對決（HD5，Duado spec 第 16 節）：頂層 `ai`、`airports[].ai`、`sources.ai`。"""
+    assert latest["ai"] == {
+        "disclaimer": {
+            "zh-TW": "AI 評論僅供參考，以航空公司與機場公告為準",
+            "zh-HK": "AI 評論僅供參考，以航空公司及機場公告為準",
+            "zh-CN": "AI 评论仅供参考，以航空公司与机场公告为准",
+            "en": "AI commentary is for reference only; follow airline and airport announcements.",
+        },
+        "models": {"claude": "claude-opus-5-5", "gemini": "gemini-4-argon"},
+    }
+    errors = {"no_api_key", "timeout", "bad_format", "network", "daily_cap", "run_cap", "refusal"}
+    statuses = set()
+    for a in latest["airports"]:
+        ai = a["ai"]
+        assert set(ai) == {"evaluatedAt", "claude", "gemini"}
+        assert ai["evaluatedAt"] is None or ISO_Z.match(ai["evaluatedAt"])
+        for key, model in (("claude", "claude-opus-5-5"), ("gemini", "gemini-4-argon")):
+            light = ai[key]
+            statuses.add(light["status"])
+            assert light["model"] == model
+            if light["status"] == "ok":
+                assert set(light) == {"status", "level", "comment", "model"}
+                assert light["level"] in ("low", "medium", "high")
+                assert set(light["comment"]) == LANGS
+            elif light["status"] == "skipped":
+                assert set(light) == {"status", "level", "comment", "model"}
+                assert light["level"] == "low"
+                assert light["comment"]["zh-TW"] == "沒看到明顯風險"
+                assert set(light["comment"]) == LANGS
+            else:
+                assert light["status"] == "error"
+                assert set(light) == {"status", "level", "comment", "model", "error"}
+                assert light["level"] is None and light["comment"] is None
+                assert light["error"] in errors or light["error"].startswith("http_")
+        both_error = all(ai[k]["status"] == "error" for k in ("claude", "gemini"))
+        assert (ai["evaluatedAt"] is None) == both_error
+    # 樣本的 GFS 陣風每個機場都 40 節（中）→ 51 個都符合，前 20 個被評、其他 run_cap
+    # （skipped 的結構在 test_ai.py 測）
+    assert statuses == {"ok", "error"}
+    errs = [a["ai"]["claude"].get("error") for a in latest["airports"]]
+    assert errs.count(None) == 20 and errs.count("run_cap") == 31
+    # 樣本：香港 8 號信號（高）→ 被評；Claude 成功、Gemini 格式不對
+    vhhh = next(a for a in latest["airports"] if a["icao"] == "VHHH")["ai"]
+    assert vhhh["evaluatedAt"] == "2026-10-18T08:10:00Z"
+    assert vhhh["claude"]["status"] == "ok" and vhhh["gemini"]["error"] == "bad_format"
+    src = latest["sources"]["ai"]
+    assert src["ok"] is True and isinstance(src["seconds"], float)
+    assert set(src["calls"]) == {"claude", "gemini"}
+    assert all(isinstance(v, int) for v in src["calls"].values())
+    assert src["errors"] == {"gemini": "bad_format"}
 
 
 def test_slot_shape(latest):
@@ -355,6 +431,8 @@ def workspace(tmp_path, monkeypatch):
         raise build.requests.ConnectionError("測試不連網")
 
     monkeypatch.setattr(build.requests, "get", no_network)
+    for k in (k for keys in ai_config.ENV.values() for k in keys):  # AI 對決（HD5）不呼叫
+        monkeypatch.delenv(k, raising=False)
     # 預覽圖（HD1）在 test_og.py 測；這裡不畫，build 的測試才不會每個多幾秒
     monkeypatch.setattr(
         build.og, "render_all", lambda latest, out_dir: {"ok": True, "count": 0, "bytes": 0}
@@ -376,12 +454,15 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
     monkeypatch.delenv("CWA_API_KEY", raising=False)
     assert build.main([]) == 0
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
-    assert {k: v["ok"] for k, v in out["sources"].items() if k != "flights"} == dict.fromkeys(
-        build.SOURCE_NAMES, False
-    )
+    assert {
+        k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "ai")
+    } == dict.fromkeys(build.SOURCE_NAMES, False)
     assert out["sources"]["cwa"]["error"] == "no_api_key"
     assert out["runs"] == {"ecmwf": None, "ecmwfEns": None, "gfs": None}
     assert all(s["level"] == "unknown" for a in out["airports"] for s in a["slots"])
+    # 沒有上一份、全部 unknown → 沒有機場要評；沒設金鑰照樣記 no_api_key
+    assert out["sources"]["ai"]["errors"] == {"claude": "no_api_key", "gemini": "no_api_key"}
+    assert all(a["ai"]["claude"]["status"] == "skipped" for a in out["airports"])
     # data/ 裡有 latest 與歷史，public/history 也有
     assert (workspace / "data" / "latest.json").exists()
     assert len(list((workspace / "public" / "history").glob("*.json"))) == 1
@@ -404,6 +485,7 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     monkeypatch.setattr(build.smg, "fetch", lambda: sm)
     monkeypatch.setattr(build.nws, "fetch", lambda zones: zones_asked.extend(zones) or nw)
     monkeypatch.setattr(build, "utcnow", lambda: NOW)
+    monkeypatch.setattr(build.ai, "EVALUATORS", {"claude": fake_ai("high"), "gemini": fake_ai()})
     assert build.main([]) == 0
     assert zones_asked == ["GUZ001"]
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
@@ -766,6 +848,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "smg",
         "nws",
         "flights",
+        "ai",
         "og",
         "done",
     ]
@@ -785,6 +868,9 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     assert (gfs_line["ok"], gfs_line["error"], gfs_line["bytes"]) == (True, None, 0)
     assert gfs_line["mirror"] is None  # 假的 fetch 沒有記 mirror
     assert lines[5]["error"] == "no_api_key"
+    ai_line = lines[9]
+    assert set(ai_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
+    assert ai_line["bytes"] == 0 and ai_line["calls"] == {"claude": 0, "gemini": 0}
     assert lines[-1]["ok"] is True and isinstance(lines[-1]["seconds"], float)
 
 
@@ -813,3 +899,69 @@ def test_pages_history_only_last_7_days(tmp_path):
     assert sorted(p.name for p in (out / "history").iterdir()) == sorted(stamps[:3])
     assert len(list((archive / "history").glob("*.json"))) == 6
     assert json.loads((out / "latest.json").read_text("utf-8"))["generatedAt"] == build.iso(NOW)
+
+
+# ---- AI 對決（HD5）----
+
+
+def _risky_build(workspace, monkeypatch, airports):
+    """ecmwf 以外都失敗；用 fixtures 的 HRES，有幾個機場會有中、高的格。"""
+    ec, *_ = sample_inputs(airports)
+    _fail_all_but(monkeypatch, ecmwf=lambda *a, **k: ec)
+
+
+def _out(workspace):
+    return json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+
+
+def test_build_ai_no_api_key(workspace, monkeypatch, airports):
+    """本機沒有金鑰：被選的機場兩顆都 no_api_key（evaluatedAt null），其他照出。"""
+    _risky_build(workspace, monkeypatch, airports)
+    assert build.main([]) == 0
+    out = _out(workspace)
+    selected = [a for a in out["airports"] if a["ai"]["claude"].get("error") == "no_api_key"]
+    assert selected, "fixtures 應該有中、高的格"
+    for a in selected:
+        assert a["ai"]["evaluatedAt"] is None
+        assert a["ai"]["claude"]["error"] == a["ai"]["gemini"]["error"] == "no_api_key"
+    src = out["sources"]["ai"]
+    assert src["ok"] is False and src["calls"] == {"claude": 0, "gemini": 0}
+    assert src["error"] == "claude:no_api_key,gemini:no_api_key"
+    assert out["ai"]["models"] == {"claude": "claude-opus-5-5", "gemini": "gemini-4-argon"}
+    # 戰績檔與每日次數在 data 分支，不在 Pages
+    hist = workspace / "data" / "history" / "ai"
+    assert sorted(p.name for p in hist.iterdir()) == ["2026-10-18.json", "calls-2026-10-18.json"]
+    assert len(json.loads((hist / "2026-10-18.json").read_text("utf-8"))) == 51
+    assert not (workspace / "public" / "history" / "ai").exists()
+
+
+def test_build_ai_timeout(workspace, monkeypatch, airports):
+    _risky_build(workspace, monkeypatch, airports)
+    monkeypatch.setattr(
+        build.ai, "EVALUATORS", {"claude": fake_ai("low"), "gemini": fake_ai("high", delay=3)}
+    )
+    monkeypatch.setitem(build.BUDGET_S, "ai", 0.5)
+    t0 = time.monotonic()
+    assert build.main([]) == 0
+    assert time.monotonic() - t0 < 2.5
+    out = _out(workspace)
+    picked = [a["ai"] for a in out["airports"] if a["ai"]["claude"]["status"] == "ok"]
+    assert len(picked) == 20 and all(ai["gemini"]["error"] == "timeout" for ai in picked)
+    src = out["sources"]["ai"]
+    assert src["ok"] is True and src["errors"] == {"gemini": "timeout"} and src["seconds"] == 0.5
+    line = next(r for r in _timing_lines(workspace) if r["source"] == "ai")
+    assert line["seconds"] == 0.5 and line["calls"]["claude"] == len(picked)
+
+
+def test_build_ai_crash_does_not_break_build(workspace, monkeypatch, airports):
+    _risky_build(workspace, monkeypatch, airports)
+
+    def crash(*a, **k):
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(build.ai, "Duel", crash)
+    assert build.main([]) == 0
+    out = _out(workspace)
+    assert out["sources"]["ai"]["ok"] is False
+    assert all(a["ai"]["claude"]["error"] == "network" for a in out["airports"])
+    assert any(s["level"] == "high" for a in out["airports"] for s in a["slots"])

@@ -10,6 +10,8 @@
   - `history/timing/<YYYY-MM>.jsonl`（每次 build 每個來源的耗時，一行一筆，見 `Timing`）
   - `history/cancellations/unknown-statuses.json`（航班狀態對照表沒列的字串與次數，見
     `cancellations.store_unknown`）
+  - `history/ai/<YYYY-MM-DD>.json`（AI 對決戰績）、`history/ai/calls-<YYYY-MM-DD>.json`（每個模型
+    今天呼叫了幾次；HD5，見 `ai/run.py`）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
   `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
   以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）
@@ -17,6 +19,12 @@
 失敗處理：單一來源失敗記在 `sources.<名稱>`，其他照出。整個流程失敗（例外沒接到）時不產生新的
 `latest.json`，改用上一份（先找 `--archive` 裡的，沒有就從 Pages 網址抓）重新發布，並回傳非 0。
 預覽圖在 `publish()` 之後畫（`draw_og`，改發布上一份時也用那一份畫），畫不出來只 log，不影響回傳值。
+
+AI 對決（HD5，`ai/`）：組好 `latest.json`、模式沿用之後，在寫檔之前跑（`run_ai`）。
+走 `_call("ai", …)`、預算 `BUDGET_S["ai"]`；兩個模型平行呼叫，超時的機場記 `error: "timeout"`。
+AI 失敗不影響 `latest.json` 其他內容：頂層 `ai`、每個機場的 `ai`、`sources.ai` 一定會有
+（細節見 `ai/run.py`）。每日呼叫次數與對決戰績寫在 `--archive` 的 `history/ai/`
+（不進 Pages、不進 `latest.json`）。
 
 時間預算（H7）：每個來源（含航班）在 daemon 執行緒裡跑，最多等 `BUDGET_S` 秒；超過就記
 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`、不等它，繼續下一個來源
@@ -48,6 +56,7 @@ from pathlib import Path
 import requests
 
 from . import assess, budget, cancellations, og
+from .ai import run as ai
 from .config import (
     Airport,
     ConfirmedPeriod,
@@ -68,7 +77,8 @@ SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa", "smg", "nws")
 
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
 # 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。
-# 總和 840 秒（14 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒），`build.yml` 那一步的上限是 15 分鐘。
+# 總和 1020 秒（17 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒），`build.yml` 那一步的
+# 上限是 18 分鐘。
 BUDGET_S: dict[str, float] = {
     "ecmwf": 300,  # HRES＋系集，含鏡像切換
     "gfs": 180,
@@ -78,6 +88,7 @@ BUDGET_S: dict[str, float] = {
     "cwa": 45,
     "nws": 30,  # HD3：關島的颱風警報，一個請求
     "flights": 120,  # 抓＋統計＋寫檔
+    "ai": 180,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒
     "og": 60,  # HD1：51 張分享預覽圖，publish() 之後畫（本機約 3 秒）
 }
 
@@ -111,6 +122,8 @@ class Timing:
     - 開始：`{"run", "source": "start", "ok": true, "seconds": 0, "commit"}`
     - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf 與 gfs 多 `mirror`
     - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
+    - AI 對決（HD5）：`{"run", "source": "ai", "ok", "error", "seconds", "bytes": 0,
+      "calls": {"claude": n, "gemini": n}}`（`calls` 是這一報的呼叫次數）
     - 結束：`{"run", "source": "done", "ok": <有沒有產出 latest.json>, "seconds": <總秒數>}`
     """
 
@@ -137,6 +150,9 @@ class Timing:
         }
         if name in ("ecmwf", "gfs"):
             fields["mirror"] = st.get("mirror", ctx.notes.get("mirror"))
+        if name == "ai":
+            fields["bytes"] = 0
+            fields["calls"] = st.get("calls")
         self.write(**fields)
 
 
@@ -584,6 +600,7 @@ def run(
             prev = previous_latest(archive, pages_url)  # archive 裡找不到的退回上一份（H7 的做法）
             sources = {n: d if d is not None else prev for n, d in sources.items()}
         reuse_models(latest, sources, failed, now, airports)
+    run_ai(latest, previous_latest(archive, pages_url), now, history, timing)
 
     stamp = f"{now:%Y%m%dT%H%M}Z"
     raw_dir = history / "raw" / f"{now:%Y-%m-%d}"
@@ -601,6 +618,31 @@ def run(
     _dump(history / f"{stamp}.json", latest)
     _dump(archive / "latest.json", latest)
     return latest
+
+
+def run_ai(
+    latest: dict, prev: dict | None, now: datetime, history: Path, timing: Timing | None = None
+) -> None:
+    """AI 對決（HD5）：在 `BUDGET_S["ai"]` 秒內評，結果寫進 `latest`（頂層 `ai`、
+    `airports[].ai`、`sources.ai`），寫一行耗時紀錄（`source: "ai"`）。任何失敗都不丟例外、
+    不動 `latest` 其他內容。"""
+    status: dict[str, dict] = {}
+    t0 = time.monotonic()
+    try:
+        duel = ai.Duel(latest, prev, now, history, budget_s=BUDGET_S["ai"])
+        _call("ai", duel.run, status)
+        result = duel.result(timed_out=status["ai"].get("error") == "timeout")
+    except Exception as e:  # 保險：AI 不能讓 build 失敗
+        log.exception("AI 對決失敗")
+        status["ai"] = {"ok": False, "error": e.__class__.__name__}
+        result = ai.fallback(latest, "network")
+    src = result["source"]
+    seconds = status.get("ai", {}).get("seconds", round(time.monotonic() - t0, 1))
+    source = {"ok": src["ok"], "seconds": seconds, **{k: v for k, v in src.items() if k != "ok"}}
+    ai.apply(latest, result, source)
+    log.info("AI 對決：%s", source)
+    if timing is not None:
+        timing.source("ai", source, budget.Context())
 
 
 def publish(out: Path, archive: Path, latest: dict | None, now: datetime) -> None:

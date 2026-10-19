@@ -13,8 +13,10 @@
   日期時段（「最高：高　10/23 14–20 時」）；全部低寫「未來 5 天：低」。有 `confirmed` 的格（視為高）
   時色塊寫「已確認」、小字「已確認停飛　<第一個已確認的格>」；全部 `unknown` 寫「資料不足」；
   有的格 `unknown`、有的有等級時只看有等級的
-- 三顆燈：`render` 吃 `lights: list[Light]`，現在只傳一顆規則燈（`label=None` 不畫標籤）；AI 對決時
-  多傳兩顆（`label="Claude"`／`"Gemini"`，規則燈 `label="規則"`），色塊寬度自動排
+- 三顆燈（HD5，`lights_for`）：機場的 `ai` 兩顆都是 `skipped` 或 `error`（或沒有 `ai`）時
+  只畫一顆規則燈（`label=None` 不畫標籤）；任一顆 `ok` 時畫三顆：「規則」（同上的等級與小字）、
+  「Claude」、「Gemini」（AI 的等級；短評不畫、小字留空；`error` 用 `unknown` 色塊寫「資料不足」、
+  `skipped` 用 low），色塊寬度自動排、時間軸移到燈號下方整排
 - 顏色、字型都是 Duado 晨光風格：淺底、大圓角色塊、不用框線與陰影、不做深色版
   （`COLORS`、`LEVEL_COLORS`）
 - 字型（`assets/fonts/`，都是 SIL OFL 1.1，只放子集）：ASCII 與數字用 Fraunces（SOFT 100、
@@ -449,6 +451,27 @@ def rule_light(airport: dict, label: str | None = None) -> Light:
     return Light(label, top, f"最高：{LEVEL_TEXT[top]}　{slot_text(first, tz)}")
 
 
+AI_LABELS = {"claude": "Claude", "gemini": "Gemini"}
+
+
+def ai_light(light: object, label: str) -> Light:
+    """一顆 AI 燈：`ok` 用模型的等級、`skipped` 用 low、其他（`error`、格式怪）用 unknown。"""
+    d = light if isinstance(light, dict) else {}
+    if d.get("status") == "ok" and d.get("level") in RANKED:
+        return Light(label, d["level"], "")
+    if d.get("status") == "skipped":
+        return Light(label, "low", "")
+    return Light(label, "unknown", "")
+
+
+def lights_for(airport: dict) -> list[Light]:
+    """一顆規則燈；`ai` 任一顆是 `ok` 時三顆（規則、Claude、Gemini）。"""
+    ai = airport.get("ai") if isinstance(airport.get("ai"), dict) else {}
+    if not any(isinstance(ai.get(k), dict) and ai[k].get("status") == "ok" for k in AI_LABELS):
+        return [rule_light(airport)]
+    return [rule_light(airport, "規則"), *(ai_light(ai.get(k), v) for k, v in AI_LABELS.items())]
+
+
 def render_all(latest: dict, out_dir: Path) -> dict:
     """`latest.json` 的每個機場畫一張 `out_dir/<iata 小寫>.png`；`out_dir` 裡不在這份的舊圖刪掉。
 
@@ -466,7 +489,7 @@ def render_all(latest: dict, out_dir: Path) -> dict:
     for a in airports:
         budget.check_cancelled()  # 超過預算被放棄了就不再畫
         try:
-            total += render(a, generated_at, [rule_light(a)], out_dir / f"{a['iata'].lower()}.png")
+            total += render(a, generated_at, lights_for(a), out_dir / f"{a['iata'].lower()}.png")
             count += 1
         except Exception as e:  # 一個機場的資料怪，其他照畫
             log.warning("預覽圖 %s 畫不出來：%s", a.get("iata"), e, exc_info=True)
