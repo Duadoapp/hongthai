@@ -889,10 +889,30 @@ def test_duel_nothing_selected_still_reports_missing_keys(tmp_path):
     assert res["source"]["ok"] is False and res["source"]["errors"] == {"claude": "no_api_key"}
 
 
-def test_duel_daily_cap(tmp_path):
+def test_duel_no_daily_cap_by_default(tmp_path):
+    """開發期間 `DAILY_CAP=0` 不限（HD11）：超過 80 次照常呼叫，次數檔照常累加。"""
+    assert config.DAILY_CAP == 0 and ai_run.DAILY_CAP == 0
     path = tmp_path / "ai" / "calls-2026-10-19.json"
     path.parent.mkdir(parents=True)
-    path.write_text(json.dumps({"claude": 78, "gemini": 80}), "utf-8")
+    path.write_text(json.dumps({"claude": 79, "gemini": 80}), "utf-8")
+    cl, ge = fake_model(), fake_model()
+    res = ai_run.evaluate_all(
+        duel_doc(3, 0), None, NOW, tmp_path, evaluators={"claude": cl, "gemini": ge}
+    )
+    for i in range(3):
+        a = res["airports"][f"RC{i:02d}"]
+        assert a["claude"]["status"] == "ok" and a["gemini"]["status"] == "ok"
+    assert len(cl.calls) == 3 and len(ge.calls) == 3
+    assert json.loads(path.read_text("utf-8")) == {"claude": 82, "gemini": 83}
+    assert res["source"]["calls"] == {"claude": 3, "gemini": 3}
+    assert "errors" not in res["source"]
+
+
+def test_duel_daily_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_run, "DAILY_CAP", 2)
+    path = tmp_path / "ai" / "calls-2026-10-19.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"claude": 0, "gemini": 2}), "utf-8")
     cl, ge = fake_model(), fake_model()
     res = ai_run.evaluate_all(
         duel_doc(4, 0), None, NOW, tmp_path, evaluators={"claude": cl, "gemini": ge}
@@ -902,7 +922,7 @@ def test_duel_daily_cap(tmp_path):
     assert sum(s.get("error") == "daily_cap" for s in statuses) == 2
     assert all(res["airports"][f"RC{i:02d}"]["gemini"]["error"] == "daily_cap" for i in range(4))
     assert len(cl.calls) == 2 and ge.calls == []
-    assert json.loads(path.read_text("utf-8")) == {"claude": 80, "gemini": 80}
+    assert json.loads(path.read_text("utf-8")) == {"claude": 2, "gemini": 2}
     assert res["source"]["calls"] == {"claude": 2, "gemini": 0}
     # 換日（UTC）重新算
     res = ai_run.evaluate_all(
@@ -1069,9 +1089,10 @@ def test_no_keys_in_code():
         assert "BEGIN PRIVATE" + " KEY" not in text, p
 
 
-def test_duel_detail_only_for_call_failures(tmp_path):
+def test_duel_detail_only_for_call_failures(tmp_path, monkeypatch):
     """`detail` 只在真的呼叫失敗時有（HTTP 錯誤沒有回應，stop_reason／token 寫 `-`）；
     `daily_cap`、`no_api_key`、`run_cap` 沒呼叫，沒有 `detail`；`latest.json` 那邊不加欄位。"""
+    monkeypatch.setattr(ai_run, "DAILY_CAP", 80)
     path = tmp_path / "ai" / "calls-2026-10-19.json"
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps({"claude": 0, "gemini": 80}), "utf-8")

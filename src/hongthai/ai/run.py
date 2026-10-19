@@ -4,7 +4,8 @@
   Claude 4 條、Gemini 2 條）
 - 每日上限：`history/ai/calls-<YYYY-MM-DD>.json`（UTC 日期，`{"claude": n, "gemini": n}`）記每個模型
   今天呼叫了幾次；到 `DAILY_CAP` 之後的機場記 `error: "daily_cap"`、不呼叫。每次呼叫（成功或失敗）
-  都算一次，開始呼叫前就先記
+  都算一次，開始呼叫前就先記。`DAILY_CAP` 是 0（或負數）代表不限：不檢查、不會有 `daily_cap`，
+  次數檔照常累加（開發期間，HD11）
 - 沒被選的機場：兩顆燈 `status: "skipped"`、`level: "low"`、`comment` 固定四語（`NO_RISK`）
 - 符合條件但排在 `MAX_AIRPORTS` 之後的機場：兩顆燈 `status: "error"`、`error: "run_cap"`
   （不能寫「沒看到明顯風險」，那些機場可能是中級）
@@ -222,7 +223,7 @@ class Duel:
                 self._set(key, icao, error(key, "timeout"))
                 return
         with self.lock:
-            if self.calls[key] >= DAILY_CAP:
+            if DAILY_CAP > 0 and self.calls[key] >= DAILY_CAP:
                 self.lights[key][icao] = error(key, "daily_cap")
                 return
             self.calls[key] += 1

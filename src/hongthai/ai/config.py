@@ -23,7 +23,9 @@ GEMINI_THINKING_LEVEL = "LOW"
 TIMEOUT_S = 60  # 單次請求
 
 MAX_AIRPORTS = 20  # 每報最多評幾個機場
-DAILY_CAP = 80  # 每天（UTC）每個模型最多呼叫幾次
+# 每天（UTC）每個模型最多呼叫幾次；0 代表不限（開發期間，2026-10-19 定案；
+# 正式推廣前再評估，恢復時改成 80 之類的數字即可）
+DAILY_CAP = 0
 PARALLEL = {"claude": 4, "gemini": 2}  # 每個模型幾條並行（Gemini 4 條時撞過 429，HD6）
 
 LEVELS = ("low", "medium", "high")

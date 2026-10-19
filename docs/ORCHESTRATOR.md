@@ -92,7 +92,7 @@
     之後再決定要不要公開。金鑰：HongThai 專屬的 Anthropic 金鑰與 Google 服務帳號，各設每月上限 30 美元，
     不跟 Duado 共用，只放 Actions secrets（`ANTHROPIC_API_KEY`、`GOOGLE_SERVICE_ACCOUNT_JSON`＝JSON 整份原文、
     `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`＝`global`）。模型 `claude-opus-5-5`、`gemini-4-argon`（Vertex）。
-    保險：每報最多評 20 個機場、每天每模型 80 次、不重試、預算 180 秒、兩模型平行。提示詞
+    保險：每日上限開發期間不限（`DAILY_CAP=0`），正式推廣前再評估；每報 20 個機場、不重試、180 秒預算不變；兩模型平行。提示詞
     `docs/prompts/2026-10-19-HD5-ai-duel.md`。短評用字規則（不出現內部代號、四語照 Duado 語系規則、不寫英文
     等級字、統一「停飛風險」；違規記 `bad_wording`）見 `docs/prompts/2026-10-19-HD6-ai-wording.md`
     **已實作（HD5 PR）**：`src/hongthai/ai/`——`config.py`（模型字串、免責四語、上限，換模型只改這裡）、
@@ -209,8 +209,8 @@
   - `GOOGLE_CLOUD_PROJECT`：GCP 專案 ID（HD5）
   - `GOOGLE_CLOUD_LOCATION`：`global`（Gemini 4 Argon 只開 global、us、eu；HD5）
 - AI 的金鑰 HongThai 專屬、各月上限 30 美元、不跟 Duado 共用；程式內另有每報 20 個機場的上限
-  （`src/hongthai/ai/config.py`）。每天每模型 80 次的上限**開發期間不限**（2026-10-19 定案，HD11，`DAILY_CAP=0`），
-  正式推廣前再評估；手動 Run workflow 也照常跑 AI
+  （`src/hongthai/ai/config.py`）。每日上限**開發期間不限**（`DAILY_CAP=0`，2026-10-19 定案，HD11），正式推廣前再評估；
+  每報 20 個機場、不重試、180 秒預算不變；手動 Run workflow 也照常跑 AI
 
 ## 流程
 
@@ -332,7 +332,7 @@ Actions 自動推，不要手動改。內容：
   欄位見 README「輸出」
 - `history/flights/2026-10-18/`：H6 之前存的一天份航班快照（gz），留著不管
 - `history/ai/<YYYY-MM-DD>.json`：AI 對決戰績（HD5），每報每機場一筆三方等級＋20 格的 `from`／`level`，
-  不存短評；`history/ai/calls-<YYYY-MM-DD>.json`：每個模型今天（UTC）呼叫了幾次（每日上限 80 用）。
+  不存短評；`history/ai/calls-<YYYY-MM-DD>.json`：每個模型今天（UTC）呼叫了幾次（每日上限用；開發期間不限、照常記，評估用量用）。
   11/18 拿戰績對 `history/cancellations/` 回看誰事前比較準
 
 GitHub Pages（`public/`）只放 `latest.json` 與**最近 7 天**的 `history/<時間>.json`（H9 起，一份約 515 KB；HD3 起約 642 KB，2026-10-18 實測；
