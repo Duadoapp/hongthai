@@ -119,6 +119,10 @@
     警報：天文台黑雨 → 中，紅雨、雷暴只列出不升級；氣象署大豪雨以上且機場在範圍 → 中；JMA 大雪警報另開 HD9；
     澳門、韓國、越南、菲律賓這階段不加。欄位清單在 `docs/worklog/2026-10-19.md`「待網頁配合」。
     提示詞 `docs/prompts/2026-10-19-HD8-weather-types.md`。金門、馬祖沒有 TAF／METAR，霧先只有模式層（HD8 查來源）
+    **HD10（2026-10-19 定案）：模式層的霧（GFS 能見度）最高只到「中」**，要到「高」必須官方層（TAF／METAR）真的有霧或
+    低雲幕達 < 400 公尺或雲底 ≤ 100 呎——GFS 能見度不準、只有一個模式沒對照、大雨時也會被壓很低（06:56Z 釜山只靠
+    GFS 308 公尺判 high；花蓮台東大雨格 76–92 公尺）。提示詞 `docs/prompts/2026-10-19-HD10-model-fog-cap.md`。
+    HD9 留給 JMA 大雪警報
     **已實作（HD8 PR）**：規則在 `assess.py`（開頭 docstring「新天氣種類」）、門檻在 `config.Thresholds`（12 個
     camelCase 鍵，`airports.json` 可覆寫）、TAF／METAR 的 `vis_m`／`wx`／`ceiling_ft` 在 `sources/taf.py`、
     ECMWF `tp`／`ptype`／`2t`＋`tpg25`／`tpg50`、GFS `APCP`／類別降水／`VIS`、天文台 `WRAIN`／`WTS`、
