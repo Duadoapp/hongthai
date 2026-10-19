@@ -97,6 +97,18 @@ pytest -q && ruff check . && ruff format --check .
 中央氣象署的資料需要授權碼，從環境變數 `CWA_API_KEY` 讀；沒設定時氣象署標
 `sources.cwa.ok=false, error="no_api_key"`，其他照出。**不要把授權碼寫進程式或 repo。**
 
+AI 對決（HD5，下面「AI 對決」）的金鑰也只從環境變數讀：
+
+| 環境變數 | 內容 |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Claude Console「HongThai」Workspace 的金鑰 |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | GCP 服務帳號金鑰 **JSON 整份原文**（不是 base64；程式 `json.loads` 後直接用，不寫到磁碟） |
+| `GOOGLE_CLOUD_PROJECT` | GCP 專案 ID |
+| `GOOGLE_CLOUD_LOCATION` | `global`（Gemini 4 Argon 只開 global、us、eu） |
+
+少任一個時那個模型記 `error: "no_api_key"`、不呼叫，另一個照跑；本機沒設就是兩個都 `no_api_key`，
+其他照出。
+
 整個流程約 4–5 分鐘（2026-10-18 實測 262 秒：ECMWF HRES 約 113 MB／90 秒、系集約 10 MB、GFS 兩個框
 共 42 個 1–2 KB 的小檔約 110 秒、航班快照五個機場約 20 秒），下載大小與耗時印在 log，
 也寫進 `data` 分支的 `history/timing/`（見下面「輸出」）。
@@ -139,12 +151,14 @@ H10（2026-10-18）之後：
 | cwa | 45 | 幾秒 |
 | nws（HD3，關島） | 30 | 不到 1 秒 |
 | flights（抓＋統計＋寫檔） | 120 | 約 20 |
+| ai（AI 對決，HD5；兩個模型平行，每報最多 20 個機場） | 180 | 還沒實測（單次請求逾時 60 秒） |
 | og（分享預覽圖 51 張，HD1；`publish()` 之後） | 60 | 約 3–6 |
 
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和 840 秒（14 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒），Actions「產生 latest.json」那一步上限 15 分鐘、整個 job 25 分鐘
+- 總和 1020 秒（17 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒），Actions「產生 latest.json」
+  那一步上限 18 分鐘、整個 job 28 分鐘（HD5 前是 15／25）
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
   重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
   下載先試 AWS 鏡像，那一報還沒同步到或失敗再回 ECMWF 入口，再失敗試 Google；實際從哪裡下載記在
@@ -191,6 +205,7 @@ H10（2026-10-18）之後：
 - `src/hongthai/build.py`：組 JSON、寫檔、失敗處理
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
   重做腳本 `tools/make_font_subset.py`
+- `src/hongthai/ai/`：AI 對決（HD5，下面「AI 對決」）；模型字串、免責四語、上限都在 `ai/config.py`
 
 ### 輸出
 
@@ -202,8 +217,10 @@ H10（2026-10-18）之後：
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
   `/alerts/active` 的原始回應，HD3 起）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
-  原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`，以及
-  每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`。這些都不進 GitHub Pages、不進 `latest.json`
+  原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`、
+  每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`，以及 AI 對決的戰績
+  `history/ai/<YYYY-MM-DD>.json` 與每日呼叫次數 `history/ai/calls-<YYYY-MM-DD>.json`（HD5，下面
+  「AI 對決」）。這些都不進 GitHub Pages、不進 `latest.json`
 
 `history/timing/<YYYY-MM>.jsonl`：一行一筆 JSON，每個來源一跑完就 append（不等全部結束），所以
 「產生 latest.json」被 Actions 砍掉時已經寫的行也會推上去。`run` 和那次的 `generatedAt` 相同：
@@ -212,11 +229,13 @@ H10（2026-10-18）之後：
 {"run": "2026-10-18T09:28:00Z", "source": "start", "ok": true, "seconds": 0, "commit": "a59b42d"}
 {"run": "2026-10-18T09:28:00Z", "source": "ecmwf", "ok": false, "error": "timeout", "seconds": 240.0, "bytes": 0, "mirror": "aws"}
 {"run": "2026-10-18T09:28:00Z", "source": "gfs", "ok": true, "error": null, "seconds": 108.3, "bytes": 61234, "mirror": "nomads"}
+{"run": "2026-10-18T09:28:00Z", "source": "ai", "ok": true, "error": null, "seconds": 41.7, "bytes": 0, "calls": {"claude": 12, "gemini": 12}}
 {"run": "2026-10-18T09:28:00Z", "source": "done", "ok": true, "seconds": 371.2}
 ```
 
-- `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`nws`（HD3 起）、`flights`、`og`（HD1 起，
-  分享預覽圖；改發布上一份時也有）、`done`（照執行順序）
+- `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`nws`（HD3 起）、`flights`、`ai`（HD5 起，
+  AI 對決；`bytes` 是 0、`calls` 是這一報每個模型呼叫了幾次）、`og`（HD1 起，分享預覽圖；改發布上一份時
+  也有）、`done`（照執行順序）
 - `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`（`og` 有幾張畫不出來時是
   `"<IATA>:<例外類別>"`，多個用 `,` 接）；`bytes`：下載量（逾時的是到那時為止，
   ecmwf 只算下載完的檔；`og` 是畫出來的圖的總大小）；
@@ -267,7 +286,11 @@ H10（2026-10-18）之後：
   "schema": 1,
   "generatedAt": "2026-10-18T08:10:00Z",
   "runs": { "ecmwf": "2026-10-18T00:00:00Z", "ecmwfEns": "2026-10-18T00:00:00Z", "gfs": "2026-10-18T00:00:00Z" },
-  "sources": { "ecmwf": { "ok": true }, "gfs": { "ok": true }, "taf": { "ok": true }, "hko": { "ok": true }, "cwa": { "ok": false, "error": "no_api_key" } },
+  "sources": { "ecmwf": { "ok": true }, "gfs": { "ok": true }, "taf": { "ok": true }, "hko": { "ok": true }, "cwa": { "ok": false, "error": "no_api_key" }, "ai": { "ok": true, "seconds": 41.7, "calls": { "claude": 12, "gemini": 12 }, "errors": { "gemini": "bad_format" } } },
+  "ai": {
+    "disclaimer": { "zh-TW": "AI 評論僅供參考，以航空公司與機場公告為準", "zh-HK": "AI 評論僅供參考，以航空公司及機場公告為準", "zh-CN": "AI 评论仅供参考，以航空公司与机场公告为准", "en": "AI commentary is for reference only; follow airline and airport announcements." },
+    "models": { "claude": "claude-opus-5-5", "gemini": "gemini-4-argon" }
+  },
   "regions": [
     { "id": "taiwan", "name": { "zh-TW": "台灣", "zh-HK": "台灣", "zh-CN": "台湾", "en": "Taiwan" } },
     { "id": "east-china", "name": { "zh-TW": "華東", "zh-HK": "華東", "zh-CN": "华东", "en": "East China" } }
@@ -290,7 +313,12 @@ H10（2026-10-18）之後：
           "gap": false
         }
       ],
-      "confirmed": [ { "from": "…", "to": "…", "note": { "zh-TW": "…", "en": "…" } } ]
+      "confirmed": [ { "from": "…", "to": "…", "note": { "zh-TW": "…", "en": "…" } } ],
+      "ai": {
+        "evaluatedAt": "2026-10-18T08:10:00Z",
+        "claude": { "status": "ok", "level": "medium", "comment": { "zh-TW": "…", "zh-HK": "…", "zh-CN": "…", "en": "…" }, "model": "claude-opus-5-5" },
+        "gemini": { "status": "error", "level": null, "comment": null, "model": "gemini-4-argon", "error": "bad_format" }
+      }
     }
   ]
 }
@@ -326,6 +354,28 @@ HD3（2026-10-19）加的（只加值、不加欄位，既有欄位不改名、�
   （NWS 每次更新都重發，所以是最近一次更新的時間）；`slots[].official.warnings` 裡是同一個 `kind`
 - `sources.nws`
 
+HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 Duado spec 第 16 節；既有欄位不改名、不改型別）：
+
+- 頂層 `ai`：`{ "disclaimer": { 四語 }, "models": { "claude": "claude-opus-5-5", "gemini": "gemini-4-argon" } }`。
+  免責四語是固定字串（`ai/config.py` 的 `DISCLAIMER`）；網頁燈的標題用 `models` 顯示模型名，鍵名
+  `claude`／`gemini` 換模型版本也不改
+- `airports[].ai`：`{ "evaluatedAt", "claude": <燈>, "gemini": <燈> }`，每個機場都有
+  - `evaluatedAt`：這一報的時間（＝`generatedAt`）；兩顆燈都是 `error` 時 `null`（`skipped` 也填時間）
+  - `<燈>`：`{ "status", "level", "comment", "model" }`，`error` 時多 `"error"`
+    - `status: "ok"`：`level` 是 `low`／`medium`／`high`，`comment` 是四語短評（以 zh-TW 為準、其他三語是
+      忠實翻譯，每語最多 400 字）
+    - `status: "skipped"`（沒被選、不呼叫）：`level: "low"`，`comment` 固定四語「沒看到明顯風險」
+      （zh-HK「未見明顯風險」、zh-CN「未见明显风险」、en「No notable risk seen」）
+    - `status: "error"`：`level: null`、`comment: null`，`error` 是代碼：`no_api_key`（沒設金鑰）、`timeout`
+      （單次請求 60 秒或整個 AI 步驟 180 秒到了）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
+      超過 400 字、被 `max_tokens` 截斷）、`http_<碼>`（API 回錯誤，例如 `http_429`）、`network`、
+      `daily_cap`（那個模型今天已經呼叫 80 次）；**規格以外多兩個**：`run_cap`（符合條件但排在這一報前 20 個
+      之後，沒評；不寫「沒看到明顯風險」，因為可能是中級）、`refusal`（模型拒答或被安全過濾擋下）
+- `sources.ai`：`{ "ok": <兩個模型至少一個有成功>, "seconds", "calls": { "claude": n, "gemini": n },
+  "errors": { "<模型>": "<代碼>" } }`；`calls` 是這一報的呼叫次數，`errors` 只列有失敗的模型（那個模型
+  最多的代碼，`run_cap` 不算），沒有就不出現。這一報沒有要評的機場、金鑰也都在時 `ok: true`。
+  `ok: false` 時照其他來源的慣例多一個 `error`（`"claude:no_api_key,gemini:no_api_key"` 這種）
+
 規格以外加的欄位與值（網頁可以忽略）：
 
 - HD2（2026-10-19）加的節欄位（要進 Duado spec 第 16 節；舊欄位全部照出、型別不變）：
@@ -352,6 +402,50 @@ HD3（2026-10-19）加的（只加值、不加欄位，既有欄位不改名、�
 - 官方與模式都沒資料的格：`level: "unknown"`、`basis: "none"`、`model.level: null`；
   `agreement` 在少一個模式時是 `null`
 - TAF 沒涵蓋、也沒有警報的 0–30 小時格：`official: null`、`basis: "model"`
+
+## AI 對決
+
+HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈——**規則**（現有等級）、**Claude**
+（`claude-opus-5-5`）、**Gemini**（`gemini-4-argon`，Vertex AI）。兩個 AI 各自讀該機場的全部數據，
+給自己的等級（低／中／高）與一段短評，像評論員；數據照舊全部保留給讀者。程式在 `src/hongthai/ai/`。
+
+- **只評哪些機場**（`ai/select.py`）：未來 5 天任一格 `level` 是中／高／已確認，或和上一份 `latest.json`
+  同機場同 `from` 的格 `level` 不同（「等級有變」，`unknown` 和 `low` 互換也算）。依「5 天內最高等級
+  （已確認 > 高 > 中 > 低）、再依第一個達到那級的格早的」排序，**每報最多評 20 個**；其他機場兩顆 AI 燈
+  直接寫「沒看到明顯風險」、不呼叫（`skipped`）；符合條件但排在 20 個之後的記 `error: "run_cap"`
+- **給模型看什麼**（`ai/prompt.py`）：那個機場的精簡文字（不丟整段 JSON）——機場名、時區、METAR、TAF 原文、
+  生效中的警報、已確認停飛，20 格每格的當地時段、等級、依據、官方（TAF 平均風／陣風、側風、警報）、
+  模式（EC／GFS 陣風、側風、`p29Kt`／`p49Kt`）、一致性、落差，單位一律節、機率用百分比；最後附規則燈的
+  門檻（37／48 節、側風 27／33 節、`p49Kt` 30%）。系統提示全文在 `ai/prompt.py` 的 `SYSTEM`
+- **規則**：AI 只能根據給它的數據講，不能用其他知識或外部資訊、不能自己估機率；短評 zh-TW 60–120 字，說明
+  依據哪幾格、哪些數字，只講風險判讀、不給乘客建議；**一次輸出四語，以 zh-TW 為準，zh-HK、zh-CN、en 是
+  忠實翻譯，內容完全一樣、不得增減**，zh-HK、zh-CN 用當地用語。回應一定要是
+  `{"level", "comment": {四語}}` 的 JSON，不然記 `bad_format`
+- **免責**：頂層 `ai.disclaimer`「AI 評論僅供參考，以航空公司與機場公告為準」（四語）
+- **保險**（`ai/config.py`）：每報最多評 20 個機場；每天（UTC）每個模型最多 80 次呼叫（`history/ai/calls-<日期>.json`
+  記次數，成功失敗都算），超過的記 `daily_cap`；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
+  的自動重試都關掉）；單次請求逾時 60 秒；整個 AI 步驟預算 180 秒（`BUDGET_S["ai"]`），兩個模型**平行**
+  呼叫、每個模型 4 條並行，超過的機場記 `timeout`。AI 失敗不影響 `latest.json` 其他內容
+- **模型參數**：Claude 用官方 `anthropic` SDK（Messages API），`max_tokens` 1200、`effort: "low"`；
+  **不送 `temperature`**——Opus 5.5 不接受取樣參數（送了回 400），思考也關不掉、思考的 token 算在
+  `max_tokens` 裡，所以用 `low` 留空間給四語短評；沒開 server-side fallback（換別的模型回答，戰績會記錯人）。
+  Gemini 用 `google-genai` SDK（`vertexai=True`、`location` 用 `GOOGLE_CLOUD_LOCATION`、服務帳號憑證），
+  `max_output_tokens` 1200、`temperature` 0.3、`response_mime_type: application/json`
+- **金鑰**：見上面「怎麼跑」的四個環境變數；HongThai 專屬（各月上限 30 美元、不跟 Duado 共用），只放 Actions secrets
+- **對決戰績**（`data` 分支 `history/ai/<YYYY-MM-DD>.json`，UTC 日期一天一檔；不進 Pages、不進 `latest.json`）：
+  每報每個機場一筆，同一跑次同一機場新的覆蓋舊的（同 `cancellations` 的寫法），依 `run`、`airport` 排序。
+  只存等級與格，不存短評全文（短評在 `history/<時間>.json` 裡）。11/18 拿來對 `history/cancellations/`
+  回看規則、Claude、Gemini 誰事前比較準：
+
+```json
+{ "run": "2026-10-19T02:15:00Z", "airport": "RCKH", "selected": "level",
+  "rule": { "maxLevel": "high", "firstFrom": "2026-10-23T00:00:00Z" },
+  "claude": { "status": "ok", "level": "high" }, "gemini": { "status": "ok", "level": "medium" },
+  "slots": [ { "from": "2026-10-19T00:00:00Z", "level": "low" } ] }
+```
+
+- `selected`：被選的原因 `"level"`／`"changed"`，沒被選（含 `run_cap`）是 `null`；`rule.maxLevel` 是 5 天內最高
+  等級（全部 `unknown` 是 `null`）、`firstFrom` 是第一個達到那級的格；`slots` 是 20 格的 `from` 與 `level`
 
 ## 分享預覽圖
 
@@ -381,9 +475,10 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
   - 全部低：「未來 5 天：低」
   - 有 `confirmed` 的格（視為高）：色塊「已確認」、小字「已確認停飛　<第一個已確認的格>」
   - 全部 `unknown`：色塊與小字都是「資料不足」；有的格 `unknown`、有的有等級時只看有等級的
-- 三顆燈：`og.render(airport, generated_at, lights, out_path)` 吃 `lights: list[Light(label, level, note)]`，
-  現在只傳一顆規則燈（`label=None`，不畫標籤）。AI 對決那支多傳兩顆（標籤「規則」「Claude」「Gemini」），
-  色塊會並排、寬度自動縮，小字放各自色塊下面
+- 三顆燈（HD5，`og.lights_for`）：機場的 `ai` 兩顆都是 `skipped` 或 `error` 時照舊一顆規則燈（不畫標籤）；
+  任一顆 `ok` 時畫三顆，標籤「規則」「Claude」「Gemini」：規則燈同上（等級與小字），AI 燈畫模型的等級，
+  短評不畫、小字留空；`error` 的那顆用資料不足色塊寫「資料不足」，`skipped` 的用低。色塊並排、寬度自動縮，
+  時間軸移到燈號下方整排
 - PNG 用固定調色盤（品牌色＋反鋸齒的中間色）＋`optimize=True`：每張約 17–20 KB，51 張約 0.9 MB；
   本機畫 51 張約 3.5 秒（HD4 加了時間軸後，2026-10-19 用 Pages 上 19:02Z 那份 `latest.json` 實測
   943 KB、3.5 秒；HD1 時是 893 KB、3.2 秒）
@@ -402,7 +497,9 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 1. **Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**
 2. **Settings → Secrets and variables → Actions → New repository secret**：名稱 `CWA_API_KEY`，
    值是中央氣象署開放資料平台的授權碼（<https://opendata.cwa.gov.tw> 免費註冊後在「取得授權碼」）
-3. **Actions → build → Run workflow** 手動跑一次，然後開
+3. AI 對決（HD5）：同一頁再新增四個 secret——`ANTHROPIC_API_KEY`、`GOOGLE_SERVICE_ACCOUNT_JSON`（服務帳號
+   金鑰 JSON 整份原文）、`GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`（`global`）。2026-10-19 已放好
+4. **Actions → build → Run workflow** 手動跑一次，然後開
    <https://duadoapp.github.io/hongthai/latest.json> 確認
 
 之後每天 UTC 01:05、08:25、13:05、20:25（台北／香港 09:05、16:25、21:05、04:25）自動跑。

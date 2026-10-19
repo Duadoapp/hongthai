@@ -169,6 +169,59 @@ def test_render_three_lights(tmp_path):
         assert im.getpixel((x, top + 12)) == og._rgb(og.LEVEL_COLORS[lt.level][0])
 
 
+def _ai(claude: dict | None, gemini: dict | None) -> dict:
+    return {"evaluatedAt": "2026-10-19T02:15:00Z", "claude": claude, "gemini": gemini}
+
+
+OK_HIGH = {"status": "ok", "level": "high", "comment": {}, "model": "m"}
+SKIPPED = {"status": "skipped", "level": "low", "comment": {}, "model": "m"}
+ERROR = {"status": "error", "level": None, "comment": None, "model": "m", "error": "timeout"}
+
+
+def test_lights_for_one_or_three():
+    """AI 對決（HD5）：兩顆 AI 都 skipped／error（或沒有 ai）時一顆規則燈；任一顆 ok 時三顆。"""
+    a = airport("KHH", ["low"] * 16 + ["high"] * 4)
+    rule = og.rule_light(a)
+    assert og.lights_for(a) == [rule]
+    for claude, gemini in ((SKIPPED, SKIPPED), (ERROR, SKIPPED), (ERROR, ERROR), (None, None)):
+        assert og.lights_for({**a, "ai": _ai(claude, gemini)}) == [rule]
+    three = og.lights_for({**a, "ai": _ai(OK_HIGH, ERROR)})
+    assert three == [
+        og.Light("規則", rule.level, rule.note),
+        og.Light("Claude", "high", ""),
+        og.Light("Gemini", "unknown", ""),  # error → 資料不足
+    ]
+    three = og.lights_for({**a, "ai": _ai(SKIPPED, {**OK_HIGH, "level": "medium"})})
+    assert [(lt.label, lt.level) for lt in three] == [
+        ("規則", "high"),
+        ("Claude", "low"),  # skipped → low
+        ("Gemini", "medium"),
+    ]
+    # 格式怪的 ok（等級不認得）當資料不足
+    weird = og.lights_for({**a, "ai": _ai(OK_HIGH, {**OK_HIGH, "level": "severe"})})
+    assert weird[2].level == "unknown"
+
+
+def test_render_all_switches_to_three_lights(tmp_path):
+    a1 = airport("KHH", ["low"] * 16 + ["high"] * 4)
+    a3 = {**airport("TPE", ["medium"] * 20), "ai": _ai(OK_HIGH, ERROR)}
+    latest = {"generatedAt": "2026-10-19T02:15:00Z", "airports": [a1, a3]}
+    st = REAL_RENDER_ALL(latest, tmp_path)
+    assert st["ok"] and st["count"] == 2
+    one, three = _check_png(tmp_path / "khh.png"), _check_png(tmp_path / "tpe.png")
+    top = og.MARGIN + og.LABEL_SIZE + 14
+    w = min(og.BLOCK_W, (og.LIGHTS_MAX_W - 2 * og.BLOCK_GAP) // 3)
+    right = og.WIDTH - og.MARGIN
+    colors = [og.LEVEL_COLORS[k][0] for k in ("medium", "high", "unknown")]
+    for i, bg in enumerate(colors):
+        x = right - (3 - i) * w - (2 - i) * og.BLOCK_GAP + 12
+        assert three.getpixel((x, top + 12)) == og._rgb(bg)
+    # 一顆燈：色塊頂端在 MARGIN（沒有標籤列）
+    assert one.getpixel((right - 20, og.MARGIN + 20)) == og._rgb(og.LEVEL_COLORS["high"][0])
+    _, lay = og._draw(a3, latest["generatedAt"], og.lights_for(a3))
+    assert lay.timeline[1] > lay.lights[3]  # 時間軸移到燈號下方整排
+
+
 def _overlap(a, b) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
