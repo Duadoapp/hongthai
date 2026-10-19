@@ -209,16 +209,16 @@ def taf(kind, wind, gust, start_h=0, end_h=6):
 
 
 def test_taf_gust48_high():
-    assert taf_for_slot([taf("main", 20, 48)], *SLOTS[0], TH)["level"] == "high"
-    assert taf_for_slot([taf("main", 20, 47)], *SLOTS[0], TH)["level"] == "medium"
+    assert taf_for_slot([taf("main", 20, 48)], NOW, *SLOTS[0], TH)["level"] == "high"
+    assert taf_for_slot([taf("main", 20, 47)], NOW, *SLOTS[0], TH)["level"] == "medium"
 
 
 def test_taf_wind35_high():
-    assert taf_for_slot([taf("main", 35, None)], *SLOTS[0], TH)["level"] == "high"
+    assert taf_for_slot([taf("main", 35, None)], NOW, *SLOTS[0], TH)["level"] == "high"
 
 
 def test_taf_gust37_medium_and_kind_of_worst_period():
-    o = taf_for_slot([taf("main", 15, None), taf("tempo", 25, 38, 2, 4)], *SLOTS[0], TH)
+    o = taf_for_slot([taf("main", 15, None), taf("tempo", 25, 38, 2, 4)], NOW, *SLOTS[0], TH)
     assert o == {
         "windKt": 25,
         "gustKt": 38,
@@ -229,13 +229,13 @@ def test_taf_gust37_medium_and_kind_of_worst_period():
 
 
 def test_taf_prob_period_counts():
-    o = taf_for_slot([taf("main", 10, None), taf("prob30", 30, 50, 1, 3)], *SLOTS[0], TH)
+    o = taf_for_slot([taf("main", 10, None), taf("prob30", 30, 50, 1, 3)], NOW, *SLOTS[0], TH)
     assert (o["kind"], o["level"]) == ("prob30", "high")
 
 
 def test_taf_below_threshold_low_and_no_overlap_none():
-    assert taf_for_slot([taf("main", 20, 36)], *SLOTS[0], TH)["level"] == "low"
-    assert taf_for_slot([taf("main", 20, 36, 6, 12)], *SLOTS[0], TH) is None
+    assert taf_for_slot([taf("main", 20, 36)], NOW, *SLOTS[0], TH)["level"] == "low"
+    assert taf_for_slot([taf("main", 20, 36, 6, 12)], NOW, *SLOTS[0], TH) is None
 
 
 # ---- 0–30 小時官方優先 ----
@@ -364,22 +364,22 @@ def test_crosswind_thresholds():
 def test_taf_crosswind_raises_level():
     # 陣風 28 節（陣風規則低），正側風 → 側風 28 節 → 中
     p = TafPeriod(S0, S0 + timedelta(hours=6), "main", 140, 15, 28)
-    t = taf_for_slot([p], S0, S0 + timedelta(hours=6), TH, RWY_05)
+    t = taf_for_slot([p], NOW, S0, S0 + timedelta(hours=6), TH, RWY_05)
     assert t["crosswindKt"] == 28 and t["level"] == "medium"
     # 同樣的風沿著跑道吹 → 側風 0、低
     p = TafPeriod(S0, S0 + timedelta(hours=6), "main", 50, 15, 28)
-    t = taf_for_slot([p], S0, S0 + timedelta(hours=6), TH, RWY_05)
+    t = taf_for_slot([p], NOW, S0, S0 + timedelta(hours=6), TH, RWY_05)
     assert t["crosswindKt"] == 0 and t["level"] == "low"
     # 沒有陣風用平均風；VRB 用風速本身
     p = TafPeriod(S0, S0 + timedelta(hours=6), "tempo", None, 36, None)
-    t = taf_for_slot([p], S0, S0 + timedelta(hours=6), TH, RWY_05)
+    t = taf_for_slot([p], NOW, S0, S0 + timedelta(hours=6), TH, RWY_05)
     assert t["crosswindKt"] == 36 and t["level"] == "high"
 
 
 def test_taf_gust_rule_wins_over_low_crosswind():
     # 陣風 48 節沿跑道 → 側風 0，但陣風規則是高 → 高
     p = TafPeriod(S0, S0 + timedelta(hours=6), "main", 50, 30, 48)
-    t = taf_for_slot([p], S0, S0 + timedelta(hours=6), TH, RWY_05)
+    t = taf_for_slot([p], NOW, S0, S0 + timedelta(hours=6), TH, RWY_05)
     assert t["crosswindKt"] == 0 and t["level"] == "high"
 
 
@@ -483,3 +483,74 @@ def test_real_case_20261018_1615z():
         if (got := max_level([taf_level(wind, gust, TH), crosswind_level(xw, TH)])) != new:
             wrong.append((icao, start, old, new, got))
     assert wrong == []
+
+
+# ---- 已經過去的 TAF 時段不算（HD7） ----
+
+# 關島 2026-10-19T03:57Z 那報（`data` 分支 `history/raw/2026-10-19/0357Z-taf.json` 的 PGUM，原文
+# `TAF PGUM 190208Z 1902/2006 13016G27KT ... TEMPO 1902/1903 VRB30G46KT ...`）：TEMPO 02–03Z
+# 在產出前就結束了，第一格（00–06Z）卻因為它判 high。METAR 是 `190354Z 14011G19KT`。
+GUM_NOW = utc(2026, 10, 19, 3, 57)
+GUM_SLOTS = slot_bounds(GUM_NOW)
+GUM_RWY = (Runway("06L/24R、06R/24L", (65.0, 245.0)),)
+GUM_MAIN = TafPeriod(utc(2026, 10, 19, 2), utc(2026, 10, 20, 6), "main", 130, 16, 27)
+GUM_TEMPO = TafPeriod(utc(2026, 10, 19, 2), utc(2026, 10, 19, 3), "tempo", None, 30, 46)
+GUM_METAR = Metar(utc(2026, 10, 19, 3, 54), 140, 11, 19, "METAR PGUM 190354Z 14011G19KT")
+
+
+def gum(**kw):
+    args = dict(
+        now=GUM_NOW,
+        slots=GUM_SLOTS,
+        ec=None,
+        gfs=None,
+        taf_periods=[GUM_MAIN, GUM_TEMPO],
+        runways=GUM_RWY,
+        metar=GUM_METAR,
+    )
+    args.update(kw)
+    return run(**args)
+
+
+def test_past_tempo_not_counted_gum():
+    assert GUM_SLOTS[0] == (utc(2026, 10, 19, 0), utc(2026, 10, 19, 6))
+    t = taf_for_slot([GUM_MAIN, GUM_TEMPO], GUM_NOW, *GUM_SLOTS[0], TH, GUM_RWY)
+    # 只剩主時段：陣風 27 節（< 37）、側風 27 × sin(130° − 65°) ≈ 24.5 節（< 27）→ 低
+    assert t == {"windKt": 16, "gustKt": 27, "kind": "main", "level": "low", "crosswindKt": 24.5}
+    s = gum()[0]
+    assert (s["level"], s["basis"]) == ("low", "official")
+    # METAR 側風 19 × sin(75°) ≈ 18.4 節，比主時段小
+    assert s["official"]["crosswindKt"] == 24.5 and s["official"]["kind"] == "main"
+
+
+def test_tempo_spanning_now_still_counts():
+    # 同一份 TAF，產出時間在 TEMPO 裡（02:30Z）→ 照算：VRB 陣風 46 節 → 側風 46 節 → 高
+    now = utc(2026, 10, 19, 2, 30)
+    t = taf_for_slot([GUM_MAIN, GUM_TEMPO], now, *GUM_SLOTS[0], TH, GUM_RWY)
+    assert (t["kind"], t["gustKt"], t["crosswindKt"], t["level"]) == ("tempo", 46, 46, "high")
+    assert gum(now=now)[0]["level"] == "high"
+    # 結束時間剛好等於現在也算已經過去
+    assert taf_for_slot([GUM_TEMPO], utc(2026, 10, 19, 3), *GUM_SLOTS[0], TH) is None
+
+
+def test_past_main_only_tempo_counts():
+    # 主時段 00–03Z 平均風 35 節（高）已經過去；TEMPO 02–05Z 陣風 38 節（中）還沒結束 → 只算 TEMPO
+    main = TafPeriod(utc(2026, 10, 19, 0), utc(2026, 10, 19, 3), "main", 130, 35, 50)
+    tempo = TafPeriod(utc(2026, 10, 19, 2), utc(2026, 10, 19, 5), "tempo", 70, 25, 38)
+    t = taf_for_slot([main, tempo], GUM_NOW, *GUM_SLOTS[0], TH, GUM_RWY)
+    assert (t["kind"], t["windKt"], t["gustKt"], t["level"]) == ("tempo", 25, 38, "medium")
+
+
+def test_all_taf_periods_past_only_metar_and_warnings():
+    main = TafPeriod(utc(2026, 10, 19, 0), utc(2026, 10, 19, 3), "main", 130, 35, 50)
+    tempo = TafPeriod(utc(2026, 10, 19, 2), utc(2026, 10, 19, 3), "tempo", None, 30, 46)
+    metar = Metar(utc(2026, 10, 19, 3, 54), 155, 20, 30, "METAR PGUM")  # 正側風 30 節 → 中
+    # 有警報：走「只有警報」的路，METAR 側風照算進第一格
+    s = gum(taf_periods=[main, tempo], metar=metar, warnings=[warn("medium", "ts_watch", "nws")])
+    o = s[0]["official"]
+    assert o["kind"] == "warning" and o["windKt"] is None and o["gustKt"] is None
+    assert o["crosswindKt"] == 30 and o["warnings"] == ["ts_watch"]
+    assert (s[0]["level"], s[0]["basis"]) == ("medium", "official")
+    # 沒有警報：沒有官方層（TAF 全部過去＝過期，跟沒有 TAF 一樣），退回模式
+    s = gum(taf_periods=[main, tempo], metar=metar, ec=flat_ec(5), gfs=flat_gfs(5))
+    assert s[0]["official"] is None and s[0]["basis"] == "model"

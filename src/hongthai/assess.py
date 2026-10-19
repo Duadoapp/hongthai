@@ -36,6 +36,13 @@
   和陣風規則取較高的等級（官方層、模式層各自合成）
 - 官方：一格取重疊的 TAF 時段裡最大的側風；METAR 只算進「現在」所在的那一格（觀測在 3 小時內），
   而且只在該格本來就有官方資料（TAF 或警報）時
+
+已經過去的 TAF 時段（HD7，2026-10-19）：
+- TAF 只算「結束時間在現在之後」的時段（主時段、TEMPO、BECMG、PROB 都一樣）；只會影響現在所在的
+  第一格。跨過現在的時段照算（還沒結束）
+- 第一格裡的 TAF 時段全部已經過去時，這格當作沒有 TAF：有警報走「只有警報」的路（METAR 側風照上面
+  的規則算進去），沒有警報就沒有官方層（TAF 全部過去代表那份 TAF 已經過期，跟沒有 TAF 一樣）
+- 起因：關島 2026-10-19T03:57Z 那報，第一格被一段 02–03Z（產出前就結束）的 TEMPO 陣風 46 節判成高
 - 模式：HRES 的 `10u`／`10v` 只抓 6 小時整的步長（00／06／12／18Z，H10 起，為了減少下載量），
   每個陣風區間配**區間結束時間往後最近**的那個 6 小時步長的風向（例如結束在 09Z 的 3 小時區間配
   12Z 的風）；GFS 用同一時間點的 `UGRD`／`VGRD`。一格取格內最大的側風（時間上取最壞、跑道上取最好）
@@ -138,6 +145,7 @@ def taf_level(wind_kt: float | None, gust_kt: float | None, th: Thresholds) -> s
 
 def taf_for_slot(
     periods: Sequence[TafPeriod],
+    now: datetime,
     start: datetime,
     end: datetime,
     th: Thresholds,
@@ -145,8 +153,8 @@ def taf_for_slot(
 ) -> dict | None:
     """該格內所有 TAF 時段（主時段、TEMPO、PROB30／40）的最大風、最大陣風與最大側風；`kind` 記等級
     最高的那一種時段（同級取陣風較大的）。等級＝陣風規則與側風規則取較高者。
-    沒有任何時段重疊回 None。"""
-    hits = [p for p in periods if p.start < end and p.end > start]
+    只算在 `now` 之後還有效的時段（`end > now`，HD7）；沒有任何這樣的時段重疊回 None。"""
+    hits = [p for p in periods if p.start < end and p.end > start and p.end > now]
     if not hits:
         return None
 
@@ -327,7 +335,7 @@ def assess_slots(
 
         official = None
         if start < official_until:
-            taf = taf_for_slot(taf_periods or [], start, end, thresholds, runways)
+            taf = taf_for_slot(taf_periods or [], now, start, end, thresholds, runways)
             applied = [w for w in warnings if start < warning_until]
             if taf is not None or applied:
                 official = taf or {
