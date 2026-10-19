@@ -32,7 +32,7 @@ LANGS = ("zh-TW", "zh-HK", "zh-CN", "en")
 COMMENT = {
     "zh-TW": "10/23 14–20 時歐洲模式陣風 75 節、側風 51 節，陣風超過 49 節的機率 56%，停飛風險高。",
     "zh-HK": "10/23 14–20 時歐洲模式陣風 75 節、側風 51 節，陣風超過 49 節的機率 56%，停飛風險高。",
-    "zh-CN": "10/23 14–20 时欧洲模式阵风 75 节、侧风 51 节，阵风超过 49 节的机率 56%，停飞风险高。",
+    "zh-CN": "10/23 14–20 时欧洲模式阵风 75 节、侧风 51 节，阵风超过 49 节的概率 56%，停飞风险高。",
     "en": "10/23 14:00–20:00: European model gusts 75 kt, crosswind 51 kt, 56% chance of gusts "
     "over 49 kt; disruption risk High.",
 }
@@ -172,6 +172,8 @@ def test_system_prompt_rules():
         "機場預報 → 机场预报",
         "信號 → 信号",
         "節 → 节",
+        "機率 → 概率（不是「机率」）",  # HD7
+        "資料 → 数据（不是「资料」）",
         "不寫英文等級字",
         "高（high）",
         "停飛風險",
@@ -335,6 +337,10 @@ ZH = "10/23 14–20 時歐洲模式陣風 75 節，停飛風險高。"
         # en 含中日文字
         ({"en": "10/23 14–20 時: gusts 75 kt; disruption risk High."}, "en 含中日文字「時」"),
         ({"en": "Gusts 75 kt，disruption risk High."}, "en 含中日文字「，」"),
+        ({"en": "Gusts 75 kt (ＴＡＦ); disruption risk High."}, "en 含中日文字「Ｔ」"),  # 全形字母
+        # zh-CN 的台灣用語（HD7）
+        ({"zh-CN": "阵风超过 49 节的机率 56%，停飞风险高。"}, "zh-CN 用了台灣用語：机率"),
+        ({"zh-CN": "依目前资料，停飞风险高。"}, "zh-CN 用了台灣用語：资料"),
     ],
 )
 def test_parse_bad_wording(langs, message):
@@ -352,6 +358,11 @@ def test_parse_bad_wording(langs, message):
         {"en": "The airport forecast (TAF) shows 46-kt gusts; disruption risk High."},
         {"en": "TAFF and ECMWF are not field names; disruption risk Low."},  # 整字比對
         {"zh-TW": "同時段歐洲模式與美國模式一致，停飛風險中。"},  # 「同」不算粵語
+        {"en": "Gusts 46 kt on 10/19 12:00–13:00, 12–13 h local; disruption risk High."},
+        # 「機率」「資料」只限制 zh-CN，zh-TW、zh-HK 照樣寫
+        {"zh-TW": "依目前資料，陣風超過 49 節的機率 56%，停飛風險高。"},
+        {"zh-HK": "依目前資料，陣風超過 49 節的機率 56%，停飛風險高。"},
+        {"zh-CN": "依目前数据，阵风超过 49 节的概率 56%，停飞风险高。"},
     ],
 )
 def test_parse_wording_ok(langs):
@@ -389,7 +400,7 @@ REAL_GUM_CLAUDE_EN = "Slot 1 shows a high light from a TAF TEMPO period (10/19 1
 _PLAIN = {
     "zh-TW": [("p29Kt", "陣風超過 29 節的機率"), ("p49Kt", "陣風超過 49 節的機率"),
               ("EC", "歐洲模式"), ("GFS", "美國模式"), ("TAF", "機場預報")],
-    "zh-CN": [("p29Kt", "阵风超过 29 节的机率"), ("p49Kt", "阵风超过 49 节的机率"),
+    "zh-CN": [("p29Kt", "阵风超过 29 节的概率"), ("p49Kt", "阵风超过 49 节的概率"),
               ("EC", "欧洲模式"), ("GFS", "美国模式"), ("TAF", "机场预报")],
     "en": [("p29Kt", "the chance of gusts over 29 kt"), ("p49Kt", "the chance of gusts over 49 kt"),
            ("EC's", "the European model's"), ("EC", "the European model"), ("GFS", "the US model"),
@@ -440,6 +451,27 @@ def test_parse_real_run_comments(comment, raw_message, plain_message):
         with pytest.raises(AiError) as e:
             parse.parse_response(_resp(comment=cleaned))
         assert str(e.value) == f"bad_wording: {plain_message}"
+
+
+# HD7：GUM（Claude）的 en 把「時」改成 12:00–13:00、代號換白話後就合格
+def test_parse_real_gum_en_fixed():
+    fixed = plain({"en": REAL_GUM_CLAUDE_EN})["en"].replace("12–13 時", "12:00–13:00")
+    assert parse.parse_response(_resp(comment={**COMMENT, "en": fixed}))["level"] == "high"
+
+
+# HD6 後第二次實跑（2026-10-19T04:39Z，`data` 分支 `history/20261019T0439Z.json`）PGUM 的 Gemini
+# zh-CN 短評，原文照抄：「资料」「机率」是台灣用語
+REAL_GUM_GEMINI_ZH_CN = "整体停飞风险评为低。10/19 10–16 时虽因机场预报（TAF）在当地 12–13 时短暂阵风与侧风达 46 节而列高风险，但目前资料时间为 14:39，该短暂强风时段已过，且 13:54 机场观测（METAR）阵风仅 19 节。10/19 16 时至 10/24 10 时机场预报及欧洲模式、美国模式阵风皆在 27 节以下，阵风超过 49 节的机率均为 0%，全为低风险。"  # noqa: E501
+
+
+def test_parse_real_zh_cn_taiwan_terms():
+    e = _wording(**{"zh-CN": REAL_GUM_GEMINI_ZH_CN})
+    assert str(e) == "bad_wording: zh-CN 用了台灣用語：机率"
+    assert e.tag == "zh-CN/机率"
+    only_data = REAL_GUM_GEMINI_ZH_CN.replace("机率", "概率")
+    assert str(_wording(**{"zh-CN": only_data})) == "bad_wording: zh-CN 用了台灣用語：资料"
+    fixed = only_data.replace("资料", "数据")
+    assert parse.parse_response(_resp(comment={**COMMENT, "zh-CN": fixed}))["level"] == "high"
 
 
 def test_ai_error_trace():

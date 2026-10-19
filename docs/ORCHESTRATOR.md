@@ -104,8 +104,9 @@
     「輸出」的 HD5 那段與「AI 對決」。
     **HD6（第一次實跑的修正＋短評用字規則，已實作）**：短評用字規則見 HD6
     （`docs/prompts/2026-10-19-HD6-ai-wording.md`；系統提示「用字」那段、`ai/parse.py` 的 `check_wording`、
-    詞表在 `ai/config.py`，違規記 `bad_wording`）。`max_tokens` 3000、Gemini `thinking_level: LOW`（Gemini 4
-    不接受 `thinking_budget`）、字數上限中文 300／en 800（HD5 的 400 擋掉一半 en）、Gemini 2 條並行；
+    詞表在 `ai/config.py`，違規記 `bad_wording`）。en 不能有任何中日文字或全形字（CJK，例如「10/19 12–13 時」）；
+    zh-CN 不能用台灣用語「机率」「资料」（要寫「概率」「数据」，HD7）。
+    `max_tokens` 3000、Gemini `thinking_level: LOW`（Gemini 4 不接受 `thinking_budget`）、字數上限中文 300／en 800（HD5 的 400 擋掉一半 en）、Gemini 2 條並行；
     戰績檔失敗那顆多 `detail`（`<代碼>:<stop_reason>:<輸出 token 數>[:<標記>]`）。Gemini 的 429：Argon 在
     `global` 的 Standard PayGo 是組織層級用量級距、沒有每專案配額可申請，見 README「AI 對決」
   - **第五階段：新天氣種類**——大雨／雷雨、大雪／結冰、濃霧；12 月北海道下雪前上線
@@ -230,6 +231,12 @@ NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權�
 - 氣象署警戒區是關鍵字比對（「東北部」也會比到「北部」），偏保守
 - EC 系集機率是 24 小時窗，6 小時格取包住它的窗的最小值
 - 0–30 小時以官方為準；METAR 只算進現在那一格的側風
+- 已經過去的 TAF 時段不算（HD7，2026-10-19，`docs/prompts/2026-10-19-HD7-taf-past-periods.md`）：TAF 各時段
+  只算結束時間在產出時間之後的，只影響第一格；第一格的 TAF 時段全部過去時當作沒有 TAF（有警報走「只有警報」
+  的路、METAR 側風照算，沒有警報退回模式）。起因是關島 10/19 03:57Z 那報第一格被 02–03Z 的 TEMPO 判高
+- 2026-10-19 HD7 前的第一格官方層可能含已過去的 TEMPO
+  （HD7 合併後第一份的 `generatedAt`：＿＿＿＿，主對話補）。`history/*.json` 不重算；回看戰績
+  （`history/ai/`、`history/cancellations/`）時 `run` 在這之前的第一格要打折看。HD7 合併後第一次 build 很多機場第一格從中／高變低而被選進 AI（`changed`），那報可能撞 `run_cap`
 
 ### 來源逾時與沿用（H7，2026-10-18 build #4 被 ECMWF 429 卡到被砍之後）
 

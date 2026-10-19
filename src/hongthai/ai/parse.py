@@ -20,6 +20,7 @@ from .config import (
     SIMPLIFIED_CHARS,
     SUSPEND_TERMS,
     TRADITIONAL_CHARS,
+    ZH_CN_TAIWAN_TERMS,
 )
 
 
@@ -156,6 +157,9 @@ def check_wording(comment: dict[str, str]) -> None:
             for ch in TRADITIONAL_CHARS:
                 if ch in text:
                     raise _bad(lang, ch, f"{lang}：繁體字「{ch}」")
+            for w in ZH_CN_TAIWAN_TERMS:
+                if w in text:
+                    raise _bad(lang, w, f"{lang} 用了台灣用語：{w}")
         if lang in ("zh-TW", "zh-HK"):
             for ch in SIMPLIFIED_CHARS:
                 if ch in text:
