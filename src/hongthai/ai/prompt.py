@@ -225,9 +225,10 @@ def rules_text(th: Thresholds | None = None) -> str:
             f"凍雨 ≥ {th.model_freezing_rain_high_mm6h:g} mm → high",
             f"- 霧（fog）：能見度 < {th.fog_high_vis_m:g} 公尺或雲底 ≤ "
             f"{th.fog_high_ceiling_ft:g} 呎 → high，< {th.fog_medium_vis_m:g} 公尺或 ≤ "
-            f"{th.fog_medium_ceiling_ft:g} 呎 → medium（模式只有美國模式的能見度）",
+            f"{th.fog_medium_ceiling_ft:g} 呎 → medium（模式只有美國模式的能見度，"
+            "模式層的霧最高只到 medium；要到 high 得是官方真的報霧或低雲）",
             "- 每格的等級＝強風與三類取最高；causes 是達到 medium 以上的種類（高的在前），"
-            "第一個是主因",
+            "第一個是主因；只看模式時同級的雨排在霧前面（模式的低能見度常是大雨造成的）",
             "短評要說出主要是哪種天氣造成：強風／側風、大雨／雷雨、大雪／結冰、濃霧／低雲。",
             "短評裡請用白話，不要照抄上面的欄位名（EC、GFS、p29Kt、p49Kt、TAF、METAR 這些）。",
         ]
