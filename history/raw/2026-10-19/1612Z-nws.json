@@ -1,0 +1,193 @@
+{
+ "@context": [
+  "https://geojson.org/geojson-ld/geojson-context.jsonld",
+  {
+   "@version": "1.1",
+   "wx": "https://api.weather.gov/ontology#",
+   "@vocab": "https://api.weather.gov/ontology#"
+  }
+ ],
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.8175667d842c46dfb3f293988abd417f02f3a238.002.2",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.8175667d842c46dfb3f293988abd417f02f3a238.002.2",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.8175667d842c46dfb3f293988abd417f02f3a238.002.2",
+    "areaDesc": "Guam; Rota",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e5c7118dfac85b7befa67acf6523f05cbd9d08bf.001.2",
+      "identifier": "urn:oid:2.49.0.1.840.0.e5c7118dfac85b7befa67acf6523f05cbd9d08bf.001.2",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-19T05:18:00+10:00"
+     }
+    ],
+    "sent": "2026-10-19T15:55:00+10:00",
+    "effective": "2026-10-19T15:55:00+10:00",
+    "onset": "2026-10-19T15:55:00+10:00",
+    "expires": "2026-10-20T04:00:00+10:00",
+    "ends": "2026-10-20T04:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Moderate",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Rip Current Statement",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "Rip Current Statement issued October 19 at 3:55PM ChST until October 20 at 4:00AM ChST by NWS Tiyan GU",
+    "description": "* WHAT...For the High Surf Advisory, large breaking waves of 8 to 10\nfeet in the surf zone. For the High Rip Current Risk, dangerous rip\ncurrents.\n\n* WHERE...South and west facing reefs of Guam and Rota.\n\n* WHEN...Until 4 AM ChST Tuesday.\n\n* IMPACTS...Dangerous swimming and surfing conditions and\nlocalized beach erosion. Rip currents can sweep even the best\nswimmers away from shore into deeper water.\n\n* ADDITIONAL DETAILS...The dominant, remnant southerly swell of Super\nTyphoon Champi will slowly diminish, so surf along south and west\nfacing reefs will remain hazardous slightly longer through tonight.\nAfterwards, surf may drop below the 9 feet threshold to allow for\nan expiration early Tuesday morning.",
+    "instruction": "Inexperienced swimmers should remain out of the water due to\ndangerous surf conditions.\n\nRip currents will be life threatening. If caught in a rip\ncurrent, relax and float. Don't swim against the current. If\nable, swim in a direction following the shoreline. If unable to\nescape, face the shore and call or wave for help.",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "CFWGUM"
+     ],
+     "WMOidentifier": [
+      "WHMY40 PGUM 190555"
+     ],
+     "NWSheadline": [
+      "HIGH SURF ADVISORY NOW IN EFFECT UNTIL 4 AM CHST TUESDAY... ...HIGH RIP CURRENT RISK NOW IN EFFECT THROUGH LATE TONIGHT"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.EXT.PGUM.RP.S.0023.000000T0000Z-261019T1800Z/"
+     ],
+     "eventEndingTime": [
+      "2026-10-20T04:00:00+10:00"
+     ],
+     "expiredReferences": [
+      "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.92a6350de71a6933188b2646d0f960fa714f799a.001.2,2026-10-18T19:07:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.001.4,2026-10-18T17:53:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "RPS"
+     ]
+    }
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.8175667d842c46dfb3f293988abd417f02f3a238.002.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.8175667d842c46dfb3f293988abd417f02f3a238.002.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.8175667d842c46dfb3f293988abd417f02f3a238.002.1",
+    "areaDesc": "Guam; Rota",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e5c7118dfac85b7befa67acf6523f05cbd9d08bf.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.e5c7118dfac85b7befa67acf6523f05cbd9d08bf.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-19T05:18:00+10:00"
+     }
+    ],
+    "sent": "2026-10-19T15:55:00+10:00",
+    "effective": "2026-10-19T15:55:00+10:00",
+    "onset": "2026-10-19T15:55:00+10:00",
+    "expires": "2026-10-20T04:00:00+10:00",
+    "ends": "2026-10-20T04:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Minor",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "High Surf Advisory",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "High Surf Advisory issued October 19 at 3:55PM ChST until October 20 at 4:00AM ChST by NWS Tiyan GU",
+    "description": "* WHAT...For the High Surf Advisory, large breaking waves of 8 to 10\nfeet in the surf zone. For the High Rip Current Risk, dangerous rip\ncurrents.\n\n* WHERE...South and west facing reefs of Guam and Rota.\n\n* WHEN...Until 4 AM ChST Tuesday.\n\n* IMPACTS...Dangerous swimming and surfing conditions and\nlocalized beach erosion. Rip currents can sweep even the best\nswimmers away from shore into deeper water.\n\n* ADDITIONAL DETAILS...The dominant, remnant southerly swell of Super\nTyphoon Champi will slowly diminish, so surf along south and west\nfacing reefs will remain hazardous slightly longer through tonight.\nAfterwards, surf may drop below the 9 feet threshold to allow for\nan expiration early Tuesday morning.",
+    "instruction": "Inexperienced swimmers should remain out of the water due to\ndangerous surf conditions.\n\nRip currents will be life threatening. If caught in a rip\ncurrent, relax and float. Don't swim against the current. If\nable, swim in a direction following the shoreline. If unable to\nescape, face the shore and call or wave for help.",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "CFWGUM"
+     ],
+     "WMOidentifier": [
+      "WHMY40 PGUM 190555"
+     ],
+     "NWSheadline": [
+      "HIGH SURF ADVISORY NOW IN EFFECT UNTIL 4 AM CHST TUESDAY... ...HIGH RIP CURRENT RISK NOW IN EFFECT THROUGH LATE TONIGHT"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.EXT.PGUM.SU.Y.0058.000000T0000Z-261019T1800Z/"
+     ],
+     "eventEndingTime": [
+      "2026-10-20T04:00:00+10:00"
+     ],
+     "expiredReferences": [
+      "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.92a6350de71a6933188b2646d0f960fa714f799a.001.1,2026-10-18T19:07:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.9a98eba330bbd9d7ea9818481f842bd2930f2c43.001.3,2026-10-18T17:53:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "SUY"
+     ]
+    }
+   }
+  }
+ ],
+ "title": "Current watches, warnings, and advisories for Guam (GUZ001) GU",
+ "updated": "2026-10-19T16:15:19+00:00"
+}
