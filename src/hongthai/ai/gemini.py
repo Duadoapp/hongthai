@@ -53,7 +53,8 @@ def make_client() -> genai.Client:
 
 
 def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = TIMEOUT_S) -> dict:
-    """一個機場的精簡文字 → `{"level", "comment"}`；失敗丟 `AiError`，不重試。"""
+    """一個機場的精簡文字 → `{"level", "comment"}`；失敗丟 `AiError`，這裡不重試
+    （`http_503`／`http_504` 由 `run.py` 重試一次，HD17）。"""
     client = client or make_client()
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM,

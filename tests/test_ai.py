@@ -390,8 +390,9 @@ ZH = "10/23 14–20 時歐洲模式陣風 75 節，停飛風險高。"
         ({"zh-HK": "p49kt 56%，停飛風險高。"}, "zh-HK：內部代號 p49Kt"),
         ({"zh-CN": "GFS 阵风 51 节，停飞风险高。"}, "zh-CN：內部代號 GFS"),
         ({"en": "HRES gusts 75 kt; disruption risk High."}, "en：內部代號 HRES"),
-        ({"en": "The models are in agreement; disruption risk High."}, "en：內部代號 agreement"),
-        ({"en": "Nine slots are high; disruption risk High."}, "en：內部代號 slots"),
+        # agreement、slots 在 en 是常用字、不擋（HD17），中文照擋
+        ({"zh-TW": "模式 agreement，停飛風險高。"}, "zh-TW：內部代號 agreement"),
+        ({"zh-CN": "9 个 slots 为高，停飞风险高。"}, "zh-CN：內部代號 slots"),
         ({"zh-TW": "crosswindKt 51，停飛風險高。"}, "zh-TW：內部代號 crosswindKt"),
         ({"zh-TW": "依 latest.json，停飛風險高。"}, "zh-TW：內部代號 latest.json"),
         # TAF／METAR：括號裡一次可以，沒括號或第二次以上不行
@@ -1156,7 +1157,8 @@ def test_duel_records_seconds(tmp_path, monkeypatch):
     }
     for icao in ("RC00", "RC01"):
         cl, ge = rows[icao]["claude"], rows[icao]["gemini"]
-        assert cl["status"] == "ok" and ge["detail"] == "http_504:-:-"  # detail 格式不動
+        # 504 重試一次仍失敗（HD17）：detail 加 `:retried`，其他格式不動
+        assert cl["status"] == "ok" and ge["detail"] == "http_504:-:-:retried"
         for light in (cl, ge):
             assert isinstance(light["seconds"], float) and light["seconds"] >= 0
             assert light["seconds"] == round(light["seconds"], 1)
@@ -1190,7 +1192,7 @@ def test_duel_records_seconds(tmp_path, monkeypatch):
         ({"zh-HK": "visibilityM 300，停飛風險高。"}, "zh-HK：內部代號 visibilityM"),
         ({"zh-CN": "ptype 是 snow，停飞风险高。"}, "zh-CN：內部代號 ptype"),
         ({"en": "ceilingFt 100; disruption risk High."}, "en：內部代號 ceilingFt"),
-        ({"en": "The causes are fog; disruption risk High."}, "en：內部代號 causes"),
+        ({"zh-TW": "causes 是霧，停飛風險高。"}, "zh-TW：內部代號 causes"),  # en 不擋（HD17）
         ({"zh-TW": "p24hRain50 40%，停飛風險中。"}, "zh-TW：內部代號 p24hRain50"),
         ({"zh-TW": "p24hRain25 40%，停飛風險中。"}, "zh-TW：內部代號 p24hRain25"),
         ({"en": "APCP 35 mm; disruption risk Medium."}, "en：內部代號 APCP"),
@@ -1216,3 +1218,117 @@ def test_good_wording_hd8():
         "disruption risk High.",
     }
     assert parse.parse_response(_resp(comment=comment))["comment"] == comment
+
+
+# ---- HD17：英文常用字不當代號擋；503／504 重試一次 ----
+
+
+@pytest.mark.parametrize(
+    "en",
+    [
+        "Strong winds causes delays on 10/23 08:00–14:00; disruption risk High.",
+        "On the basis of the airport forecast (TAF), disruption risk is Medium.",
+        "The European and US models are in agreement; disruption risk High.",
+        "The afternoon slots on 10/23 are high; disruption risk High.",
+    ],
+)
+def test_en_plain_words_ok_hd17(en):
+    assert config.EN_PLAIN_WORDS == ("causes", "basis", "agreement", "slots")
+    assert set(config.EN_PLAIN_WORDS) <= set(config.FORBIDDEN_TOKENS)  # 中文三語照擋
+    assert parse.parse_response(_resp(comment={**COMMENT, "en": en}))["comment"]["en"] == en
+
+
+@pytest.mark.parametrize(
+    ("langs", "message"),
+    [
+        ({"zh-TW": "主因 causes 是強風，停飛風險高。"}, "zh-TW：內部代號 causes"),
+        ({"zh-HK": "依 basis 判斷，停飛風險高。"}, "zh-HK：內部代號 basis"),
+        ({"en": "p49Kt is 56%; disruption risk High."}, "en：內部代號 p49Kt"),
+        ({"en": "ptype is snow; disruption risk High."}, "en：內部代號 ptype"),
+    ],
+)
+def test_other_tokens_still_blocked_hd17(langs, message):
+    assert str(_wording(**langs)) == f"bad_wording: {message}"
+
+
+def seq_model(*outcomes: str | None, delay: float = 0.0):
+    """依序回 `outcomes`（錯誤代碼，`None` 是成功）；用完了就重複最後一個。記下每次的逾時。"""
+    timeouts: list[float] = []
+    lock = threading.Lock()
+
+    def evaluate(text, *, client=None, timeout=60):
+        with lock:
+            code = outcomes[min(len(timeouts), len(outcomes) - 1)]
+            timeouts.append(timeout)
+        if delay:
+            time.sleep(delay)
+        if code:
+            raise AiError(code)
+        return {"level": "high", "comment": dict(COMMENT)}
+
+    return SimpleNamespace(make_client=object, evaluate=evaluate, timeouts=timeouts)
+
+
+def _gemini_row(tmp_path, ge, **kwargs) -> dict:
+    ev = {"claude": fake_model(), "gemini": ge}
+    res = ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, evaluators=ev, **kwargs)
+    """RC00 的 Gemini 戰績，加上 `latest.json` 那顆燈（`light`）與這一報的呼叫數（`calls`）。"""
+    row = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))[0]["gemini"]
+    return row | {
+        "light": res["airports"]["RC00"]["gemini"],
+        "calls": res["source"]["calls"]["gemini"],
+    }
+
+
+def test_retry_504_then_ok_hd17(tmp_path):
+    assert config.RETRY_CODES == ("http_503", "http_504") and config.RETRY_MIN_LEFT_S == 70
+    ge = seq_model("http_504", None, delay=0.1)
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 2
+    assert g["status"] == "ok" and g["light"]["status"] == "ok" and "detail" not in g
+    assert g["seconds"] >= 0.2  # 兩次合計
+    assert g["calls"] == 2  # 重試也算一次呼叫
+    calls = json.loads((tmp_path / "ai" / "calls-2026-10-19.json").read_text("utf-8"))
+    assert calls == {"claude": 1, "gemini": 2}
+
+
+@pytest.mark.parametrize("code", ["http_503", "http_504"])
+def test_retry_fails_twice_hd17(tmp_path, code):
+    ge = seq_model(code)
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 2  # 只重試一次
+    assert g["light"]["error"] == code and g["detail"] == f"{code}:-:-:retried"
+
+
+def test_retry_second_error_recorded_hd17(tmp_path):
+    g = _gemini_row(tmp_path, seq_model("http_504", "http_429"))
+    assert g["light"]["error"] == "http_429" and g["detail"] == "http_429:-:-:retried"
+
+
+@pytest.mark.parametrize(
+    "code", ["http_429", "http_400", "http_500", "bad_format", "bad_wording", "refusal", "timeout"]
+)
+def test_no_retry_other_errors_hd17(tmp_path, code):
+    ge = seq_model(code, None)
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 1
+    assert g["light"]["error"] == code and g["detail"] == f"{code}:-:-" and g["calls"] == 1
+
+
+def test_no_retry_when_budget_short_hd17(tmp_path):
+    """剩餘預算不到 70 秒不重試，照舊記 `http_504`（沒有 `:retried`）。"""
+    ge = seq_model("http_504", None)
+    g = _gemini_row(tmp_path, ge, budget_s=69)
+    assert len(ge.timeouts) == 1
+    assert g["light"]["error"] == "http_504" and g["detail"] == "http_504:-:-" and g["calls"] == 1
+    # 預算夠：重試的逾時也取 `TIMEOUT_S` 與剩下時間的小者
+    ge = seq_model("http_504", None)
+    assert _gemini_row(tmp_path, ge, budget_s=100)["status"] == "ok"
+    assert len(ge.timeouts) == 2 and all(t == config.TIMEOUT_S for t in ge.timeouts)
+
+
+def test_no_retry_past_daily_cap_hd17(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_run, "DAILY_CAP", 1)
+    ge = seq_model("http_504", None)
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 1 and g["detail"] == "http_504:-:-" and g["calls"] == 1

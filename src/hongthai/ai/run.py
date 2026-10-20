@@ -17,6 +17,9 @@
   那顆多一個 `detail`：`<代碼>:<stop_reason>:<輸出 token 數>[:<標記>]`（`AiError.trace()`，
   不記內容；HD6）。真的送出的呼叫（成功或失敗）多一個 `seconds`：從送出到收到或出錯，一位小數
   （HD12）；`skipped`、`run_cap`、`daily_cap`、`no_api_key` 與預算到了沒送的 `timeout` 沒有
+- 重試（HD17）：`http_503`／`http_504`（`RETRY_CODES`，閘道沒回應）同一個請求重試一次，只在剩餘
+  預算 ≥ `RETRY_MIN_LEFT_S`（70 秒）、沒到每日上限時；重試也算一次呼叫（次數檔、`calls` 都加 1）。
+  重試仍失敗記第二次的錯誤、`detail` 後面加 `:retried`；`seconds` 是兩次合計。其他錯誤都不重試
 """
 
 from __future__ import annotations
@@ -40,6 +43,8 @@ from .config import (
     MODELS,
     NO_RISK,
     PARALLEL,
+    RETRY_CODES,
+    RETRY_MIN_LEFT_S,
     TIMEOUT_S,
 )
 from .parse import AiError
@@ -240,27 +245,60 @@ class Duel:
             if timeout < 0.1:  # 預算用完了，不送
                 self._set(key, icao, error(key, "timeout"))
                 return
+        if not self._count(key):
+            with self.lock:
+                self.lights[key][icao] = error(key, "daily_cap")
+            return
+        t0 = time.monotonic()
+        light, err = self._call(key, mod, client, icao, text, timeout)
+        detail = err.trace() if err else None
+        if err and err.code in RETRY_CODES:  # 閘道沒回應：同一個請求重試一次（HD17）
+            timeout = self._retry_timeout(key)
+            if timeout is not None:
+                log.info("AI %s %s %s，重試一次", key, icao, err.code)
+                light, err = self._call(key, mod, client, icao, text, timeout)
+                detail = f"{err.trace()}:retried" if err else None
+        self._set(key, icao, light, detail, time.monotonic() - t0)  # 重試時是兩次合計
+
+    def _count(self, key: str) -> bool:
+        """要送一次請求：沒到每日上限就記一次、回 `True`。"""
         with self.lock:
             if DAILY_CAP > 0 and self.calls[key] >= DAILY_CAP:
-                self.lights[key][icao] = error(key, "daily_cap")
-                return
+                return False
             self.calls[key] += 1
             self.made[key] += 1
+            return True
+
+    def _retry_timeout(self, key: str) -> float | None:
+        """重試這次的逾時；超時了、剩餘預算不到 `RETRY_MIN_LEFT_S` 或到每日上限 → `None`
+        （不重試）。"""
+        if self.stop.is_set():
+            return None
+        timeout: float = TIMEOUT_S
+        if self.deadline is not None:
+            left = self.deadline - time.monotonic()
+            if left < RETRY_MIN_LEFT_S:
+                return None
+            timeout = min(timeout, left)
+        return timeout if self._count(key) else None
+
+    def _call(
+        self, key: str, mod: ModuleType, client: object, icao: str, text: str, timeout: float
+    ) -> tuple[dict, AiError | None]:
+        """送一次請求 → (燈, 失敗時的 `AiError`)。"""
         t0 = time.monotonic()
-        detail = None
         try:
             light = ok(key, mod.evaluate(text, client=client, timeout=timeout))
             log.info("AI %s %s：%s（%.1f 秒）", key, icao, light["level"], time.monotonic() - t0)
+            return light, None
         except AiError as e:
-            detail = e.trace()
             log.warning(
-                "AI %s %s 失敗：%s［%s］（%.1f 秒）", key, icao, e, detail, time.monotonic() - t0
+                "AI %s %s 失敗：%s［%s］（%.1f 秒）", key, icao, e, e.trace(), time.monotonic() - t0
             )
-            light = error(key, e.code)
+            return error(key, e.code), e
         except Exception:  # SDK 內部沒預期的錯：記成 network，不讓其他機場停掉
             log.exception("AI %s %s 失敗（沒預期的例外）", key, icao)
-            light = error(key, "network")
-        self._set(key, icao, light, detail, time.monotonic() - t0)
+            return error(key, "network"), None
 
     def result(self, timed_out: bool = False) -> dict:
         """`{"ai": 頂層, "airports": {icao: airports[].ai}, "source": sources.ai}`

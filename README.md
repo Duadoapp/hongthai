@@ -448,7 +448,7 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
     - `status: "error"`：`level: null`、`comment: null`，`error` 是代碼：`no_api_key`（沒設金鑰）、`timeout`
       （單次請求 60 秒或整個 AI 步驟 240 秒到了）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
       超過字數上限、被 `max_tokens` 截斷）、`http_<碼>`（API 回錯誤，例如 `http_429`；`http_504` 是 Vertex
-      閘道逾時，偶發就不處理，跟其他 5xx 一樣不重試，HD12）、`network`、
+      閘道逾時，`http_503`／`http_504` 重試一次仍失敗才記，其他碼不重試，HD17）、`network`、
       `daily_cap`（那個模型今天已經呼叫到每日上限；目前 `DAILY_CAP=0` 不限，不會出現）；**規格以外多三個**：`run_cap`（符合條件但排在這一報前 20 個
       之後，沒評；不寫「沒看到明顯風險」，因為可能是中級）、`refusal`（模型拒答或被安全過濾擋下）、
       `bad_wording`（HD6：格式對但短評用字違規，見「AI 對決」的「用字規則與檢查」）
@@ -558,11 +558,20 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   （`DAILY_CAP=0`，2026-10-19 定案，HD11；手動 Run workflow 也照常跑 AI），正式推廣前再評估，恢復時改成 80 之類的
   數字即可，超過的記 `daily_cap`；`history/ai/calls-<日期>.json` 照常記每個模型今天呼叫幾次（成功失敗都算）；
   另有 Anthropic workspace 每月 30 美元硬上限、GCP 30 美元預算警示（在平台上設）；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
-  的自動重試都關掉）；單次請求逾時 60 秒；整個 AI 步驟預算 240 秒（`BUDGET_S["ai"]`；HD12 前 180 秒，
+  的自動重試都關掉；唯一例外是 `http_503`／`http_504` 重試一次，見下一條）；單次請求逾時 60 秒；整個 AI 步驟預算 240 秒（`BUDGET_S["ai"]`；HD12 前 180 秒，
   HD11 後第一報 178.2 秒頂到預算），兩個模型**平行**呼叫、每個模型的並行數 Claude 4 條、Gemini 3 條
   （`config.PARALLEL`；HD6 時 4 條撞過 429、降到 2；HD12 升回 3 再觀察，若 429 回來就降回 2），超過的機場記
-  `timeout`。`http_504`（Vertex 閘道逾時）偶發就不處理、不重試，先觀察（HD12）。
-  AI 失敗不影響 `latest.json` 其他內容
+  `timeout`。AI 失敗不影響 `latest.json` 其他內容
+- **`http_503`／`http_504` 只重試一次**（HD17，Shawn 2026-10-20 定案；`ai/run.py`，`config.RETRY_CODES`）：
+  閘道沒回應（Vertex 閘道逾時）不是模型回了壞東西、也不計費，所以同一個請求、不改內容再送一次；只在**剩餘預算
+  ≥ 70 秒**（`config.RETRY_MIN_LEFT_S`，一次請求逾時 60 秒）時重試，不夠就照舊記 `http_504`。重試也算一次呼叫
+  （`sources.ai.calls`、次數檔都加 1；`DAILY_CAP` 恢復後到上限也不重試）。重試成功就是 `ok`；重試仍失敗記第二次的
+  代碼、戰績 `detail` 後面加 `:retried`（例如 `"http_504:-:-:retried"`），`seconds` 是兩次合計。`http_429`、
+  `http_400`、`bad_format`、`bad_wording`、`refusal`、`timeout` 都**不重試**。程式兩個模型共用，Claude 的 5xx 很少見，
+  但一樣適用。起因是 2026-10-19T18:07Z 那報（HD13 合併後第一報）：Gemini 4 個 `http_504`（RCFG、RCKH、ROIG、
+  ZSQZ），每個都卡 57 秒才回，依字母順序 3 條並行時 RCFG／RCKH、ROIG／ZSQZ 幾乎同時送，偏向是負載相關（前一報是
+  2 個）。Gemini 20 筆共約 470 秒，3 條並行約 157 秒；降回 2 條會到 235 秒、撞 240 秒預算，所以**維持 3 條並行**，
+  改成 504 重試一次
 - **模型參數**：Claude 用官方 `anthropic` SDK（Messages API），`max_tokens` 3000（HD6；HD5 是 1200）、
   `effort: "low"`；**不送 `temperature`**——Opus 5.5 不接受取樣參數（送了回 400），思考也關不掉、思考的
   token 算在 `max_tokens` 裡，所以用 `low` 留空間給四語短評；沒開 server-side fallback（換別的模型回答，
@@ -593,7 +602,7 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
 - **用字規則與檢查**（HD6，產品負責人 2026-10-19 定案；規則寫在系統提示的「用字」那段，檢查在
   `ai/parse.py` 的 `check_wording`，詞表集中在 `ai/config.py`，之後要加詞只改那裡）：
   1. **不出現內部代號**：`p29Kt`、`p49Kt`、`EC`、`GFS`、`HRES`、`TAF`、`METAR`、`crosswindKt`、`gustKt`、
-     `basis`、`agreement` 等欄位名或縮寫都不寫，改成白話——「歐洲模式」「美國模式」、「陣風超過 49 節的機率
+     `basis`、`agreement` 等欄位名或縮寫都不寫（`causes`、`basis`、`agreement`、`slots` 在 en 是常用字，例外，HD17），改成白話——「歐洲模式」「美國模式」、「陣風超過 49 節的機率
      56%」、「機場預報（TAF）」第一次可以括號附原名、之後只寫「機場預報」，「機場觀測」（METAR）同樣；
      側風、陣風、平均風直接用中文；數字照抄資料
   2. **四語照 Duado 的語系規則**：zh-TW 台灣用語；zh-HK 書面語加香港用語、不用粵語口語（颱風警報 →
@@ -607,7 +616,11 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   - 四語任一語出現內部代號（`config.FORBIDDEN_TOKENS`：`p29Kt`、`p49Kt`、`p37Kt`、`p10`、`p15`、`p25`、
     `HRES`、`GFS`、`EC`、`crosswindKt`、`gustKt`、`hresGustKt`、`basis`、`agreement`、`slots`、
     `latest.json`）；大小寫不分、整字比對（前後不能是英文字母、數字、底線，所以「EC陣風」抓得到、
-    `ECMWF`、`TAFF` 不算）
+    `ECMWF`、`TAFF` 不算）。**英文常用字例外**（HD17，`config.EN_PLAIN_WORDS`）：`causes`、`basis`、`agreement`、
+    `slots` 在 en 不擋（"strong wind causes…"、"on the basis of"、"models are in agreement"、"afternoon slots"），
+    中文三語照擋（中文短評裡出現這些英文字只會是抄欄位名）；其他代號四語都照擋。起因是 18:07Z 那報 4 個
+    `bad_wording` 全是 `en/causes`（Claude RCYU、Gemini RCFN／RCTP／ROMY）——HD8 把 `causes` 當代號擋、整字
+    比對又不分大小寫，英文寫 "causes" 當動詞就被擋，是檢查誤判、不是模型用字問題
   - `TAF`／`METAR` 可以在括號裡出現一次（「機場預報（TAF）」「airport forecast (TAF)」），沒括號或第二次以上算違規
   - 中文三語出現「（high）」「(medium)」這類英文等級字
   - zh-HK 出現粵語口語字：喺、嘅、咗、嚟、啱啱、唔、佢、冇、咁
@@ -647,7 +660,8 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   log 也印同一串（`AI gemini RCKH 失敗：bad_wording: zh-HK：粵語口語「喺」［bad_wording:STOP:700+900:zh-HK/喺］`）
 - `claude`／`gemini` 真的送出的呼叫（成功、失敗都算）多一個 `seconds`（HD12，`latest.json` 不加）：從送出到
   收到回應或出錯花幾秒，一位小數，例如 `{ "status": "ok", "level": "high", "seconds": 23.4 }`、
-  `{ "status": "error", "level": null, "detail": "http_504:-:-", "seconds": 60.0 }`。`skipped`、`run_cap`、
+  `{ "status": "error", "level": null, "detail": "http_504:-:-", "seconds": 57.2 }`；`http_503`／`http_504` 重試過的
+  是兩次合計（HD17）。`skipped`、`run_cap`、
   `daily_cap`、`no_api_key`、`timeout`（預算到了沒送）沒送出，不寫 `seconds`；送出後預算先到、結果不採用的
   （記 `timeout`）也不寫
 

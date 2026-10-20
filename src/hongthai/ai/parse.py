@@ -11,6 +11,7 @@ from .config import (
     CHINESE_LANGS,
     CJK_RANGES,
     EN_LEVEL_WORDS,
+    EN_PLAIN_WORDS,
     EN_RISK_FORBIDDEN,
     FORBIDDEN_TOKENS,
     LANGS,
@@ -107,6 +108,7 @@ def _word(token: str) -> re.Pattern[str]:
 
 
 _FORBIDDEN = [(t, _word(t)) for t in FORBIDDEN_TOKENS]
+_FORBIDDEN_EN = [(t, pat) for t, pat in _FORBIDDEN if t not in EN_PLAIN_WORDS]  # HD17
 _ONCE = [(t, _word(t)) for t in ONCE_IN_PARENS]
 _EN_LEVEL = re.compile(
     rf"[（(]\s*({'|'.join(EN_LEVEL_WORDS)})\s*[）)]",
@@ -136,7 +138,7 @@ def check_wording(comment: dict[str, str]) -> None:
                     raise _bad(lang, t, f"{lang}：叫法不一致「{t}」（要用停飛風險）")
     for lang in LANGS:
         text = comment[lang]
-        for token, pat in _FORBIDDEN:
+        for token, pat in _FORBIDDEN_EN if lang == "en" else _FORBIDDEN:
             if pat.search(text):
                 raise _bad(lang, token, f"{lang}：內部代號 {token}")
         for token, pat in _ONCE:
