@@ -125,7 +125,8 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
   的 WeatherNext 2 當今天的票）
 - `causes`：依據是模式層時用**投票後**各類的等級排（同級 `wind`、`snow`、`rain`、`fog`）
 - `model.vote`：`total`（風那一類的分母，含系集、不含旁觀模式）、`high`（投高的數）、`medium`（等級 ≥ 中的數，
-  不含兩個系集，同判中的規則）、`low`（投低的數）、`level`（四類投票結果取最高，全無資料 `null`）、`thin`（風的分母 < 2）
+  不含兩個系集，同判中的規則）、`mediumTotal`（判中的分母，不含兩個系集與旁觀模式，HD24）、`low`（投低的數）、
+  `level`（四類投票結果取最高，全無資料 `null`）、`thin`（風的分母 < 2）
 - `model.ec`／`model.gfs`／`model.agreement` 欄位與值都不變（`ec.rain`、`gfs.fog` 等還是各自的等級）
 
 ### 估算陣風的係數（HD18、HD19）
@@ -761,6 +762,17 @@ HD16（2026-10-20，Open-Meteo 三票、旁觀開關、暴風雪特別警報；`
 - 大小：用 Pages 上 2026-10-20 05:55Z 那報加 11:17Z 抓的 Open-Meteo 重算，`latest.json`（不縮排）2,214 KB →
   **3,023 KB（多約 790 KB）**；gzip 後 142 → 174 KB。每格多 3 筆（各約 240 bytes）× 1,020 格，加上既有 5 筆
   多 `p49Kt`
+
+HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，票數與規則不變、既有欄位不改名、不改型別**）：
+
+- `slots[].model.vote.mediumTotal`（整數，接在 `medium` 後面）：判「中」時的分母＝風有等級、在投票（`voting`）、
+  **不是**只投高（`votesOnlyHigh`）的模式數。`total` 含兩個系集、`medium` 不含，網頁要寫「N 個模式中 M 個認為
+  中以上」時用 `medium`／`mediumTotal`（例如 8 票都有資料時 `total` 8、`mediumTotal` 6）；兩個系集都沒資料時
+  ＝`total`；沒有任何模式有資料時 0
+- 頂層 `models[]` 每筆多 `votesOnlyHigh`（布林；`Model.votes_only_high`）：`true` 的模式只投高或低、判中時不算
+  分母，目前是 `ifs-ens`、`wn2-ens`，其他 `false`。`slots[].model.models[]` 不加
+- 大小：Pages 上 2026-10-20 15:04Z 那報重算，`latest.json`（不縮排）3,178 KB → 3,195 KB（**多約 16 KB**，
+  1,020 格 × `"mediumTotal":6,`）
 
 規格以外加的欄位與值（網頁可以忽略）：
 

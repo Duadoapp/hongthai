@@ -1135,6 +1135,7 @@ def test_aifs_estimated_gust_medium():
         "total": 5,
         "high": 0,
         "medium": 2,
+        "mediumTotal": 4,  # HD24
         "low": 3,
         "level": "medium",
         "thin": False,

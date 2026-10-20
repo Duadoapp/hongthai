@@ -120,7 +120,15 @@ def test_entries_in_config_order_with_nulls():
         assert e["windKt"] is None and e["gustFactor"] is None and e["gustFactorBasis"] is None
         assert e["p49Kt"] is None
     cats, v = model_vote(es)
-    assert v == {"total": 0, "high": 0, "medium": 0, "low": 0, "level": None, "thin": True}
+    assert v == {
+        "total": 0,
+        "high": 0,
+        "medium": 0,
+        "mediumTotal": 0,  # HD24
+        "low": 0,
+        "level": None,
+        "thin": True,
+    }
     assert model_levels(es) is None
 
 
@@ -149,7 +157,15 @@ def test_five_models_vote_json():
     cats, v = model_vote(es)
     # 高 2 × 2 < 5；中（系集不算）3 × 2 ≥ 4 → 中
     assert cats["wind"] == "medium"
-    assert v == {"total": 5, "high": 2, "medium": 3, "low": 1, "level": "medium", "thin": False}
+    assert v == {
+        "total": 5,
+        "high": 2,
+        "medium": 3,
+        "mediumTotal": 4,
+        "low": 1,
+        "level": "medium",
+        "thin": False,
+    }
 
 
 def test_snow_denominator_excludes_aigfs():
@@ -239,7 +255,15 @@ def test_eight_models_vote():
         "high",
     ]
     cats, v = model_vote(es)
-    assert v == {"total": 8, "high": 3, "medium": 4, "low": 2, "level": "medium", "thin": False}
+    assert v == {
+        "total": 8,
+        "high": 3,
+        "medium": 4,
+        "mediumTotal": 6,  # HD24：兩個系集不算判中的分母
+        "low": 2,
+        "level": "medium",
+        "thin": False,
+    }
     assert tally(es, "wind", "high") == (3, 8) and tally(es, "wind", "medium") == (4, 6)
     # ICON 也高 → 4 × 2 ≥ 8 → 高
     es = entries(**kw, icon=_ai(gust=50))
@@ -267,6 +291,7 @@ def test_wn2_votes_only_high():
         "total": 3,
         "high": 0,
         "medium": 1,
+        "mediumTotal": 2,
         "low": 2,
         "level": "medium",
         "thin": False,
@@ -287,7 +312,15 @@ def test_three_absent_same_as_five_votes():
     expected = {c: vote([lv[c] for lv in five], only_high) for c in ("wind", "rain", "snow", "fog")}
     cats, v = model_vote(es)
     assert cats == expected
-    assert v == {"total": 5, "high": 2, "medium": 3, "low": 1, "level": "medium", "thin": False}
+    assert v == {
+        "total": 5,
+        "high": 2,
+        "medium": 3,
+        "mediumTotal": 4,  # HD24：三票缺席，判中的分母跟著少（8 票時是 6）
+        "low": 1,
+        "level": "medium",
+        "thin": False,
+    }
 
 
 def test_vote_skips_non_voting():
@@ -308,6 +341,59 @@ def test_non_voting_model_listed_but_not_counted(monkeypatch):
     assert icon["levels"]["wind"] == "high" and icon["levels"]["rain"] == "high"
     cats, v = model_vote(es)
     assert (cats["wind"], cats["rain"]) == ("low", None)
-    assert v == {"total": 2, "high": 0, "medium": 0, "low": 2, "level": "low", "thin": False}
+    assert v == {
+        "total": 2,
+        "high": 0,
+        "medium": 0,
+        "mediumTotal": 2,  # HD24：旁觀的 ICON 不算
+        "low": 2,
+        "level": "low",
+        "thin": False,
+    }
     assert tally(es, "wind", "high") == (0, 2)
     assert assess.non_voting() == {"icon"}
+
+
+# ---- HD24：判中的分母 `mediumTotal` ----
+
+
+def test_medium_total_excludes_only_high_ensembles():
+    """8 票含兩個只投高的系集：`total` 8、`mediumTotal` 6（＝`tally` 判中那一輪的分母）。"""
+    es = entries(
+        _ec(hres=50, p49=0.4),
+        _gfs(gust=40),
+        _ai(gust=43.4),
+        _ai(gust=20),
+        icon=_ai(gust=30),
+        jma=_ai(gust=40),
+        wn2=_wn2(p49=0.5, wind=31, gust=46.5),
+    )
+    _, v = model_vote(es)
+    assert (v["total"], v["medium"], v["mediumTotal"]) == (8, 4, 6)
+    assert tally(es, "wind", "medium") == (v["medium"], v["mediumTotal"])
+    assert list(v) == ["total", "high", "medium", "mediumTotal", "low", "level", "thin"]
+
+
+def test_medium_total_equals_total_without_ensembles():
+    """兩個系集都沒資料 → `mediumTotal` ＝ `total`。"""
+    es = entries(_ec(hres=50), _gfs(gust=40), _ai(gust=43.4), _ai(gust=20), icon=_ai(gust=30))
+    by = {e["id"]: e for e in es}
+    assert by["ifs-ens"]["levels"]["wind"] is None and by["wn2-ens"]["levels"]["wind"] is None
+    _, v = model_vote(es)
+    assert v["total"] == v["mediumTotal"] == 5
+
+
+def test_medium_total_skips_non_voting(monkeypatch):
+    """旁觀模式不算進 `mediumTotal`（也不算進 `total`）。"""
+    monkeypatch.setattr(
+        assess, "MODELS", tuple(replace(m, voting=False) if m.id == "jma" else m for m in MODELS)
+    )
+    es = entries(
+        _ec(hres=50, p49=0.4),
+        _gfs(gust=40),
+        icon=_ai(gust=30),
+        jma=_ai(gust=40),
+        wn2=_wn2(p49=0.1),
+    )
+    _, v = model_vote(es)
+    assert (v["total"], v["mediumTotal"]) == (5, 3)  # ifs、gfs、icon

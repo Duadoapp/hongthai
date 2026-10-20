@@ -867,8 +867,9 @@ def model_vote(entries: Sequence[dict]) -> tuple[dict[str, str | None], dict]:
     """`models[]` → 四類各自投票的結果與 `model.vote`。
 
     `vote` 的票數都是「風」那一類的：`total` 分母（含只投高的系集、不含旁觀模式）、`high` 投高的數、
-    `medium` 等級 ≥ 中的數（不含只投高的模式，同判中的規則）、`low` 投低的數；`level` 是四類投票
-    結果取最高；`thin`＝風的分母 < 2。旁觀模式（HD16）完全不算。"""
+    `medium` 等級 ≥ 中的數（不含只投高的模式，同判中的規則）、`mediumTotal` 判中的分母（不含只投高
+    的模式，HD24）、`low` 投低的數；`level` 是四類投票結果取最高；`thin`＝風的分母 < 2。旁觀模式
+    （HD16）完全不算。"""
     skip = non_voting()
     rows = [
         (e.get("levels") or {}, e.get("id") in ONLY_HIGH)
@@ -881,6 +882,7 @@ def model_vote(entries: Sequence[dict]) -> tuple[dict[str, str | None], dict]:
         "total": len(wind),
         "high": sum(w == "high" for w, _ in wind),
         "medium": sum(rank(w) >= 1 and not oh for w, oh in wind),
+        "mediumTotal": len(_pool([w for w, _ in wind], [oh for _, oh in wind], "medium")),
         "low": sum(w == "low" for w, _ in wind),
         "level": max_level(cats.values()),
         "thin": len(wind) < 2,

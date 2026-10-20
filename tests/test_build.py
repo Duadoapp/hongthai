@@ -285,8 +285,10 @@ def test_top_level(latest):
         "wn2-ens",
     ]
     for m in latest["models"]:
-        assert set(m) == {"id", "name", "voting"} and set(m["name"]) == LANGS
+        assert set(m) == {"id", "name", "voting", "votesOnlyHigh"} and set(m["name"]) == LANGS
         assert m["voting"] is True  # HD16：三票都投票（旁觀模式之後才有）
+        # HD24：只投高或低的系集（判中時不算分母）
+        assert m["votesOnlyHigh"] is (m["id"] in ("ifs-ens", "wn2-ens"))
     assert latest["models"][3]["name"] == {
         "zh-TW": "歐洲 AI 模式 AIFS",
         "zh-HK": "歐洲 AI 模式 AIFS",
@@ -486,7 +488,8 @@ def test_slot_shape(latest):
                 assert all(v in LEVELS_OR_NONE for v in e["levels"].values())
                 assert e["level"] in LEVELS_OR_NONE
             v = m["vote"]
-            assert set(v) == {"total", "high", "medium", "low", "level", "thin"}
+            assert set(v) == {"total", "high", "medium", "mediumTotal", "low", "level", "thin"}
+            assert v["medium"] <= v["mediumTotal"] <= v["total"]  # HD24
             assert v["level"] == m["level"] and isinstance(v["thin"], bool)
             assert 0 <= v["high"] <= v["total"] <= 8 and v["low"] <= v["total"]
 
@@ -1804,6 +1807,7 @@ def test_rescore_revotes_models():
         "total": 4,
         "high": 2,
         "medium": 3,  # 不含系集
+        "mediumTotal": 3,  # HD24
         "low": 0,
         "level": "high",
         "thin": False,
@@ -2162,7 +2166,12 @@ def test_wn3_observe_listed_not_voting(workspace, monkeypatch, airports):
         )
     ]
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
-    assert out["models"][-1] == {"id": "wn3", "name": WN3_MODEL.name, "voting": False}
+    assert out["models"][-1] == {
+        "id": "wn3",
+        "name": WN3_MODEL.name,
+        "voting": False,
+        "votesOnlyHigh": False,  # HD24
+    }
     assert out["runs"]["wn3"] == "2026-10-17T18:00:00Z"
     assert out["sources"]["wn3"]["mode"] == "observe"
     s = _airport(out, "RCTP")["slots"][0]
