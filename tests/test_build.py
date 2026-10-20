@@ -643,6 +643,16 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     assert sorted(p.name for p in raw.iterdir()) == [
         f"0810Z-{n}.json" for n in ("cwa", "hko", "metar", "nws", "smg", "taf")
     ]
+    # HD14：latest.json 與 history/<時間>.json 不縮排（一行＋結尾換行）；原始快照照舊縮排
+    for p in (
+        workspace / "public" / "latest.json",
+        workspace / "data" / "latest.json",
+        workspace / "data" / "history" / "20261018T0810Z.json",
+        workspace / "public" / "history" / "20261018T0810Z.json",
+    ):
+        text = p.read_text("utf-8")
+        assert text == json.dumps(out, ensure_ascii=False, separators=(",", ":")) + "\n", p
+    assert "\n " in (raw / "0810Z-taf.json").read_text("utf-8")
 
 
 def test_pipeline_crash_republishes_previous(workspace, monkeypatch):

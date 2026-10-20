@@ -319,6 +319,8 @@ H10（2026-10-18）之後：
 
 ### 輸出
 
+- `latest.json` 與 `history/<YYYYMMDDTHHMM>Z.json` 的 JSON 不縮排（HD14 起，檔案約 1.9 MB）；原始快照
+  `history/raw/` 照舊縮排
 - GitHub Pages（`public/`）：`latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（歷次結果，**只放最近 7 天**：
   H9 起一份約 515 KB、HD3 起約 642 KB（2026-10-18 實測），`publish()` 只複製檔名時間（＝`generatedAt`）在 7 天內的，Pages 上更舊的刪掉；
   `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，

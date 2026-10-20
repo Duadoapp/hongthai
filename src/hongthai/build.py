@@ -156,9 +156,16 @@ def model_part(model: dict, key: str) -> dict | None:
     )
 
 
-def _dump(path: Path, obj: object) -> None:
+def _dump(path: Path, obj: object, compact: bool = False) -> None:
+    """`compact=True`：不縮排（`latest.json` 與 `history/<時間>.json`，HD14 起；每格多了 5 筆
+    `models[]`，`indent=1` 時約 3.3 MB、不縮排約 1.9 MB）。原始快照照舊 `indent=1`。"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    text = (
+        json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+        if compact
+        else json.dumps(obj, ensure_ascii=False, indent=1)
+    )
+    path.write_text(text + "\n", encoding="utf-8")
 
 
 class Timing:
@@ -767,8 +774,8 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-smg.json", sm.raw)
     if nw is not None:
         _dump(raw_dir / f"{now:%H%M}Z-nws.json", nw.raw)
-    _dump(history / f"{stamp}.json", latest)
-    _dump(archive / "latest.json", latest)
+    _dump(history / f"{stamp}.json", latest, compact=True)
+    _dump(archive / "latest.json", latest, compact=True)
     return latest
 
 
@@ -806,7 +813,7 @@ def publish(out: Path, archive: Path, latest: dict | None, now: datetime) -> Non
     """
     out.mkdir(parents=True, exist_ok=True)
     if latest is not None:
-        _dump(out / "latest.json", latest)
+        _dump(out / "latest.json", latest, compact=True)
     hist_out = out / "history"
     hist_out.mkdir(parents=True, exist_ok=True)
     since = now - timedelta(days=PAGES_HISTORY_DAYS)
