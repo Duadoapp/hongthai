@@ -97,6 +97,20 @@
 - 有 TAF 的機場完全不受影響（TAF 全部過去的也一樣——那是 HD7 的「當作沒有 TAF」，不走這條）
 - 會用到的：金門、馬祖（METAR 是氣象署局屬站觀測，`sources/cwa.py`）與宮古（AviationWeather 有
   METAR 沒 TAF）；花蓮等六個連 METAR 也沒有的機場不變
+
+多模式投票（HD14，Shawn 2026-10-19 定案）——上面「模式」那幾條改成每個模式各自判、再投票：
+- 五票（`config.MODELS`）：IFS（HRES）、GFS、IFS 系集、AIFS、AIGFS，每個一筆 `models[]`
+  （`model_entries`），權重相同。每一類各自投（`vote`）：某等級 L 的票＝等級 ≥ L 的模式數，
+  票數 × 2 ≥ 分母就成立，取成立的最高；分母＝這一類有資料（不是 None）的模式。四類再取最高＝
+  `model.level`
+- IFS 系集只投「高」（`Model.votes_only_high`）：`p49Kt` ≥ `ecP49High` 投高、否則投低，判中時不算
+  分母。所以系集單獨撐不起高（HD14 以前可以）
+- AIFS、AIGFS 沒有陣風：10 米平均風 × `GUST_FACTOR`（1.4）＝估算陣風，側風也用它
+  （`estimated_for_slot`）
+- IFS、GFS 三類的等級就是 `model.ec`／`model.gfs` 的（值照舊）；IFS 的雨含系集 24 小時雨量機率。
+  AIFS、AIGFS 的雨用 6 小時雨量；雪只有有降水型態的模式投（AIGFS 的 `ptype` 永遠 None → 不投）；
+  霧只有 GFS（分母 1）
+- `model.agreement` 照舊只看 IFS 與 GFS 的陣風；`causes` 依據是模式層時用投票後各類的等級
 """
 
 from __future__ import annotations
@@ -106,7 +120,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import radians, sin
 
-from .config import ConfirmedPeriod, Runway, Thresholds
+from .config import GUST_FACTOR, MODELS, ConfirmedPeriod, Runway, Thresholds
+from .sources.aifs import AifsStep
+from .sources.aigfs import AigfsStep
 from .sources.ecmwf import EcmwfPoint, PrecipStep
 from .sources.gfs import GustPoint
 from .sources.taf import Metar, TafPeriod
@@ -126,6 +142,9 @@ RAIN_WARNING_KINDS = frozenset(
 )
 FOG_WARNING_KINDS = frozenset({"cwa_dense_fog"})  # 算 `fog` 的警報種類（HD13）
 SNOWY_PTYPES = frozenset({"snow", "wet_snow", "rain_snow"})
+# `slots[].model.models[]` 每筆的數字欄位（HD14）
+MODEL_NUM_KEYS = ("gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")
+ONLY_HIGH = frozenset(m.id for m in MODELS if m.votes_only_high)
 FREEZING_PTYPES = frozenset({"freezing_rain", "freezing_drizzle", "ice_pellets"})
 
 
@@ -446,14 +465,6 @@ def gust_level(gust_kt: float | None, th: Thresholds) -> str | None:
     return "low"
 
 
-def _model_gust_level(ec: dict, gfs: dict, th: Thresholds) -> str:
-    """確定性陣風（HRES、GFS）決定中、高；系集只看 `p49Kt` 進高（沒有 37 節的機率）。"""
-    p49 = ec.get("p49Kt")
-    high_by_ens = p49 is not None and p49 >= th.ec_p49_high
-    gust = max_level(gust_level(v, th) for v in (ec.get("hresGustKt"), gfs.get("gustKt")))
-    return "high" if high_by_ens else gust or "low"
-
-
 def _num(v: object) -> float | None:
     return v if isinstance(v, int | float) and not isinstance(v, bool) else None
 
@@ -507,50 +518,156 @@ def fill_model_wx(ec: dict, gfs: dict, th: Thresholds) -> None:
     gfs["fog"] = fog_model_level(gfs.get("visibilityM"), th)
 
 
-def model_levels(ec: dict, gfs: dict, th: Thresholds) -> dict[str, str | None] | None:
-    """模式層各種類的等級（`wind`＝陣風與兩個模式的側風取較高；EC、GFS 的三類取較高）；
-    完全沒有模式資料回 None。"""
-    keys = (
-        ec.get("p10"),
-        ec.get("p29Kt"),
-        ec.get("p49Kt"),
-        ec.get("hresGustKt"),
-        gfs.get("gustKt"),
-        ec.get("rain6hMm"),
-        ec.get("p24hRain50"),
-        gfs.get("rain6hMm"),
-        gfs.get("visibilityM"),
-    )
-    if all(v is None for v in keys):
-        return None
+def _wind_level(gust_kt: object, crosswind: object, th: Thresholds) -> str | None:
+    """一個模式的風：陣風與側風（含陣風）取較高；兩個都沒有回 None。"""
+    return max_level([gust_level(_num(gust_kt), th), crosswind_level(_num(crosswind), th)])
+
+
+def estimated_for_slot(
+    steps: Sequence[AifsStep | AigfsStep] | None,
+    start: datetime,
+    end: datetime,
+    runways: Sequence[Runway] = (),
+) -> dict:
+    """沒有陣風的模式（AIFS、AIGFS，HD14）一格的數字：陣風＝格頭尾兩個時間點的 10 米平均風 ×
+    `GUST_FACTOR` 取大的（估算）、側風用估算陣風算、雨量與型態用格結束那個時間點（同 GFS）。"""
+    inside = [s for s in steps or [] if start <= s.valid <= end]
+    gusts = [(s.wind_kt * GUST_FACTOR, s.wdir) for s in inside if s.wind_kt is not None]
+    last = next((s for s in inside if s.valid == end), None)
     return {
-        "wind": max_level(
-            [
-                _model_gust_level(ec, gfs, th),
-                crosswind_level(ec.get("crosswindKt"), th),
-                crosswind_level(gfs.get("crosswindKt"), th),
-            ]
-        ),
-        "rain": max_level([ec_rain_level(ec, th), rain_model_level(gfs.get("rain6hMm"), th)]),
-        "snow": max_level(
-            [
-                snow_model_level(ec.get("rain6hMm"), ec.get("ptype"), th),
-                snow_model_level(gfs.get("rain6hMm"), gfs.get("ptype"), th),
-            ]
-        ),
-        "fog": fog_model_level(gfs.get("visibilityM"), th),
+        "gustKt": _round(_max(g for g, _ in gusts), 1),
+        "crosswindKt": _round(_max(crosswind_kt(g, d, runways) for g, d in gusts), 1),
+        "rain6hMm": _round(last.rain6h_mm, 1) if last else None,
+        "ptype": last.ptype if last else None,
+        "visibilityM": None,
     }
 
 
-def model_level(ec: dict, gfs: dict, th: Thresholds) -> str | None:
-    """風（陣風、兩個模式的側風）與三類（HD8）取最高；完全沒有模式資料回 None。"""
-    levels = model_levels(ec, gfs, th)
-    return None if levels is None else max_level(levels.values())
+def model_entries(
+    ec: dict, gfs: dict, others: dict[str, dict], runs: dict[str, str | None], th: Thresholds
+) -> list[dict]:
+    """`slots[].model.models[]`（HD14）：照 `config.MODELS` 的順序，每個模式一筆，沒資料的也有
+    （數字、`levels`、`level` 全是 null）。`ec`／`gfs` 要先 `fill_model_wx`（IFS、GFS 三類的等級
+    直接用 `model.ec`／`model.gfs` 的，值照舊）；其他模式的數字從 `others[id]`
+    （`estimated_for_slot` 的結果，或沿用時抄來的那筆）。
+
+    - `ifs`：HRES 陣風、側風、雨量、型態；雨＝`ec.rain`（HRES 雨量或系集 24 小時雨量機率，同 HD8）
+    - `gfs`：陣風、側風、雨量、型態、能見度（霧只有它）
+    - `ifs-ens`（`votes_only_high`）：數字全 null，`levels.wind`＝`p49Kt` ≥ `ecP49High` 高、否則低
+    - 其他（AIFS、AIGFS）：估算陣風（`gustEstimated: true`）；有降水型態才投雪
+    """
+    out = []
+    for m in MODELS:
+        lv: dict[str, str | None] = dict.fromkeys(CAUSES)
+        if m.id == "ifs":
+            nums = {
+                "gustKt": ec.get("hresGustKt"),
+                "crosswindKt": ec.get("crosswindKt"),
+                "rain6hMm": ec.get("rain6hMm"),
+                "ptype": ec.get("ptype"),
+                "visibilityM": None,
+            }
+            lv.update(rain=ec.get("rain"), snow=ec.get("snow"))
+        elif m.id == "gfs":
+            nums = {k: gfs.get(k) for k in MODEL_NUM_KEYS}
+            lv.update(rain=gfs.get("rain"), snow=gfs.get("snow"), fog=gfs.get("fog"))
+        elif m.votes_only_high:
+            nums = dict.fromkeys(MODEL_NUM_KEYS)
+            p49 = _num(ec.get("p49Kt"))
+            lv["wind"] = None if p49 is None else "high" if p49 >= th.ec_p49_high else "low"
+        else:
+            src = others.get(m.id) or {}
+            nums = {k: src.get(k) for k in MODEL_NUM_KEYS}
+            lv["rain"] = rain_model_level(nums["rain6hMm"], th)
+            if nums["ptype"] is not None:
+                lv["snow"] = snow_model_level(nums["rain6hMm"], nums["ptype"], th)
+            lv["fog"] = fog_model_level(nums["visibilityM"], th)
+        if not m.votes_only_high:
+            lv["wind"] = _wind_level(nums["gustKt"], nums["crosswindKt"], th)
+        out.append(
+            {
+                "id": m.id,
+                "run": runs.get(m.id),
+                "gustKt": nums["gustKt"],
+                "gustEstimated": None if nums["gustKt"] is None else m.gust_estimated,
+                "crosswindKt": nums["crosswindKt"],
+                "rain6hMm": nums["rain6hMm"],
+                "ptype": nums["ptype"],
+                "visibilityM": nums["visibilityM"],
+                "levels": lv,
+                "level": max_level(lv.values()),
+            }
+        )
+    return out
+
+
+def _pool(levels: Sequence[str | None], only_high: Sequence[bool], target: str) -> list[str]:
+    """判 `target` 那一輪的分母：有等級的模式；判「中」時 `only_high` 為真的不算。"""
+    flags = list(only_high) + [False] * (len(levels) - len(only_high))
+    return [
+        lv
+        for lv, oh in zip(levels, flags, strict=True)
+        if lv in LEVELS and not (oh and target == "medium")
+    ]
+
+
+def vote(levels: Sequence[str | None], only_high: Sequence[bool] = ()) -> str | None:
+    """一類的投票（HD14）：分母＝有等級（不是 None）的模式數；對 高、中、低 依序看，票數
+    （等級 ≥ 它的模式數）× 2 ≥ 分母就成立，取成立的最高。判「中」時 `only_high` 為真的模式不算
+    （不在分母、也不算票）。分母 0 回 None。"""
+    for target in ("high", "medium", "low"):
+        pool = _pool(levels, only_high, target)
+        if pool and sum(rank(lv) >= rank(target) for lv in pool) * 2 >= len(pool):
+            return target
+    return None
+
+
+def tally(entries: Sequence[dict], cause: str, target: str) -> tuple[int, int]:
+    """`models[]` 某一類判 `target` 那一輪的（票數, 分母），給 AI 短評的「投票」句。"""
+    lv = [(e.get("levels") or {}).get(cause) for e in entries]
+    pool = _pool(lv, [e.get("id") in ONLY_HIGH for e in entries], target)
+    return sum(rank(x) >= rank(target) for x in pool), len(pool)
+
+
+def model_vote(entries: Sequence[dict]) -> tuple[dict[str, str | None], dict]:
+    """`models[]` → 四類各自投票的結果與 `model.vote`。
+
+    `vote` 的票數都是「風」那一類的：`total` 分母（含 IFS 系集）、`high` 投高的數、`medium` 等級
+    ≥ 中的數（不含只投高的模式，同判中的規則）、`low` 投低的數；`level` 是四類投票結果取最高；
+    `thin`＝風的分母 < 2。"""
+    rows = [(e.get("levels") or {}, e.get("id") in ONLY_HIGH) for e in entries]
+    cats = {c: vote([lv.get(c) for lv, _ in rows], [oh for _, oh in rows]) for c in CAUSES}
+    wind = [(lv.get("wind"), oh) for lv, oh in rows if lv.get("wind") in LEVELS]
+    return cats, {
+        "total": len(wind),
+        "high": sum(w == "high" for w, _ in wind),
+        "medium": sum(rank(w) >= 1 and not oh for w, oh in wind),
+        "low": sum(w == "low" for w, _ in wind),
+        "level": max_level(cats.values()),
+        "thin": len(wind) < 2,
+    }
+
+
+def model_levels(entries: Sequence[dict]) -> dict[str, str | None] | None:
+    """模式層各種類的等級＝各自投票的結果（HD14）；沒有任何模式有資料回 None。"""
+    cats, _ = model_vote(entries)
+    return None if all(v is None for v in cats.values()) else cats
+
+
+def model_level(
+    ec: dict, gfs: dict, th: Thresholds, others: dict[str, dict] | None = None
+) -> str | None:
+    """模式層等級（投票，HD14）；完全沒有模式資料回 None。不改 `ec`／`gfs`。"""
+    ec, gfs = dict(ec), dict(gfs)
+    fill_model_wx(ec, gfs, th)
+    _, v = model_vote(model_entries(ec, gfs, others or {}, {}, th))
+    return v["level"]
 
 
 def slot_causes(slot: dict, th: Thresholds, official_levels: dict | None = None) -> list[str]:
     """一格的 `causes`（規則見模組說明）。官方層各種類的等級要另外給（`official_levels`；
-    `latest.json` 裡沒有存風的等級）；沒給而依據是官方層時回 None 讓呼叫的人維持原值。"""
+    `latest.json` 裡沒有存風的等級）；沒給而依據是官方層時回 None 讓呼叫的人維持原值。
+    依據是模式層時用投票後各類的等級（HD14）。"""
     basis = slot.get("basis")
     if basis == "confirmed":
         basis = "official" if slot.get("official") is not None else "model"
@@ -558,8 +675,12 @@ def slot_causes(slot: dict, th: Thresholds, official_levels: dict | None = None)
         return causes_from(official_levels) if official_levels is not None else None
     if basis == "model":
         m = slot.get("model") or {}
-        levels = model_levels(m.get("ec") or {}, m.get("gfs") or {}, th)
-        return causes_from(levels or {}, MODEL_CAUSE_ORDER)
+        entries = m.get("models")
+        if not isinstance(entries, list):
+            ec, gfs = dict(m.get("ec") or {}), dict(m.get("gfs") or {})
+            fill_model_wx(ec, gfs, th)
+            entries = model_entries(ec, gfs, {}, {}, th)
+        return causes_from(model_levels(entries) or {}, MODEL_CAUSE_ORDER)
     return []
 
 
@@ -585,8 +706,12 @@ def assess_slots(
     confirmed: Sequence[ConfirmedPeriod],
     runways: Sequence[Runway] = (),
     metar: Metar | None = None,
+    aifs: Sequence[AifsStep] | None = None,
+    aigfs: Sequence[AigfsStep] | None = None,
+    runs: dict[str, str | None] | None = None,
 ) -> list[dict]:
-    """單一機場的所有格。`taf_periods`／`ec`／`gfs`／`metar` 是 None 代表該來源失敗或沒資料。"""
+    """單一機場的所有格。`taf_periods`／`ec`／`gfs`／`metar`／`aifs`／`aigfs` 是 None 代表該來源
+    失敗或沒資料。`runs` 是各模式（`config.MODELS` 的 id）的時次，寫進 `models[].run`。"""
     official_until = now + timedelta(hours=OFFICIAL_HORIZON_H)
     warning_until = now + timedelta(hours=WARNING_HORIZON_H)
     metar_xw = metar_crosswind(metar, now, runways)
@@ -595,12 +720,20 @@ def assess_slots(
         ec_v = ec_for_slot(ec, start, end, runways)
         gfs_v = gfs_for_slot(gfs, start, end, runways)
         fill_model_wx(ec_v, gfs_v, thresholds)
-        m_level = model_level(ec_v, gfs_v, thresholds)
+        others = {
+            "aifs": estimated_for_slot(aifs, start, end, runways),
+            "aigfs": estimated_for_slot(aigfs, start, end, runways),
+        }
+        entries = model_entries(ec_v, gfs_v, others, runs or {}, thresholds)
+        _, vote_v = model_vote(entries)
+        m_level = vote_v["level"]
         model = {
             "ec": ec_v,
             "gfs": gfs_v,
             "level": m_level,
             "agreement": agreement(ec_v, gfs_v, thresholds),
+            "models": entries,
+            "vote": vote_v,
         }
 
         official = None

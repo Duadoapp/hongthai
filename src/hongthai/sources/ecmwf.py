@@ -332,8 +332,9 @@ def _client_class():
     return BoundedClient
 
 
-def _client(source: str, **retry):
-    return _client_class()(source=source, **{**CLIENT_RETRY, **retry})
+def _client(source: str, model: str = "ifs", **retry):
+    """`model` 是 `ecmwf-opendata` 的模式（HD14 的 AIFS 用 `"aifs-single"`）。"""
+    return _client_class()(source=source, model=model, **{**CLIENT_RETRY, **retry})
 
 
 def _code(e: BaseException) -> str:
@@ -346,10 +347,11 @@ def _code(e: BaseException) -> str:
     return e.__class__.__name__
 
 
-def _latest(clients, **request) -> datetime:
+def _latest(clients, label: str = "ECMWF", **request) -> datetime:
     """依 `LATEST_SOURCES` 找最新一報。
 
-    全部失敗丟 `no_run`；最後一個是 429／5xx 用盡時丟它的代碼（例如 `http_429`）。
+    全部失敗丟 `no_run`；最後一個是 429／5xx 用盡時丟它的代碼（例如 `http_429`）。`label` 只用在
+    log（AIFS 共用這一套，HD14）。
     """
     last: BaseException | None = None
     for src in LATEST_SOURCES:
@@ -359,7 +361,8 @@ def _latest(clients, **request) -> datetime:
             run = clients(src).latest(**request)
         except Exception as e:  # ecmwf-opendata 找不到時丟一般例外
             log.warning(
-                "ECMWF latest %s（%s）失敗，%.1f 秒：%s",
+                "%s latest %s（%s）失敗，%.1f 秒：%s",
+                label,
                 request.get("stream"),
                 src,
                 time.monotonic() - t0,
@@ -368,7 +371,8 @@ def _latest(clients, **request) -> datetime:
             last = e
             continue
         log.info(
-            "ECMWF latest %s（%s）：%s，%.1f 秒",
+            "%s latest %s（%s）：%s，%.1f 秒",
+            label,
             request.get("stream"),
             src,
             run,
@@ -376,10 +380,10 @@ def _latest(clients, **request) -> datetime:
         )
         return run.replace(tzinfo=UTC)
     code = _code(last) if isinstance(last, EcmwfError) else "no_run"
-    raise EcmwfError(f"找不到最新 {request.get('stream')}：{last}", code) from last
+    raise EcmwfError(f"{label} 找不到最新 {request.get('stream')}：{last}", code) from last
 
 
-def _retrieve(client, target: Path, **request) -> int:
+def _retrieve(client, target: Path, label: str = "ECMWF", **request) -> int:
     t0 = time.monotonic()
     target.unlink(missing_ok=True)  # multiurl 看到舊檔會接著續傳，換鏡像時不能留上一個的殘檔
     # multiurl 的 tqdm 進度條寫死 disable=False，會在 Actions log 洗版；大小與耗時由下面的 log 印
@@ -388,19 +392,24 @@ def _retrieve(client, target: Path, **request) -> int:
     size = target.stat().st_size if target.exists() else 0
     add_bytes(size)
     log.info(
-        "ECMWF %s %s：%d bytes，%.1f 秒",
+        "%s %s %s：%d bytes，%.1f 秒",
+        label,
         request.get("stream"),
         request.get("type"),
         size,
         time.monotonic() - t0,
     )
     if size == 0:
-        raise EcmwfError(f"ECMWF {request.get('stream')} 下載是空的", "empty")
+        raise EcmwfError(f"{label} {request.get('stream')} 下載是空的", "empty")
     return size
 
 
 def _download(
-    clients, target: Path, sources: tuple[str, ...] = DOWNLOAD_SOURCES, **request
+    clients,
+    target: Path,
+    sources: tuple[str, ...] = DOWNLOAD_SOURCES,
+    label: str = "ECMWF",
+    **request,
 ) -> tuple[int, str]:
     """依 `sources` 的順序下載；回傳（大小, 實際的 source）。全部失敗丟最後一個錯誤的代碼。"""
     last: BaseException | None = None
@@ -410,10 +419,11 @@ def _download(
         t0 = time.monotonic()
         try:
             client = clients(src, **DOWNLOAD_RETRY.get(src, {}))
-            return _retrieve(client, target, **request), src
+            return _retrieve(client, target, label, **request), src
         except Exception as e:  # 404（鏡像還沒同步到）、429、空檔……換下一個
             log.warning(
-                "ECMWF %s 從 %s 下載失敗，%.1f 秒：%s",
+                "%s %s 從 %s 下載失敗，%.1f 秒：%s",
+                label,
                 request.get("stream"),
                 src,
                 time.monotonic() - t0,
@@ -421,7 +431,7 @@ def _download(
             )
             last = e
     assert last is not None
-    raise EcmwfError(f"ECMWF {request.get('stream')} 每個 source 都下載失敗：{last}", _code(last))
+    raise EcmwfError(f"{label} {request.get('stream')} 每個 source 都下載失敗：{last}", _code(last))
 
 
 def fetch(airports: list[Airport], slot0: datetime, workdir: str | Path | None = None) -> EcmwfData:

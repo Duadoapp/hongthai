@@ -206,7 +206,21 @@
     （Shawn 申請 allowlist、寫信問 Google 能否公開展示，核准後再開）→ **HD16** Open-Meteo 的 ICON＋JMA（免費版；
     Shawn 判斷目前非商業——HongThai 與 Duado 都沒收費、沒廣告。**一旦收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或
     拿掉這兩個模式；網頁要標註 Open-Meteo（CC BY 4.0）**；注意免費版每日 10,000／每月 300,000 次上限）。
-    AIGEFS、WeatherNext 2 不做。查證結果（授權、取得方式、變數、下載量）在 `docs/worklog/2026-10-19.md`「待決定」
+    AIGEFS、WeatherNext 2 不做。查證結果（授權、取得方式、變數、下載量）在 `docs/worklog/2026-10-19.md`「待決定」。
+    **HD14 已實作（HD14 PR）**；和提示詞不一樣的地方：
+    - AIFS 的 `tp`／`sf` 單位是 **mm**（kg m⁻²），不是提示詞寫的 m（cfgrib `GRIB_units` 實測）；`ptype` 的
+      「沒降水」是 6 小時總降水 < 0.1 mm（GRIB 打包雜訊約 0.01 mm）
+    - AIFS 21 個步長加開始步長實測 66 MB／55 秒（提示詞估 50 MB）；AWS 鏡像那時連 `.index` 都回 503，落到
+      ECMWF 入口。AIGFS 51 MB／38 秒，路徑是 `aigfs.<日期>/<HH>/model/atmos/grib2/aigfs.t<HH>z.sfc.f<FFF>.grib2`；
+      NOMADS 沒有 `filter_aigfs`，不做備援
+    - IFS 那票的雨＝`model.ec.rain`（HRES 雨量**或系集 24 小時雨量機率**，同 HD8），系集那筆本身不投雨
+      （提示詞只寫「系集不投雨」，沒提 `p24hRain50`；照舊保留在 IFS 的票裡，要拿掉再說）
+    - `vote.medium` 是「等級 ≥ 中、不含系集」的數（同判中那一輪的分母）
+    - `latest.json` 從 1,091 KB 變 3,276 KB（`indent=1`；gzip 68 → 154 KB），比提示詞估的 +400–500 KB 大很多；
+      `data` 分支每份 history 也一樣大（一天 4 份約 13 MB）。要省的話可以考慮 history／latest 改不縮排
+      （不縮排 1.93 MB），格式決定留給主對話
+    - 用 2349Z 那報重算：模式層 1020 格裡 83 格變低、1 格變高；高 114 → 61、中 72 → 84。主因是 AIFS 這次的
+      颱風風速偏低（桃園 10/23 平均風 18–19 節 → 估算 26 節，同格 HRES 陣風 50–62 節）、系集投低也算進「高」的分母
   - 還沒排進階段的：FNV3／WeatherNext Cyclones 颱風路徑（授權是實驗性條款、商用待確認，所以排後面）、
     日本機場（JMA bosai JSON 非正式）、華南與馬尼拉（只能爬網頁）、推播（要接進 App，屬 Duado 的規格）
 - 等級叫「風險」不叫「機率」，等用實際停飛紀錄回測校準後才改。停飛紀錄沒有現成的，從第一天起從航班狀態
@@ -243,6 +257,10 @@
   `warnings[].kind` 多 `cwa_dense_fog`（中、算 `fog`）；`airports[].metar.source: "cwa"`（氣象署局屬站觀測，
   AviationWeather 的沒有這個鍵）；`slots[].official.kind` 多 `metar`（沒有 TAF 的機場第一格由 METAR 撐起，
   `wx` 是物件）
+- HD14（多模式投票）要經 Shawn 轉給 Duado 總指揮的：頂層 `models`（`[{id, name: {四語}}]`）、
+  `slots[].model.models[]`（每格 5 筆，`gustEstimated: true` 時網頁寫「估算陣風」）、`slots[].model.vote`、
+  `runs.aifs`／`runs.aigfs`、`sources.aifs`／`sources.aigfs`；`model.level` 改由投票決定，`model.ec`／`gfs`／
+  `agreement` 不變。完整定義在 README「輸出」的 HD14 段；資料來源要標 ECMWF AIFS（CC BY 4.0）
 - HD5（AI 對決）加的欄位，要和 Duado `docs/spec.md` 第 16 節一致：頂層 `ai`（`disclaimer` 四語、`models`）、
   `airports[].ai`（`evaluatedAt`、`claude`、`gemini` 兩顆燈）、`sources.ai`（`ok`、`seconds`、`calls`、
   `errors`）。錯誤代碼比定稿多兩個，要經 Shawn 轉給 Duado 總指揮：`run_cap`（符合條件但排在前 20 個之後、
@@ -350,16 +368,18 @@ NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權�
 
 ### 來源逾時與沿用（H7，2026-10-18 build #4 被 ECMWF 429 卡到被砍之後）
 
-- 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 300（H10 起，原 240）、gfs 180、taf 45、hko 30、
-  smg 30、cwa 45、nws 30（HD3）、flights 120、ai 240（HD12 起，原 180，HD5）、og 60（HD1）秒，總和 18 分鐘），超過記
-  `error: "timeout"` 繼續跑下一個；Actions 那一步 18 分鐘、job 28 分鐘（HD5 前 15／25）
+- 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 300（H10 起，原 240）、gfs 180、aifs 180、aigfs 120
+  （HD14）、taf 45、hko 30、smg 30、cwa 45、nws 30（HD3）、flights 120、ai 240（HD12 起，原 180，HD5）、
+  og 60（HD1）秒，總和 23 分鐘），超過記 `error: "timeout"` 繼續跑下一個；Actions 那一步 25 分鐘、job 35 分鐘
+  （HD14 前 20／30、HD12 前 18／28、HD5 前 15／25）
 - ECMWF 重試最多 3 次、間隔 10 秒、不照 Retry-After；找最新一報先問入口、下載先試 AWS 鏡像
   （→ 入口 → Google；AWS 下載不重試，S3 的 503 Slow Down 一來就換），`sources.ecmwf.mirror` 記實際來源。`ecmwf-opendata` 最低 0.3.34（有重試參數）
 - GFS（H10）：先 AWS 開放資料鏡像（`.idx`＋HTTP `Range` 只抓三筆），失敗才 NOMADS（2026-10-18 12:42Z 起
   NOMADS 對 Actions 回 403）；`sources.gfs.mirror` 與 timing 的 gfs 那行記 `aws`／`nomads`
 - ECMWF HRES（H10）：每個步長只有一個陣風參數（`10fg` 或 `10fg3`，不能只抓 `10fg3`）；`10u`／`10v`
   只抓 6 小時整的步長，一報從約 112 MB 降到約 82 MB（目標 70 MB 沒達到，見 PR 說明）
-- `ecmwf`／`gfs` 失敗時沿用「最近一份有該模式資料」的同機場同格 `model.ec`／`model.gfs`，等級照常算。
+- `ecmwf`／`gfs`／`aifs`／`aigfs` 失敗時沿用「最近一份有該模式資料」的同機場同格 `model.ec`／`model.gfs`
+  （AIFS、AIGFS 是 `model.models[]` 同 `id` 那筆的數字，HD14），等級與投票照常算。
   H10 起往前找：`data` 分支 `history/<時間>.json` 由新到舊，第一份 `sources.<名稱>.ok` 是 `true` 而且
   模式時次在 24 小時內的；找不到才退回上一份 `latest.json`。`ok` 維持 `false`、加 `reusedFrom`
   （那一份的 `generatedAt`），`runs` 是那一份的。模式時次超過 24 小時不沿用（系集各自算），

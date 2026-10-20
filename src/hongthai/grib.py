@@ -2,10 +2,15 @@
 
 eccodes 不是執行緒安全的，而超過時間預算被放棄的來源執行緒可能還在背景跑（見 `budget.py`），
 所以所有解析都包在全域的 `GRIB_LOCK` 裡；被放棄的執行緒在解析前就會因 `check_cancelled()` 結束。
+
+NOAA 的 `.idx`（GFS、AIGFS 共用，HD14 從 `sources/gfs.py` 搬來）：一行一筆
+`序號:byte 起點:d=<時次>:變數:層:時效:`；`byte_ranges` 算出要抓的那幾筆的 byte 範圍。
 """
 
 from __future__ import annotations
 
+import logging
+import re
 import threading
 import warnings
 from dataclasses import dataclass
@@ -17,6 +22,8 @@ import numpy as np
 import xarray as xr
 
 from .budget import check_cancelled
+
+log = logging.getLogger("hongthai")
 
 GRIB_LOCK = threading.Lock()
 
@@ -86,3 +93,92 @@ def wind_dir_from_uv(u: float | None, v: float | None) -> float | None:
     if u is None or v is None or hypot(u, v) < 0.1:
         return None
     return degrees(atan2(-u, -v)) % 360
+
+
+# ---- NOAA `.idx`（GFS、AIGFS）----
+
+# 從起報累積的時效字串：`0-12 hour acc fcst`、`0-5 day acc fcst`（AIGFS 的 f120，HD14）
+_ACC_FROM_START = re.compile(r"^0-(\d+) (hour|day) acc fcst$")
+
+
+def idx_records(idx_text: str) -> list[tuple[int, str, str, str]]:
+    """`.idx` 文字 → （byte 起點, 變數, 層, 時效）；格式不對的行跳過。"""
+    recs = []
+    for line in idx_text.splitlines():
+        parts = line.split(":")
+        if len(parts) < 5 or not parts[1].strip().isdigit():
+            continue
+        recs.append((int(parts[1]), parts[3], parts[4], parts[5] if len(parts) > 5 else ""))
+    return recs
+
+
+def idx_time_ok(kind: str | None, text: str, fh: int | None) -> bool:
+    """時效：None＝不限、`inst`＝瞬時（`anl`／`<n> hour fcst`）、`acc6`＝前 6 小時的累積
+    （`<fh−6>-<fh> hour acc fcst`）、`acc0`＝從起報累積到 `fh`（`0-<fh> hour acc fcst`，
+    或 `0-<n> day acc fcst`；HD14）。`acc6`／`acc0` 要給 `fh`。"""
+    if kind is None:
+        return True
+    if kind == "inst":
+        return "-" not in text and "ave" not in text and "acc" not in text
+    if kind == "acc6":
+        return fh is not None and text.strip() == f"{fh - 6}-{fh} hour acc fcst"
+    if kind == "acc0":
+        m = _ACC_FROM_START.match(text.strip())
+        return m is not None and fh is not None and int(m[1]) * (24 if m[2] == "day" else 1) == fh
+    raise ValueError(f"不認得的時效種類 {kind!r}")
+
+
+def _time_of(field: tuple[str, ...], when: str, fh: int | None) -> bool:
+    return idx_time_ok(field[2] if len(field) > 2 else None, when, fh)
+
+
+def idx_has(idx_text: str, field: tuple[str, ...], fh: int | None = None) -> bool:
+    """`.idx` 裡有沒有這個（變數, 層[, 時效]）。"""
+    return any(
+        (var, lev) == field[:2] and _time_of(field, when, fh)
+        for _, var, lev, when in idx_records(idx_text)
+    )
+
+
+def byte_ranges(
+    idx_text: str,
+    fields,
+    fh: int | None = None,
+    optional=(),
+    *,
+    error: type[Exception] = ValueError,
+    label: str = "",
+) -> list[tuple[int, int | None]]:
+    """`.idx` 文字 → 要抓的 byte 範圍（頭尾都含；最後一筆到檔尾時尾是 None），相鄰的併成一段。
+
+    一筆的範圍是它的起點到下一個（起點更大的）紀錄的起點前一個 byte。`fields`／`optional` 每個是
+    （變數, 層）或（變數, 層, 時效），時效見 `idx_time_ok`；同一個欄位只取第一筆合的。`fields` 少了
+    任何一筆就丟 `error(…, "bad_idx")`，`optional` 少了只 log。
+    """
+    recs = idx_records(idx_text)
+    starts = sorted({r[0] for r in recs})
+    required = {tuple(f) for f in fields}
+    wanted = required | {tuple(f) for f in optional}
+    found: set[tuple[str, ...]] = set()
+    out: list[tuple[int, int | None]] = []
+    for start, var, lev, when in sorted(recs):
+        hit = next(
+            (f for f in wanted - found if f[:2] == (var, lev) and _time_of(f, when, fh)),
+            None,
+        )
+        if hit is None:
+            continue
+        found.add(hit)
+        later = [s for s in starts if s > start]
+        end = later[0] - 1 if later else None
+        if out and out[-1][1] is not None and out[-1][1] + 1 == start:
+            out[-1] = (out[-1][0], end)
+        else:
+            out.append((start, end))
+    if not required <= found:
+        missing = ", ".join(":".join(f) for f in fields if tuple(f) not in found)
+        raise error(f".idx 裡沒有 {missing}", "bad_idx")
+    if found != wanted:
+        lost = ", ".join(":".join(f) for f in optional if tuple(f) not in found)
+        log.warning("%s f%s 的 .idx 裡沒有 %s，這幾筆不抓", label, fh, lost)
+    return out

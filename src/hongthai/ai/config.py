@@ -72,6 +72,10 @@ FORBIDDEN_TOKENS = (
     "APCP",
     "CSNOW",
     "CFRZR",
+    # HD14：模式要用白話名（歐洲 AI 模式、美國 AI 模式）、估算陣風寫「估算陣風」
+    "gustEstimated",
+    "AIGFS",
+    "AIFS",
 )
 # 英文常用字（HD17）：en 不當代號擋（"strong wind causes…"、"on the basis of"、"models are in
 # agreement"、"afternoon slots"）；中文三語照擋——中文短評裡出現這些英文字只會是抄欄位名

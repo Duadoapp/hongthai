@@ -17,7 +17,7 @@ from hongthai import budget, build, grib
 from hongthai.ai import config as ai_config
 from hongthai.ai.parse import AiError
 from hongthai.config import ConfirmedPeriod, Thresholds, load_airports, load_regions
-from hongthai.sources import cwa, ecmwf, gfs, hko, nws, smg, taf
+from hongthai.sources import aifs, aigfs, cwa, ecmwf, gfs, hko, nws, smg, taf
 from hongthai.sources.gfs import GfsData, GustPoint
 
 # 地區與機場的顯示順序（H9；HD3 加越南、菲律賓、關島・帛琉；Duado spec 第 16 節）
@@ -56,6 +56,18 @@ PTYPES = (
     "other",
 )
 LANGS = {"zh-TW", "zh-HK", "zh-CN", "en"}
+MODEL_ENTRY_KEYS = {
+    "id",
+    "run",
+    "gustKt",
+    "gustEstimated",
+    "crosswindKt",
+    "rain6hMm",
+    "ptype",
+    "visibilityM",
+    "levels",
+    "level",
+}
 NOW = utc(2026, 10, 18, 8, 10)
 
 
@@ -95,6 +107,31 @@ def sample_inputs(airports):
     return ec, gf, tf, hk, cw, sm, nw
 
 
+def sample_ai_models(airports):
+    """HD14 的 AIFS、AIGFS：每個機場整段一樣的 10 米平均風（節）。"""
+    steps = range(0, 121, 6)
+    t0 = utc(2026, 10, 18, 6)
+    af = aifs.AifsData(
+        utc(2026, 10, 18, 0),
+        {
+            a.icao: [aifs.AifsStep(t0 + timedelta(hours=h), 31.0, 90.0, 2.0, 0.0) for h in steps]
+            for a in airports
+        },
+        66_000_000,
+        "ecmwf",
+    )
+    ag = aigfs.AigfsData(
+        utc(2026, 10, 17, 18),
+        {
+            a.icao: [aigfs.AigfsStep(t0 + timedelta(hours=h), 10.0, 90.0, 0.5) for h in steps]
+            for a in airports
+        },
+        50_000_000,
+        "aws",
+    )
+    return af, ag
+
+
 AI_COMMENT = {"zh-TW": "高。", "zh-HK": "高。", "zh-CN": "高。", "en": "High."}
 
 
@@ -113,6 +150,7 @@ def fake_ai(level: str | None = "high", code: str | None = None, delay: float = 
 @pytest.fixture
 def latest(airports, tmp_path):
     ec, gf, tf, hk, cw, sm, nw = sample_inputs(airports)
+    af, ag = sample_ai_models(airports)
     regions = load_regions(ROOT / "airports.json")
     status = {n: {"ok": True} for n in build.SOURCE_NAMES}
     status["cwa"] = {"ok": False, "error": "timeout"}
@@ -132,6 +170,8 @@ def latest(airports, tmp_path):
         cw=cw,
         sm=sm,
         nw=nw,
+        af=af,
+        ag=ag,
     )
     # AI 對決（HD5）：Claude 成功、Gemini 格式不對
     evaluators = {"claude": fake_ai("high"), "gemini": fake_ai(None, "bad_format")}
@@ -164,6 +204,19 @@ def test_top_level(latest):
         "zh-CN": "台湾",
         "en": "Taiwan",
     }
+    # 多模式投票（HD14）：頂層 models（id、四語名稱，照 config.MODELS 的順序）
+    assert [m["id"] for m in latest["models"]] == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
+    for m in latest["models"]:
+        assert set(m) == {"id", "name"} and set(m["name"]) == LANGS
+    assert latest["models"][3]["name"] == {
+        "zh-TW": "歐洲 AI 模式 AIFS",
+        "zh-HK": "歐洲 AI 模式 AIFS",
+        "zh-CN": "欧洲 AI 模式 AIFS",
+        "en": "ECMWF AIFS",
+    }
+    assert latest["runs"]["aifs"] == "2026-10-18T00:00:00Z"
+    assert latest["runs"]["aigfs"] == "2026-10-17T18:00:00Z"
+    assert {"aifs", "aigfs"} <= set(latest["sources"])
 
 
 def test_airport_shape(latest):
@@ -332,6 +385,22 @@ def test_slot_shape(latest):
                 assert (o["wx"] is None) == (o["kind"] == "warning")
             assert m["level"] in ("low", "medium", "high", None)
             assert m["agreement"] in ("agree", "disagree", None)
+            # HD14：每格 5 筆 models[]（照 config.MODELS）與 vote
+            assert [e["id"] for e in m["models"]] == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
+            for e in m["models"]:
+                assert set(e) == MODEL_ENTRY_KEYS
+                assert e["run"] is None or ISO_Z.match(e["run"])
+                assert all(is_num_or_none(e[k]) for k in ("gustKt", "crosswindKt", "rain6hMm"))
+                assert e["visibilityM"] is None or is_num_or_none(e["visibilityM"])
+                assert e["ptype"] is None or e["ptype"] in PTYPES
+                assert e["gustEstimated"] in (True, False, None)
+                assert set(e["levels"]) == {"wind", "rain", "snow", "fog"}
+                assert all(v in LEVELS_OR_NONE for v in e["levels"].values())
+                assert e["level"] in LEVELS_OR_NONE
+            v = m["vote"]
+            assert set(v) == {"total", "high", "medium", "low", "level", "thin"}
+            assert v["level"] == m["level"] and isinstance(v["thin"], bool)
+            assert 0 <= v["high"] <= v["total"] <= 5 and v["low"] <= v["total"]
 
 
 def test_content_from_samples(latest):
@@ -490,6 +559,8 @@ def workspace(tmp_path, monkeypatch):
     (tmp_path / "confirmed.json").write_text("[]", "utf-8")
     monkeypatch.setattr(build.flights, "fetch", lambda now: build.flights.FlightsData({}, {}))
     monkeypatch.setattr(build.nws, "fetch", lambda zones: build.nws.NwsData([], {}))
+    for mod in (build.aifs, build.aigfs):  # HD14 的兩個模式預設失敗（測試不連網）
+        monkeypatch.setattr(mod, "fetch", _boom)
 
     def no_network(*a, **k):  # 模式失敗時會去 Pages 抓上一份；測試不連網
         raise build.requests.ConnectionError("測試不連網")
@@ -522,7 +593,13 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
         k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "ai")
     } == dict.fromkeys(build.SOURCE_NAMES, False)
     assert out["sources"]["cwa"]["error"] == "no_api_key"
-    assert out["runs"] == {"ecmwf": None, "ecmwfEns": None, "gfs": None}
+    assert out["runs"] == {
+        "ecmwf": None,
+        "ecmwfEns": None,
+        "gfs": None,
+        "aifs": None,
+        "aigfs": None,
+    }
     assert all(s["level"] == "unknown" for a in out["airports"] for s in a["slots"])
     # 沒有上一份、全部 unknown → 沒有機場要評；沒設金鑰照樣記 no_api_key
     assert out["sources"]["ai"]["errors"] == {"claude": "no_api_key", "gemini": "no_api_key"}
@@ -543,6 +620,9 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     zones_asked = []
     monkeypatch.setattr(build.ecmwf, "fetch", lambda *a, **k: ec)
     monkeypatch.setattr(build.gfs, "fetch", lambda *a, **k: gf)
+    af, ag = sample_ai_models(airports)
+    monkeypatch.setattr(build.aifs, "fetch", lambda *a, **k: af)
+    monkeypatch.setattr(build.aigfs, "fetch", lambda *a, **k: ag)
     monkeypatch.setattr(build.taf, "fetch", lambda *a, **k: tf)
     monkeypatch.setattr(build.hko, "fetch", lambda: hk)
     monkeypatch.setattr(build.cwa, "fetch", lambda *a: cw)
@@ -638,7 +718,7 @@ def test_flight_fetch_error_reported(workspace, monkeypatch):
 
 
 def _fail_all_but(monkeypatch, **fetches):
-    for name in ("ecmwf", "gfs", "taf", "hko", "smg", "nws"):
+    for name in ("ecmwf", "gfs", "aifs", "aigfs", "taf", "hko", "smg", "nws"):
         monkeypatch.setattr(getattr(build, name), "fetch", fetches.get(name, _boom))
     monkeypatch.delenv("CWA_API_KEY", raising=False)
     monkeypatch.setattr(build, "utcnow", lambda: NOW)
@@ -730,7 +810,13 @@ def test_ecmwf_failure_reuses_previous_model(workspace, monkeypatch):
     src = out["sources"]["ecmwf"]
     assert src["ok"] is False and src["error"] == "timeout"
     assert src["reusedFrom"] == "2026-10-18T02:10:00Z"
-    assert out["runs"] == {"ecmwf": "2026-10-18T00:00:00Z", "ecmwfEns": None, "gfs": None}
+    assert out["runs"] == {
+        "ecmwf": "2026-10-18T00:00:00Z",
+        "ecmwfEns": None,
+        "gfs": None,
+        "aifs": None,
+        "aigfs": None,
+    }
     # gfs 也失敗了，但上一份的 runs.gfs 是 null → 不沿用
     assert "reusedFrom" not in out["sources"]["gfs"]
     by = {a["icao"]: a for a in out["airports"]}
@@ -776,7 +862,13 @@ def test_reuse_expires_after_24h(workspace, monkeypatch):
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     src = out["sources"]["ecmwf"]
     assert (src["ok"], src["error"]) == (False, "timeout") and "reusedFrom" not in src
-    assert out["runs"] == {"ecmwf": None, "ecmwfEns": None, "gfs": None}
+    assert out["runs"] == {
+        "ecmwf": None,
+        "ecmwfEns": None,
+        "gfs": None,
+        "aifs": None,
+        "aigfs": None,
+    }
     s0 = _airport(out, "VHHH")["slots"][0]
     assert s0["model"]["ec"]["hresGustMs"] is None
     assert (s0["level"], s0["model"]["level"]) == ("unknown", None)
@@ -922,6 +1014,8 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "start",
         "ecmwf",
         "gfs",
+        "aifs",
+        "aigfs",
         "taf",
         "hko",
         "cwa",
@@ -947,8 +1041,10 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     assert set(gfs_line) == {"run", "source", "ok", "error", "seconds", "bytes", "mirror"}
     assert (gfs_line["ok"], gfs_line["error"], gfs_line["bytes"]) == (True, None, 0)
     assert gfs_line["mirror"] is None  # 假的 fetch 沒有記 mirror
-    assert lines[5]["error"] == "no_api_key"
-    ai_line = lines[9]
+    assert lines[7]["error"] == "no_api_key"
+    for line in lines[3:5]:  # HD14：aifs、aigfs 也記 mirror
+        assert set(line) == {"run", "source", "ok", "error", "seconds", "bytes", "mirror"}
+    ai_line = lines[11]
     assert set(ai_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert ai_line["bytes"] == 0 and ai_line["calls"] == {"claude": 0, "gemini": 0}
     assert lines[-1]["ok"] is True and isinstance(lines[-1]["seconds"], float)
@@ -1324,3 +1420,107 @@ def test_reuse_copies_rain_and_rescores_causes(workspace, monkeypatch):
     assert (m["rain6hMm"], m["ptype"], m["temp2mC"]) == (12.0, "snow", -2.0)
     assert (m["rain"], m["snow"]) == ("low", "high")  # 照抄來的雨量重算（不是抄等級）
     assert (s0["level"], s0["basis"], s0["causes"]) == ("high", "model", ["snow"])
+
+
+# ---- 多模式投票（HD14）：沿用與重算 ----
+
+
+def _entry(mid, run=None, **nums):
+    keys = ("gustKt", "gustEstimated", "crosswindKt", "rain6hMm", "ptype", "visibilityM")
+    levels = dict.fromkeys(("wind", "rain", "snow", "fog"))
+    return {"id": mid, "run": run, **dict.fromkeys(keys), **nums, "levels": levels, "level": None}
+
+
+def test_aifs_aigfs_failure_reuses_models_entries(workspace, monkeypatch, airports):
+    """AIFS、AIGFS 失敗 → 從上一份 `models[]` 同 id 那筆抄數字，重算等級與投票。"""
+    ec, gf, *_ = sample_inputs(airports)
+    prev = _prev(
+        "2026-10-18T02:10:00Z",
+        {
+            "ecmwf": None,
+            "ecmwfEns": None,
+            "gfs": None,
+            "aifs": "2026-10-18T00:00:00Z",
+            "aigfs": "2026-10-17T18:00:00Z",
+        },
+    )
+    prev["airports"][0]["slots"][0]["model"]["models"] = [
+        _entry("ifs"),
+        _entry("gfs"),
+        _entry("ifs-ens"),
+        _entry("aifs", "2026-10-18T00:00:00Z", gustKt=50.4, crosswindKt=30.0, rain6hMm=3.0),
+        _entry("aigfs", "2026-10-17T18:00:00Z", gustKt=49.0, rain6hMm=65.0),
+    ]
+    prev["airports"][0]["slots"][0]["model"]["models"][3]["ptype"] = "rain"
+    _write_hist(workspace, prev, ok={"aifs": True, "aigfs": True})
+    _write_prev(workspace, prev)
+    _fail_all_but(monkeypatch, ecmwf=lambda *a, **k: ec, gfs=lambda *a, **k: gf)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    for name in ("aifs", "aigfs"):
+        src = out["sources"][name]
+        assert (src["ok"], src["reusedFrom"]) == (False, "2026-10-18T02:10:00Z")
+    assert (out["runs"]["aifs"], out["runs"]["aigfs"]) == (
+        "2026-10-18T00:00:00Z",
+        "2026-10-17T18:00:00Z",
+    )
+    s0 = _airport(out, "VHHH")["slots"][0]
+    by = {e["id"]: e for e in s0["model"]["models"]}
+    ai, ag = by["aifs"], by["aigfs"]
+    assert (ai["gustKt"], ai["gustEstimated"], ai["crosswindKt"], ai["ptype"]) == (
+        50.4,
+        True,
+        30.0,
+        "rain",
+    )
+    assert ai["run"] == "2026-10-18T00:00:00Z"
+    assert ai["levels"] == {"wind": "high", "rain": "low", "snow": "low", "fog": None}
+    assert (ag["gustKt"], ag["gustEstimated"], ag["run"]) == (49.0, True, "2026-10-17T18:00:00Z")
+    assert ag["levels"] == {"wind": "high", "rain": "high", "snow": None, "fog": None}
+    # IFS、GFS、系集照這一報的（沒動）；投票照重算
+    assert by["gfs"]["gustKt"] == 40.0 and by["gfs"]["run"] == "2026-10-18T00:00:00Z"
+    v = s0["model"]["vote"]
+    assert v["level"] == s0["model"]["level"] == s0["level"]
+    # VHHH 第一格：fixture 的 HRES 沒有這格（IFS 沒有風）、GFS 40 節中、系集低、AIFS 高、AIGFS 高
+    assert (by["ifs"]["levels"]["wind"], by["ifs-ens"]["levels"]["wind"]) == (None, "low")
+    assert (v["total"], v["high"], v["medium"], v["low"]) == (4, 2, 3, 1)
+    assert v["level"] == "high"  # 高 2 × 2 ≥ 4
+    # 別的格（上一份沒有）不抄
+    assert _airport(out, "VHHH")["slots"][1]["model"]["models"][3]["gustKt"] is None
+
+
+def test_rescore_revotes_models():
+    """`_rescore` 從 ec／gfs 與原本 `models[]` 的數字重組、重新投票。"""
+    slot = {
+        "from": "2026-10-18T06:00:00Z",
+        "basis": "model",
+        "level": "low",
+        "causes": [],
+        "official": None,
+        "gap": False,
+        "model": {
+            "ec": {"hresGustKt": 50.0, "p49Kt": 0.5},
+            "gfs": {"gustKt": 40.0},
+            "level": "low",
+            "agreement": None,
+            "models": [_entry("aifs", "2026-10-18T00:00:00Z", gustKt=45.0)],
+            "vote": None,
+        },
+    }
+    build._rescore(slot, Thresholds())
+    m = slot["model"]
+    assert [e["id"] for e in m["models"]] == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
+    assert m["models"][3]["run"] == "2026-10-18T00:00:00Z"  # 沒給 runs 時維持原值
+    assert [e["levels"]["wind"] for e in m["models"]] == ["high", "medium", "high", "medium", None]
+    # 高 2 × 2 ≥ 4（IFS、系集）→ 高
+    assert m["vote"] == {
+        "total": 4,
+        "high": 2,
+        "medium": 3,  # 不含系集
+        "low": 0,
+        "level": "high",
+        "thin": False,
+    }
+    assert (m["level"], slot["level"], slot["causes"]) == ("high", "high", ["wind"])
+    build._rescore(slot, Thresholds(), {"ifs": "2026-10-18T06:00:00Z"})
+    assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z", None, None, None, None]
