@@ -98,3 +98,10 @@ HD16（Open-Meteo）：
 - `openmeteo_ensemble_3x8.json`：`ensemble-api.open-meteo.com/v1/ensemble` 同時間的真實回應
   （`models=google_weathernext2_ensemble`、`temporal_resolution=native`），同樣三個機場、只留成員 0
   （不帶後綴的鍵）到 `member07` 共 8 個成員
+
+HD22（29W 驗證報告）：
+- `bwp292026_sample.dat`：**合成樣本**，JTWC ATCF b-deck 的格式（逗號分隔；`YYYYMMDDHH`、`BEST`、緯經十分之一度
+  帶 N／E），29W 在 2026-10-21 00Z–10-22 00Z 每 6 小時一點；00Z 有 34／50／64 節風圈三行（同一時間只留一點）
+- `jma_bst_sample.txt`：**合成樣本**，JMA（RSMC Tokyo）`bst_all.txt` 的格式：表頭 `66666 <國際編號> …`、名稱在
+  第 31–50 欄，資料行 `YYMMDDHH 002 <等級> <緯×10> <經×10> <氣壓> <最大風> …`；兩個颱風（2629 OTHERSTORM、
+  2630 CHAMPI），報告工具要挑得出 CHAMPI

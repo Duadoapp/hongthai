@@ -429,6 +429,7 @@ H10（2026-10-18）之後：
 - `src/hongthai/tracks.py`：颱風路徑抽取（HD21）：ECMWF 路徑產品（BUFR）與從海平面氣壓找中心
   （下面「事件保存」）；HD15 起找中心吃任何規則經緯網格（`grid_field`）
 - `src/hongthai/wn3report.py`：WeatherNext 3 的事件檔與補報（HD15，下面「事件保存」）
+- `tools/report_29w.py`：颱風 29W 的驗證報告（HD22，下面「事件保存」）
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
   重做腳本 `tools/make_font_subset.py`
 - `src/hongthai/ai/`：AI 對決（HD5，下面「AI 對決」）；模型字串、免責四語、上限都在 `ai/config.py`
@@ -914,6 +915,35 @@ HD16（2026-10-20，Open-Meteo 三票、旁觀開關、暴風雪特別警報；`
 - **推 `data` 分支**：每小時和每天四次的主 build 可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
   `git pull --rebase origin data` 再推，失敗重試 3 次（間隔 20 秒）。兩邊寫的檔不重疊，不會衝突
 - 實際停飛照舊用 `history/cancellations/`（不用另外存）
+- **驗證報告**（HD22，`tools/report_29w.py`；只讀上面這些檔與 `history/cancellations/`、`history/ai/`，不改任何
+  輸出、只用標準函式庫）。在 repo 根目錄、`data` 是 `data` 分支的 checkout：
+
+  ```
+  python -m tools.report_29w --archive data --event 29W \
+    [--jtwc bwp292026.dat] [--jma bst_all.txt] [--jma-id 2630] [--cutoff 2026-10-22T04:00Z] \
+    [--cancel-rate 0.3 --cancel-count 10] [--out report/29W.md] [--json report/29W.json]
+  ```
+
+  標準輸出印摘要（沒給 `--out` 就整份 Markdown 印出來）；`--json` 是同樣的數字給之後畫圖。規則（Shawn
+  2026-10-20 定案）：
+  - **提前時間**分 0–24、24–48、48–72、72–96、96–120 小時：格是 `from − generatedAt`（這一報所在的那格算
+    0–24，已經結束的格不算），WN3 事件檔是 `from − 起報`，路徑是 `validAt − 起報`
+  - **版本**：`generatedAt` < `--cutoff`（台北 10/22 12:00）是「定版前」（5 票與試跑中的 8 票）、之後「定版後」；
+    只有規則燈分版本
+  - **(a) 陣風**：快照 `slots[].model.models[]` 的 `gustKt`（估算的模式標 `*`；HD14 前的快照從 `ec`／`gfs`
+    拼）與 `wn3/` 事件檔，對格內 METAR 最大（有陣風用陣風、沒有用平均風）；印 MAE、偏差（預測 − 實測）、n，
+    全部的格與格內最大平均風 ≥ 10 節兩組，另印 37／48 節的命中／漏報／誤報。系集沒有陣風不列
+  - **(b) 等級**：事件機場裡有航班資料的（29W 是桃園、松山、高雄、香港；澳門不在 25 個機場裡）。一格停飛＝
+    （出發＋抵達）取消率 ≥ `--cancel-rate` 或取消 ≥ `--cancel-count` 班；格結束時間晚於航班資料最新的
+    `asOf` 的還沒有結果。「判中或高」與「判高」各一組，印 TP／FP／FN／TN、精確率、召回率。**每格**只有規則燈；
+    AI 的燈是整個機場 5 天一個等級，所以另算**每報每機場**（0–120 小時內任一格停飛；規則燈取同範圍最高等級
+    一起比），提前段只印召回率（依第一個停飛格的提前時間）
+  - **(c) 路徑**：`tracks/` 每個點對真相線性內插到同一 `validAt`（相隔超過 12 小時不內插）的大圓距離；IFS 用
+    HRES、系集用中位數位置，系集另印成員誤差與離散（成員到中位數）。`--jtwc`（ATCF b-deck）、`--jma`
+    （`bst_all.txt` 依名稱 `CHAMPI` 挑，或 `--jma-id` 指定；單一颱風的檔直接用）給了哪份比哪份、並列；
+    都沒給時用 `position/` 的現報當暫時真相（JTWC 內插得到用 JTWC，不然用 JMA），報告標「暫時真相：現報」
+  - 最後是資料完整度（每天幾報、每報 8 個模式有幾個、METAR 每站幾小時有觀測、跳過的格、路徑每報每模式
+    追到幾步與停止原因）與每報一行的附錄
 
 ## AI 對決
 
