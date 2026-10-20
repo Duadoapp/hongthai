@@ -48,9 +48,10 @@ class Thresholds:
 
 
 # 多模式投票（HD14，Shawn 2026-10-19）：沒有陣風的模式用 10 米平均風 × 係數 G 估算陣風
-# （標 `gustEstimated`）。HD18（2026-10-20）起 G 是每個機場自己的：最近 30 天 IFS 與 GFS 每格
-# 「陣風÷10 米平均風」的中位數（只收平均風 ≥ 10 節的格），夾在 1.2～2.0；樣本不足的順序見
-# `gustfactor.py`，最後的保底是 1.4
+# （標 `gustEstimated`）。HD18（2026-10-20）起 G 是每個機場自己的：最近 30 天每格「陣風÷
+# 10 米平均風」的中位數（只收平均風 ≥ 10 節的格），夾在 1.2～2.0；樣本不足的順序見
+# `gustfactor.py`，最後的保底是 1.4。HD19（2026-10-20 11:24）起中位數**只用 IFS** 的樣本
+# （`gustfactor.G_SOURCE`），門檻 40 比的也是 IFS 的樣本數；GFS 的樣本照存，30 天後檢討
 GUST_FACTOR_DEFAULT = 1.4
 GUST_FACTOR_RANGE = (1.2, 2.0)
 GUST_FACTOR_MIN_WIND_KT = 10

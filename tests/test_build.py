@@ -1578,18 +1578,20 @@ def test_gust_factor_files_and_models_keys(workspace, monkeypatch, airports):
     }
     doc = json.loads((hist / "latest.json").read_text("utf-8"))
     assert doc["generatedAt"] == "2026-10-18T08:10:00Z"
+    assert doc["source"] == "ifs"
     assert doc["window"] == {"from": "2026-09-18T08:10:00Z", "to": "2026-10-18T08:10:00Z"}
-    n = 51 * 40
-    assert doc["all"] == doc["run"] == {"g": 1.6, "n": n, "nIfs": n // 2, "nGfs": n // 2}
+    n = 51 * 20
+    # HD19：G 只看 IFS（1.5），GFS 的 1.7 照存、只算 `nGfs`
+    assert doc["all"] == doc["run"] == {"g": 1.5, "n": n, "nIfs": n, "nGfs": n}
     assert set(doc["airports"]) == set(ICAOS)
     # 首報：每個機場都是 run
-    assert doc["airports"]["RCTP"] == {"g": 1.6, "n": 40, "nIfs": 20, "nGfs": 20, "basis": "run"}
+    assert doc["airports"]["RCTP"] == {"g": 1.5, "n": 20, "nIfs": 20, "nGfs": 20, "basis": "run"}
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     by = {e["id"]: e for e in _airport(out, "RCTP")["slots"][0]["model"]["models"]}
     assert (by["ifs"]["windKt"], by["gfs"]["windKt"], by["ifs-ens"]["windKt"]) == (20.0, 20.0, None)
     ai = by["aifs"]
-    assert (ai["windKt"], ai["gustKt"], ai["gustEstimated"]) == (31.0, 49.6, True)
-    assert (ai["gustFactor"], ai["gustFactorBasis"]) == (1.6, "run")
+    assert (ai["windKt"], ai["gustKt"], ai["gustEstimated"]) == (31.0, 46.5, True)
+    assert (ai["gustFactor"], ai["gustFactorBasis"]) == (1.5, "run")
     assert all(by[i]["gustFactor"] is None for i in ("ifs", "gfs", "ifs-ens", "aigfs"))
     # 樣本與係數不進 Pages
     assert not (workspace / "public" / "history" / "gustfactor").exists()
@@ -1609,8 +1611,8 @@ def test_reused_aifs_recomputed_with_this_runs_factor(workspace, monkeypatch, ai
         _entry(
             "aifs",
             "2026-10-18T00:00:00Z",
-            windKt=30.0,
-            gustKt=42.0,
+            windKt=32.0,
+            gustKt=44.8,
             gustFactor=1.4,
             gustFactorBasis="default",
             crosswindKt=21.0,
@@ -1623,8 +1625,8 @@ def test_reused_aifs_recomputed_with_this_runs_factor(workspace, monkeypatch, ai
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     assert out["sources"]["aifs"]["reusedFrom"] == "2026-10-18T02:10:00Z"
     ai = _airport(out, "VHHH")["slots"][0]["model"]["models"][3]
-    assert (ai["windKt"], ai["gustKt"], ai["crosswindKt"]) == (30.0, 48.0, 24.0)
-    assert (ai["gustFactor"], ai["gustFactorBasis"], ai["gustEstimated"]) == (1.6, "run", True)
+    assert (ai["windKt"], ai["gustKt"], ai["crosswindKt"]) == (32.0, 48.0, 22.5)
+    assert (ai["gustFactor"], ai["gustFactorBasis"], ai["gustEstimated"]) == (1.5, "run", True)
     assert ai["levels"]["wind"] == "high"  # 48 ≥ 48
 
 

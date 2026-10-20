@@ -241,6 +241,12 @@
     **HD19（2026-10-20 11:24 定案）：G 只用 IFS 的樣本**——HD18 首報 IFS 中位數約 1.65、GFS 約 1.27，定義不同已明顯；每格
     看的是 6 小時內最大陣風、和 `10fg` 一致，颱風季不想讓 AI 模式再偏低一個月。GFS 樣本照存、報表照分開印，30 天後檢討。
     提示詞 `docs/prompts/2026-10-20-HD19-gust-factor-ifs-only.md`
+    **HD19 已實作（HD19 PR）**：**HD19 起 G 只用 IFS，GFS 樣本照存、30 天後檢討**。`gustfactor.summary` 的 `g`／`n`
+    只看 IFS（`G_SOURCE = "ifs"`），`compute` 的三個門檻跟著用 IFS 的 `n`；`nIfs`、`nGfs` 照寫；
+    `history/gustfactor/latest.json` 多 `"source": "ifs"`；`<YYYY-MM>.jsonl` 格式不變。提示詞沒寫、順手改的：
+    AI 短評規則說明的「係數是歐洲模式、美國模式最近 30 天…」改成只寫歐洲模式（`ai/prompt.py`）；
+    `test_build` 兩個 HD18 案例的 G 由合併的 1.6 改成 IFS 的 1.5（沿用 AIFS 那個把抄來的 `windKt` 改 32 節，
+    保住 48 節剛好「高」的邊界）
     **HD14 已實作（HD14 PR）**；和提示詞不一樣的地方：
     - AIFS 的 `tp`／`sf` 單位是 **mm**（kg m⁻²），不是提示詞寫的 m（cfgrib `GRIB_units` 實測）；`ptype` 的
       「沒降水」是 6 小時總降水 < 0.1 mm（GRIB 打包雜訊約 0.01 mm）

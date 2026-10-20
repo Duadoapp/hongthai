@@ -104,7 +104,7 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
   同判中的規則）、`low`（投低的數）、`level`（四類投票結果取最高，全無資料 `null`）、`thin`（風的分母 < 2）
 - `model.ec`／`model.gfs`／`model.agreement` 欄位與值都不變（`ec.rain`、`gfs.fog` 等還是各自的等級）
 
-### 估算陣風的係數（HD18）
+### 估算陣風的係數（HD18、HD19）
 
 Shawn 2026-10-20 定案，取代 HD14 的固定 1.4（`src/hongthai/gustfactor.py`）。拿 AIFS／AIGFS 去比同一格的
 HRES 陣風不公平（颱風路線不同時同一格本來就差很多；GFS 自己的陣風也只有 IFS 的 0.76，IFS 陣風偏高、不能當
@@ -113,20 +113,23 @@ HRES 陣風不公平（颱風路線不同時同一格本來就差很多；GFS �
 - 定義：G＝陣風 ÷ 10 米平均風。IFS 用 HRES `10fg`（該格的 `hresGustKt`）÷ **格結束步長**的 √(u10²+v10²)；
   GFS 用 `GUST`（該格的 `gustKt`）÷ **同一時間點**（格內陣風最大那一點）的 10 米風速。同一模式、同一機場、
   同一格自己比自己，一格一個比例（兩位小數）
-- **每個機場一個 G**：最近 **30 天**（`GUST_FACTOR_WINDOW_DAYS`）、每報每格，IFS 與 GFS 的比例合在一起取
-  **中位數**；只收平均風 **≥ 10 節**的格（`GUST_FACTOR_MIN_WIND_KT`）；中位數夾在 **1.2～2.0**
-  （`GUST_FACTOR_RANGE`，夾中位數、不夾樣本）
-- **樣本不足的順序**（`gustFactorBasis`）：機場合格樣本 ≥ 40（`GUST_FACTOR_MIN_SAMPLES`）→ `airport30d`；
-  不然全部機場合併的 30 天中位數（≥ 40）→ `all30d`；再不然這一報 IFS＋GFS 的全體中位數（所有機場、所有格）
-  → `run`；這一報一個 ≥ 10 節的格都沒有 → 固定 1.4（`GUST_FACTOR_DEFAULT`）→ `default`。**首報**（30 天窗裡
+- **每個機場一個 G**：最近 **30 天**（`GUST_FACTOR_WINDOW_DAYS`）、每報每格的比例取**中位數**——**HD19 起
+  只用 IFS 的樣本**（`gustfactor.G_SOURCE`；HD18 是 IFS 與 GFS 合在一起）；只收平均風 **≥ 10 節**的格
+  （`GUST_FACTOR_MIN_WIND_KT`）；中位數夾在 **1.2～2.0**（`GUST_FACTOR_RANGE`，夾中位數、不夾樣本）
+- **樣本不足的順序**（`gustFactorBasis`）：機場的 IFS 合格樣本 ≥ 40（`GUST_FACTOR_MIN_SAMPLES`）→
+  `airport30d`；不然全部機場合併的 30 天 IFS 中位數（≥ 40）→ `all30d`；再不然這一報 IFS 的全體中位數（所有
+  機場、所有格）→ `run`；這一報一個 ≥ 10 節的 IFS 格都沒有 → 固定 1.4（`GUST_FACTOR_DEFAULT`）→ `default`。**首報**（30 天窗裡
   只有這一報，例如 `history/gustfactor/` 還沒有）一律 `run`——那時「30 天」就是這一報，標 `airport30d`／
   `all30d` 會誤導
 - `ecmwf`／`gfs` 失敗、沿用舊資料的那一報不寫新樣本（那個模式寫 `[]`），G 照 30 天窗算；AIFS／AIGFS 沿用
   舊數字時，用抄來的 `windKt` × **這一報**的 G 重算估算陣風（側風照新舊 G 的比例換算），不沿用舊 G
 - **IFS 與 GFS 定義不同**：`10fg` 是時段內最大陣風（0–90 小時是前 1 小時、之後前 3／6 小時），`GUST` 是
-  時間點的陣風。先合在一起取中位數，但樣本檔與報表**分開記、分開印**，30 天後用
-  `tools/gust_factor_report.py`（下面「怎麼跑」）看兩者差多少、對 METAR 準不準，再決定要不要只用其中一個；
-  AI 模式仍系統性偏低再加第二層修正
+  時間點的陣風。HD18 先合在一起取中位數；首報 IFS 中位數約 1.65、GFS 約 1.27，**HD19（Shawn 2026-10-20 定案）
+  起只用 IFS**——每格看的是 6 小時內最大陣風，和 `10fg` 一致，颱風季不想讓 AI 模式再偏低一個月。**GFS 樣本
+  照存**（`history/gustfactor/<YYYY-MM>.jsonl` 格式不變），報表照樣 IFS、GFS **分開印**，30 天後用
+  `tools/gust_factor_report.py`（下面「怎麼跑」）一起檢討、對 METAR 驗證；AI 模式仍系統性偏低再加第二層修正
+- `history/gustfactor/latest.json` 多 `"source": "ifs"`（G 用哪個模式的樣本；之後改回合併或改 GFS 改
+  `G_SOURCE`，網頁不用動）；`n` 是 IFS 的樣本數（和門檻 40 比的是它），`nIfs`、`nGfs` 照寫（`nGfs` 只是備查）
 
 ### 新天氣種類（第五階段，HD8）
 
@@ -198,8 +201,9 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
   `1600`、`0800`、`1500`、`8000` 換得回原值）
 
 - 陣風（模式與 TAF 同一套）：≥ 48 節高、≥ 37 節中；TAF 平均風 ≥ 35 節高
-- **估算陣風係數**（HD14 固定 1.4，HD18 起每個機場 30 天的 IFS＋GFS 陣風÷平均風中位數，夾 1.2–2.0）：
-  `10fg` 與 `GUST` 定義不同先合併，**30 天後用 `tools/gust_factor_report.py` 檢討**
+- **估算陣風係數**（HD14 固定 1.4，HD18 起每個機場 30 天的陣風÷平均風中位數，夾 1.2–2.0）：
+  `10fg` 與 `GUST` 定義不同，HD18 先合併，**HD19 起只用 IFS**、GFS 樣本照存，**30 天後用
+  `tools/gust_factor_report.py` 檢討**
 - **模式層投票 ≥ 一半就成立**（HD14）：2 票 1 票、3 票 2 票、4 票 2 票、5 票 3 票；系集只投高（判中時不算
   分母），所以系集單獨撐不起高（HD14 以前 `p49Kt` ≥ 30% 就是高）；霧的分母永遠是 1（只有 GFS）
 - 系集：陣風 ≥ 25 m/s（≈ 48.6 節，`p49Kt`）機率 ≥ 30% 投高；中級不用系集（沒有 37 節的機率）
@@ -234,7 +238,7 @@ python tools/gust_factor_report.py ../hongthai-data --days 7
 印兩段：(1) 每份 `history/<時間>.json` 第一格（`generatedAt` 所在的格）IFS、GFS、AIFS、AIGFS 的 `gustKt`
 對同一份 METAR（有陣風用陣風、沒有用平均風；只算觀測 3 小時內、METAR 平均風 ≥ 10 節的），每個模式的樣本數、
 偏差中位數（模式 − METAR，節）、平均比值；(2) `history/gustfactor/` 每個機場 IFS、GFS 各自的中位數、合併
-中位數與樣本數，最後一行全部機場合併。
+中位數與樣本數，最後一行全部機場合併（G 目前只用 IFS，HD19；GFS 與合併是對照）。
 
 中央氣象署的資料需要授權碼，從環境變數 `CWA_API_KEY` 讀；沒設定時氣象署標
 `sources.cwa.ok=false, error="no_api_key"`，其他照出。**不要把授權碼寫進程式或 repo。**

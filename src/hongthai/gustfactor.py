@@ -6,23 +6,27 @@ AIGFS 去比 HRES 陣風不公平：颱風路線不同時同一格本來就差�
   GFS＝該格的 `gustKt` ÷ 同一時間點（格內陣風最大那一點）的平均風（`gfs_wind_for_slot`）。兩個都
   先取一位小數（和 `latest.json` 的數字一樣），比例取兩位小數。平均風 < 10 節的格不收
   （`GUST_FACTOR_MIN_WIND_KT`）
-- 每個機場一個 G：最近 30 天（`GUST_FACTOR_WINDOW_DAYS`，用每一行的 `run` 比）、每報每格，IFS 與 GFS
-  的比例合在一起取中位數，再夾在 1.2～2.0（`GUST_FACTOR_RANGE`；夾中位數，不夾樣本）
-- 樣本不足的順序（`basis`）：機場的合格樣本 ≥ 40（`GUST_FACTOR_MIN_SAMPLES`）→ `airport30d`；
-  不然全部機場合併的 30 天 ≥ 40 → `all30d`；不然這一報的全部機場、全部格（IFS＋GFS）有樣本 → `run`；
-  這一報一個合格的格都沒有 → 1.4（`GUST_FACTOR_DEFAULT`）、`default`
+- 每個機場一個 G：最近 30 天（`GUST_FACTOR_WINDOW_DAYS`，用每一行的 `run` 比）、每報每格，
+  **只用 IFS** 的比例取中位數（HD19，`G_SOURCE`），再夾在 1.2～2.0（`GUST_FACTOR_RANGE`；夾中位數，
+  不夾樣本）
+- 樣本不足的順序（`basis`）：機場的 IFS 合格樣本 ≥ 40（`GUST_FACTOR_MIN_SAMPLES`）→ `airport30d`；
+  不然全部機場合併的 30 天 IFS ≥ 40 → `all30d`；不然這一報的全部機場、全部格有 IFS 樣本 → `run`；
+  這一報一個合格的 IFS 格都沒有 → 1.4（`GUST_FACTOR_DEFAULT`）、`default`
 - 首報（30 天窗裡除了這一報沒有別的報，例如 `history/gustfactor/` 還沒有）一律 `run`：那時「30 天」
   就只有這一報，標 `airport30d`／`all30d` 會誤導
-- `10fg` 是時段內最大陣風、`GUST` 是時間點的陣風，定義不同；先合併取中位數，但樣本檔分開記，30 天後
-  用 `tools/gust_factor_report.py` 看兩者差多少再決定要不要只用一個
+- `10fg` 是時段內最大陣風、`GUST` 是時間點的陣風，定義不同。HD18 先合併取中位數；首報 IFS 約
+  1.65、GFS 約 1.27，HD19（Shawn 2026-10-20 11:24）起只用 IFS：每格看的是 6 小時內最大陣風，和
+  `10fg` 一致。GFS 的樣本照收照存，30 天後用 `tools/gust_factor_report.py`（IFS、GFS 分開印）
+  一起檢討
 
 檔案（`--archive` 的 `history/gustfactor/`，不進 Pages、不進 `latest.json`）：
 - `<YYYY-MM>.jsonl`：一行一報一機場 `{"run", "icao", "ifs": [比例…], "gfs": [比例…]}`，照格的順序、
   只存合格的；模式失敗（沿用舊資料）的那一報那個模式寫 `[]`。月份是 `run` 的 UTC 月份
-- `latest.json`：這一報算出的係數 `{"generatedAt", "window": {"from", "to"},
+- `latest.json`：這一報算出的係數 `{"generatedAt", "source", "window": {"from", "to"},
   "all": {"g", "n", "nIfs", "nGfs"}, "run": {同 all，只算這一報},
-  "airports": {icao: {"g", "n", "nIfs", "nGfs", "basis"}}}`；`all`／`run` 的 `g` 是夾過的中位數，
-  沒有樣本時 null；`airports[].n` 是那個機場 30 天的樣本數
+  "airports": {icao: {"g", "n", "nIfs", "nGfs", "basis"}}}`；`source` 是 G 用哪個模式的樣本
+  （`"ifs"`）；`all`／`run` 的 `g` 是夾過的 IFS 中位數，沒有 IFS 樣本時 null；`n` 是 IFS 的樣本數
+  （和 `nIfs` 一樣，`nGfs` 只是備查）；`airports[].n` 是那個機場 30 天的 IFS 樣本數
 """
 
 from __future__ import annotations
@@ -51,6 +55,8 @@ from .timeutil import iso, parse_time
 log = logging.getLogger("hongthai")
 
 SAMPLE_MODELS = ("ifs", "gfs")
+# G 只用哪個模式的樣本（HD19）；之後改回合併或改 GFS 改這裡，`latest.json` 的 `source` 跟著
+G_SOURCE = "ifs"
 
 Samples = dict[str, dict[str, list[float]]]  # icao → {"ifs": [...], "gfs": [...]}
 
@@ -159,18 +165,18 @@ def clamp(g: float) -> float:
 
 
 def summary(rows: Iterable[dict]) -> dict:
-    """一群樣本行 → `{"g", "n", "nIfs", "nGfs"}`（`g` 是夾過的合併中位數，沒有樣本時 None）。"""
-    ifs: list[float] = []
-    gfs: list[float] = []
+    """一群樣本行 → `{"g", "n", "nIfs", "nGfs"}`（HD19：`g` 是夾過的 IFS 中位數，沒有 IFS 樣本時
+    None；`n` 是 IFS 的樣本數，門檻比的是它；`nGfs` 只是備查）。"""
+    by: dict[str, list[float]] = {m: [] for m in SAMPLE_MODELS}
     for row in rows:
-        ifs += _nums(row.get("ifs") or [])
-        gfs += _nums(row.get("gfs") or [])
-    both = ifs + gfs
+        for m in SAMPLE_MODELS:
+            by[m] += _nums(row.get(m) or [])
+    used = by[G_SOURCE]
     return {
-        "g": clamp(median(both)) if both else None,
-        "n": len(both),
-        "nIfs": len(ifs),
-        "nGfs": len(gfs),
+        "g": clamp(median(used)) if used else None,
+        "n": len(used),
+        "nIfs": len(by["ifs"]),
+        "nGfs": len(by["gfs"]),
     }
 
 
@@ -215,6 +221,7 @@ def update(
     factors, doc = compute(rows, run, icaos)
     out = {
         "generatedAt": run,
+        "source": G_SOURCE,
         "window": {"from": iso(now - timedelta(days=GUST_FACTOR_WINDOW_DAYS)), "to": run},
         **doc,
     }
@@ -226,10 +233,9 @@ def update(
         log.warning("陣風係數寫不進 %s：%s", path, e)
     a = doc["all"]
     log.info(
-        "陣風係數：30 天合併 %s（%d 個樣本：IFS %d、GFS %d），這一報 %s（%d 個）",
+        "陣風係數（只用 IFS）：30 天全機場 %s（IFS %d 個樣本；GFS %d 個照存），這一報 %s（%d 個）",
         a["g"],
         a["n"],
-        a["nIfs"],
         a["nGfs"],
         doc["run"]["g"],
         doc["run"]["n"],

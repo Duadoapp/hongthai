@@ -106,10 +106,10 @@
 - IFS 系集只投「高」（`Model.votes_only_high`）：`p49Kt` ≥ `ecP49High` 投高、否則投低，判中時不算
   分母。所以系集單獨撐不起高（HD14 以前可以）
 - AIFS、AIGFS 沒有陣風：10 米平均風 × 係數 G＝估算陣風，側風也用它（`estimated_for_slot`）。
-  HD18 起 G 是每個機場自己的（`GustFactor`，由 `gustfactor.py` 從 IFS／GFS 30 天的「陣風÷平均風」
-  算出，`build` 交進來）；`models[]` 每筆多 `windKt`（10 米平均風：IFS 是格結束步長的、GFS 是格內
-  陣風最大那一點的、AIFS／AIGFS 是估算陣風用的那個，系集 null）與 `gustFactor`／`gustFactorBasis`
-  （只有估算的那幾筆有）
+  HD18 起 G 是每個機場自己的（`GustFactor`，由 `gustfactor.py` 從 30 天的「陣風÷平均風」算出，
+  HD19 起只用 IFS 的樣本；`build` 交進來）；`models[]` 每筆多 `windKt`（10 米平均風：IFS 是格結束
+  步長的、GFS 是格內陣風最大那一點的、AIFS／AIGFS 是估算陣風用的那個，系集 null）與
+  `gustFactor`／`gustFactorBasis`（只有估算的那幾筆有）
 - IFS、GFS 三類的等級就是 `model.ec`／`model.gfs` 的（值照舊）；IFS 的雨含系集 24 小時雨量機率。
   AIFS、AIGFS 的雨用 6 小時雨量；雪只有有降水型態的模式投（AIGFS 的 `ptype` 永遠 None → 不投）；
   霧只有 GFS（分母 1）

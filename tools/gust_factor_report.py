@@ -8,7 +8,8 @@
    「有陣風用陣風、沒有用平均風」。只算 METAR 觀測離 `generatedAt` 3 小時內、而且 METAR 平均風
    ≥ 10 節的。每個模式印樣本數、偏差（模式 − METAR，節）的中位數、比值（模式 ÷ METAR）的平均
 2. `history/gustfactor/` 的樣本：每個機場 IFS、GFS 各自的中位數與合併中位數（沒夾 1.2–2.0）、
-   樣本數，最後一行全部機場合併。窗是最新那一報往前 `--days` 天
+   樣本數，最後一行全部機場合併。窗是最新那一報往前 `--days` 天。G 目前只用 IFS（HD19），GFS 與
+   合併只是對照
 """
 
 from __future__ import annotations
@@ -129,7 +130,8 @@ def report_samples(data: Path, days: int) -> None:
     rows = load_window(history, until, days)
     since = until - timedelta(days=days)
     print(
-        f"== 陣風÷平均風樣本（{since:%Y-%m-%d %H:%M}Z – {until:%Y-%m-%d %H:%M}Z，{len(rows)} 行）=="
+        f"== 陣風÷平均風樣本（{since:%Y-%m-%d %H:%M}Z – {until:%Y-%m-%d %H:%M}Z，{len(rows)} 行；"
+        "G 目前只用 IFS（HD19））=="
     )
     print(
         f"{'機場':<6}{'IFS 中位數':>12}{'nIFS':>7}{'GFS 中位數':>12}{'nGFS':>7}{'合併':>8}{'n':>7}"
