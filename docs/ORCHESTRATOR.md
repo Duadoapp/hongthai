@@ -214,7 +214,13 @@
     （Shawn 申請 allowlist、寫信問 Google 能否公開展示，核准後再開）→ **HD16** Open-Meteo 的 ICON＋JMA（免費版；
     Shawn 判斷目前非商業——HongThai 與 Duado 都沒收費、沒廣告。**一旦收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或
     拿掉這兩個模式；網頁要標註 Open-Meteo（CC BY 4.0）**；注意免費版每日 10,000／每月 300,000 次上限）。
-    AIGEFS、WeatherNext 2 不做。查證結果（授權、取得方式、變數、下載量）在 `docs/worklog/2026-10-19.md`「待決定」。
+    AIGEFS 不做。查證結果（授權、取得方式、變數、下載量）在 `docs/worklog/2026-10-19.md`「待決定」。
+    **2026-10-20 19:04 改定**：HD16 改成 Open-Meteo 三票——ICON、JMA GSM、**Google WeatherNext 2 系集**（`wn2-ens`，64 成員，
+    比照 IFS 系集只投高：成員 10 米風 × G ≥ 49 節的比例 ≥ 30%），10/21 上線成 8 票；Open-Meteo 失敗那報自動退回沒有這三票、
+    整報不壞；`Model.voting` 旁觀開關（不算分母、不投票，網頁標「旁觀」）；WN2 路徑不經 Open-Meteo 做（逐點 API 太重）。
+    HD15 WeatherNext 3：10/20 19:04 已送 allowlist 申請（BigQuery、GCS Zarr、WN2 Zarr、WN2 Mean Zarr），雲端先照文件用 mock
+    做好掛著；上線前要讀完 GDM 即時資料條款，不能公開顯示就只用 1 小時前以後的資料（CC BY 4.0）做報告比對。
+    提示詞 `docs/prompts/2026-10-20-HD16-openmeteo-models.md`、`docs/prompts/2026-10-20-HD15-weathernext3.md`。
     **HD18（2026-10-20 定案，Shawn 確認 12 條）：估算陣風的係數改成每個機場自己算**——G＝陣風÷10 米平均風，用 IFS（`10fg`÷
     √(u²+v²)）與 GFS（`GUST`÷10 米風速）各自的資料、同一模式同一機場同一格自己比自己（拿 AIFS／AIGFS 去比 HRES 陣風不公平：
     颱風路線不同時同一格本來就差很多，而且 GFS 自己的陣風也只有 IFS 的 0.76、IFS 陣風偏高不能當標準答案）；最近 30 天、
@@ -287,9 +293,15 @@
 - 保守假設都在 `assess.py` 與 `airports.json` 的門檻，改之前先跟 Shawn 確認；單位一律用節（HD2 起）
 - 隱私：這個 repo 不碰任何個資；公開 repo，程式裡不能有金鑰
 
-## 29W 驗證期凍結（2026-10-20 起，到驗證報告出來）
+## 29W 驗證期凍結（2026-10-22 12:00 台灣時間起；2026-10-20 19:04 Shawn 改定起點）
 
-- 不改等級規則、投票方式、門檻；只修 bug。估算陣風係數兩天後自動切 `airport30d` 是既定行為，照常，切換時間記日誌
+- **10/22 12:00 系統定版**，之後只修 bug，直到 29W 離開所有範圍機場（或轉溫帶氣旋）後 24 小時、初版報告出來為止；
+  不改等級規則、投票方式、門檻。估算陣風係數兩天後自動切 `airport30d` 是既定行為，照常，切換時間記日誌
+- 定版前（10/20–10/22 中午）排進去的：HD9（JMA 大雪警報，10/20 上線）、HD16（Open-Meteo ICON＋JMA＋WeatherNext 2 系集，8 票，
+  10/21 上線）、暴風雪特別警報；網頁 HW6 10/21 同步。報告依版本分開算：10/22 12:00 前是 5 票版、之後是 8 票版；各模式自己照常
+- WeatherNext 3（HD15）趕不上，核准後先以「旁觀模式」（`voting: false`）進 `models[]` 與路徑檔、不投票，解凍後再投
+- Google Maps Platform Weather API 查過（2026-10-20）：欄位齊、每月約 8 美元，但 Maps Service Terms B.21.1 禁止用在以提供天氣
+  資訊為主要目的的產品、逐時預報值只能快取 1 小時——**不能當票、不能存 history，不接**
 - HD9（JMA 大雪警報）只加雪的警報，29W 期間不影響風的等級（10–11 月沒有大雪警報，上線不會改變任何現在的等級）
 - 保存（HD20）：`events.json` 的 29W（台灣日期 10-19～10-28、25 個機場）期間每報快照、每小時 METAR 與
   JMA／JTWC 現報都在 `data` 分支 `history/events/29W/`（README「事件保存」）；之後的颱風在 `events.json` 加一筆
