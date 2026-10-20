@@ -14,6 +14,8 @@
     `cancellations.store_unknown`）
   - `history/ai/<YYYY-MM-DD>.json`（AI 對決戰績）、`history/ai/calls-<YYYY-MM-DD>.json`（每個模型
     今天呼叫了幾次；HD5，見 `ai/run.py`）
+  - `history/gustfactor/<YYYY-MM>.jsonl`（每報每機場 IFS、GFS 的「陣風÷平均風」樣本）與
+    `history/gustfactor/latest.json`（這一報算出的每機場估算陣風係數；HD18，見 `gustfactor.py`）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
   `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
   以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）
@@ -40,6 +42,10 @@ AI 失敗不影響 `latest.json` 其他內容：頂層 `ai`、每個機場的 `a
 才退回上一份 `latest.json`（`previous_latest`，H7 的做法）。`sources.<名稱>.ok` 維持 `false`，另加
 `reusedFrom`（那一份的 `generatedAt`）；`runs` 用那一份的（舊預報的真實時次）。模式時次超過 24 小時
 就不沿用（系集與 HRES 各自判斷），所以連續失敗時 24 小時後自然停掉。TAF、METAR、警報不沿用。
+
+估算陣風的係數（HD18）：模式都抓完、組 `latest.json` 之前，用這一報的 IFS、GFS 算樣本、寫進
+`history/gustfactor/`、讀 30 天窗算每個機場的 G（`gust_factors`），交給 `assess`。沿用 AIFS／AIGFS
+舊數字時，`_rescore` 用抄來的 `windKt` × 這一報的 G 重算估算陣風（`assess.refactor_estimated`）。
 """
 
 from __future__ import annotations
@@ -58,7 +64,7 @@ from pathlib import Path
 
 import requests
 
-from . import assess, budget, cancellations, og
+from . import assess, budget, cancellations, gustfactor, og
 from .ai import run as ai
 from .config import (
     MODELS,
@@ -105,25 +111,40 @@ PAGES_HISTORY_DAYS = 7
 # 模式來源 → (`model` 裡的鍵, [(`runs` 的鍵, 那一報決定的欄位)])；系集與 HRES 的時次各自判斷期限。
 # 節的欄位（HD2）在 HD2 以前的結果裡沒有，抄完由 `_rescore` 用 m/s 欄位補（`assess.fill_kt`）。
 # HD8 的雨量、降水型態、能見度一起抄（`ptype` 是字串）；三類的等級不抄，由 `_rescore` 重算。
-# HD14：`aifs`／`aigfs` 的鍵是 `model.models[]` 的 `id`（不是 `model` 底下的鍵），抄那筆的數字；
-# `gustEstimated`、`levels`、`level` 與投票由 `_rescore` 重算
-REUSE_FIELDS: dict[str, tuple[str, tuple[tuple[str, tuple[str, ...]], ...]]] = {
+# HD14：`models.<id>` 是 `model.models[]` 裡 `id` 那筆（不是 `model` 底下的鍵），抄那筆的數字；
+# `gustEstimated`、`levels`、`level` 與投票由 `_rescore` 重算。
+# HD18：IFS、GFS 那筆的 `windKt` 也抄；AIFS／AIGFS 抄 `windKt` 與舊的 `gustFactor`，估算陣風與側風
+# 由 `_rescore` 用這一報的 G 重算。
+# 每個來源一串（`model` 裡的位置, `runs` 的鍵, 欄位）；第一個的 `runs` 鍵是
+# `find_reuse_source` 判斷用的
+REUSE_FIELDS: dict[str, tuple[tuple[str, str, tuple[str, ...]], ...]] = {
     "ecmwf": (
-        "ec",
         (
-            ("ecmwf", ("hresGustMs", "hresGustKt", "crosswindKt", "rain6hMm", "ptype", "temp2mC")),
-            (
-                "ecmwfEns",
-                ("p10", "p15", "p25", "p29Kt", "p37Kt", "p49Kt", "p24hRain25", "p24hRain50"),
-            ),
+            "ec",
+            "ecmwf",
+            ("hresGustMs", "hresGustKt", "crosswindKt", "rain6hMm", "ptype", "temp2mC"),
+        ),
+        ("models.ifs", "ecmwf", ("windKt",)),
+        (
+            "ec",
+            "ecmwfEns",
+            ("p10", "p15", "p25", "p29Kt", "p37Kt", "p49Kt", "p24hRain25", "p24hRain50"),
         ),
     ),
     "gfs": (
-        "gfs",
-        (("gfs", ("gustMs", "gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")),),
+        ("gfs", "gfs", ("gustMs", "gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")),
+        ("models.gfs", "gfs", ("windKt",)),
     ),
-    "aifs": ("aifs", (("aifs", ("gustKt", "crosswindKt", "rain6hMm", "ptype")),)),
-    "aigfs": ("aigfs", (("aigfs", ("gustKt", "crosswindKt", "rain6hMm")),)),
+    "aifs": (
+        (
+            "models.aifs",
+            "aifs",
+            ("windKt", "gustKt", "gustFactor", "crosswindKt", "rain6hMm", "ptype"),
+        ),
+    ),
+    "aigfs": (
+        ("models.aigfs", "aigfs", ("windKt", "gustKt", "gustFactor", "crosswindKt", "rain6hMm")),
+    ),
 }
 # `models[].run` ← `runs` 的哪個鍵（HD14）
 MODEL_RUN_KEYS = {
@@ -141,14 +162,16 @@ def model_runs(runs: dict) -> dict[str, str | None]:
 
 
 def model_part(model: dict, key: str) -> dict | None:
-    """`model.ec`／`model.gfs`，或 `model.models[]` 裡 `id` 是 `key` 的那筆（HD14）。"""
-    if key in ("ec", "gfs"):
+    """`model.ec`／`model.gfs`，或 `models.<id>`：`model.models[]` 裡 `id` 是 `<id>` 的那筆
+    （HD14）。"""
+    if not key.startswith("models."):
         part = model.get(key)
         return part if isinstance(part, dict) else None
+    mid = key.removeprefix("models.")
     entries = model.get("models")
     return (
         next(
-            (e for e in entries if isinstance(e, dict) and e.get("id") == key),
+            (e for e in entries if isinstance(e, dict) and e.get("id") == mid),
             None,
         )
         if isinstance(entries, list)
@@ -282,16 +305,27 @@ def _cwa_extra(c: cwa.CwaData) -> dict:
     return d
 
 
-def _rescore(slot: dict, th: Thresholds, runs: dict[str, str | None] | None = None) -> None:
+def _rescore(
+    slot: dict,
+    th: Thresholds,
+    runs: dict[str, str | None] | None = None,
+    factor: assess.GustFactor | None = None,
+) -> None:
     """模式值換掉之後重算模式層等級、一致性、落差與整格等級（和 `assess.assess_slots` 同一套規則；
     官方層與已確認不受模式影響，維持原樣）。抄來的是 HD2 以前的結果時，先用 m/s 欄位補節的欄位。
     三類等級（HD8）照抄來的雨量重算；依據是模式層的格 `causes` 也重算（官方層的不動）。
     HD14：`models[]` 重組（IFS、GFS、IFS 系集從 `ec`／`gfs`，AIFS、AIGFS 從原本那筆的數字）、
-    重新投票（`vote`、`level`）；`runs`（`model_runs` 的結果）沒給時 `models[].run` 維持原值。"""
+    重新投票（`vote`、`level`）；`runs`（`model_runs` 的結果）沒給時 `models[].run` 維持原值。
+    HD18：給了 `factor`（這一報這個機場的 G）時，估算陣風的那幾筆用 `windKt` × G 重算
+    （`assess.refactor_estimated`；不沿用舊 G）。"""
     m = slot["model"]
     assess.fill_kt(m["ec"], m["gfs"])
     assess.fill_model_wx(m["ec"], m["gfs"], th)
     old = {e.get("id"): e for e in m.get("models") or [] if isinstance(e, dict)}
+    if factor is not None:
+        for mod in MODELS:
+            if mod.gust_estimated and mod.id in old:
+                assess.refactor_estimated(old[mod.id], factor)
     if runs is None:
         runs = {i: e.get("run") for i, e in old.items() if isinstance(i, str)}
     m["models"] = assess.model_entries(m["ec"], m["gfs"], old, runs, th)
@@ -331,11 +365,11 @@ def _history_files(archive: Path) -> list[tuple[datetime, Path]]:
 def find_reuse_source(archive: Path, name: str, now: datetime) -> dict | None:
     """由新到舊找第一份 `sources.<name>.ok` 是 `true`、`runs.<主要的鍵>` 在 24 小時內的結果。
 
-    主要的鍵是 `REUSE_FIELDS[name]` 的第一個（ecmwf 是 HRES 的 `ecmwf`，gfs 是 `gfs`）。
+    主要的鍵是 `REUSE_FIELDS[name]` 第一個的 `runs` 鍵（ecmwf 是 HRES 的 `ecmwf`，gfs 是 `gfs`）。
     一份結果的 `runs` 不會晚於它的 `generatedAt`，所以檔名早於 `now - REUSE_MAX_AGE` 就不用
     再往前找。
     """
-    run_key = REUSE_FIELDS[name][1][0][0]
+    run_key = REUSE_FIELDS[name][0][1]
     for t, p in _history_files(archive):
         if t >= now:
             continue
@@ -364,13 +398,14 @@ def reuse_models(
     failed: list[str],
     now: datetime,
     airports: list[Airport],
+    factors: dict[str, assess.GustFactor] | None = None,
 ) -> None:
     """失敗的模式來源（`ecmwf`／`gfs`／`aifs`／`aigfs`）從 `prev[來源名稱]` 那一份抄同一機場、
     同一 `from` 的值。
 
     每個來源可以抄不同份（`find_reuse_source` 各自找）。`runs.<鍵>` 離 `now` 超過 `REUSE_MAX_AGE`
     的那一報不抄（系集與 HRES 各自判斷）；有抄到的才把 `runs` 換成那一份的、在 `sources.<名稱>` 加
-    `reusedFrom`。`ok`／`error` 不動。
+    `reusedFrom`。`ok`／`error` 不動。`factors` 是這一報每個機場的估算陣風係數（HD18，`_rescore`）。
     """
 
     def slots_of(doc: dict) -> dict[tuple[object, object], dict]:
@@ -390,13 +425,15 @@ def reuse_models(
         if not isinstance(doc, dict) or not isinstance(doc.get("generatedAt"), str):
             continue
         prev_slots = slots_of(doc)
-        key, parts = REUSE_FIELDS[name]
-        for run_key, fields in parts:
+        stale: set[str] = set()
+        for key, run_key, fields in REUSE_FIELDS[name]:
             run_t = _run_time(doc, run_key)
             if run_t is None or now - run_t > REUSE_MAX_AGE:
-                log.info(
-                    "%s 那份的 runs.%s 超過 24 小時或沒有，不沿用", doc["generatedAt"], run_key
-                )
+                if run_key not in stale:
+                    log.info(
+                        "%s 那份的 runs.%s 超過 24 小時或沒有，不沿用", doc["generatedAt"], run_key
+                    )
+                stale.add(run_key)
                 continue
             n = 0
             for a in latest["airports"]:
@@ -424,7 +461,8 @@ def reuse_models(
     latest["runs"].update(runs)
     by_model = model_runs(latest["runs"])
     for s, icao in touched.values():
-        _rescore(s, th[icao], by_model)
+        factor = None if factors is None else factors.get(icao, assess.DEFAULT_GUST_FACTOR)
+        _rescore(s, th[icao], by_model, factor)
     for name, generated_at in reused_from.items():
         latest["sources"][name]["reusedFrom"] = generated_at
         log.info("%s 失敗，沿用 %s 那份的模式資料（runs：%s）", name, generated_at, runs)
@@ -568,8 +606,10 @@ def assemble(
     nw: nws.NwsData | None = None,
     af: aifs.AifsData | None = None,
     ag: aigfs.AigfsData | None = None,
+    factors: dict[str, assess.GustFactor] | None = None,
 ) -> dict:
-    """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。"""
+    """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。`factors` 是每個機場估算陣風的
+    係數（HD18；沒有的機場用 1.4、`default`）。"""
     slots = slot_bounds(now)
     window_start, window_end = slots[0][0], slots[-1][1]
     runs = {
@@ -600,6 +640,7 @@ def assemble(
             aifs=af.points.get(a.icao) if af else None,
             aigfs=ag.points.get(a.icao) if ag else None,
             runs=by_model,
+            gust_factor=(factors or {}).get(a.icao, assess.DEFAULT_GUST_FACTOR),
         )
         out_airports.append(
             {
@@ -732,6 +773,7 @@ def run(
         lambda r: r,
     )
 
+    factors = gust_factors(ec, gf, airports, now, history)
     latest = assemble(
         now=now,
         regions=regions,
@@ -747,6 +789,7 @@ def run(
         nw=nw,
         af=af,
         ag=ag,
+        factors=factors,
     )
     failed = [n for n, d in (("ecmwf", ec), ("gfs", gf), ("aifs", af), ("aigfs", ag)) if d is None]
     if failed:
@@ -754,7 +797,7 @@ def run(
         if any(d is None for d in sources.values()):
             prev = previous_latest(archive, pages_url)  # archive 裡找不到的退回上一份（H7 的做法）
             sources = {n: d if d is not None else prev for n, d in sources.items()}
-        reuse_models(latest, sources, failed, now, airports)
+        reuse_models(latest, sources, failed, now, airports, factors)
     run_ai(latest, previous_latest(archive, pages_url), now, history, timing)
 
     stamp = f"{now:%Y%m%dT%H%M}Z"
@@ -777,6 +820,23 @@ def run(
     _dump(history / f"{stamp}.json", latest, compact=True)
     _dump(archive / "latest.json", latest, compact=True)
     return latest
+
+
+def gust_factors(
+    ec: ecmwf.EcmwfData | None,
+    gf: gfs.GfsData | None,
+    airports: list[Airport],
+    now: datetime,
+    history: Path,
+) -> dict[str, assess.GustFactor]:
+    """這一報的樣本 → `history/gustfactor/` → 每個機場的估算陣風係數（HD18，`gustfactor.update`）。
+    任何失敗只 log、回空的（全部用 1.4、`default`），不讓 build 失敗。"""
+    try:
+        samples = gustfactor.run_samples(ec, gf, airports, slot_bounds(now))
+        return gustfactor.update(history, now, samples, [a.icao for a in airports])
+    except Exception:  # 保險：係數算不出來不能讓 build 失敗
+        log.exception("陣風係數算不出來，全部用 1.4")
+        return {}
 
 
 def run_ai(

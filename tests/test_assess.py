@@ -11,6 +11,7 @@ from conftest import utc
 from hongthai.assess import (
     MODEL_CAUSE_ORDER,
     ActiveWarning,
+    GustFactor,
     assess_slots,
     causes_from,
     crosswind_kt,
@@ -18,6 +19,7 @@ from hongthai.assess import (
     fill_kt,
     max_level,
     model_level,
+    refactor_estimated,
     taf_for_slot,
     taf_level,
 )
@@ -1131,3 +1133,76 @@ def test_models_present_when_sources_missing():
     assert [e["id"] for e in s["model"]["models"]] == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
     assert all(e["level"] is None for e in s["model"]["models"])
     assert s["model"]["vote"]["level"] is None and s["model"]["vote"]["thin"] is True
+
+
+# ---- 估算陣風的係數（HD18）----
+
+
+def test_aifs_gust_uses_airport_factor():
+    """AIFS 平均風 20 節、G 1.6 → 估算陣風 32 節、`gustFactor` 1.6；IFS、GFS、系集沒有係數。"""
+    s = run(
+        ec=flat_ec(5),
+        gfs=flat_gfs(5),
+        aifs=flat_aifs(20.0),
+        aigfs=flat_aigfs(25.0),
+        gust_factor=GustFactor(1.6, "airport30d"),
+    )[0]
+    by = {e["id"]: e for e in s["model"]["models"]}
+    ai, ag = by["aifs"], by["aigfs"]
+    assert (ai["windKt"], ai["gustKt"], ai["gustEstimated"]) == (20.0, 32.0, True)
+    assert (ai["gustFactor"], ai["gustFactorBasis"]) == (1.6, "airport30d")
+    assert (ag["windKt"], ag["gustKt"], ag["gustFactor"]) == (25.0, 40.0, 1.6)
+    assert ag["levels"]["wind"] == "medium"  # 40 ≥ 37
+    for i in ("ifs", "gfs", "ifs-ens"):
+        assert (by[i]["gustFactor"], by[i]["gustFactorBasis"]) == (None, None)
+    # model.ec／gfs 沒有新鍵
+    assert "windKt" not in s["model"]["ec"] and "windKt" not in s["model"]["gfs"]
+
+
+def test_default_factor_is_1_4():
+    ai = run(aifs=flat_aifs(31.0))[0]["model"]["models"][3]
+    assert (ai["gustKt"], ai["gustFactor"], ai["gustFactorBasis"]) == (43.4, 1.4, "default")
+
+
+def test_estimated_crosswind_uses_factor():
+    rwy = (Runway("05/23", (50.0, 230.0)),)
+    s = run(aifs=flat_aifs(20.0, 140.0), runways=rwy, gust_factor=GustFactor(1.5, "run"))[0]
+    ai = s["model"]["models"][3]
+    assert (ai["gustKt"], ai["crosswindKt"]) == (30.0, 30.0)  # 風向和跑道垂直
+
+
+def test_wind_kt_ifs_slot_end_and_gfs_at_max_gust():
+    """`windKt`：IFS 取格結束步長的平均風；GFS 取格內陣風最大那一點的；系集 null。"""
+    hres = [
+        GustInterval(S0 + timedelta(hours=h - 3), S0 + timedelta(hours=h), 30.0, None, float(h))
+        for h in range(3, 121, 3)
+    ]
+    pts = [
+        GustPoint(S0, 20.0, wind_kt=11.0),
+        GustPoint(S0 + timedelta(hours=6), 25.0, wind_kt=14.04),
+    ]
+    s = run(ec=EcmwfPoint(hres), gfs=pts)[0]
+    by = {e["id"]: e for e in s["model"]["models"]}
+    assert by["ifs"]["windKt"] == 6.0  # 格 06–12Z 的結束步長（區間 3–6 小時，wind_kt=6）
+    assert by["gfs"]["windKt"] == 14.0
+    assert by["ifs-ens"]["windKt"] is None
+    assert by["aifs"]["windKt"] is None and by["aifs"]["gustFactor"] is None  # 沒資料
+
+
+def test_refactor_estimated():
+    """沿用的那筆：`windKt` × 新 G；側風照新舊 G 比例；HD18 以前的沒有 `windKt` 時用 1.4 倒推。"""
+    e = {"windKt": 20.0, "gustKt": 28.0, "gustFactor": 1.4, "crosswindKt": 14.0}
+    refactor_estimated(e, GustFactor(1.6, "all30d"))
+    assert e == {
+        "windKt": 20.0,
+        "gustKt": 32.0,
+        "gustFactor": 1.6,
+        "gustFactorBasis": "all30d",
+        "crosswindKt": 16.0,
+    }
+    old = {"gustKt": 50.4, "crosswindKt": 30.0}
+    refactor_estimated(old, GustFactor(1.5, "run"))
+    assert (old["windKt"], old["gustKt"], old["crosswindKt"]) == (36.0, 54.0, 32.1)
+    empty = {"gustKt": None}
+    refactor_estimated(empty, GustFactor(1.5, "run"))
+    assert empty == {"gustKt": None}

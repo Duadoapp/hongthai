@@ -13,6 +13,8 @@
 所以 HRES 用最新一報（四個時次都可以），系集機率用最新的 00／12Z，`runs` 分開記。
 
 側風（第二階段）：HRES 多抓 10 米風 `10u`／`10v`（瞬時值），每個陣風區間配上一個風向（真北）。
+HD18 起同一個時間點的風速（√(u²+v²)，節）也留下來（`GustInterval.wind_kt`），算估算陣風的係數用；
+不多抓參數。
 
 單位（HD2，2026-10-19）：GRIB 的陣風是 m/s，解析完就換算成節（`GustInterval.gust_kt`）；
 系集機率的門檻仍是 ECMWF 定的 10／15／25 m/s（≈ 19.4／29.2／48.6 節），開放資料沒有其他門檻。
@@ -70,7 +72,7 @@ from pathlib import Path
 
 from ..budget import add_bytes, check_cancelled, note
 from ..config import Airport
-from ..grib import read_points, wind_dir_from_uv
+from ..grib import read_points, wind_dir_from_uv, wind_speed_kt
 from ..timeutil import hours_between
 from ..units import ms_to_kt
 from . import SourceError
@@ -90,6 +92,8 @@ class GustInterval:
     end: datetime
     gust_kt: float | None
     wdir: float | None = None  # 區間結束時的 10 米風向（度，真北）；沒有 10u／10v 時 None
+    # 同一個時間點（`wind_step`）的 10 米平均風速（節，HD18）；沒有 10u／10v 時 None
+    wind_kt: float | None = None
 
 
 @dataclass
@@ -249,8 +253,8 @@ def parse_hres(
 ) -> tuple[datetime, dict[str, list]]:
     """陣風（`path`）配 10 米風（`wind_path`；沒給就在 `path` 裡找）。
 
-    風向取 `wind_step` 那個步長的 `10u`／`10v`；陣風換算成節。給了 `precip` 時順便把 `wind_path`
-    裡的 `tp`／`ptype`／`2t` 解析進去（HD8，`parse_precip`）。
+    風向與平均風速（HD18）取 `wind_step` 那個步長的 `10u`／`10v`；陣風換算成節。給了 `precip`
+    時順便把 `wind_path` 裡的 `tp`／`ptype`／`2t` 解析進去（HD8，`parse_precip`）。
     """
     where = {a.icao: (a.lat, a.lon) for a in airports}
     pts = read_points(path, where)
@@ -271,8 +275,12 @@ def parse_hres(
                 end = s.run + timedelta(hours=step)
                 start = end - timedelta(hours=hres_interval_hours(short, step))
                 ws = wind_step(step)
-                wdir = wind_dir_from_uv(uv.get("10u", {}).get(ws), uv.get("10v", {}).get(ws))
-                intervals.append(GustInterval(start, end, ms_to_kt(v), wdir))
+                u, v10 = uv.get("10u", {}).get(ws), uv.get("10v", {}).get(ws)
+                intervals.append(
+                    GustInterval(
+                        start, end, ms_to_kt(v), wind_dir_from_uv(u, v10), wind_speed_kt(u, v10)
+                    )
+                )
         out[icao] = sorted(intervals, key=lambda g: g.end)
         if precip is not None and run is not None:
             precip[icao] = parse_precip(w, run)

@@ -22,6 +22,7 @@ import numpy as np
 import xarray as xr
 
 from .budget import check_cancelled
+from .units import ms_to_kt
 
 log = logging.getLogger("hongthai")
 
@@ -93,6 +94,13 @@ def wind_dir_from_uv(u: float | None, v: float | None) -> float | None:
     if u is None or v is None or hypot(u, v) < 0.1:
         return None
     return degrees(atan2(-u, -v)) % 360
+
+
+def wind_speed_kt(u: float | None, v: float | None) -> float | None:
+    """風的 u／v 分量（m/s）→ 風速（節，HD18）；沒資料回 None。"""
+    if u is None or v is None:
+        return None
+    return ms_to_kt(hypot(u, v))
 
 
 # ---- NOAA `.idx`（GFS、AIGFS）----

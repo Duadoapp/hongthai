@@ -215,6 +215,29 @@
     （IFS、GFS 分開記，因為 `10fg` 是時段最大、`GUST` 是時間點值，30 天後比較兩者再決定要不要只用一個）；30 天後用
     `tools/gust_factor_report.py` 對 METAR 驗證，AI 模式仍系統性偏低再加第二層修正。提示詞
     `docs/prompts/2026-10-20-HD18-gust-factor.md`，排在 HD14 之後
+    **HD18 已實作（HD18 PR）**；和提示詞不一樣、或提示詞沒寫死的地方：
+    - 首報的判斷：提示詞同時寫「樣本 < 40 → 全機場合併」與「首報 `basis: "run"`」，首報時全機場合併就是
+      這一報、通常 ≥ 40。實作成「30 天窗裡除了這一報沒有別的報」就一律 `run`（`history/gustfactor/`
+      還沒有、或停了 30 天以上都算），第二報起才照 `airport30d` → `all30d` → `run` → `default`
+    - 新模組 `src/hongthai/gustfactor.py`（樣本、30 天窗、中位數、寫檔）；`build.gust_factors` 失敗只 log、
+      全部用 1.4 `default`。`history/gustfactor/latest.json` 多一個 `run`（只算這一報的 `g`／`n`／`nIfs`／
+      `nGfs`），`all`／`run` 的 `g` 是夾過的中位數
+    - 樣本用的陣風與平均風都先取一位小數（和 `latest.json` 的數字一樣，之後可以從 history 重算），比例兩位小數；
+      AIFS／AIGFS 的 `gustKt`＝一位小數的 `windKt` × G（`_rescore` 重算結果一樣）。AIFS／AIGFS 的 `windKt` 是
+      格頭尾兩點大的那個（估算陣風本來就取大的）
+    - 沿用 AIFS／AIGFS 時側風也要跟著換：估算陣風的側風和 G 成正比，照「新 G ÷ 舊 G」換算（舊 G 從抄來的
+      `gustFactor`；HD18 以前的那筆沒有 `windKt`／`gustFactor`，當 1.4、平均風用舊估算陣風倒推）。
+      `REUSE_FIELDS` 改成（位置, `runs` 鍵, 欄位），`models[]` 那筆寫成 `models.<id>`，IFS、GFS 的 `windKt`
+      也一起抄
+    - AI 短評的規則說明原本寫死「× 1.4」，改成「× 這個機場的係數（歐洲、美國模式 30 天陣風÷平均風的中位數，
+      1.2–2.0）」
+    - `latest.json` 多約 **280 KB**（2,148 KB；拿掉三個鍵 1,868 KB；gzip 104 → 118 KB），提示詞估 100–150 KB
+    - 2026-10-20 實際跑一報（IFS／GFS 都是 19 日 18Z，首報 `run`）：IFS 中位數 1.69（352 個）、GFS 1.29
+      （440 個）、合併 **1.48**（792 個）——GFS÷IFS＝0.76，和定案背景講的一樣。同樣抓 19 日 00／06／12Z 算：合併 1.43（767）、1.44（755）、1.44（783），
+      IFS 1.64–1.69、GFS 1.26–1.29，一報一報很穩。首報三個機場：桃園 26 個樣本、關島 11、羽田 23，G 都是
+      1.48（`run`）。四報合起來看：桃園 IFS 2.17／GFS 1.75／合併 **1.95**（100 個）、關島 1.62（41）、羽田
+      1.41（102）——桃園比全體高很多，第二報起會換成 `airport30d`，合併後要看一下桃園的估算陣風
+    - GFS 弱風時 `GUST` 可以比 10 米風小（fixture 桃園 5.4 對 8.0 節）；樣本只收 ≥ 10 節，不影響
     **HD14 已實作（HD14 PR）**；和提示詞不一樣的地方：
     - AIFS 的 `tp`／`sf` 單位是 **mm**（kg m⁻²），不是提示詞寫的 m（cfgrib `GRIB_units` 實測）；`ptype` 的
       「沒降水」是 6 小時總降水 < 0.1 mm（GRIB 打包雜訊約 0.01 mm）

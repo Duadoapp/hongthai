@@ -17,7 +17,7 @@
   開發機，不是 Actions）。AWS 那時回 `503 Slow Down`（連 `.index` 都是），所以多半會落到 `ecmwf`
 - 6 小時雨量（降雪）＝`tp(t) − tp(t−6)`（`sf` 同），所以和 HRES 一樣多抓第一格的開始步長
   （`steps`，開始步長是 0 時 `tp(0)` 當 0）
-- 陣風不在這裡估：`AifsStep.wind_kt` 是平均風，`assess` 乘 `config.GUST_FACTOR`
+- 陣風不在這裡估：`AifsStep.wind_kt` 是平均風，`assess` 乘每個機場的係數（HD18，`gustfactor.py`）
 - 降水型態（`AifsStep.ptype`）：6 小時降雪 ≥ 6 小時總降水的一半 → `snow`，否則 `rain`；6 小時總降水
   < `NO_PRECIP_MM`（0.1 mm，GRIB 打包的雜訊約 0.01 mm）→ `none`。不用 2 米溫度猜型態
 """

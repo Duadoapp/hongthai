@@ -47,9 +47,15 @@ class Thresholds:
     model_freezing_rain_high_mm6h: float = 1
 
 
-# 多模式投票（HD14，Shawn 2026-10-19）：沒有陣風的模式用 10 米平均風 × 這個係數估算陣風
-# （標 `gustEstimated`）；累積一個月紀錄再檢討
-GUST_FACTOR = 1.4
+# 多模式投票（HD14，Shawn 2026-10-19）：沒有陣風的模式用 10 米平均風 × 係數 G 估算陣風
+# （標 `gustEstimated`）。HD18（2026-10-20）起 G 是每個機場自己的：最近 30 天 IFS 與 GFS 每格
+# 「陣風÷10 米平均風」的中位數（只收平均風 ≥ 10 節的格），夾在 1.2～2.0；樣本不足的順序見
+# `gustfactor.py`，最後的保底是 1.4
+GUST_FACTOR_DEFAULT = 1.4
+GUST_FACTOR_RANGE = (1.2, 2.0)
+GUST_FACTOR_MIN_WIND_KT = 10
+GUST_FACTOR_MIN_SAMPLES = 40
+GUST_FACTOR_WINDOW_DAYS = 30
 
 
 @dataclass(frozen=True)
@@ -58,7 +64,7 @@ class Model:
     `slots[].model.models[]`），順序就是輸出順序。
 
     `votes_only_high`：只參加「高」的投票（判中時不算分母），IFS 系集用；
-    `gust_estimated`：沒有陣風、用 `GUST_FACTOR` 估算。"""
+    `gust_estimated`：沒有陣風、用平均風 × 機場的係數估算（HD18，`gustfactor.py`）。"""
 
     id: str
     name: dict[str, str]

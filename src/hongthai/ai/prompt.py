@@ -22,7 +22,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from ..assess import MODEL_CAUSE_ORDER, model_vote, tally
-from ..config import GUST_FACTOR, Thresholds
+from ..config import GUST_FACTOR_RANGE, Thresholds
 from ..og import slot_text
 from ..timeutil import parse_time
 
@@ -278,8 +278,10 @@ def rules_text(th: Thresholds | None = None) -> str:
             "取成立的最高級；強風、雨、雪、霧各自投，再取最高",
             f"- 歐洲系集只投 high：p49Kt ≥ {round(th.ec_p49_high * 100)}% 投 high、否則投 low，"
             "判 medium 時不算它（p29Kt 只是參考）",
-            "- 歐洲 AI 模式、美國 AI 模式沒有陣風：10 米平均風 × "
-            f"{GUST_FACTOR:g} 估算（標「估」），門檻同陣風；雪只有有降水型態的模式投"
+            "- 歐洲 AI 模式、美國 AI 模式沒有陣風：10 米平均風 × 這個機場的係數估算（標「估」；"
+            "係數是歐洲模式、美國模式最近 30 天陣風÷平均風的中位數，"
+            f"{GUST_FACTOR_RANGE[0]:.1f}–{GUST_FACTOR_RANGE[1]:.1f}），門檻同陣風；"
+            "雪只有有降水型態的模式投"
             "（美國 AI 模式不投），霧只有美國模式有能見度",
             "- 官方警報：颱風／熱帶氣旋信號（8 號以上、陸上警報、Warning）→ high，"
             "3 號、海上警報、Watch → medium；只套用到「現在 + 12 小時」內開始的格",

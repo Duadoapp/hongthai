@@ -313,7 +313,8 @@ def test_airport_text_models_and_vote_hd14():
     # 規則說明：投票、系集只投高、估算陣風
     assert "達到有資料模式數的一半就成立" in text
     assert "歐洲系集只投 high：p49Kt ≥ 30% 投 high" in text
-    assert "10 米平均風 × 1.4 估算（標「估」）" in text
+    assert "10 米平均風 × 這個機場的係數估算（標「估」；" in text  # HD18
+    assert "陣風÷平均風的中位數，1.2–2.0）" in text
     for must in ("估算陣風", "estimated gust", "五個模式中三個認為高", "US AI model"):
         assert must in prompt.SYSTEM, must
 

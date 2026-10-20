@@ -59,8 +59,11 @@ LANGS = {"zh-TW", "zh-HK", "zh-CN", "en"}
 MODEL_ENTRY_KEYS = {
     "id",
     "run",
+    "windKt",  # HD18
     "gustKt",
     "gustEstimated",
+    "gustFactor",  # HD18
+    "gustFactorBasis",  # HD18
     "crosswindKt",
     "rain6hMm",
     "ptype",
@@ -1534,3 +1537,108 @@ def test_rescore_revotes_models():
     assert (m["level"], slot["level"], slot["causes"]) == ("high", "high", ["wind"])
     build._rescore(slot, Thresholds(), {"ifs": "2026-10-18T06:00:00Z"})
     assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z", None, None, None, None]
+
+
+# ---- 估算陣風的係數（HD18）----
+
+
+def _hd18_models(airports):
+    """每個機場：IFS 陣風 30／平均風 20（1.5）、GFS 陣風 34／平均風 20（1.7），120 小時都一樣。"""
+    t0 = utc(2026, 10, 18, 6)
+    hres = [
+        ecmwf.GustInterval(t0 + timedelta(hours=h - 3), t0 + timedelta(hours=h), 30.0, 90.0, 20.0)
+        for h in range(3, 121, 3)
+    ]
+    ec = ecmwf.EcmwfData(
+        utc(2026, 10, 18, 0), None, "no_run", {a.icao: ecmwf.EcmwfPoint(hres) for a in airports}
+    )
+    pts = [GustPoint(t0 + timedelta(hours=h), 34.0, 90.0, wind_kt=20.0) for h in range(0, 121, 6)]
+    gf = GfsData(utc(2026, 10, 18, 0), {a.icao: pts for a in airports})
+    return ec, gf
+
+
+def test_gust_factor_files_and_models_keys(workspace, monkeypatch, airports):
+    ec, gf = _hd18_models(airports)
+    af, _ = sample_ai_models(airports)
+    _fail_all_but(
+        monkeypatch,
+        ecmwf=lambda *a, **k: ec,
+        gfs=lambda *a, **k: gf,
+        aifs=lambda *a, **k: af,
+    )
+    assert build.main([]) == 0
+    hist = workspace / "data" / "history" / "gustfactor"
+    lines = [json.loads(x) for x in (hist / "2026-10.jsonl").read_text("utf-8").splitlines()]
+    assert [r["icao"] for r in lines] == ICAOS
+    assert lines[0] == {
+        "run": "2026-10-18T08:10:00Z",
+        "icao": "RCTP",
+        "ifs": [1.5] * 20,
+        "gfs": [1.7] * 20,
+    }
+    doc = json.loads((hist / "latest.json").read_text("utf-8"))
+    assert doc["generatedAt"] == "2026-10-18T08:10:00Z"
+    assert doc["window"] == {"from": "2026-09-18T08:10:00Z", "to": "2026-10-18T08:10:00Z"}
+    n = 51 * 40
+    assert doc["all"] == doc["run"] == {"g": 1.6, "n": n, "nIfs": n // 2, "nGfs": n // 2}
+    assert set(doc["airports"]) == set(ICAOS)
+    # 首報：每個機場都是 run
+    assert doc["airports"]["RCTP"] == {"g": 1.6, "n": 40, "nIfs": 20, "nGfs": 20, "basis": "run"}
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    by = {e["id"]: e for e in _airport(out, "RCTP")["slots"][0]["model"]["models"]}
+    assert (by["ifs"]["windKt"], by["gfs"]["windKt"], by["ifs-ens"]["windKt"]) == (20.0, 20.0, None)
+    ai = by["aifs"]
+    assert (ai["windKt"], ai["gustKt"], ai["gustEstimated"]) == (31.0, 49.6, True)
+    assert (ai["gustFactor"], ai["gustFactorBasis"]) == (1.6, "run")
+    assert all(by[i]["gustFactor"] is None for i in ("ifs", "gfs", "ifs-ens", "aigfs"))
+    # 樣本與係數不進 Pages
+    assert not (workspace / "public" / "history" / "gustfactor").exists()
+
+
+def test_reused_aifs_recomputed_with_this_runs_factor(workspace, monkeypatch, airports):
+    """AIFS 失敗 → 抄上一份的 `windKt`，用這一報的 G 重算估算陣風（不沿用舊 G）。"""
+    ec, gf = _hd18_models(airports)
+    prev = _prev(
+        "2026-10-18T02:10:00Z",
+        {"ecmwf": None, "ecmwfEns": None, "gfs": None, "aifs": "2026-10-18T00:00:00Z"},
+    )
+    prev["airports"][0]["slots"][0]["model"]["models"] = [
+        _entry("ifs"),
+        _entry("gfs"),
+        _entry("ifs-ens"),
+        _entry(
+            "aifs",
+            "2026-10-18T00:00:00Z",
+            windKt=30.0,
+            gustKt=42.0,
+            gustFactor=1.4,
+            gustFactorBasis="default",
+            crosswindKt=21.0,
+        ),
+        _entry("aigfs"),
+    ]
+    _write_hist(workspace, prev, ok={"aifs": True})
+    _fail_all_but(monkeypatch, ecmwf=lambda *a, **k: ec, gfs=lambda *a, **k: gf)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["sources"]["aifs"]["reusedFrom"] == "2026-10-18T02:10:00Z"
+    ai = _airport(out, "VHHH")["slots"][0]["model"]["models"][3]
+    assert (ai["windKt"], ai["gustKt"], ai["crosswindKt"]) == (30.0, 48.0, 24.0)
+    assert (ai["gustFactor"], ai["gustFactorBasis"], ai["gustEstimated"]) == (1.6, "run", True)
+    assert ai["levels"]["wind"] == "high"  # 48 ≥ 48
+
+
+def test_gust_factor_failure_falls_back_to_default(workspace, monkeypatch, airports):
+    """係數算不出來（例外）只 log，全部用 1.4、`default`，build 照常。"""
+    _, gf = _hd18_models(airports)
+    af, _ = sample_ai_models(airports)
+
+    def broken(*a, **k):
+        raise RuntimeError("壞了")
+
+    monkeypatch.setattr(build.gustfactor, "update", broken)
+    _fail_all_but(monkeypatch, gfs=lambda *a, **k: gf, aifs=lambda *a, **k: af)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    ai = _airport(out, "RCTP")["slots"][0]["model"]["models"][3]
+    assert (ai["gustKt"], ai["gustFactor"], ai["gustFactorBasis"]) == (43.4, 1.4, "default")

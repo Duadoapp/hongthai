@@ -36,6 +36,8 @@ NOMADS（備援，H10 以前唯一的來源）：
 - 出爐時間（UTC）：各報約 3.5–4 小時後到 f120（00Z ≈ 03:40、06Z ≈ 09:40、12Z ≈ 15:40、18Z ≈ 21:40）
 - GUST 是瞬時值（每 6 小時一筆），判讀時一格取頭尾兩個時間點的最大值
 - GRIB 的陣風是 m/s，解析完就換算成節（`GustPoint.gust_kt`，HD2）
+- HD18：同一時間點的 10 米平均風速（√(u²+v²)，節）也留下來（`GustPoint.wind_kt`），算估算陣風的
+  係數用；不多抓參數
 
 降水與能見度（HD8，2026-10-19 00Z 的 `.idx` 實測，全球 0.25° 每筆大小）：
 - `APCP:surface`：6 小時整的檔裡有**兩筆**，`6-12 hour acc fcst`（前 6 小時那桶）與
@@ -67,7 +69,7 @@ from pathlib import Path
 from .. import grib
 from ..budget import note
 from ..config import Airport
-from ..grib import read_points, wind_dir_from_uv
+from ..grib import read_points, wind_dir_from_uv, wind_speed_kt
 from ..timeutil import floor_6h, hours_between
 from ..units import ms_to_kt
 from . import SourceError, http_get
@@ -120,6 +122,7 @@ class GustPoint:
     rain6h_mm: float | None = None  # 前 6 小時降水（mm，HD8）
     ptype: str | None = None  # 同一時間的降水型態（`ptype_from_categories`）
     vis_m: float | None = None  # 同一時間的地面能見度（公尺）
+    wind_kt: float | None = None  # 同一時間的 10 米平均風速（節，HD18）
 
 
 @dataclass
@@ -183,17 +186,18 @@ def parse_file(path: str | Path, airports: list[Airport]) -> dict[str, list[Gust
         pts = []
         if gust is not None:
             for step, val in zip(gust.steps, gust.values, strict=True):
-                wdir = wind_dir_from_uv(*uv.get(step, (None, None)))
+                u10, v10 = uv.get(step, (None, None))
                 pts.append(
                     GustPoint(
                         gust.run + timedelta(hours=step),
                         ms_to_kt(val),
-                        wdir,
+                        wind_dir_from_uv(u10, v10),
                         extra.get("tp", {}).get(step),
                         ptype_from_categories(
                             {c: extra.get(c, {}).get(step) for c, _ in PTYPE_CATEGORIES}
                         ),
                         extra.get("vis", {}).get(step),
+                        wind_speed_kt(u10, v10),
                     )
                 )
         out[icao] = pts
