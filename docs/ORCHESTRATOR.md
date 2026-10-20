@@ -377,6 +377,9 @@
   (c) 起點的現報取離起報時間**最近**的（不是窗內最新的）；(d) 找中心的檔多 `stop`（停止原因）；
   (e) 有模式抽不出來時 `sources.tracks` 是 `ok: false`、`error: "partial"`（其他照寫）
 
+- **HD24（10/20 23:27，Shawn 看 HW6 上線頁後）**：只加 `vote.mediumTotal`（判中的分母，不含只投高的系集）與頂層 `models[].votesOnlyHigh`，
+  不改票數與規則，凍結前合併；網頁 HW7 用它寫「6 個模式中 3 個認為中以上」
+
 ## 和 Duado 的分工
 
 - 這個 repo 的改動由 HongThai 專用對話負責；duado.app/hongthai/ 網頁與 JSON 契約由 Duado 的主對話負責
