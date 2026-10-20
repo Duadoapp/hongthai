@@ -73,3 +73,10 @@ HD13（金門、馬祖的霧）：
   `probabilityCircleRadius`、`position.dm`）
 - `jtwc_wp2926.tcw`：JTWC 29W 第 23 報（`WTPN52 PGTW 200300`，CRLF；拿掉風半徑的 `QUADRANT` 行，
   結尾的歷史路徑只留最後 3 行）
+
+颱風路徑（HD21，2026-10-20 08Z 前後抓的 00Z 那報真實檔，用 eccodes 裁小）：
+- `ecmwf_tf_oper_2026102000.bufr`：ECMWF 開放資料 `20261020000000-360h-oper-tf.bufr`（HRES 路徑產品，
+  原檔 42,726 bytes、15 個 storm）只留 `36W CHAMPI`（29W）與 `21E TRUDY`（東太平洋）兩個訊息
+- `ecmwf_tf_enfo_2026102000.bufr`：同一報的 `…-enfo-tf.bufr`（系集，原檔 1,252,262 bytes、56 個 storm）
+  只留 `36W CHAMPI` 的成員 40–51（12 個，51 是控制報）與 `70W`（新生的擾動，沒有觀測位置）的成員 1–3
+  （`extractSubsetIntervalStart`／`End`＋`doExtractSubsets`）

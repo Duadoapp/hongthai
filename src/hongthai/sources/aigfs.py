@@ -20,6 +20,9 @@
 - NOMADS 備援：`https://nomads.ncep.noaa.gov/pub/data/nccf/com/aigfs/prod/` 有同樣的目錄與檔名，
   但**沒有 `filter_aigfs` 這種裁區 CGI**（`/cgi-bin/filter_aigfs.pl`、`filter_aigfs_0p25.pl` 都
   404），所以不做備援：AWS 失敗就整個失敗、交給沿用（`build.REUSE_FIELDS`）
+- HD21：事件期間（`fetch(mslp=True)`）多抓 `PRMSL:mean sea level`（同一個地面檔，2026-10-20 查
+  18Z f006 的 `.idx`：在 `ACPCP` 與 `TMP:surface` 之間，約 1.0 MB，和要抓的其他幾筆不相鄰），給
+  `tracks.py` 找颱風中心；抓到的檔記在 `AigfsData.mslp_files`
 - 陣風不在這裡估：`AigfsStep.wind_kt` 是平均風，`assess` 乘每個機場的係數（HD18，`gustfactor.py`）
 """
 
@@ -28,7 +31,7 @@ from __future__ import annotations
 import logging
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from math import hypot
 from pathlib import Path
@@ -50,6 +53,7 @@ IDX_FIELDS: tuple[tuple[str, ...], ...] = (
     ("VGRD", "10 m above ground"),
 )
 IDX_OPTIONAL: tuple[tuple[str, ...], ...] = (("TMP", "2 m above ground"),)
+MSLP_FIELD: tuple[str, ...] = ("PRMSL", "mean sea level")  # HD21，事件期間才抓
 APCP_KINDS = ("acc6", "acc0")  # 前面的優先
 SPAN_H = gfs.SPAN_H
 STEP_H = gfs.STEP_H
@@ -77,6 +81,7 @@ class AigfsData:
     points: dict[str, list[AigfsStep]]
     bytes_downloaded: int = 0
     mirror: str | None = None
+    mslp_files: list[Path] = field(default_factory=list)  # HD21：有海平面氣壓的檔
 
 
 def file_name(run: datetime, fh: int) -> str:
@@ -126,22 +131,32 @@ def _parse_step(path: Path, airports: list[Airport]) -> dict[str, tuple]:
     return out
 
 
+def step_path(tmp: Path, fh: int) -> Path:
+    return tmp / f"aigfs-f{fh:03d}.grib2"
+
+
 def _fetch_step(
-    run: datetime, fh: int, airports: list[Airport], tmp: Path
+    run: datetime, fh: int, airports: list[Airport], tmp: Path, mslp: bool = False
 ) -> tuple[dict[str, tuple], str | None, int]:
     url = f"{S3_URL}{run_dir(run)}/{file_name(run, fh)}"
     idx = http_get(f"{url}.idx", error=AigfsError).text
     kind = apcp_kind(idx, fh)
     optional = IDX_OPTIONAL + ((("APCP", "surface", kind),) if kind else ())
+    optional += (MSLP_FIELD,) if mslp else ()
     ranges = grib.byte_ranges(idx, IDX_FIELDS, fh, optional, error=AigfsError, label="AIGFS")
-    path = tmp / f"aigfs-f{fh:03d}.grib2"
+    path = step_path(tmp, fh)
     size = gfs.download_ranges(url, ranges, path, AigfsError)
     return _parse_step(path, airports), kind, size
 
 
 def fetch(
-    airports: list[Airport], now: datetime, slot0: datetime, workdir: str | Path | None = None
+    airports: list[Airport],
+    now: datetime,
+    slot0: datetime,
+    workdir: str | Path | None = None,
+    mslp: bool = False,
 ) -> AigfsData:
+    """`mslp`：事件期間多抓海平面氣壓（HD21）。"""
     t0 = time.monotonic()
     note(mirror=MIRROR)
 
@@ -156,7 +171,7 @@ def fetch(
     kinds: dict[int, str | None] = {}
     total = 0
     for fh in range(rel0, rel0 + SPAN_H + 1, STEP_H):
-        got, kinds[fh], size = _fetch_step(run, fh, airports, tmp)
+        got, kinds[fh], size = _fetch_step(run, fh, airports, tmp, mslp)
         total += size
         for icao, row in got.items():
             raw[icao][fh] = row
@@ -180,4 +195,5 @@ def fetch(
         total,
         time.monotonic() - t0,
     )
-    return AigfsData(run, points, total, MIRROR)
+    mslp_files = [step_path(tmp, fh) for fh in sorted(kinds)] if mslp else []
+    return AigfsData(run, points, total, MIRROR, mslp_files)

@@ -104,6 +104,18 @@ def test_aifs_fetch_uses_ecmwf_mirrors(monkeypatch, pus, tmp_path):
     assert len(data.points["RKPK"]) == 3
 
 
+def test_aifs_fetch_mslp(monkeypatch, pus, tmp_path):
+    """HD21：事件期間同一個請求多抓 `msl`，`mslp_files` 是那個檔。"""
+    calls = []
+    monkeypatch.setattr(
+        ecmwf, "_client", lambda source, model="ifs", **r: FakeAifsClient(source, model, calls, r)
+    )
+    data = aifs.fetch(pus, utc(2026, 10, 20, 0), tmp_path, mslp=True)
+    assert calls[-1][3]["param"] == ["10u", "10v", "tp", "sf", "2t", "msl"]
+    assert data.mslp_files == [tmp_path / "aifs.grib2"]
+    assert aifs.fetch(pus, utc(2026, 10, 20, 0), tmp_path).mslp_files == []
+
+
 # ---- AIGFS ----
 
 # 2026-10-19 12Z 地面檔的 `.idx`（真的）
@@ -195,13 +207,13 @@ class FakeS3:
     """假的 `http_get`：S3 的 `.idx` 與 `Range`。每個步長的「全球檔」是 fixture 的訊息夾在別的
     資料中間，`.idx` 用真的字樣。`acc0_only=True` 時 `.idx` 沒有「前 6 小時」那筆。"""
 
-    def __init__(self, acc0_only=False):
+    def __init__(self, acc0_only=False, prmsl=b"P" * 40):
         self.calls: list[str] = []
         self.files: dict[int, tuple[bytes, str]] = {}
         for fh in (6, 12):
             u, v, t, apcp6, apcp0 = _messages(f"aigfs_pus_f{fh:03d}.grib2")
             parts = [
-                (b"P" * 40, "PRMSL:mean sea level"),
+                (prmsl, "PRMSL:mean sea level"),
                 (u, "UGRD:10 m above ground"),
                 (v, "VGRD:10 m above ground"),
                 (b"D" * 20, "DPT:2 m above ground"),
@@ -260,6 +272,25 @@ def test_aigfs_fetch_from_s3(monkeypatch, pus, tmp_path, acc0_only):
     # 每個步長：.idx 一個、UGRD＋VGRD 一段、TMP 一段、APCP 一段
     assert fake.calls.count("range f006") == 3 and fake.calls.count("range f012") == 3
     assert data.bytes_downloaded > 0
+
+
+def test_aigfs_fetch_mslp(monkeypatch, pus, tmp_path):
+    """HD21：事件期間多抓 PRMSL，`mslp_files` 是每個步長的檔。"""
+    from conftest import mslp_grib
+
+    from hongthai import tracks
+
+    fake = FakeS3(prmsl=mslp_grib("prmsl", (12,), 0.0, {12: (16, 135, 40)}, (2026, 10, 19, 12)))
+    monkeypatch.setattr(aigfs, "http_get", fake)
+    monkeypatch.setattr(gfs, "http_get", fake)
+    monkeypatch.setattr(aigfs, "SPAN_H", 6)
+    data = aigfs.fetch(pus, utc(2026, 10, 19, 20, 10), utc(2026, 10, 19, 18), tmp_path, mslp=True)
+    # 假檔裡 PRMSL 緊接著 UGRD → 併成同一段（真的 `.idx` 不相鄰，每個步長多一段）
+    assert fake.calls.count("range f006") == 3 and fake.calls.count("range f012") == 3
+    assert fake.files[12][0].startswith(b"GRIB")
+    assert data.mslp_files == [tmp_path / "aigfs-f006.grib2", tmp_path / "aigfs-f012.grib2"]
+    assert list(tracks.read_mslp(data.mslp_files)) == [utc(2026, 10, 20, 0)]
+    assert len(data.points["RKPK"]) == 2  # 原本的值照算
 
 
 def test_aigfs_find_run_goes_back(monkeypatch):

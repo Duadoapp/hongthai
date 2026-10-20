@@ -21,6 +21,9 @@
   `raw` 是 JMA 的原始那筆物件、JTWC 的 `T` 行原文
 - `position/raw/jtwc-<YYYYMMDDTHHMM>Z.txt`：JTWC 警報原文（時間是抓的時間），有新的一報
   （寫了新的行）或解析不出來時才存，同一報不重複存
+- `tracks/<起報 YYYYMMDDTHHMM>Z-<模式>.json`：各模式每一報的颱風路徑（HD21，`tracks.py`；build 每報
+  寫，過去的報用 `python -m hongthai.events backfill-tracks --archive data --from <UTC 時間>` 補：
+  讀 `from` 以後每份快照的 `runs`，每個模式每個時次只抽一次，已經有的跳過）
 
 來源（2026-10-20 實抓）：
 - METAR：AviationWeather `metar?ids=<25 站>&format=json&hours=3`（`hours` 讓半小時一報的
@@ -437,10 +440,39 @@ def hourly(
     return out
 
 
+def _backfill_tracks(history: Path, events: list[Event], since: datetime) -> int:
+    """`backfill-tracks`（HD21）：要 eccodes，所以這裡才載入 `tracks`（`hourly` 只裝 requests）。"""
+    import tempfile
+    import time
+
+    from . import tracks
+
+    logging.getLogger("multiurl").setLevel(logging.WARNING)
+    logging.getLogger("ecmwf").setLevel(logging.WARNING)
+    t0 = time.monotonic()
+    with tempfile.TemporaryDirectory(prefix="hongthai-tracks-") as tmp:
+        result = tracks.backfill_tracks(history, events, since, Path(tmp))
+    for eid, res in result.items():
+        print(
+            f"{eid}：寫了 {len(res.written)} 份、已經有 {res.skipped}、沒有起點 {res.no_seed}、"
+            f"失敗 {len(res.failed)}（{'、'.join(res.failed) or '無'}）；下載 {res.bytes:,} bytes，"
+            f"{time.monotonic() - t0:.0f} 秒"
+        )
+        for p in res.written:
+            print(f"  {p.name}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m hongthai.events", description=__doc__)
-    ap.add_argument("command", choices=("hourly", "backfill"))
+    ap.add_argument("command", choices=("hourly", "backfill", "backfill-tracks"))
     ap.add_argument("--archive", type=Path, default=Path("data"))
+    ap.add_argument(
+        "--from",
+        dest="since",
+        default="2026-10-19T00:00Z",
+        help="backfill-tracks：這個時間（UTC）以後的快照",
+    )
     ap.add_argument("--events", type=Path, default=Path("events.json"))
     ap.add_argument("--airports", type=Path, default=Path("airports.json"))
     args = ap.parse_args(argv)
@@ -450,6 +482,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     events = load_events(args.events)
     history = args.archive / "history"
+    if args.command == "backfill-tracks":
+        return _backfill_tracks(history, events, parse_time(args.since) or utcnow())
     if args.command == "backfill":
         for eid, n in backfill(history, events).items():
             total = len(list((history / "events" / eid).glob("*.json")))
