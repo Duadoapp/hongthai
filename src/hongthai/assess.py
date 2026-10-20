@@ -8,7 +8,9 @@
   之後用 GEFS 系集成員自己算）；`p29Kt`（＝`p15`）只輸出、不進規則
 - 官方（只看 0–30 小時）：天文台／SMG 8 號或以上 → 高，3 號 → 中；氣象署陸上颱風警報且機場在警戒區
   → 高，海上警報 → 中；NWS（關島，HD3）Typhoon／Tropical Storm Warning → 高、Watch → 中
-  （對照在 `sources/nws.py`）；TAF 該時段陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高，陣風 ≥ 37 節 → 中
+  （對照在 `sources/nws.py`）；JMA（日本與沖繩，HD9）大雪特別警報 → 高、大雪警報 → 中、暴風雪警報
+  低（只列出），算 `snow`（對照在 `sources/jma.py`）；TAF 該時段陣風 ≥ 48 節（或平均風 ≥ 35 節）
+  → 高，陣風 ≥ 37 節 → 中
 - 陣風門檻（TAF 與模式同一套）的依據：桃園機場空橋規則，最大瞬間風速 37 節（蒲福 8 級）啟動
   空橋防護、48 節（10 級）空橋停用、55 節以上全部綁死
 - 0–30 小時以官方為準；官方與模式差一級以上標「落差」（`gap`）
@@ -19,7 +21,7 @@
 
 本模組自己的約定（規格沒寫死的地方）：
 - 「0–30 小時」：格的開始時間早於「現在 + 30 小時」
-- 目前生效的警報（天文台／SMG 信號、氣象署颱風警報、NWS 警報）套用到開始時間早於
+- 目前生效的警報（天文台／SMG 信號、氣象署颱風警報、NWS 警報、JMA 警報）套用到開始時間早於
   「現在 + 12 小時」的格（`WARNING_HORIZON_H`；警報本身沒有預報時段，先保守地只套前兩三格）
 - EC 系集機率是 24 小時窗：一格的機率取「完整包住這一格的所有窗」的最小值（6 小時內的機率
   不會超過任何包住它的 24 小時窗，所以是上界，偏保守）
@@ -78,7 +80,8 @@
   - `model.agreement` **還是只看陣風**（值域不變）
 - 警報：天文台黑雨 → 中，紅雨、雷暴警告低（只列出）；氣象署大豪雨、超大豪雨特報且機場在範圍
   → 中。這幾種算 `rain`（`RAIN_WARNING_KINDS`）；氣象署濃霧特報且機場在範圍 → 中，算 `fog`
-  （`FOG_WARNING_KINDS`，HD13）；其他警報算 `wind`。**低的警報不會自己撐起
+  （`FOG_WARNING_KINDS`，HD13）；JMA 大雪特別警報 → 高、大雪警報 → 中、暴風雪警報低（只列出），
+  算 `snow`（`SNOW_WARNING_KINDS`，HD9）；其他警報算 `wind`。**低的警報不會自己撐起
   官方層**：一格沒有 TAF、只有低的警報時 `official` 是 null、退回模式（天文台 1 號信號也是低，
   HD8 起一樣照這條）；有 TAF 或有中以上的警報時，`official.warnings` 列全部（含低的）
 - `causes`：從決定 `level` 的那一層（`official` 或 `model`；`confirmed` 看被它蓋掉的那一層：
@@ -144,6 +147,8 @@ RAIN_WARNING_KINDS = frozenset(
     {"rainstorm_black", "rainstorm_red", "thunderstorm", "cwa_heavy_rain"}
 )
 FOG_WARNING_KINDS = frozenset({"cwa_dense_fog"})  # 算 `fog` 的警報種類（HD13）
+# 算 `snow` 的警報種類（HD9）
+SNOW_WARNING_KINDS = frozenset({"jma_heavy_snow", "jma_heavy_snow_emergency", "jma_snowstorm"})
 SNOWY_PTYPES = frozenset({"snow", "wet_snow", "rain_snow"})
 # `slots[].model.models[]` 每筆的數字欄位（HD14）
 MODEL_NUM_KEYS = ("gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")
@@ -165,16 +170,17 @@ DEFAULT_GUST_FACTOR = GustFactor(GUST_FACTOR_DEFAULT, "default")
 
 @dataclass(frozen=True)
 class ActiveWarning:
-    """目前生效的官方警報（天文台／SMG 信號、氣象署颱風警報、NWS 警報），給判讀與輸出用。"""
+    """目前生效的官方警報（天文台／SMG 信號、氣象署颱風警報、NWS 與 JMA 警報），給判讀與輸出用。"""
 
-    source: str  # hko／cwa／smg／nws
+    source: str  # hko／cwa／smg／nws／jma
     # tc_signal／typhoon_land／typhoon_sea／typhoon_warning／typhoon_watch／ts_warning／ts_watch；
-    # HD8：rainstorm_black／rainstorm_red／thunderstorm／cwa_heavy_rain；HD13：cwa_dense_fog
+    # HD8：rainstorm_black／rainstorm_red／thunderstorm／cwa_heavy_rain；HD13：cwa_dense_fog；
+    # HD9：jma_heavy_snow／jma_heavy_snow_emergency／jma_snowstorm
     kind: str
     level: str
     text: dict[str, str]
     issued_at: str | None
-    code: str | None = None  # 天文台／SMG 信號代碼（例如 TC8NE）、NWS 的 event
+    code: str | None = None  # 天文台／SMG 信號代碼（例如 TC8NE）、NWS 的 event、JMA 的種類代碼
     detail: str | None = None
 
 
@@ -197,6 +203,8 @@ def _round(v: float | None, nd: int) -> float | None:
 def warning_cause(kind: str) -> str:
     if kind in FOG_WARNING_KINDS:
         return "fog"
+    if kind in SNOW_WARNING_KINDS:
+        return "snow"
     return "rain" if kind in RAIN_WARNING_KINDS else "wind"
 
 
@@ -867,7 +875,12 @@ def assess_slots(
                             *(w.level for w in applied if warning_cause(w.kind) == "rain"),
                         ]
                     ),
-                    "snow": wx["snow"] if wx else None,
+                    "snow": max_level(
+                        [
+                            wx["snow"] if wx else None,
+                            *(w.level for w in applied if warning_cause(w.kind) == "snow"),
+                        ]
+                    ),
                     "fog": max_level(
                         [
                             wx["fog"] if wx else None,

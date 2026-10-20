@@ -138,6 +138,14 @@
     `cwa_dense_fog`（中，台灣十個機場都適用）；氣象署局屬站觀測 `O-A0003-001`（金門 467110、馬祖 467990）當 METAR 用
     （`metar.source: "cwa"`）；沒有 TAF 的機場第一格可由 3 小時內的 METAR 單獨撐起官方層（`official.kind: "metar"`，宮古
     也會受益）；AOAWS 非正式介面不接。提示詞 `docs/prompts/2026-10-19-HD13-kinmen-matsu-fog.md`
+    **HD9 已實作（2026-10-20，JMA 大雪警報）**：日本 8 個＋沖繩 3 個機場 `warningSources: ["jma"]`、`jmaArea`（office＋
+    市町村 class20），來源 `sources/jma.py`（`BUDGET_S["jma"] = 45`，總和 1575 秒）。大雪警報 `jma_heavy_snow` 中、
+    大雪特別警報 `jma_heavy_snow_emergency` 高、暴風雪警報 `jma_snowstorm` 低（只列出），都算 `snow`；注意報與其他
+    警報不接。和提示詞不一樣：(a) 舊端點 `warning/data/warning/<office>.json` 停在 2026-05-28（JMA 改新制），改讀
+    `warning/data/r8/<office>.json`（每種電文一筆的 list）；(b) 代碼照 JMA 警報頁 JS：大雪警報 `06`、大雪特別警報
+    `36`（不是 33）、暴風雪警報 `02`（不是 05）；(c) 11 個機場剛好 11 個 office（不是 9 個）；(d) 市町村名放在
+    `jmaArea.name`／`enName`（每報不抓 `area.json`），中文三語用日文漢字原樣（「千歳市」不轉「千歲」）；
+    (e) 暴風雪特別警報 `32` 不在定案裡，先不接（待 Shawn 決定）。提示詞 `docs/prompts/2026-10-20-HD9-jma-snow-warning.md`
     **已實作（HD13 PR）**：`sources/cwa.py`（`dense_fog_for_airport`；`parse_obs`／`cwa_vis_m`／`cwa_wx` 把
     `O-A0003-001` 轉成 `taf.Metar`，`Metar.source = "cwa"`）、`assess.py`（`FOG_WARNING_KINDS`；沒有 TAF 的機場
     第一格 `by_metar`）、`build.station_metar`（AviationWeather 沒有才用氣象署的）、`airports.json` 的
@@ -282,6 +290,7 @@
 ## 29W 驗證期凍結（2026-10-20 起，到驗證報告出來）
 
 - 不改等級規則、投票方式、門檻；只修 bug。估算陣風係數兩天後自動切 `airport30d` 是既定行為，照常，切換時間記日誌
+- HD9（JMA 大雪警報）只加雪的警報，29W 期間不影響風的等級（10–11 月沒有大雪警報，上線不會改變任何現在的等級）
 - 保存（HD20）：`events.json` 的 29W（台灣日期 10-19～10-28、25 個機場）期間每報快照、每小時 METAR 與
   JMA／JTWC 現報都在 `data` 分支 `history/events/29W/`（README「事件保存」）；之後的颱風在 `events.json` 加一筆
 - 路徑抽取（**HD21 已實作**，定案第 6 點）：`history/events/29W/tracks/<起報>-<模式>.json`，IFS／系集用 ECMWF
@@ -323,6 +332,10 @@
   `warnings[].kind` 多 `cwa_dense_fog`（中、算 `fog`）；`airports[].metar.source: "cwa"`（氣象署局屬站觀測，
   AviationWeather 的沒有這個鍵）；`slots[].official.kind` 多 `metar`（沒有 TAF 的機場第一格由 METAR 撐起，
   `wx` 是物件）
+- HD9（JMA 大雪警報）要經 Shawn 轉給 Duado 的（只加值）：`warnings[].source` 多 `"jma"`、`kind` 多
+  `jma_heavy_snow`（中）、`jma_heavy_snow_emergency`（高）、`jma_snowstorm`（低，只列出），都算 `snow`、一定有四語
+  `text`；`sources.jma`；日本 8 個＋沖繩 3 個 `official.warnings` 變 `true`。網頁 `WARNING_KINDS` 已有
+  `jma_heavy_snow`，另兩個沒有也照樣顯示（有 `text`）；資料來源頁要標日本氣象廳
 - HD14（多模式投票）要經 Shawn 轉給 Duado 總指揮的：頂層 `models`（`[{id, name: {四語}}]`）、
   `slots[].model.models[]`（每格 5 筆，`gustEstimated: true` 時網頁寫「估算陣風」）、`slots[].model.vote`、
   `runs.aifs`／`runs.aigfs`、`sources.aifs`／`sources.aigfs`；`model.level` 改由投票決定，`model.ec`／`gfs`／

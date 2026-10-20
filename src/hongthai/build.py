@@ -3,10 +3,10 @@
 目錄：
 - `--archive`（預設 `data/`，Actions 裡是 `data` 分支的 checkout）：長期保存
   - `latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（每次的結果）
-  - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署、SMG、NWS 原始回應；
-    SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON；氣象署天氣特報 `W-C0033-001` 是另一個檔
+  - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署、SMG、NWS、JMA
+    原始回應；SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON；氣象署天氣特報 `W-C0033-001` 是另一個檔
     `-cwa-hazards.json`，HD8，`-cwa.json` 維持颱風警報原文；金門、馬祖的局屬站觀測 `O-A0003-001` 是
-    `-cwa-obs.json`，HD13）
+    `-cwa-obs.json`，HD13；JMA 是 `{office 代碼: 回應}`，HD9）
   - `history/cancellations/<YYYY-MM-DD>.json`（每機場每 6 小時格的航班取消／延誤統計，日期是格的
     UTC 日期；合併規則見 `cancellations.py`。原始航班資料不存）
   - `history/timing/<YYYY-MM>.jsonl`（每次 build 每個來源的耗時，一行一筆，見 `Timing`）
@@ -89,22 +89,23 @@ from .config import (
     load_events,
     load_regions,
 )
-from .sources import aifs, aigfs, cwa, ecmwf, flights, gfs, hko, nws, smg, taf
+from .sources import aifs, aigfs, cwa, ecmwf, flights, gfs, hko, jma, nws, smg, taf
 from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
 
 log = logging.getLogger("hongthai")
 
 SCHEMA = 1
 PAGES_URL = "https://duadoapp.github.io/hongthai/latest.json"
-SOURCE_NAMES = ("ecmwf", "gfs", "aifs", "aigfs", "taf", "hko", "cwa", "smg", "nws")
+SOURCE_NAMES = ("ecmwf", "gfs", "aifs", "aigfs", "taf", "hko", "cwa", "smg", "nws", "jma")
 
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
 # 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。HD14 的 aifs
 # 約 66 MB、55 秒，aigfs 約 51 MB、38 秒（2026-10-20 雲端開發機實測）。
-# 總和 1530 秒（25.5 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、
-# HD14 加 aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒），`build.yml` 那一步的上限是 28 分鐘
-# （HD21 前 25、HD14 前 20、HD12 前 18）。HD21 的海平面氣壓算在 gfs／aifs／aigfs 自己的預算裡
-# （每個步長約 1.0／0.5／1.0 MB，21 個步長共約 52 MB；2026-10-20 雲端開發機實測）。
+# 總和 1575 秒（26.25 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加
+# 60 秒、HD14 加 aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒），`build.yml`
+# 那一步的上限是 28 分鐘（HD21 前 25、HD14 前 20、HD12 前 18）。HD21 的海平面氣壓算在
+# gfs／aifs／aigfs 自己的預算裡（每個步長約 1.0／0.5／1.0 MB，21 個步長共約 52 MB；2026-10-20
+# 雲端開發機實測）。
 BUDGET_S: dict[str, float] = {
     "ecmwf": 300,  # HRES＋系集，含鏡像切換
     "gfs": 180,
@@ -116,6 +117,7 @@ BUDGET_S: dict[str, float] = {
     "smg": 30,
     "cwa": 45,  # 颱風警報、天氣特報、局屬站觀測（HD13）各一個請求；實測 1–5 秒
     "nws": 30,  # HD3：關島的颱風警報，一個請求
+    "jma": 45,  # HD9：日本與沖繩的大雪警報，一個 office 一個請求（11 個）；實測每個 0.5–1 秒
     "flights": 120,  # 抓＋統計＋寫檔
     "ai": 240,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒；HD12 180 → 240
     "og": 60,  # HD1：51 張分享預覽圖，publish() 之後畫（本機約 3 秒）
@@ -490,6 +492,7 @@ def collect_warnings(
     cwa_data: cwa.CwaData | None,
     smg_data: smg.SmgData | None = None,
     nws_data: nws.NwsData | None = None,
+    jma_data: jma.JmaData | None = None,
 ) -> list[assess.ActiveWarning]:
     out: list[assess.ActiveWarning] = []
     if "hko" in airport.warning_sources and hko_data and hko_data.signal:
@@ -526,6 +529,9 @@ def collect_warnings(
                     "nws", w.kind, w.level, w.text, w.issued_at, w.code, w.detail or None
                 )
             )
+    if "jma" in airport.warning_sources and jma_data and airport.jma_area:
+        for j in jma_data.warnings.get(airport.jma_area.class20, []):
+            out.append(assess.ActiveWarning("jma", j.kind, j.level, j.text, j.issued_at, j.code))
     return out
 
 
@@ -623,6 +629,7 @@ def assemble(
     af: aifs.AifsData | None = None,
     ag: aigfs.AigfsData | None = None,
     factors: dict[str, assess.GustFactor] | None = None,
+    jm: jma.JmaData | None = None,
 ) -> dict:
     """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。`factors` 是每個機場估算陣風的
     係數（HD18；沒有的機場用 1.4、`default`）。"""
@@ -638,7 +645,7 @@ def assemble(
     by_model = model_runs(runs)
     out_airports = []
     for a in airports:
-        warns = collect_warnings(a, hk, cw, sm, nw)
+        warns = collect_warnings(a, hk, cw, sm, nw, jm)
         mine = [c for c in confirmed if c.airport == a.icao]
         taf_info = tf.tafs.get(a.icao) if tf else None
         metar = station_metar(a, tf, cw)
@@ -792,6 +799,8 @@ def run(
     sm = _call("smg", smg.fetch, status, timing)
     nws_zones = [a.nws_zone for a in airports if "nws" in a.warning_sources]
     nw = _call("nws", lambda: nws.fetch(nws_zones), status, timing)
+    jma_areas = [a.jma_area for a in airports if "jma" in a.warning_sources and a.jma_area]
+    jm = _call("jma", lambda: jma.fetch(jma_areas), status, timing)
     _call(
         "flights",
         lambda: flight_stats(flights.fetch(now), airports, now, history),
@@ -817,6 +826,7 @@ def run(
         af=af,
         ag=ag,
         factors=factors,
+        jm=jm,
     )
     failed = [n for n, d in (("ecmwf", ec), ("gfs", gf), ("aifs", af), ("aigfs", ag)) if d is None]
     if failed:
@@ -844,6 +854,8 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-smg.json", sm.raw)
     if nw is not None:
         _dump(raw_dir / f"{now:%H%M}Z-nws.json", nw.raw)
+    if jm is not None:
+        _dump(raw_dir / f"{now:%H%M}Z-jma.json", jm.raw)
     _dump(history / f"{stamp}.json", latest, compact=True)
     _dump(archive / "latest.json", latest, compact=True)
     if events_path is not None:
