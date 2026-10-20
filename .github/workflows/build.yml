@@ -73,16 +73,8 @@ jobs:
       - name: 推 data 分支
         if: always()
         working-directory: data
-        run: |
-          git add -A
-          if git diff --cached --quiet; then
-            echo "沒有新檔案"
-            exit 0
-          fi
-          git -c user.name="github-actions[bot]" \
-              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -q -m "data: $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push origin data
+        # events.yml（HD20，每小時）也會推 data 分支：先 rebase 到遠端最新的、失敗重試 3 次
+        run: ../tools/push_data.sh data
 
       - name: 上傳 Pages artifact
         if: hashFiles('public/latest.json') != ''

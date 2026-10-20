@@ -1,4 +1,4 @@
-"""讀 `airports.json` 與 `confirmed.json`。
+"""讀 `airports.json`、`confirmed.json` 與 `events.json`。
 
 `airports.json`（H9 起）是 `{"regions": [...], "airports": [...]}`：`regions` 是地區（顯示順序），
 `airports` 照地區順序排、地區內照顯示順序。讀的時候檢查：ICAO 唯一、地區 id 唯一、每個機場的
@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -164,6 +164,24 @@ class ConfirmedPeriod:
     note: dict[str, str]
 
 
+@dataclass(frozen=True)
+class Event:
+    """要完整保存、之後拿來驗證的天氣事件（HD20，`events.json`，第一筆是颱風 29W）。
+
+    `start`／`end` 是**台灣日期**（含兩端）；`jma_tc_id` 是 JMA bosai 的颱風代號（`TC2636` 這種，
+    不是颱風號數）、`jtwc_id` 是 JTWC 的檔名代號（`wp2926`）；沒有就不抓那個來源。"""
+
+    id: str
+    name: str
+    start: date
+    end: date
+    airports: tuple[str, ...]
+    jma_tc_id: str | None = None
+    jtwc_id: str | None = None
+
+
+_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]+$")
+_ICAO = re.compile(r"^[A-Z]{4}$")
 _NWS_ZONE = re.compile(r"^[A-Z]{2}Z\d{3}$")
 
 _THRESHOLD_KEYS = {
@@ -288,4 +306,42 @@ def load_confirmed(path: str | Path) -> list[ConfirmedPeriod]:
         if start is None or end is None or end <= start:
             raise ValueError(f"confirmed.json 時段不正確：{c}")
         out.append(ConfirmedPeriod(c["airport"], start, end, dict(c.get("note", {}))))
+    return out
+
+
+def load_events(path: str | Path) -> list[Event]:
+    """`events.json`（HD20）；檔案不存在回空的。格式：
+
+    {"events": [{"id": "29W", "name": "…", "from": "2026-10-19", "to": "2026-10-28",
+      "airports": ["RCTP", …], "jma": {"tcId": "TC2636"}, "jtwc": {"id": "wp2926"}}]}
+
+    `id` 會當目錄名（`history/events/<id>/`），只能有英數、`-`、`_`；`id` 不能重複、`from` ≤ `to`、
+    機場是四個大寫字母。不對就丟 `ValueError`。"""
+    p = Path(path)
+    if not p.exists():
+        return []
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    out = []
+    for e in raw.get("events", []) if isinstance(raw, dict) else []:
+        start, end = date.fromisoformat(e["from"]), date.fromisoformat(e["to"])
+        ev = Event(
+            id=e["id"],
+            name=e.get("name", ""),
+            start=start,
+            end=end,
+            airports=tuple(e.get("airports", [])),
+            jma_tc_id=(e.get("jma") or {}).get("tcId") or None,
+            jtwc_id=(e.get("jtwc") or {}).get("id") or None,
+        )
+        if not _EVENT_ID.match(ev.id):
+            raise ValueError(f"events.json 的 id {ev.id!r} 只能有英數、-、_")
+        if end < start:
+            raise ValueError(f"events.json {ev.id} 的 to 早於 from")
+        bad = [i for i in ev.airports if not _ICAO.match(i)]
+        if bad:
+            raise ValueError(f"events.json {ev.id} 的機場不是 ICAO：{bad}")
+        out.append(ev)
+    ids = [e.id for e in out]
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"events.json 的 id 重複：{ids}")
     return out

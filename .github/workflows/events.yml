@@ -1,0 +1,57 @@
+name: events
+
+# 事件保存（HD20，颱風 29W 驗證）：每小時存機場 METAR、JMA／JTWC 颱風現報到 data 分支的
+# history/events/<id>/。期間（events.json 的 from～to，台灣日期）外 `hourly` 印一行就結束、不推。
+# 手動跑時勾 backfill：把 history/ 裡期間內已經過去的報搬進 history/events/<id>/（已存在的跳過）。
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: "把期間內已經過去的報搬進 history/events/<id>/"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # 推 data 分支
+
+concurrency:
+  group: events
+  cancel-in-progress: false
+
+jobs:
+  events:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # hongthai.events 不用 eccodes（不 import 模式來源），只裝 requests 省時間
+      - name: 裝套件
+        run: pip install requests
+
+      - name: 取出 data 分支
+        run: |
+          git fetch --depth=1 origin data:data
+          git worktree add data data
+
+      - name: 搬過去的報（手動、backfill）
+        if: github.event_name == 'workflow_dispatch' && inputs.backfill
+        env:
+          PYTHONPATH: src
+        run: python -m hongthai.events backfill --archive data
+
+      - name: 每小時 METAR 與颱風現報
+        env:
+          PYTHONPATH: src
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+        run: python -m hongthai.events hourly --archive data
+
+      - name: 推 data 分支
+        working-directory: data
+        run: ../tools/push_data.sh events
