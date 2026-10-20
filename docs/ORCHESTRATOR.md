@@ -327,7 +327,7 @@
     (1) 10/19 起每報 `latest.json` 永久存 `data` 分支 `history/events/29W/`；(2) 真相：METAR 每小時（最大陣風、平均風）、
     實際停飛（flights、`history/cancellations/`）、JTWC 最佳路徑，**JMA（RSMC Tokyo）最佳路徑當備案、兩份都有就並列**，
     期間先存 JMA／JTWC 即時現報當暫時真相；(3) **凍結：報告出來前不改等級規則、投票、門檻，只修 bug**；G 切 `airport30d`
-    照常、切換時間記日誌；(4) 25 個機場（台灣 10、OKA／MMY／ISG、KOJ／FUK、FOC／XMN／PVG／SHA、HKG、KIX／NGO／HND／NRT／SDJ）；
+    照常、切換時間記日誌；(4) 26 個機場（台灣 10、OKA／MMY／ISG、KOJ／FUK、FOC／XMN／PVG／SHA、HKG、**MFM（10/20 加，有航班真相）**、KIX／NGO／HND／NRT／SDJ）；
     (5) 報告：八個系統（五個模式、規則燈、Claude、Gemini）、陣風誤差與偏差／等級命中誤報漏報／路徑誤差，依提前時間
     0–24／24–48／48–72／72–96／96–120 小時分開（系集不算陣風、AI 燈只算等級）；(6) 路徑：IFS 與系集用 ECMWF 開放資料的
     颱風路徑產品（`type: tf`），GFS／AIGFS／AIFS 從海平面氣壓場找中心，存 `history/events/29W/tracks/`，過去的報能補就補。
