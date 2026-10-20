@@ -6,7 +6,8 @@
   - `history/raw/<YYYY-MM-DD>/<HHMM>Z-<來源>.json`（TAF、METAR、天文台、氣象署、SMG、NWS、JMA
     原始回應；SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON；氣象署天氣特報 `W-C0033-001` 是另一個檔
     `-cwa-hazards.json`，HD8，`-cwa.json` 維持颱風警報原文；金門、馬祖的局屬站觀測 `O-A0003-001` 是
-    `-cwa-obs.json`，HD13；JMA 是 `{office 代碼: 回應}`，HD9）
+    `-cwa-obs.json`，HD13；JMA 是 `{office 代碼: 回應}`，HD9；Open-Meteo 是
+    `{"forecast": 回應, "ensemble": 回應}`、不縮排（約 1.2 MB），HD16）
   - `history/cancellations/<YYYY-MM-DD>.json`（每機場每 6 小時格的航班取消／延誤統計，日期是格的
     UTC 日期；合併規則見 `cancellations.py`。原始航班資料不存）
   - `history/timing/<YYYY-MM>.jsonl`（每次 build 每個來源的耗時，一行一筆，見 `Timing`）
@@ -47,6 +48,9 @@ AI 失敗不影響 `latest.json` 其他內容：頂層 `ai`、每個機場的 `a
 才退回上一份 `latest.json`（`previous_latest`，H7 的做法）。`sources.<名稱>.ok` 維持 `false`，另加
 `reusedFrom`（那一份的 `generatedAt`）；`runs` 用那一份的（舊預報的真實時次）。模式時次超過 24 小時
 就不沿用（系集與 HRES 各自判斷），所以連續失敗時 24 小時後自然停掉。TAF、METAR、警報不沿用。
+Open-Meteo 的三個模式（`openmeteo`，HD16）也**不沿用**：失敗那一報 `models[]` 那三筆全是 null、不算
+分母，等級照其他五票算（避免把 24 小時前的 WeatherNext 2 當今天的票）。別的模式沿用時 `_rescore`
+重組 `models[]`，這三筆用的是這一報自己的數字。
 
 颱風路徑（HD21，`tracks.py`）：有事件在期間內時，GFS、AIGFS、AIFS 多抓海平面氣壓（`mslp=True`），
 四個模式抓完後跑來源 `tracks`（`BUDGET_S["tracks"]`）：IFS／系集抓 ECMWF 路徑產品、另外三個從氣壓場
@@ -89,28 +93,42 @@ from .config import (
     load_events,
     load_regions,
 )
-from .sources import aifs, aigfs, cwa, ecmwf, flights, gfs, hko, jma, nws, smg, taf
+from .sources import aifs, aigfs, cwa, ecmwf, flights, gfs, hko, jma, nws, openmeteo, smg, taf
 from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
 
 log = logging.getLogger("hongthai")
 
 SCHEMA = 1
 PAGES_URL = "https://duadoapp.github.io/hongthai/latest.json"
-SOURCE_NAMES = ("ecmwf", "gfs", "aifs", "aigfs", "taf", "hko", "cwa", "smg", "nws", "jma")
+SOURCE_NAMES = (
+    "ecmwf",
+    "gfs",
+    "aifs",
+    "aigfs",
+    "openmeteo",
+    "taf",
+    "hko",
+    "cwa",
+    "smg",
+    "nws",
+    "jma",
+)
 
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
 # 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。HD14 的 aifs
 # 約 66 MB、55 秒，aigfs 約 51 MB、38 秒（2026-10-20 雲端開發機實測）。
-# 總和 1575 秒（26.25 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加
-# 60 秒、HD14 加 aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒），`build.yml`
-# 那一步的上限是 28 分鐘（HD21 前 25、HD14 前 20、HD12 前 18）。HD21 的海平面氣壓算在
-# gfs／aifs／aigfs 自己的預算裡（每個步長約 1.0／0.5／1.0 MB，21 個步長共約 52 MB；2026-10-20
-# 雲端開發機實測）。
+# 總和 1665 秒（27.75 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加
+# 60 秒、HD14 加 aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加
+# openmeteo 90 秒），`build.yml` 那一步的上限是 30 分鐘（HD16 前 28、HD21 前 25、HD14 前 20、
+# HD12 前 18）。HD16 的 openmeteo 兩個請求約 1.2 MB、2 秒（2026-10-20 雲端開發機實測）。
+# HD21 的海平面氣壓算在 gfs／aifs／aigfs 自己的預算裡（每個步長約 1.0／0.5／1.0 MB，21 個步長
+# 共約 52 MB；2026-10-20 雲端開發機實測）。
 BUDGET_S: dict[str, float] = {
     "ecmwf": 300,  # HRES＋系集，含鏡像切換
     "gfs": 180,
     "aifs": 180,  # HD14：ECMWF AIFS Single，鏡像切換同 ecmwf
     "aigfs": 120,  # HD14：NOAA AIGFS，只有 AWS
+    "openmeteo": 90,  # HD16：ICON、JMA GSM、WeatherNext 2 系集，兩個請求各 60 秒逾時、不重試
     "tracks": 150,  # HD21：颱風路徑，只在事件期間；ECMWF 路徑產品約 1.3 MB＋解析三個模式的氣壓場
     "taf": 45,  # TAF 與 METAR 同一個來源，各一個請求
     "hko": 30,
@@ -216,7 +234,7 @@ class Timing:
     已經寫進去的行也會推上去；沒有 `done` 那行就表示那次被砍了。欄位名固定（主對話直接看這個檔）：
     - 開始：`{"run", "source": "start", "ok": true, "seconds": 0, "commit"}`
     - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf、gfs、aifs、aigfs
-      （HD14）多 `mirror`
+      （HD14）多 `mirror`；openmeteo（HD16）多 `calls`（Open-Meteo 的加權呼叫次數，失敗是 null）
     - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
     - AI 對決（HD5）：`{"run", "source": "ai", "ok", "error", "seconds", "bytes": 0,
       "calls": {"claude": n, "gemini": n}}`（`calls` 是這一報的呼叫次數）
@@ -248,6 +266,8 @@ class Timing:
             fields["mirror"] = st.get("mirror", ctx.notes.get("mirror"))
         if name == "ai":
             fields["bytes"] = 0
+            fields["calls"] = st.get("calls")
+        if name == "openmeteo":
             fields["calls"] = st.get("calls")
         self.write(**fields)
 
@@ -306,6 +326,14 @@ def _download_extra(g: gfs.GfsData | aifs.AifsData | aigfs.AigfsData) -> dict:
     d: dict[str, object] = {"bytes": g.bytes_downloaded}
     if g.mirror:
         d["mirror"] = g.mirror
+    return d
+
+
+def _openmeteo_extra(om: openmeteo.OpenMeteoData) -> dict:
+    """`sources.openmeteo`（HD16）：下載量、加權呼叫次數；起報時間問不到的模式記在 `runError`。"""
+    d: dict[str, object] = {"bytes": om.bytes_downloaded, "calls": om.calls}
+    if om.meta_errors:
+        d["runError"] = ",".join(f"{k}:{v}" for k, v in om.meta_errors.items())
     return d
 
 
@@ -630,9 +658,10 @@ def assemble(
     ag: aigfs.AigfsData | None = None,
     factors: dict[str, assess.GustFactor] | None = None,
     jm: jma.JmaData | None = None,
+    om: openmeteo.OpenMeteoData | None = None,
 ) -> dict:
     """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。`factors` 是每個機場估算陣風的
-    係數（HD18；沒有的機場用 1.4、`default`）。"""
+    係數（HD18；沒有的機場用 1.4、`default`）。`om` 是 Open-Meteo 的三個模式（HD16）。"""
     slots = slot_bounds(now)
     window_start, window_end = slots[0][0], slots[-1][1]
     runs = {
@@ -641,6 +670,8 @@ def assemble(
         "gfs": iso(gf.run) if gf else None,
         "aifs": iso(af.run) if af else None,  # HD14
         "aigfs": iso(ag.run) if ag else None,
+        # HD16：Open-Meteo 的 metadata 給的最近一報（`sources/openmeteo.py`）
+        **{mid: iso(om.runs.get(mid)) if om else None for mid in openmeteo.META_URLS},
     }
     by_model = model_runs(runs)
     out_airports = []
@@ -664,6 +695,9 @@ def assemble(
             aigfs=ag.points.get(a.icao) if ag else None,
             runs=by_model,
             gust_factor=(factors or {}).get(a.icao, assess.DEFAULT_GUST_FACTOR),
+            icon=om.hourly["icon"].get(a.icao) if om else None,
+            jma=om.hourly["jma"].get(a.icao) if om else None,
+            wn2=om.ensemble.get(a.icao) if om else None,
         )
         out_airports.append(
             {
@@ -692,8 +726,9 @@ def assemble(
             **{k: v for k, v in status.items() if k not in SOURCE_NAMES},
         },
         "regions": [{"id": r.id, "name": r.name} for r in regions],
-        # 模式層投票的模式（HD14，`config.MODELS` 的順序；每格的 `model.models[]` 只放 id）
-        "models": [{"id": m.id, "name": m.name} for m in MODELS],
+        # 模式層投票的模式（HD14，`config.MODELS` 的順序；每格的 `model.models[]` 只放 id）；
+        # `voting: false` 是旁觀模式，網頁標「旁觀，不投票」（HD16）
+        "models": [{"id": m.id, "name": m.name, "voting": m.voting} for m in MODELS],
         "airports": out_airports,
     }
 
@@ -784,6 +819,7 @@ def run(
         timing,
         _download_extra,
     )
+    om = _call("openmeteo", lambda: openmeteo.fetch(airports), status, timing, _openmeteo_extra)
     if tracked:
         _call(
             "tracks",
@@ -827,6 +863,7 @@ def run(
         ag=ag,
         factors=factors,
         jm=jm,
+        om=om,
     )
     failed = [n for n, d in (("ecmwf", ec), ("gfs", gf), ("aifs", af), ("aigfs", ag)) if d is None]
     if failed:
@@ -856,6 +893,8 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-nws.json", nw.raw)
     if jm is not None:
         _dump(raw_dir / f"{now:%H%M}Z-jma.json", jm.raw)
+    if om is not None:  # HD16：兩個回應約 1.2 MB，縮排會變好幾倍，不縮排
+        _dump(raw_dir / f"{now:%H%M}Z-openmeteo.json", om.raw, compact=True)
     _dump(history / f"{stamp}.json", latest, compact=True)
     _dump(archive / "latest.json", latest, compact=True)
     if events_path is not None:

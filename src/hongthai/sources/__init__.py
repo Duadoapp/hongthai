@@ -62,6 +62,7 @@ def http_get(
     backoff: float = 2.0,
     error: type[SourceError] = SourceError,
     ok_404: bool = False,
+    timeout: float = TIMEOUT,
 ) -> requests.Response:
     """GET，失敗重試；把大小與耗時印在 log。`ok_404=True` 時 404 直接回傳不重試。
 
@@ -73,7 +74,7 @@ def http_get(
         check_cancelled()
         t0 = time.monotonic()
         try:
-            r = (session or requests).get(url, params=params, headers=hdrs, timeout=TIMEOUT)
+            r = (session or requests).get(url, params=params, headers=hdrs, timeout=timeout)
             add_bytes(len(r.content))
             if r.status_code == 404 and ok_404:
                 return r

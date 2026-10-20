@@ -65,16 +65,19 @@ class Model:
     """模式層投票的一個模式（HD14）。`id` 與 `name` 是 `latest.json` 的契約（頂層 `models`、
     `slots[].model.models[]`），順序就是輸出順序。
 
-    `votes_only_high`：只參加「高」的投票（判中時不算分母），IFS 系集用；
-    `gust_estimated`：沒有陣風、用平均風 × 機場的係數估算（HD18，`gustfactor.py`）。"""
+    `votes_only_high`：只參加「高」的投票（判中時不算分母），IFS 系集與 WeatherNext 2 系集用；
+    `gust_estimated`：沒有陣風、用平均風 × 機場的係數估算（HD18，`gustfactor.py`）；
+    `voting`：`False` 是旁觀模式（HD16）——照樣抓、照樣寫進 `models[]` 與路徑檔，但不算進任何一類的
+    分母、不投票（`vote.total` 不含它），頂層 `models[].voting` 讓網頁標「旁觀，不投票」。"""
 
     id: str
     name: dict[str, str]
     votes_only_high: bool = False
     gust_estimated: bool = False
+    voting: bool = True
 
 
-# 之後加模式只改這裡＋一個來源檔（HD15 `wn3`、HD16 `icon`、`jma`）
+# 之後加模式只改這裡＋一個來源檔（HD15 `wn3` 先以 `voting=False` 旁觀）
 MODELS: tuple[Model, ...] = (
     Model(
         "ifs",
@@ -117,6 +120,28 @@ MODELS: tuple[Model, ...] = (
             "zh-CN": "美国 AI 模式 AIGFS",
             "en": "NOAA AIGFS",
         },
+        gust_estimated=True,
+    ),
+    # HD16：Open-Meteo（`sources/openmeteo.py`）。JMA GSM 在 Open-Meteo 沒有陣風（2026-10-20 實抓
+    # `wind_gusts_10m` 全是 null），估算；ICON 有陣風
+    Model(
+        "icon",
+        {"zh-TW": "德國 ICON", "zh-HK": "德國 ICON", "zh-CN": "德国 ICON", "en": "DWD ICON"},
+    ),
+    Model(
+        "jma",
+        {"zh-TW": "日本 GSM", "zh-HK": "日本 GSM", "zh-CN": "日本 GSM", "en": "JMA GSM"},
+        gust_estimated=True,
+    ),
+    Model(
+        "wn2-ens",
+        {
+            "zh-TW": "Google WeatherNext 2 系集",
+            "zh-HK": "Google WeatherNext 2 系集",
+            "zh-CN": "Google WeatherNext 2 系集",
+            "en": "Google WeatherNext 2 ensemble",
+        },
+        votes_only_high=True,
         gust_estimated=True,
     ),
 )

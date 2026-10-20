@@ -1,4 +1,5 @@
-"""日本氣象廳（JMA）大雪警報（HD9）：防災 JSON `warning/data/r8/<office>.json` 的解析與請求。"""
+"""日本氣象廳（JMA）大雪警報（HD9）：防災 JSON `warning/data/r8/<office>.json` 的解析與請求。
+HD16 加暴風雪特別警報（代碼 32）。"""
 
 from __future__ import annotations
 
@@ -43,6 +44,34 @@ def test_snow_warnings_only_three_kinds_on_the_right_row():
     assert jma.parse_area(doc, EBETSU) == []
     # 惠庭：舊的那筆發布大雪警報，新的那筆解除 → 不算
     assert jma.parse_area(doc, ENIWA) == []
+
+
+def test_snowstorm_emergency_hd16():
+    """HD16：暴風雪特別警報（32）→ 高、算 `snow`（和大雪特別警報同級），四語文字。"""
+    from hongthai.assess import SNOW_WARNING_KINDS, warning_cause
+
+    doc = load_json("jma_r8_016000_snow.json")
+    wind = next(r for r in doc if r["dataTypeCode"] == "VPWW58")
+    row = next(r for r in wind["warning"]["class20Items"] if r["areaCode"] == CHITOSE.class20)
+    row["kinds"] = [{"code": "32", "status": "発表"}]  # 暴風雪警報 02 升級成特別警報
+    assert _kinds(jma.parse_area(doc, CHITOSE)) == [
+        ("jma_snowstorm_emergency", "high", "32", wind_issued(wind)),
+        ("jma_heavy_snow", "medium", "06", "2026-12-10T07:40:00Z"),
+    ]
+    assert "jma_snowstorm_emergency" in SNOW_WARNING_KINDS
+    assert warning_cause("jma_snowstorm_emergency") == "snow"
+    assert jma.text_for("jma_snowstorm_emergency", CHITOSE) == {
+        "zh-TW": "日本氣象廳暴風雪特別警報（千歳市）",
+        "zh-HK": "日本氣象廳暴風雪特別警報（千歳市）",
+        "zh-CN": "日本气象厅暴风雪特别警报（千歳市）",
+        "en": "JMA snowstorm emergency warning (Chitose)",
+    }
+
+
+def wind_issued(report):
+    from hongthai.timeutil import iso, parse_time
+
+    return iso(parse_time(report["reportDatetime"]))
 
 
 def test_text_four_languages():

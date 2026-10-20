@@ -89,3 +89,12 @@ JMA 大雪警報（HD9）：
   注意報 `13`，另加三筆雪的電文（VPWW60，2026-12-10）：舊的那筆（札幌、惠庭大雪警報 `06`，千歳大雪注意報 `12`）、
   新的那筆（札幌大雪特別警報 `36`、千歳大雪警報 `06`、江別大雪＋風雪注意報、惠庭解除）、`infoType: 取消` 的那筆
   （千歳解除，不算）
+
+HD16（Open-Meteo）：
+- `openmeteo_forecast_3.json`：`api.open-meteo.com/v1/forecast` 一次 51 個機場的真實回應（2026-10-20 11:17Z，
+  `models=icon_global,jma_gsm`、7 個逐時變數、`forecast_days=6`、`wind_speed_unit=kn`、`timezone=UTC`），
+  只留桃園、石垣（29W 經過，ICON 陣風到 148.5 節）、新千歲三筆（照這個順序）；JMA 的陣風與兩個模式的
+  能見度全是 null
+- `openmeteo_ensemble_3x8.json`：`ensemble-api.open-meteo.com/v1/ensemble` 同時間的真實回應
+  （`models=google_weathernext2_ensemble`、`temporal_resolution=native`），同樣三個機場、只留成員 0
+  （不帶後綴的鍵）到 `member07` 共 8 個成員

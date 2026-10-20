@@ -10,6 +10,7 @@ import json
 import re
 import threading
 import time
+from dataclasses import replace
 from datetime import timedelta
 from types import SimpleNamespace
 
@@ -309,7 +310,13 @@ def test_airport_text_models_and_vote_hd14():
         "  - 美國 AI 模式：陣風 14 節（估）、側風 —、rain6hMm 0.4 mm、ptype —、visibilityM —、"
         "等級 low（wind low、rain low、snow —、fog —）",
     ]
-    assert lines[i + 6].startswith("2. ")
+    # HD16 的三個沒資料（Open-Meteo 失敗那一報）：照樣列、寫無資料
+    assert lines[i + 6 : i + 9] == [
+        "  - 德國模式：無資料",
+        "  - 日本模式：無資料",
+        "  - Google 的 AI 系集：無資料",
+    ]
+    assert lines[i + 9].startswith("2. ")
     # 規則說明：投票、系集只投高、估算陣風
     assert "達到有資料模式數的一半就成立" in text
     assert "歐洲系集只投 high：p49Kt ≥ 30% 投 high" in text
@@ -1424,3 +1431,75 @@ def test_no_retry_past_daily_cap_hd17(tmp_path, monkeypatch):
     ge = seq_model("http_504", None)
     g = _gemini_row(tmp_path, ge)
     assert len(ge.timeouts) == 1 and g["detail"] == "http_504:-:-" and g["calls"] == 1
+
+
+# ---- HD16：Open-Meteo 三票、旁觀模式 ----
+
+
+def test_airport_text_openmeteo_hd16(monkeypatch):
+    """德國模式、日本模式（估）、Google 的 AI 系集（中位數與成員比例、只投高）；旁觀模式那行標
+    「旁觀，不投票」，投票句的分母不含它。"""
+    ap = airport("RCTP", lv(2, "medium"))
+    m = ap["slots"][0]["model"]
+    m["gfs"].update(gustKt=49.0)
+    others = {
+        "icon": {"gustKt": 50.7, "crosswindKt": 13.1, "rain6hMm": 1.2, "ptype": "rain"},
+        "jma": {"gustKt": 51.4, "rain6hMm": 2.4, "ptype": "rain"},
+        "wn2-ens": {"windKt": 40.5, "gustKt": 48.6, "p49Kt": 0.62},
+    }
+    _with_models(m, others)
+    lines = prompt.airport_text(ap, RUN).splitlines()
+    i = next(i for i, ln in enumerate(lines) if ln.startswith("1. "))
+    # 歐洲模式、歐洲系集低；GFS、ICON、JMA、WN2 四個高（系集比例 62%）：6 個模式中 4 個認為高
+    assert "投票（強風）：6 個模式中 4 個認為高 → high" in lines[i]
+    assert lines[i + 6 : i + 9] == [
+        "  - 德國模式：陣風 50.7 節、側風 13.1 節、rain6hMm 1.2 mm、ptype rain、visibilityM —、"
+        "等級 high（wind high、rain low、snow low、fog —）",
+        "  - 日本模式：陣風 51.4 節（估）、側風 —、rain6hMm 2.4 mm、ptype rain、visibilityM —、"
+        "等級 high（wind high、rain low、snow low、fog —）",
+        "  - Google 的 AI 系集：成員中位數陣風 48.6 節（估）、估算陣風達 high 門檻的成員比例 62% "
+        "→ 投 high（只投高）",
+    ]
+    text = "\n".join(lines)
+    assert "德國模式、日本模式、Google 的 AI 系集各一票" in text
+    assert "Google 的 AI 系集也只投 high：每個成員的估算陣風達 high 門檻（48 節）" in text
+    assert "標「旁觀，不投票」的模式只列出、不算票也不算分母" in text
+    for must in ("German model", "Japanese model", "Google AI ensemble", "ICON、GSM、WeatherNext"):
+        assert must in prompt.SYSTEM, must
+
+    # ICON 改成旁觀：那行標出來，投票句的分母剩 5
+    monkeypatch.setattr(
+        assess,
+        "MODELS",
+        tuple(replace(x, voting=False) if x.id == "icon" else x for x in assess.MODELS),
+    )
+    _with_models(m, others)
+    lines = prompt.airport_text(ap, RUN).splitlines()
+    assert "投票（強風）：5 個模式中 3 個認為高 → high" in lines[i]
+    assert lines[i + 6].startswith("  - 德國模式（旁觀，不投票）：陣風 50.7 節")
+
+
+@pytest.mark.parametrize(
+    ("langs", "message"),
+    [
+        ({"zh-TW": "ICON 陣風 50 節，停飛風險高。"}, "zh-TW：內部代號 ICON"),
+        ({"zh-HK": "日本 GSM 估算陣風 51 節，停飛風險高。"}, "zh-HK：內部代號 GSM"),
+        (
+            {"en": "WeatherNext shows 62% of members high; disruption risk High."},
+            "en：內部代號 WeatherNext",
+        ),
+    ],
+)
+def test_bad_wording_model_names_hd16(langs, message):
+    assert str(_wording(**langs)) == f"bad_wording: {message}"
+
+
+def test_good_wording_hd16():
+    comment = {
+        "zh-TW": "主因是強風：八個模式中五個認為高，德國模式陣風 51 節，停飛風險高。",
+        "zh-HK": "主因是強風：八個模式中五個認為高，德國模式陣風 51 節，停飛風險高。",
+        "zh-CN": "主因是强风：八个模式中五个认为高，德国模式阵风 51 节，停飞风险高。",
+        "en": "Mainly strong wind: five of eight models say High; the German model shows gusts "
+        "of 51 kt and the Google AI ensemble agrees; disruption risk High.",
+    }
+    assert parse.parse_response(_resp(comment=comment))["comment"] == comment

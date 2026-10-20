@@ -76,6 +76,10 @@ FORBIDDEN_TOKENS = (
     "gustEstimated",
     "AIGFS",
     "AIFS",
+    # HD16：德國模式、日本模式、Google 的 AI 系集
+    "ICON",
+    "GSM",
+    "WeatherNext",
 )
 # 英文常用字（HD17）：en 不當代號擋（"strong wind causes…"、"on the basis of"、"models are in
 # agreement"、"afternoon slots"）；中文三語照擋——中文短評裡出現這些英文字只會是抄欄位名

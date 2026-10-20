@@ -14,6 +14,10 @@ HD8（新天氣種類）：每格多給 `causes`（主因在前）、官方層 `
 HD14（多模式投票）：模式層第一行給等級、投票句（「投票（強風）：5 個模式中 3 個認為高 → high」）、
 一致性與系集機率；接著 `models[]` 每個模式一行（白話名、陣風——估算的標「估」、側風、雨量、型態、
 等級）。模式名直接用白話（`MODEL_TEXT`），短評不能寫 AIFS、AIGFS（`ai/config.py` 擋）。
+
+HD16（Open-Meteo 三票，8 票）：`models[]` 多德國模式（ICON）、日本模式（JMA GSM）、Google 的 AI 系集
+（WeatherNext 2）三行，系集那行給中位數估算陣風與成員比例；旁觀模式（`voting: false`）那行標
+「旁觀，不投票」，投票句的分母不含它（`assess.tally`）。短評不能寫 ICON、GSM、WeatherNext。
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from ..assess import MODEL_CAUSE_ORDER, model_vote, tally
+from ..assess import ENS_ID, MODEL_CAUSE_ORDER, ONLY_HIGH, model_vote, non_voting, tally
 from ..config import GUST_FACTOR_RANGE, Thresholds
 from ..og import slot_text
 from ..timeutil import parse_time
@@ -53,10 +57,13 @@ SYSTEM = "\n".join(
         "用字：",
         "1. 短評裡不出現內部代號：p29Kt、p49Kt、EC、GFS、HRES、TAF、METAR、crosswindKt、gustKt、"
         "basis、agreement、slots、causes、wx、ptype、rain6hMm、p24hRain50、visibilityM、ceilingFt、"
-        "APCP、CSNOW、CFRZR、gustEstimated、AIFS、AIGFS 這些欄位名或縮寫都不要寫，改成白話——",
+        "APCP、CSNOW、CFRZR、gustEstimated、AIFS、AIGFS、ICON、GSM、WeatherNext 這些欄位名或縮寫"
+        "都不要寫，改成白話——",
         "   - EC → 「歐洲模式」（en: European model）；GFS → 「美國模式」（en: US model）；"
         "其他模式照資料裡的白話名寫：歐洲系集（en: European ensemble）、歐洲 AI 模式"
-        "（en: European AI model）、美國 AI 模式（en: US AI model），不要寫 AIFS、AIGFS",
+        "（en: European AI model）、美國 AI 模式（en: US AI model）、德國模式（en: German model）、"
+        "日本模式（en: Japanese model）、Google 的 AI 系集（en: Google AI ensemble），"
+        "不要寫 AIFS、AIGFS、ICON、GSM、WeatherNext",
         "   - 標「估」的陣風是用平均風估算的，要寫「估算陣風」（en: estimated gust），不能寫成陣風",
         "   - 投票的結果可以寫進短評，例如「五個模式中三個認為高」"
         "（en: three of five models say High）",
@@ -124,6 +131,9 @@ MODEL_TEXT = {
     "ifs-ens": "歐洲系集",
     "aifs": "歐洲 AI 模式",
     "aigfs": "美國 AI 模式",
+    "icon": "德國模式",  # HD16
+    "jma": "日本模式",
+    "wn2-ens": "Google 的 AI 系集",
 }
 LEVEL_WORD = {"high": "高", "medium": "中以上"}
 
@@ -201,15 +211,25 @@ def _vote(m: dict, models: list[dict]) -> str:
 
 
 def _model_entry(e: dict, ec: dict) -> str:
-    name = MODEL_TEXT.get(str(e.get("id")), str(e.get("id")))
+    mid = str(e.get("id"))
+    name = MODEL_TEXT.get(mid, mid)
+    if mid in non_voting():  # HD16
+        name += "（旁觀，不投票）"
     lv = e.get("levels") if isinstance(e.get("levels"), dict) else {}
-    if e.get("id") == "ifs-ens":
+    gust = _kt(e.get("gustKt")) + ("（估）" if e.get("gustEstimated") else "")
+    if mid == ENS_ID:
         if lv.get("wind") is None:
             return f"  - {name}：無資料"
         return f"  - {name}：p49Kt {_pct(ec.get('p49Kt'))} → 投 {lv['wind']}（只投高）"
+    if mid in ONLY_HIGH:  # WN2 系集（HD16）
+        if lv.get("wind") is None:
+            return f"  - {name}：無資料"
+        return (
+            f"  - {name}：成員中位數陣風 {gust}、估算陣風達 high 門檻的成員比例 "
+            f"{_pct(e.get('p49Kt'))} → 投 {lv['wind']}（只投高）"
+        )
     if e.get("level") is None:
         return f"  - {name}：無資料"
-    gust = _kt(e.get("gustKt")) + ("（估）" if e.get("gustEstimated") else "")
     levels = "、".join(f"{c} {lv.get(c) or '—'}" for c in ("wind", "rain", "snow", "fog"))
     return (
         f"  - {name}：陣風 {gust}、側風 {_kt(e.get('crosswindKt'))}、"
@@ -273,13 +293,17 @@ def rules_text(th: Thresholds | None = None) -> str:
             f"TAF 平均風 ≥ {th.taf_high_wind_kt:g} 節 → high",
             f"- 含陣風側風（所有跑道裡最小的）：≥ {th.crosswind_high_kt:g} 節 → high，"
             f"≥ {th.crosswind_medium_kt:g} 節 → medium",
-            "- 模式層是投票（每格）：歐洲模式、美國模式、歐洲系集、歐洲 AI 模式、美國 AI 模式"
-            "各一票；某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，"
-            "取成立的最高級；強風、雨、雪、霧各自投，再取最高",
+            "- 模式層是投票（每格）：歐洲模式、美國模式、歐洲系集、歐洲 AI 模式、美國 AI 模式、"
+            "德國模式、日本模式、Google 的 AI 系集各一票；某一級的票（認為 ≥ 這一級的模式數）"
+            "達到有資料模式數的一半就成立，取成立的最高級；強風、雨、雪、霧各自投，再取最高；"
+            "標「旁觀，不投票」的模式只列出、不算票也不算分母",
             f"- 歐洲系集只投 high：p49Kt ≥ {round(th.ec_p49_high * 100)}% 投 high、否則投 low，"
             "判 medium 時不算它（p29Kt 只是參考）",
-            "- 歐洲 AI 模式、美國 AI 模式沒有陣風：10 米平均風 × 這個機場的係數估算（標「估」；"
-            "係數是歐洲模式最近 30 天陣風÷平均風的中位數，"
+            "- Google 的 AI 系集也只投 high：每個成員的估算陣風達 high 門檻"
+            f"（{th.model_high_gust_kt:g} 節）的成員比例 ≥ {round(th.ec_p49_high * 100)}% "
+            "投 high、否則投 low；不投雨、雪、霧",
+            "- 歐洲 AI 模式、美國 AI 模式、日本模式、Google 的 AI 系集沒有陣風：10 米平均風 × "
+            "這個機場的係數估算（標「估」；係數是歐洲模式最近 30 天陣風÷平均風的中位數，"
             f"{GUST_FACTOR_RANGE[0]:.1f}–{GUST_FACTOR_RANGE[1]:.1f}），門檻同陣風；"
             "雪只有有降水型態的模式投"
             "（美國 AI 模式不投），霧只有美國模式有能見度",

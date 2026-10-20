@@ -1097,8 +1097,8 @@ def test_models_entries_numbers_and_levels():
     )[0]
     m = s["model"]
     by = {e["id"]: e for e in m["models"]}
-    assert list(by) == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
-    ifs, g, ens, ai, ag = by.values()
+    assert list(by) == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs", "icon", "jma", "wn2-ens"]
+    ifs, g, ens, ai, ag = (by[i] for i in ("ifs", "gfs", "ifs-ens", "aifs", "aigfs"))
     assert (ifs["gustKt"], ifs["gustEstimated"], ifs["rain6hMm"], ifs["ptype"]) == (
         40.0,
         False,
@@ -1175,7 +1175,16 @@ def test_causes_use_voted_levels():
 
 def test_models_present_when_sources_missing():
     s = run(ec=None, gfs=None)[0]
-    assert [e["id"] for e in s["model"]["models"]] == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
+    assert [e["id"] for e in s["model"]["models"]] == [
+        "ifs",
+        "gfs",
+        "ifs-ens",
+        "aifs",
+        "aigfs",
+        "icon",
+        "jma",
+        "wn2-ens",
+    ]
     assert all(e["level"] is None for e in s["model"]["models"])
     assert s["model"]["vote"]["level"] is None and s["model"]["vote"]["thin"] is True
 

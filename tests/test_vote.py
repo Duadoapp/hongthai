@@ -1,14 +1,17 @@
-"""多模式投票（HD14，Shawn 2026-10-19 定案）。
+"""多模式投票（HD14，Shawn 2026-10-19 定案；HD16 加 ICON、JMA GSM、WeatherNext 2 系集成 8 票）。
 
 某等級 L 的票＝等級 ≥ L 的模式數，票數 × 2 ≥ 分母就成立，取成立的最高；分母＝有資料的模式。
-IFS 系集只投「高」（判中時不算分母）。
+IFS 系集、WN2 系集只投「高」（判中時不算分母）；旁觀模式（`voting=False`）哪一輪都不算。
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
-from hongthai.assess import fill_model_wx, model_entries, model_levels, model_vote, vote
+from hongthai import assess
+from hongthai.assess import fill_model_wx, model_entries, model_levels, model_vote, tally, vote
 from hongthai.config import MODELS, Thresholds
 
 TH = Thresholds()
@@ -72,10 +75,11 @@ def _ai(gust=None, rain=None, ptype=None, xw=None):
     return {"gustKt": gust, "crosswindKt": xw, "rain6hMm": rain, "ptype": ptype}
 
 
-def entries(ec=None, gfs=None, aifs=None, aigfs=None, runs=None):
+def entries(ec=None, gfs=None, aifs=None, aigfs=None, runs=None, icon=None, jma=None, wn2=None):
     ec, gfs = ec or {}, gfs or {}
     fill_model_wx(ec, gfs, TH)
-    return model_entries(ec, gfs, {"aifs": aifs or {}, "aigfs": aigfs or {}}, runs or {}, TH)
+    others = {"aifs": aifs or {}, "aigfs": aigfs or {}, "icon": icon or {}, "jma": jma or {}}
+    return model_entries(ec, gfs, {**others, "wn2-ens": wn2 or {}}, runs or {}, TH)
 
 
 def test_entries_in_config_order_with_nulls():
@@ -89,6 +93,9 @@ def test_entries_in_config_order_with_nulls():
             "ifs-ens",
             "aifs",
             "aigfs",
+            "icon",  # HD16
+            "jma",
+            "wn2-ens",
         ]
     )
     for e in es:
@@ -104,12 +111,14 @@ def test_entries_in_config_order_with_nulls():
             "rain6hMm",
             "ptype",
             "visibilityM",
+            "p49Kt",  # HD16
             "levels",
             "level",
         }
         assert e["levels"] == {"wind": None, "rain": None, "snow": None, "fog": None}
         assert e["level"] is None and e["gustKt"] is None and e["gustEstimated"] is None
         assert e["windKt"] is None and e["gustFactor"] is None and e["gustFactorBasis"] is None
+        assert e["p49Kt"] is None
     cats, v = model_vote(es)
     assert v == {"total": 0, "high": 0, "medium": 0, "low": 0, "level": None, "thin": True}
     assert model_levels(es) is None
@@ -155,7 +164,7 @@ def test_snow_denominator_excludes_aigfs():
     assert by["aigfs"]["levels"]["snow"] is None
     assert by["aigfs"]["levels"]["rain"] == "low"
     snow = [e["levels"]["snow"] for e in es]
-    assert snow == ["high", "low", None, "low", None]
+    assert snow == ["high", "low", None, "low", None, None, None, None]
     cats, _ = model_vote(es)
     assert cats["snow"] == "low"  # 高 1 × 2 < 3
     # AIFS 也判雪 → 2 × 2 ≥ 3 高
@@ -166,7 +175,7 @@ def test_snow_denominator_excludes_aigfs():
 def test_fog_denominator_is_one():
     """霧只有 GFS 能見度：分母永遠是 1，它說了算（封頂在中，HD10）。"""
     es = entries(_ec(hres=5), _gfs(gust=5, vis=300), _ai(gust=5), _ai(gust=5))
-    assert [e["levels"]["fog"] for e in es] == [None, "medium", None, None, None]
+    assert [e["levels"]["fog"] for e in es] == [None, "medium", None, None, None, None, None, None]
     cats, v = model_vote(es)
     assert cats["fog"] == "medium" and v["level"] == "medium"
     assert v["thin"] is False  # thin 看風的分母
@@ -176,7 +185,9 @@ def test_rain_ensemble_does_not_vote():
     """雨：IFS（HRES 雨量或系集 24 小時雨量機率，同 `ec.rain`）、GFS、AIFS、AIGFS 投；
     系集那筆不投。"""
     es = entries(_ec(rain=35), _gfs(rain=5), _ai(rain=40), _ai(rain=2))
-    assert [e["levels"]["rain"] for e in es] == ["medium", "low", None, "medium", "low"]
+    assert [e["levels"]["rain"] for e in es] == ["medium", "low", None, "medium", "low"] + [
+        None
+    ] * 3
     assert model_vote(es)[0]["rain"] == "medium"  # 中 2 × 2 ≥ 4
 
 
@@ -190,3 +201,113 @@ def test_thin_with_one_wind_model():
 def test_estimated_gust_uses_model_thresholds(gust, level):
     es = entries(aifs=_ai(gust=gust))
     assert es[3]["levels"]["wind"] == level
+
+
+# ---- HD16：8 票、WN2 系集只投高、旁觀模式 ----
+
+
+def _wn2(p49=None, wind=None, gust=None):
+    return {
+        "windKt": wind,
+        "gustKt": gust,
+        "gustFactor": 1.5,
+        "gustFactorBasis": "run",
+        "p49Kt": p49,
+    }
+
+
+def test_eight_models_vote():
+    """風：IFS 高、GFS 中、IFS 系集高、AIFS 中、AIGFS 低、ICON 低、JMA 中（估算）、WN2 系集高。
+    高 3 × 2 < 8；中那一輪兩個系集不算：6 個裡 4 個 ≥ 中 → 中。"""
+    kw = {
+        "ec": _ec(hres=50, p49=0.4),
+        "gfs": _gfs(gust=40),
+        "aifs": _ai(gust=43.4),
+        "aigfs": _ai(gust=20),
+        "jma": _ai(gust=40, rain=1, ptype="rain"),
+        "wn2": _wn2(p49=0.5, wind=31, gust=46.5),
+    }
+    es = entries(**kw, icon=_ai(gust=30, rain=2, ptype="rain"))
+    assert [e["levels"]["wind"] for e in es] == [
+        "high",
+        "medium",
+        "high",
+        "medium",
+        "low",
+        "low",
+        "medium",
+        "high",
+    ]
+    cats, v = model_vote(es)
+    assert v == {"total": 8, "high": 3, "medium": 4, "low": 2, "level": "medium", "thin": False}
+    assert tally(es, "wind", "high") == (3, 8) and tally(es, "wind", "medium") == (4, 6)
+    # ICON 也高 → 4 × 2 ≥ 8 → 高
+    es = entries(**kw, icon=_ai(gust=50))
+    assert model_vote(es)[1]["level"] == "high"
+    by = {e["id"]: e for e in es}
+    assert (by["icon"]["gustEstimated"], by["jma"]["gustEstimated"]) == (False, True)
+
+
+def test_wn2_votes_only_high():
+    """WN2 系集比照 IFS 系集：`p49Kt`（成員比例）≥ 30% 投高、否則投低，不投雨、雪、霧；數字是中位數
+    成員的估算陣風。"""
+    es = entries(wn2=_wn2(p49=0.3, wind=31.0, gust=46.5))
+    w = es[-1]
+    assert w["id"] == "wn2-ens"
+    assert w["levels"] == {"wind": "high", "rain": None, "snow": None, "fog": None}
+    assert (w["windKt"], w["gustKt"], w["gustEstimated"], w["p49Kt"]) == (31.0, 46.5, True, 0.3)
+    assert (w["gustFactor"], w["gustFactorBasis"]) == (1.5, "run")
+    assert (w["crosswindKt"], w["rain6hMm"], w["ptype"], w["visibilityM"]) == (None,) * 4
+    assert entries(wn2=_wn2(p49=0.29))[-1]["levels"]["wind"] == "low"
+    # 其他筆的 `p49Kt` 都是 null（IFS 系集的機率在 model.ec）
+    assert [e["p49Kt"] for e in entries(_ec(p49=0.5), wn2=_wn2(p49=0.4))] == [None] * 7 + [0.4]
+    # 判中時不算分母：GFS 中、ICON 低、WN2 低 → 中那一輪 1 × 2 ≥ 2
+    es = entries(gfs=_gfs(gust=40), icon=_ai(gust=20), wn2=_wn2(p49=0.1))
+    assert model_vote(es)[1] == {
+        "total": 3,
+        "high": 0,
+        "medium": 1,
+        "low": 2,
+        "level": "medium",
+        "thin": False,
+    }
+
+
+def test_three_absent_same_as_five_votes():
+    """Open-Meteo 失敗（三筆全 null）→ 投票結果和只有 5 票時一樣。"""
+    kw = {
+        "ec": _ec(hres=50, p49=0.4, rain=35),
+        "gfs": _gfs(gust=40, vis=300),
+        "aifs": _ai(gust=43.4),
+    }
+    es = entries(**kw, aigfs=_ai(gust=20))
+    assert all(e["level"] is None for e in es[5:])
+    five = [e["levels"] for e in es[:5]]
+    only_high = [False, False, True, False, False]
+    expected = {c: vote([lv[c] for lv in five], only_high) for c in ("wind", "rain", "snow", "fog")}
+    cats, v = model_vote(es)
+    assert cats == expected
+    assert v == {"total": 5, "high": 2, "medium": 3, "low": 1, "level": "medium", "thin": False}
+
+
+def test_vote_skips_non_voting():
+    """`voting` 為假的模式哪一輪都不算（不在分母、也不算票）。"""
+    assert vote(["high", "low", "low"]) == "low"
+    assert vote(["high", "low", "low"], voting=[True, True, False]) == "high"  # 1 × 2 ≥ 2
+    assert vote(["high"], voting=[False]) is None
+
+
+def test_non_voting_model_listed_but_not_counted(monkeypatch):
+    """旁觀模式（HD16 的開關；HD15 的 WN3 會用）：`models[]` 照寫、等級照算，但不投票、
+    `vote.total` 不含它。這裡把 ICON 暫時改成旁觀。"""
+    monkeypatch.setattr(
+        assess, "MODELS", tuple(replace(m, voting=False) if m.id == "icon" else m for m in MODELS)
+    )
+    es = entries(gfs=_gfs(gust=20), aifs=_ai(gust=20), icon=_ai(gust=60, rain=70, ptype="rain"))
+    icon = next(e for e in es if e["id"] == "icon")
+    assert icon["levels"]["wind"] == "high" and icon["levels"]["rain"] == "high"
+    cats, v = model_vote(es)
+    assert (cats["wind"], cats["rain"]) == ("low", None)
+    assert v == {"total": 2, "high": 0, "medium": 0, "low": 2, "level": "low", "thin": False}
+    assert tally(es, "wind", "high") == (0, 2)
+    assert assess.non_voting() == {"icon"}
