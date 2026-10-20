@@ -207,6 +207,14 @@
     Shawn 判斷目前非商業——HongThai 與 Duado 都沒收費、沒廣告。**一旦收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或
     拿掉這兩個模式；網頁要標註 Open-Meteo（CC BY 4.0）**；注意免費版每日 10,000／每月 300,000 次上限）。
     AIGEFS、WeatherNext 2 不做。查證結果（授權、取得方式、變數、下載量）在 `docs/worklog/2026-10-19.md`「待決定」。
+    **HD18（2026-10-20 定案，Shawn 確認 12 條）：估算陣風的係數改成每個機場自己算**——G＝陣風÷10 米平均風，用 IFS（`10fg`÷
+    √(u²+v²)）與 GFS（`GUST`÷10 米風速）各自的資料、同一模式同一機場同一格自己比自己（拿 AIFS／AIGFS 去比 HRES 陣風不公平：
+    颱風路線不同時同一格本來就差很多，而且 GFS 自己的陣風也只有 IFS 的 0.76、IFS 陣風偏高不能當標準答案）；最近 30 天、
+    每報每格、IFS＋GFS 合併取中位數；只用平均風 ≥ 10 節的格；夾 1.2～2.0；樣本 < 40 → 全機場合併 → 這一報全體中位數 →
+    1.4 保底；`models[]` 加 `windKt`、`gustFactor`、`gustFactorBasis`；樣本存 `data` 分支 `history/gustfactor/<YYYY-MM>.jsonl`
+    （IFS、GFS 分開記，因為 `10fg` 是時段最大、`GUST` 是時間點值，30 天後比較兩者再決定要不要只用一個）；30 天後用
+    `tools/gust_factor_report.py` 對 METAR 驗證，AI 模式仍系統性偏低再加第二層修正。提示詞
+    `docs/prompts/2026-10-20-HD18-gust-factor.md`，排在 HD14 之後
     **HD14 已實作（HD14 PR）**；和提示詞不一樣的地方：
     - AIFS 的 `tp`／`sf` 單位是 **mm**（kg m⁻²），不是提示詞寫的 m（cfgrib `GRIB_units` 實測）；`ptype` 的
       「沒降水」是 6 小時總降水 < 0.1 mm（GRIB 打包雜訊約 0.01 mm）
