@@ -22,6 +22,7 @@ from hongthai.assess import (
     refactor_estimated,
     taf_for_slot,
     taf_level,
+    warning_cause,
 )
 from hongthai.config import ConfirmedPeriod, Runway, Thresholds
 from hongthai.grib import wind_dir_from_uv
@@ -835,6 +836,50 @@ def test_dense_fog_warning_is_fog_cause():
     # METAR 的霧比特報高 → 高
     s = run(metar=kinmen_fog(), warnings=[warn("medium", "cwa_dense_fog", "cwa")])[0]
     assert (s["official"]["kind"], s["level"], s["causes"]) == ("metar", "high", ["fog"])
+
+
+# ---- JMA 大雪警報（HD9）----
+
+
+def test_jma_heavy_snow_warning_is_snow_cause():
+    # 沒有 TAF：大雪警報（中）自己撐起官方層，算 `snow`，風不受影響
+    slots = run(warnings=[warn("medium", "jma_heavy_snow", "jma")])
+    s = slots[0]
+    o = s["official"]
+    assert (o["kind"], o["level"], o["warnings"], o["wx"]) == (
+        "warning",
+        "medium",
+        ["jma_heavy_snow"],
+        None,
+    )
+    assert (s["level"], s["basis"], s["causes"]) == ("medium", "official", ["snow"])
+    # 只套到「現在 + 12 小時」以前開始的格
+    assert all(x["official"] is None for x in slots[3:])
+    # 有 TAF（只有 -SN，雪低）時疊上去 → 雪中
+    s = run(taf_periods=[wxp(("-SN",), 3000)], warnings=[warn("medium", "jma_heavy_snow", "jma")])
+    assert (s[0]["official"]["kind"], s[0]["level"], s[0]["causes"]) == ("main", "medium", ["snow"])
+
+
+def test_jma_heavy_snow_emergency_is_high():
+    s = run(warnings=[warn("high", "jma_heavy_snow_emergency", "jma")])[0]
+    assert (s["level"], s["basis"], s["causes"]) == ("high", "official", ["snow"])
+
+
+def test_jma_snowstorm_alone_does_not_make_official_layer():
+    # 暴風雪警報（低）只列出：自己撐不起官方層，退回模式
+    s = run(ec=flat_ec(40), warnings=[warn("low", "jma_snowstorm", "jma")])[0]
+    assert s["official"] is None
+    assert (s["level"], s["basis"], s["causes"]) == ("medium", "model", ["wind"])
+    # 和大雪警報一起時列出、不升級
+    ws = [warn("medium", "jma_heavy_snow", "jma"), warn("low", "jma_snowstorm", "jma")]
+    s = run(warnings=ws)[0]
+    assert s["official"]["warnings"] == ["jma_heavy_snow", "jma_snowstorm"]
+    assert (s["official"]["level"], s["causes"]) == ("medium", ["snow"])
+    # 有 TAF 時照樣列出；暴風雪警報算雪、不算風
+    s = run(taf_periods=[wxp()], warnings=[warn("low", "jma_snowstorm", "jma")])[0]
+    assert s["official"]["warnings"] == ["jma_snowstorm"]
+    assert (s["official"]["level"], s["causes"]) == ("low", [])
+    assert warning_cause("jma_snowstorm") == "snow"
 
 
 def precip_ec(mm=0.0, ptype="none", p50=None, hres=5.0) -> EcmwfPoint:

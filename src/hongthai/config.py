@@ -4,7 +4,8 @@
 `airports` 照地區順序排、地區內照顯示順序。讀的時候檢查：ICAO 唯一、地區 id 唯一、每個機場的
 `region` 在 `regions` 裡、`airports` 依 `regions` 的順序分段（同一地區的機場連在一起）、`tz` 是
 合法的 IANA 時區、跑道方位在 0–360、看 NWS 警報（`warningSources` 有 `nws`，HD3）的機場有合法的
-`nwsZone`（例如 `GUZ001`）。不對就丟 `ValueError`。
+`nwsZone`（例如 `GUZ001`）、看 JMA 警報（`warningSources` 有 `jma`，HD9）的機場有合法的 `jmaArea`
+（office 6 碼、class20 7 碼、有日文名）。不對就丟 `ValueError`。
 """
 
 from __future__ import annotations
@@ -138,6 +139,18 @@ class Region:
 
 
 @dataclass(frozen=True)
+class JmaArea:
+    """機場在 JMA 防災 JSON 的區域（`airports.json` 的 `jmaArea`，HD9）：`office` 是都道府縣氣象台的
+    代碼（警報 JSON 一個 office 一個檔）、`class20` 是機場所在的市町村代碼；`name`／`en_name` 是
+    `area.json` 那個市町村的日文名與 `enName`（例如 `千歳市`／`Chitose City`），警報文字用。"""
+
+    office: str
+    class20: str
+    name: str
+    en_name: str
+
+
+@dataclass(frozen=True)
 class Airport:
     icao: str
     iata: str
@@ -154,6 +167,7 @@ class Airport:
     # 氣象署局屬站站號（`airports.json` 的 `cwaStation`，HD13）：AviationWeather 沒有 METAR 時
     # 用這站的觀測（金門 467110、馬祖 467990）
     cwa_station: str | None = None
+    jma_area: JmaArea | None = None  # HD9：JMA 警報的區域（`airports.json` 的 `jmaArea`）
 
 
 @dataclass(frozen=True)
@@ -194,6 +208,8 @@ class Event:
 _EVENT_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 _ICAO = re.compile(r"^[A-Z]{4}$")
 _NWS_ZONE = re.compile(r"^[A-Z]{2}Z\d{3}$")
+_JMA_OFFICE = re.compile(r"^\d{6}$")
+_JMA_CLASS20 = re.compile(r"^\d{7}$")
 
 _THRESHOLD_KEYS = {
     "modelMediumGustKt": "model_medium_gust_kt",
@@ -242,6 +258,17 @@ def load_regions(path: str | Path) -> list[Region]:
     return _regions(_raw(path))
 
 
+def _jma_area(raw: dict | None) -> JmaArea | None:
+    if not raw:
+        return None
+    return JmaArea(
+        office=str(raw.get("office", "")),
+        class20=str(raw.get("class20", "")),
+        name=str(raw.get("name", "")),
+        en_name=str(raw.get("enName", "")),
+    )
+
+
 def load_airports(path: str | Path) -> list[Airport]:
     raw = _raw(path)
     airports = []
@@ -264,6 +291,7 @@ def load_airports(path: str | Path) -> list[Airport]:
                 region=a["region"],
                 nws_zone=a.get("nwsZone", ""),
                 cwa_station=a.get("cwaStation") or None,
+                jma_area=_jma_area(a.get("jmaArea")),
             )
         )
     _check(_regions(raw), airports)
@@ -295,6 +323,18 @@ def _check(regions: list[Region], airports: list[Airport]) -> None:
                 f"airports.json {a.icao} 看 NWS 警報但 nwsZone {a.nws_zone!r} 不是 zone 代碼"
                 "（例如 GUZ001）"
             )
+        if "jma" in a.warning_sources:
+            j = a.jma_area
+            if (
+                j is None
+                or not _JMA_OFFICE.match(j.office)
+                or not _JMA_CLASS20.match(j.class20)
+                or not j.name
+            ):
+                raise ValueError(
+                    f"airports.json {a.icao} 看 JMA 警報但 jmaArea {j!r} 不對"
+                    '（例如 {"office": "016000", "class20": "0122400", "name": "千歳市"}）'
+                )
     # 照地區順序分段：機場的地區順序不能往回跳
     order = [ids.index(a.region) for a in airports]
     if order != sorted(order):

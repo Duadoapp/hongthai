@@ -31,9 +31,10 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 | `guam-palau` | 關島・帛琉 | 關島 PGUM/GUM、帛琉 PTRO/ROR |
 
 - 51 個都用全球資料：ECMWF、GFS、TAF／METAR（有的話）、跑道側風
-- 官方警報：台灣十個看中央氣象署、香港看天文台、澳門看 SMG、關島看美國國家氣象局（NWS，HD3）；其他 38 個
-  還沒接（日本、韓國之後另外的 HD 補；中國官方颱風預警、越南、菲律賓先不接；帛琉 NWS 查不到，見下面
-  「資料來源與授權」），`airports[].official.warnings` 是 `false`、`warnings` 是 `[]`
+- 官方警報：台灣十個看中央氣象署、香港看天文台、澳門看 SMG、關島看美國國家氣象局（NWS，HD3）、日本 8 個
+  與沖繩 3 個看日本氣象廳（JMA，HD9，目前只接大雪警報）；其他 27 個還沒接（韓國之後另外的 HD 補；中國官方
+  颱風預警、越南、菲律賓先不接；帛琉 NWS 查不到，見下面「資料來源與授權」），`airports[].official.warnings`
+  是 `false`、`warnings` 是 `[]`
 - **沒有 TAF 的機場**（2026-10-18 實測 AviationWeather）：花蓮 RCYU、金門 RCBS、馬祖 RCFG、溫州 ZSWZ、
   泉州 ZSQZ、珠海 ZGSD、宮古 ROMY。這幾個 `taf: null`，官方層只剩 METAR 與警報：METAR 在 3 小時內時
   **第一格由 METAR 單獨撐起**（HD13，`official.kind: "metar"`），之後 0–30 小時沒有警報的格以模式為準。
@@ -52,7 +53,7 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
 | 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14） | **五個模式投票**（HD14，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS 用平均風 × 1.4 估算）≥ 48 節高、≥ 37 節中；系集只投高（陣風 ≥ 49 節機率 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
-| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視 | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
+| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視、日本氣象廳（JMA）日本與沖繩的大雪警報（HD9） | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；JMA 大雪特別警報 → 高、大雪警報 → 中、暴風雪警報低（只列出），算 `snow`；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
 | 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS 的 10 米風向配各自的陣風；AIFS、AIGFS 的 10 米風向配估算陣風 | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級**（模式層是每個模式各自取較高，再投票） |
 
 - 門檻依據：陣風（TAF 與模式同一套）是桃園機場空橋規則——最大瞬間風速 37 節（蒲福 8 級）啟動空橋防護、
@@ -168,11 +169,15 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
 | 香港天文台 | 紅色暴雨警告信號 `rainstorm_red`、雷暴警告 `thunderstorm` | 低：**只列出、不升級**（黃雨不列） |
 | 中央氣象署 | 天氣特報「大豪雨」「超大豪雨」且機場的縣市在範圍 `cwa_heavy_rain` | 中（大雨、豪雨特報不算） |
 | 中央氣象署 | 天氣特報「濃霧」且機場的縣市在範圍 `cwa_dense_fog`（HD13，台灣十個機場都適用） | 中 |
+| 日本氣象廳 | 機場所在市町村的大雪警報 `jma_heavy_snow`（HD9，日本 8 個＋沖繩 3 個） | 中 |
+| 日本氣象廳 | 大雪特別警報 `jma_heavy_snow_emergency` | 高 |
+| 日本氣象廳 | 暴風雪警報 `jma_snowstorm` | 低：**只列出、不升級**（大雪注意報、風雪注意報不列） |
 
-- 前三列算 `rain`、濃霧特報算 `fog`，其他（颱風、熱帶氣旋信號）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
+- 前三列算 `rain`、濃霧特報算 `fog`、JMA 三種算 `snow`，其他（颱風、熱帶氣旋信號）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
   TAF、只有低的警報時 `official` 是 `null`、退回模式；有 TAF 或有中以上的警報時照舊，
   `official.warnings[]` 列全部（含低的）。天文台 1 號信號也是低，HD8 起一樣照這條
-- JMA 大雪警報另開 HD9；澳門、韓國、越南、菲律賓這階段不加警報
+- JMA 只接雪（HD9）：大雨、暴風、波浪等其他警報不接（風的警報留給之後；29W 驗證期間不能動到風的等級）；
+  暴風雪特別警報（代碼 `32`）不在定案裡，先不接。澳門、韓國、越南、菲律賓這階段不加警報
 
 `causes`（每格，主因在前）：從決定 `level` 的那一層（`basis` 是 `official` 看官方層、`model` 看模式層；
 `confirmed` 看被它蓋掉的那一層——有官方層就是官方層）把等級 ≥ 中的種類列出：`wind`（陣風、側風或風的
@@ -298,6 +303,7 @@ H10（2026-10-18）之後：
 | hko、smg | 各 30 | 幾秒 |
 | cwa | 45 | 幾秒 |
 | nws（HD3，關島） | 30 | 不到 1 秒 |
+| jma（HD9，日本與沖繩 11 個 office 各一個請求） | 45 | 8.6（2026-10-20，每個 0.5–1.0 秒、3–35 KB） |
 | flights（抓＋統計＋寫檔） | 120 | 約 20 |
 | ai（AI 對決，HD5；兩個模型平行，每報最多 20 個機場） | 240（HD12；原 180） | 約 111–117，HD11 後第一報 178（單次請求逾時 60 秒） |
 | og（分享預覽圖 51 張，HD1；`publish()` 之後） | 60 | 約 3–6 |
@@ -306,8 +312,8 @@ H10（2026-10-18）之後：
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和 1530 秒（25.5 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
-  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒），Actions「產生 latest.json」那一步上限 28 分鐘、整個 job
+- 總和 1575 秒（26.25 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
+  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒），Actions「產生 latest.json」那一步上限 28 分鐘、整個 job
   38 分鐘（HD21 前 25／35、HD14 前是 20／30、HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
   多抓的海平面氣壓（每個步長約 1.0／1.0／0.5 MB，三個共約 52 MB）算在它們自己的預算裡
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
@@ -332,16 +338,26 @@ H10（2026-10-18）之後：
   - `airports[]`：照 `regions` 的順序、地區內照顯示順序（讀的時候會檢查，順序不對、ICAO 重複、`region` 不在
     `regions` 裡、`tz` 不是 IANA 時區、跑道方位不在 0–360 都會報錯）。每個機場：ICAO、IATA、`tz`、`region`、
     四語名稱（短名、不加「機場」）、座標（機場參考點；現有五個沿用，H9 的 36 個與 HD3 的 10 個取
-    OurAirports）、跑道、看哪些官方警報、氣象署警戒區關鍵字、NWS zone、氣象署局屬站站號（`cwaStation`，HD13：金門、
-    馬祖沒有 METAR 時用這站的觀測）、門檻
+    OurAirports）、跑道、看哪些官方警報、氣象署警戒區關鍵字、NWS zone、JMA 區域、氣象署局屬站站號（`cwaStation`，
+    HD13：金門、馬祖沒有 METAR 時用這站的觀測）、門檻
   - `runways[].headings`：跑道兩個方向的**真北**方位（度）。提示詞寫的是磁方位，但 METAR／TAF 與模式的風向
     都是真北，用磁方位會差 3–5°，所以算側風用真北；磁方位（只有 AIP 的五個）記在 `runways[].magnetic` 備查
     （下面「跑道方位」）。`runways: []` 的機場側風是 `null`
   - `runwaySource`：跑道方位從哪裡來，`"aip"`（現有五個）、`"ourairports"`（其他 45 個）或 `"computed"`
     （石垣，用跑道兩端跑道頭座標算，HD3）；只在這裡，不進 `latest.json`
-  - `warningSources`：`cwa`（台灣十個機場）、`hko`（香港）、`smg`（澳門）、`nws`（關島，HD3）；其他機場是 `[]`
+  - `warningSources`：`cwa`（台灣十個機場）、`hko`（香港）、`smg`（澳門）、`nws`（關島，HD3）、`jma`（日本 8 個
+    與沖繩 3 個，HD9）；其他機場是 `[]`
   - `nwsZone`：看 NWS 警報的機場要有（HD3），NWS 的 zone 代碼，關島 `GUZ001`（`/points/13.485,144.7973`
     的 `forecastZone`）。`warningSources` 有 `nws` 但沒有 `nwsZone`（或格式不是 `GUZ001` 這種）讀的時候會報錯
+  - `jmaArea`：看 JMA 警報的機場要有（HD9），`{"office", "class20", "name", "enName"}`：機場所在市町村在 JMA
+    `area.json` 的代碼（`class20s`，7 碼）、它往上的都道府縣氣象台（`offices`，6 碼，警報 JSON 一個 office
+    一個檔），以及那個市町村的日文名與 `enName`（警報文字用，每報不抓 `area.json`）。2026-10-20 查的：
+    新千歲 千歳市 `016000`／`0122400`、仙台 名取市 `040000`／`0420700`、成田 成田市 `120000`／`1221100`、
+    羽田 大田区 `130000`／`1311100`、中部 常滑市 `230000`／`2321600`、關西 泉佐野市 `270000`／`2721300`
+    （人工島跨泉佐野市、田尻町、泉南市，航廈地址在泉佐野市；三個都在同一個 class15「泉州」）、福岡 福岡市
+    `400000`／`4013000`、鹿兒島 霧島市 `460100`／`4621800`、那霸 那覇市 `471000`／`4720100`、宮古
+    宮古島市 `473000`／`4721400`、石垣 石垣市 `474000`／`4720700`（11 個機場剛好 11 個 office）。
+    `warningSources` 有 `jma` 但沒有 `jmaArea`、代碼位數不對或沒有 `name` 讀的時候會報錯
   - `cwaAreas`：氣象署警戒區關鍵字，每個台灣機場一組：桃園、松山「北部」「桃園」「臺北」「台北」「新北」；
     高雄「南部」「高雄」；台中「中部」「臺中」「台中」；台南「南部」「臺南」「台南」；花蓮「東部」「花蓮」；
     台東「東部」「臺東」「台東」；澎湖「澎湖」；金門「金門」；馬祖「馬祖」「連江」。對過 `W-C0034-001` 的
@@ -377,8 +393,8 @@ H10（2026-10-18）之後：
   `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，
   每報重畫、不進 `data` 分支）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
-  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
-  `/alerts/active` 的原始回應，HD3 起；氣象署天氣特報 `W-C0033-001` 是另一個檔 `<HHMM>Z-cwa-hazards.json`，
+  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws,jma}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
+  `/alerts/active` 的原始回應，HD3 起；JMA 是 `{office 代碼: 警報 JSON}`，HD9 起；氣象署天氣特報 `W-C0033-001` 是另一個檔 `<HHMM>Z-cwa-hazards.json`，
   HD8 起，`-cwa.json` 照舊是颱風警報；金門、馬祖的局屬站觀測 `O-A0003-001` 是 `<HHMM>Z-cwa-obs.json`，HD13 起）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
   原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`、
@@ -420,7 +436,7 @@ H10（2026-10-18）之後：
 {"run": "2026-10-18T09:28:00Z", "source": "done", "ok": true, "seconds": 371.2}
 ```
 
-- `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`nws`（HD3 起）、`flights`、`ai`（HD5 起，
+- `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`nws`（HD3 起）、`jma`（HD9 起）、`flights`、`ai`（HD5 起，
   AI 對決；`bytes` 是 0、`calls` 是這一報每個模型呼叫了幾次）、`og`（HD1 起，分享預覽圖；改發布上一份時
   也有）、`done`（照執行順序）
 - `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`（`og` 有幾張畫不出來時是
@@ -608,6 +624,18 @@ HD13（2026-10-19，金門、馬祖的霧；`schema` 維持 `1`，既有欄位�
   特报范围」／en「CWA dense fog advisory; Kinmen is in the advisory area」），算 `fog`
 - `sources.cwa.obsOk: false`＋`obsError`：局屬站觀測那個請求失敗時才有（颱風警報、特報照常）
 - 大小：兩個機場的 `metar` 從 `null` 變物件、第一格多一個官方層，`latest.json` 多約 1–2 KB
+
+HD9（2026-10-20，JMA 大雪警報；只加值，`schema` 維持 `1`，既有欄位不改名、不改型別）：
+
+- 日本 8 個（新千歲、仙台、成田、羽田、中部、關西、福岡、鹿兒島）與沖繩 3 個（那霸、宮古、石垣）的
+  `official.warnings` 從 `false` 變 `true`（沖繩實務上不會有大雪警報，接了網頁才不用寫「尚未提供」）
+- `airports[].warnings[]`／`slots[].official.warnings`：`source` 多 `"jma"`，`kind` 多 `jma_heavy_snow`（中）、
+  `jma_heavy_snow_emergency`（高）、`jma_snowstorm`（低，只列出），都算 `snow`；`code` 是 JMA 的警報種類代碼
+  （`06`、`36`、`02`），沒有 `detail`；四語「日本氣象廳大雪警報（千歳市）」／zh-CN「日本气象厅大雪警报（千歳市）」
+  ／en「JMA heavy snow warning (Chitose)」（特別警報「大雪特別警報」／`heavy snow emergency warning`，
+  暴風雪「暴風雪警報」／`snowstorm warning`；市町村名用 JMA 的日文漢字原樣、en 用 `enName` 去掉 City／Town），
+  `issuedAt` 是那一報的 `reportDatetime`
+- `sources.jma`（`ok`、`seconds`；失敗時 `error`，其他來源不受影響）
 
 HD14（2026-10-20，多模式投票；欄位定案，Shawn 轉給 Duado；`schema` 維持 `1`。**`model.ec`、`model.gfs`、
 `model.agreement` 不改名、不改型別、不拿掉，值也照舊算**；`model.level` 改由投票決定）：
@@ -997,6 +1025,7 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 | [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 46 個機場（H9 的 36 個、HD3 的 10 個）的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
 | [OpenStreetMap](https://www.openstreetmap.org/way/114511749)（跑道 way 114511749 的兩端座標，HD3） | 石垣跑道真北方位（用座標算出的一個數字） | © OpenStreetMap contributors，[ODbL](https://www.openstreetmap.org/copyright) |
 | [美國國家氣象局 api.weather.gov](https://www.weather.gov/documentation/services-web-api)（`/alerts/active?zone=GUZ001`，HD3） | 關島的颱風／熱帶風暴警報與守視（NWS 關島分處 Tiyan 發布） | 美國政府公有領域 |
+| [日本氣象廳防災資訊](https://www.jma.go.jp/bosai/warning/)（JMA 網頁用的 JSON `bosai/warning/data/r8/<office>.json`、`bosai/common/const/area.json`，**非正式介面**；HD9） | 日本與沖繩 11 個機場所在市町村的大雪警報、大雪特別警報、暴風雪警報 | [氣象廳網站利用規約](https://www.jma.go.jp/jma/kishou/info/coment.html)：公共データ利用規約（第 1.0 版，PDL 1.0），註明出處「出典：気象庁ホームページ」即可使用與再發布 |
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號；HD8 起加暴雨警告信號 `WRAIN`、雷暴警告 `WTS`，同一個請求） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
 | [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報；HD8 起加 `W-C0033-001` 天氣特報；HD13 起加 `O-A0003-001` 氣象觀測站-10分鐘綜觀氣象資料） | 海上／陸上颱風警報與警戒區（台灣十個機場）；各縣市目前的天氣特報（只用大豪雨、超大豪雨、濃霧）；金門 467110、馬祖 467990 局屬站的能見度、天氣、風（當這兩個機場的 METAR） | [政府資料開放授權條款](https://data.gov.tw/license) |
 | [澳門地球物理氣象局 XML](https://xml.smg.gov.mo/)（`c_typhoon.xml`／`e_typhoon.xml`；data.gov.mo 資料集[「熱帶氣旋信號」](https://data.gov.mo/Detail?id=15044781-1752-4f98-b87e-508208d70408)） | 熱帶氣旋信號 | [澳門政府數據開放平台使用條款](https://data.gov.mo/)：免費使用與再發布，須註明「澳門特別行政區政府數據開放平台」與取得日期 |
@@ -1050,6 +1079,18 @@ NWS（關島、帛琉，HD3，2026-10-18 查）：
   一筆警報都沒有（`/alerts/active?zone=PWZ003` 是空的 FeatureCollection），Champi 期間也沒有；TC 本地聲明
   （HLS）的地點只有 `PQ2`（關島與北馬里亞納）。看不出 NWS 會在這個端點發帛琉的颱風警報 → **先不接**
   （`warningSources: []`，`official.warnings: false`），之後看到帛琉的警報再接（加 `nwsZone: "PWZ003"`）
+
+JMA（日本與沖繩，HD9，2026-10-20 實抓；細節在 `src/hongthai/sources/jma.py` 開頭）：
+- 舊的 `bosai/warning/data/warning/<office>.json` 停在 2026-05-28（`Last-Modified` 同一天）：JMA 那天換成新的
+  防災氣象資訊（令和 8 年，多了「危險警報」），網頁改讀 `bosai/warning/data/r8/<office>.json`。新格式最上層
+  是 list，每筆是一種電文（`dataTypeCode` VPWW55 大雨、56 土砂災害、57 高潮、58 風、59 波浪、61 雷・濃霧等；
+  雪的那種 10 月還沒出現，所以不看 `dataTypeCode`，每種電文取最新一報再合起來找），每筆
+  `warning.class20Items[]` 是 `{"areaCode": <市町村代碼>, "kinds": [{"code", "status"}]}`
+- 警報種類代碼照 JMA 警報頁 JS 的對照表（`elem`／`level`）：大雪 注意報 `12`、警報 `06`、特別警報 `36`；
+  暴風雪 注意報（風雪）`13`、警報 `02`、特別警報 `32`；暴風 `05`／`35`、大雨特別警報 `33`。提示詞印象中的
+  「大雪特別警報 33、暴風雪警報 05」是舊制的記錯，以這份為準
+- `status` 有 `発表`、`継続`、`解除`、`発表警報・注意報はなし`；不是後兩種就算生效中。`infoType` 是 `取消` 的那筆不算
+- 2026-10-20 10Z 一次實抓 11 個 office 共 8.6 秒，沒有任何機場有大雪或暴風雪警報（千歲市當時是濃霧注意報）
 
 航班：澳門機場官網只有伺服器端產生的 HTML（不爬），改用 data.gov.mo 上民航局的開放 API；它要一個
 `Authorization: APPCODE …` 標頭，值是平台發給所有匿名使用者的公開共用碼，程式每次從資料集說明 API 取，
