@@ -221,6 +221,11 @@
     HD15 WeatherNext 3：10/20 19:04 已送 allowlist 申請（BigQuery、GCS Zarr、WN2 Zarr、WN2 Mean Zarr），雲端先照文件用 mock
     做好掛著；上線前要讀完 GDM 即時資料條款，不能公開顯示就只用 1 小時前以後的資料（CC BY 4.0）做報告比對。
     提示詞 `docs/prompts/2026-10-20-HD16-openmeteo-models.md`、`docs/prompts/2026-10-20-HD15-weathernext3.md`。
+    **HD15 條款結論（2026-10-20 Shawn 確認照雲端）**：GDM 即時資料條款——挑點、挑時段、乘係數都算「未修改的即時資料」不能
+    公開；日本是限制國家（11 個日本機場、日本使用者）；`data` 分支公開、存即時資料等於公開。所以 **Google 書面同意（含日本
+    機場與日本使用者）之前，WN3 只做報告比對**（`WN3_MODE=report-only`：每報抓起報 ≤ 現在 − 121 小時那一報、全是 CC BY 4.0，
+    存 `events/<id>/wn3/` 與路徑檔），不進 `latest.json`、不旁觀、不投票。`observe`／`WN3_VOTING` 開關寫好了，同意後再切。
+    匿名讀歷史 Zarr 不行（401／403），連 CC BY 4.0 的歷史也要等核准。
     **HD16 已實作（HD16 PR）**：8 票（`icon`、`jma`、`wn2-ens` 接在 `aigfs` 後面）、`Model.voting` 旁觀開關、
     暴風雪特別警報 `32`。**授權條件（定案第 7 點）：(a) 一旦 HongThai 或 Duado 收費、訂閱或放廣告，必須改買
     Open-Meteo 商業方案或拿掉這三個模式；(b) 網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・
