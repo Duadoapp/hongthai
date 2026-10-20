@@ -1,4 +1,4 @@
-"""HD18：估算陣風的係數 G（每個機場、30 天、IFS＋GFS 自己的陣風÷平均風中位數）。"""
+"""HD18：估算陣風的係數 G（每個機場、30 天、自己的陣風÷平均風中位數）；HD19 起只用 IFS。"""
 
 from __future__ import annotations
 
@@ -84,17 +84,43 @@ def test_run_samples_reused_model_is_empty():
 OLD = "2026-10-19T08:25:00Z"  # 前一報（不是首報）
 
 
-def test_median_of_ifs_and_gfs_combined():
-    rows = [row("RCTP", [1.3] * 30, [1.5] * 11, run=OLD), row("RCTP", [], [1.7], run=RUN)]
+def test_median_of_ifs_only():
+    """HD19：G 只看 IFS；GFS 照算 `nGfs`（備查），不進中位數也不算進 `n`。"""
+    rows = [
+        row("RCTP", [1.3] * 30 + [1.5] * 11, [2.0] * 50, run=OLD),
+        row("RCTP", [1.5], [1.7], run=RUN),
+    ]
     factors, doc = gustfactor.compute(rows, RUN, ["RCTP"])
-    assert factors["RCTP"] == GustFactor(1.3, "airport30d")  # 42 個裡 30 個 1.3
+    assert factors["RCTP"] == GustFactor(1.3, "airport30d")  # IFS 42 個裡 30 個 1.3；合併會是 2.0
     assert doc["airports"]["RCTP"] == {
         "g": 1.3,
         "n": 42,
-        "nIfs": 30,
-        "nGfs": 12,
+        "nIfs": 42,
+        "nGfs": 51,
         "basis": "airport30d",
     }
+
+
+def test_summary_without_ifs_is_none():
+    assert gustfactor.summary([row("RCTP", [], [1.5] * 50)]) == {
+        "g": None,
+        "n": 0,
+        "nIfs": 0,
+        "nGfs": 50,
+    }
+
+
+def test_airport_with_only_gfs_falls_back():
+    """機場 IFS 空、GFS 有 50 個：不算 `airport30d`，退到全機場的 IFS。"""
+    rows = [
+        row("RCTP", [], [1.9] * 50, run=OLD),
+        row("RJTT", [1.4] * 45, run=OLD),
+        row("RCTP", run=RUN),
+    ]
+    factors, doc = gustfactor.compute(rows, RUN, ["RCTP", "RJTT"])
+    assert factors["RCTP"] == GustFactor(1.4, "all30d")
+    assert doc["airports"]["RCTP"] == {"g": 1.4, "n": 0, "nIfs": 0, "nGfs": 50, "basis": "all30d"}
+    assert doc["all"] == {"g": 1.4, "n": 45, "nIfs": 45, "nGfs": 50}
 
 
 @pytest.mark.parametrize(("value", "g"), [(2.6, 2.0), (1.05, 1.2), (1.57, 1.57)])
@@ -118,24 +144,27 @@ def test_airport_under_40_uses_all_airports():
 
 
 def test_all_under_40_uses_this_run():
-    rows = [row("RCTP", [1.9] * 20, run=OLD), row("RJTT", [1.5, 1.6], [1.7], run=RUN)]
+    """門檻比的是 IFS 的樣本數：IFS 22 個（GFS 31 個）< 40 → `run`。"""
+    rows = [row("RCTP", [1.9] * 20, [1.2] * 30, run=OLD), row("RJTT", [1.5, 1.6], [1.7], run=RUN)]
     factors, doc = gustfactor.compute(rows, RUN, ["RCTP", "RJTT"])
-    assert factors["RCTP"] == factors["RJTT"] == GustFactor(1.6, "run")
-    assert doc["run"] == {"g": 1.6, "n": 3, "nIfs": 2, "nGfs": 1}
+    assert factors["RCTP"] == factors["RJTT"] == GustFactor(1.55, "run")
+    assert doc["all"]["n"] == 22
+    assert doc["run"] == {"g": 1.55, "n": 2, "nIfs": 2, "nGfs": 1}
 
 
 def test_no_samples_default_1_4():
-    rows = [row("RCTP", [1.9] * 20, run=OLD), row("RCTP", run=RUN)]
+    """這一報只有 GFS 樣本也算沒有：`default`。"""
+    rows = [row("RCTP", [1.9] * 20, run=OLD), row("RCTP", [], [1.3] * 5, run=RUN)]
     factors, doc = gustfactor.compute(rows, RUN, ["RCTP"])
     assert factors["RCTP"] == GustFactor(1.4, "default")
-    assert doc["run"] == {"g": None, "n": 0, "nIfs": 0, "nGfs": 0}
+    assert doc["run"] == {"g": None, "n": 0, "nIfs": 0, "nGfs": 5}
 
 
 def test_first_run_is_run_basis():
     """首報（窗裡只有這一報）：就算樣本 ≥ 40 也標 `run`。"""
     rows = [row("RCTP", [1.5] * 20, [1.3] * 20), row("RJTT", [1.7] * 20)]
     factors, _ = gustfactor.compute(rows, RUN, ["RCTP", "RJTT"])
-    assert factors["RCTP"] == factors["RJTT"] == GustFactor(1.5, "run")
+    assert factors["RCTP"] == factors["RJTT"] == GustFactor(1.6, "run")  # IFS 40 個
 
 
 # ---- 檔案與 30 天窗 ----
@@ -182,9 +211,10 @@ def test_update_writes_samples_and_latest(tmp_path):
     ]
     doc = json.loads((tmp_path / "gustfactor" / "latest.json").read_text("utf-8"))
     assert doc["generatedAt"] == RUN
+    assert doc["source"] == "ifs"
     assert doc["window"] == {"from": "2026-09-20T08:25:00Z", "to": RUN}
-    assert doc["all"] == {"g": 1.8, "n": 48, "nIfs": 47, "nGfs": 1}
-    assert doc["run"] == {"g": 1.5, "n": 3, "nIfs": 2, "nGfs": 1}
+    assert doc["all"] == {"g": 1.8, "n": 47, "nIfs": 47, "nGfs": 1}
+    assert doc["run"] == {"g": 1.51, "n": 2, "nIfs": 2, "nGfs": 1}
     assert doc["airports"]["RCTP"] == {
         "g": 1.8,
         "n": 47,
@@ -196,14 +226,14 @@ def test_update_writes_samples_and_latest(tmp_path):
     # 同一報再跑一次（重跑）不會重複算
     gustfactor.update(tmp_path, NOW, samples, ["RCTP", "RJTT"])
     doc = json.loads((tmp_path / "gustfactor" / "latest.json").read_text("utf-8"))
-    assert doc["all"]["n"] == 48
+    assert doc["all"]["n"] == 47
 
 
 def test_update_first_run(tmp_path):
     """`history/gustfactor/` 還沒有：`run`。"""
     samples = {"RCTP": {"ifs": [1.5], "gfs": [1.3, 1.4]}}
     factors = gustfactor.update(tmp_path, NOW, samples, ["RCTP"])
-    assert factors == {"RCTP": GustFactor(1.4, "run")}
+    assert factors == {"RCTP": GustFactor(1.5, "run")}  # 只看 IFS（合併會是 1.4）
 
 
 # ---- 驗證報表（tools/gust_factor_report.py）----

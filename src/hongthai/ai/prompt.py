@@ -279,7 +279,7 @@ def rules_text(th: Thresholds | None = None) -> str:
             f"- 歐洲系集只投 high：p49Kt ≥ {round(th.ec_p49_high * 100)}% 投 high、否則投 low，"
             "判 medium 時不算它（p29Kt 只是參考）",
             "- 歐洲 AI 模式、美國 AI 模式沒有陣風：10 米平均風 × 這個機場的係數估算（標「估」；"
-            "係數是歐洲模式、美國模式最近 30 天陣風÷平均風的中位數，"
+            "係數是歐洲模式最近 30 天陣風÷平均風的中位數，"
             f"{GUST_FACTOR_RANGE[0]:.1f}–{GUST_FACTOR_RANGE[1]:.1f}），門檻同陣風；"
             "雪只有有降水型態的模式投"
             "（美國 AI 模式不投），霧只有美國模式有能見度",
