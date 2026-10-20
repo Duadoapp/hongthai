@@ -105,8 +105,11 @@
   `model.level`
 - IFS 系集只投「高」（`Model.votes_only_high`）：`p49Kt` ≥ `ecP49High` 投高、否則投低，判中時不算
   分母。所以系集單獨撐不起高（HD14 以前可以）
-- AIFS、AIGFS 沒有陣風：10 米平均風 × `GUST_FACTOR`（1.4）＝估算陣風，側風也用它
-  （`estimated_for_slot`）
+- AIFS、AIGFS 沒有陣風：10 米平均風 × 係數 G＝估算陣風，側風也用它（`estimated_for_slot`）。
+  HD18 起 G 是每個機場自己的（`GustFactor`，由 `gustfactor.py` 從 IFS／GFS 30 天的「陣風÷平均風」
+  算出，`build` 交進來）；`models[]` 每筆多 `windKt`（10 米平均風：IFS 是格結束步長的、GFS 是格內
+  陣風最大那一點的、AIFS／AIGFS 是估算陣風用的那個，系集 null）與 `gustFactor`／`gustFactorBasis`
+  （只有估算的那幾筆有）
 - IFS、GFS 三類的等級就是 `model.ec`／`model.gfs` 的（值照舊）；IFS 的雨含系集 24 小時雨量機率。
   AIFS、AIGFS 的雨用 6 小時雨量；雪只有有降水型態的模式投（AIGFS 的 `ptype` 永遠 None → 不投）；
   霧只有 GFS（分母 1）
@@ -120,7 +123,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import radians, sin
 
-from .config import GUST_FACTOR, MODELS, ConfirmedPeriod, Runway, Thresholds
+from .config import GUST_FACTOR_DEFAULT, MODELS, ConfirmedPeriod, Runway, Thresholds
 from .sources.aifs import AifsStep
 from .sources.aigfs import AigfsStep
 from .sources.ecmwf import EcmwfPoint, PrecipStep
@@ -146,6 +149,18 @@ SNOWY_PTYPES = frozenset({"snow", "wet_snow", "rain_snow"})
 MODEL_NUM_KEYS = ("gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")
 ONLY_HIGH = frozenset(m.id for m in MODELS if m.votes_only_high)
 FREEZING_PTYPES = frozenset({"freezing_rain", "freezing_drizzle", "ice_pellets"})
+
+
+@dataclass(frozen=True)
+class GustFactor:
+    """估算陣風的係數（HD18）：`g`（兩位小數）與 `basis`（`airport30d`／`all30d`／`run`／
+    `default`，見 `gustfactor.py`）。"""
+
+    g: float
+    basis: str
+
+
+DEFAULT_GUST_FACTOR = GustFactor(GUST_FACTOR_DEFAULT, "default")
 
 
 @dataclass(frozen=True)
@@ -430,6 +445,24 @@ def ec_for_slot(
     return out
 
 
+def ec_wind_for_slot(point: EcmwfPoint | None, start: datetime, end: datetime) -> float | None:
+    """IFS 一格的 10 米平均風（節，HD18）：格結束那個 6 小時整步長的 `10u`／`10v`（和風向同一個
+    時間點；格內每個陣風區間配的都是它，取結束最晚那個區間的）。"""
+    hits = [g for g in point.hres if start < g.end <= end] if point is not None else []
+    winds = [g.wind_kt for g in sorted(hits, key=lambda g: g.end) if g.wind_kt is not None]
+    return _round(winds[-1], 1) if winds else None
+
+
+def gfs_wind_for_slot(
+    points: Sequence[GustPoint] | None, start: datetime, end: datetime
+) -> float | None:
+    """GFS 一格的 10 米平均風（節，HD18）：格內時間點裡陣風最大那一點的（同樣大取先的）。"""
+    hits = [p for p in points or [] if start <= p.valid <= end and p.gust_kt is not None]
+    if not hits:
+        return None
+    return _round(max(hits, key=lambda p: p.gust_kt or 0).wind_kt, 1)
+
+
 def gfs_for_slot(
     points: Sequence[GustPoint] | None,
     start: datetime,
@@ -523,24 +556,52 @@ def _wind_level(gust_kt: object, crosswind: object, th: Thresholds) -> str | Non
     return max_level([gust_level(_num(gust_kt), th), crosswind_level(_num(crosswind), th)])
 
 
+def estimated_gust(wind_kt: float | None, g: float) -> float | None:
+    """估算陣風＝平均風（一位小數的那個）× G，一位小數（HD18；`_rescore` 也用這個，結果一樣）。"""
+    return None if wind_kt is None else _round(wind_kt * g, 1)
+
+
 def estimated_for_slot(
     steps: Sequence[AifsStep | AigfsStep] | None,
     start: datetime,
     end: datetime,
     runways: Sequence[Runway] = (),
+    factor: GustFactor = DEFAULT_GUST_FACTOR,
 ) -> dict:
-    """沒有陣風的模式（AIFS、AIGFS，HD14）一格的數字：陣風＝格頭尾兩個時間點的 10 米平均風 ×
-    `GUST_FACTOR` 取大的（估算）、側風用估算陣風算、雨量與型態用格結束那個時間點（同 GFS）。"""
+    """沒有陣風的模式（AIFS、AIGFS，HD14）一格的數字：平均風取格頭尾兩個時間點大的（`windKt`）、
+    陣風＝它 × 機場的係數 G（估算，HD18）、側風用每個時間點的估算陣風算、雨量與型態用格結束那個
+    時間點（同 GFS）。"""
     inside = [s for s in steps or [] if start <= s.valid <= end]
-    gusts = [(s.wind_kt * GUST_FACTOR, s.wdir) for s in inside if s.wind_kt is not None]
+    winds = [(s.wind_kt, s.wdir) for s in inside if s.wind_kt is not None]
+    wind = _round(_max(w for w, _ in winds), 1)
     last = next((s for s in inside if s.valid == end), None)
     return {
-        "gustKt": _round(_max(g for g, _ in gusts), 1),
-        "crosswindKt": _round(_max(crosswind_kt(g, d, runways) for g, d in gusts), 1),
+        "windKt": wind,
+        "gustKt": estimated_gust(wind, factor.g),
+        "gustFactor": factor.g,
+        "gustFactorBasis": factor.basis,
+        "crosswindKt": _round(_max(crosswind_kt(w * factor.g, d, runways) for w, d in winds), 1),
         "rain6hMm": _round(last.rain6h_mm, 1) if last else None,
         "ptype": last.ptype if last else None,
         "visibilityM": None,
     }
+
+
+def refactor_estimated(entry: dict, factor: GustFactor) -> None:
+    """沿用的 AIFS／AIGFS 那筆（HD18）：用抄來的 `windKt` × 這一報的 G 重算 `gustKt`，側風（和
+    估算陣風成正比）照新舊 G 的比例換算。HD18 以前的那筆沒有 `windKt`／`gustFactor`：舊 G 當 1.4、
+    平均風用舊的估算陣風倒推。沒有數字的不動。"""
+    old_g = _num(entry.get("gustFactor")) or GUST_FACTOR_DEFAULT
+    wind, gust = _num(entry.get("windKt")), _num(entry.get("gustKt"))
+    if wind is None and gust is not None:
+        wind = _round(gust / old_g, 1)
+    if wind is None:
+        return
+    xw = _num(entry.get("crosswindKt"))
+    entry["windKt"] = wind
+    entry["gustKt"] = estimated_gust(wind, factor.g)
+    entry["crosswindKt"] = None if xw is None else _round(xw * factor.g / old_g, 1)
+    entry["gustFactor"], entry["gustFactorBasis"] = factor.g, factor.basis
 
 
 def model_entries(
@@ -549,7 +610,9 @@ def model_entries(
     """`slots[].model.models[]`（HD14）：照 `config.MODELS` 的順序，每個模式一筆，沒資料的也有
     （數字、`levels`、`level` 全是 null）。`ec`／`gfs` 要先 `fill_model_wx`（IFS、GFS 三類的等級
     直接用 `model.ec`／`model.gfs` 的，值照舊）；其他模式的數字從 `others[id]`
-    （`estimated_for_slot` 的結果，或沿用時抄來的那筆）。
+    （`estimated_for_slot` 的結果，或沿用時抄來的那筆）；`windKt`（HD18）也從 `others[id]`
+    （IFS、GFS 是 `ec_wind_for_slot`／`gfs_wind_for_slot`，系集沒有）。`gustFactor`／
+    `gustFactorBasis` 只有估算陣風、而且有陣風的那幾筆有。
 
     - `ifs`：HRES 陣風、側風、雨量、型態；雨＝`ec.rain`（HRES 雨量或系集 24 小時雨量機率，同 HD8）
     - `gfs`：陣風、側風、雨量、型態、能見度（霧只有它）
@@ -558,6 +621,7 @@ def model_entries(
     """
     out = []
     for m in MODELS:
+        src = others.get(m.id) or {}
         lv: dict[str, str | None] = dict.fromkeys(CAUSES)
         if m.id == "ifs":
             nums = {
@@ -576,7 +640,6 @@ def model_entries(
             p49 = _num(ec.get("p49Kt"))
             lv["wind"] = None if p49 is None else "high" if p49 >= th.ec_p49_high else "low"
         else:
-            src = others.get(m.id) or {}
             nums = {k: src.get(k) for k in MODEL_NUM_KEYS}
             lv["rain"] = rain_model_level(nums["rain6hMm"], th)
             if nums["ptype"] is not None:
@@ -584,12 +647,16 @@ def model_entries(
             lv["fog"] = fog_model_level(nums["visibilityM"], th)
         if not m.votes_only_high:
             lv["wind"] = _wind_level(nums["gustKt"], nums["crosswindKt"], th)
+        estimated = nums["gustKt"] is not None and m.gust_estimated
         out.append(
             {
                 "id": m.id,
                 "run": runs.get(m.id),
+                "windKt": None if m.votes_only_high else _num(src.get("windKt")),
                 "gustKt": nums["gustKt"],
                 "gustEstimated": None if nums["gustKt"] is None else m.gust_estimated,
+                "gustFactor": _num(src.get("gustFactor")) if estimated else None,
+                "gustFactorBasis": src.get("gustFactorBasis") if estimated else None,
                 "crosswindKt": nums["crosswindKt"],
                 "rain6hMm": nums["rain6hMm"],
                 "ptype": nums["ptype"],
@@ -709,9 +776,11 @@ def assess_slots(
     aifs: Sequence[AifsStep] | None = None,
     aigfs: Sequence[AigfsStep] | None = None,
     runs: dict[str, str | None] | None = None,
+    gust_factor: GustFactor = DEFAULT_GUST_FACTOR,
 ) -> list[dict]:
     """單一機場的所有格。`taf_periods`／`ec`／`gfs`／`metar`／`aifs`／`aigfs` 是 None 代表該來源
-    失敗或沒資料。`runs` 是各模式（`config.MODELS` 的 id）的時次，寫進 `models[].run`。"""
+    失敗或沒資料。`runs` 是各模式（`config.MODELS` 的 id）的時次，寫進 `models[].run`；
+    `gust_factor` 是這個機場估算陣風的係數（HD18）。"""
     official_until = now + timedelta(hours=OFFICIAL_HORIZON_H)
     warning_until = now + timedelta(hours=WARNING_HORIZON_H)
     metar_xw = metar_crosswind(metar, now, runways)
@@ -721,8 +790,10 @@ def assess_slots(
         gfs_v = gfs_for_slot(gfs, start, end, runways)
         fill_model_wx(ec_v, gfs_v, thresholds)
         others = {
-            "aifs": estimated_for_slot(aifs, start, end, runways),
-            "aigfs": estimated_for_slot(aigfs, start, end, runways),
+            "ifs": {"windKt": ec_wind_for_slot(ec, start, end)},
+            "gfs": {"windKt": gfs_wind_for_slot(gfs, start, end)},
+            "aifs": estimated_for_slot(aifs, start, end, runways, gust_factor),
+            "aigfs": estimated_for_slot(aigfs, start, end, runways, gust_factor),
         }
         entries = model_entries(ec_v, gfs_v, others, runs or {}, thresholds)
         _, vote_v = model_vote(entries)

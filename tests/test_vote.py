@@ -95,8 +95,11 @@ def test_entries_in_config_order_with_nulls():
         assert set(e) == {
             "id",
             "run",
+            "windKt",  # HD18
             "gustKt",
             "gustEstimated",
+            "gustFactor",  # HD18
+            "gustFactorBasis",  # HD18
             "crosswindKt",
             "rain6hMm",
             "ptype",
@@ -106,6 +109,7 @@ def test_entries_in_config_order_with_nulls():
         }
         assert e["levels"] == {"wind": None, "rain": None, "snow": None, "fog": None}
         assert e["level"] is None and e["gustKt"] is None and e["gustEstimated"] is None
+        assert e["windKt"] is None and e["gustFactor"] is None and e["gustFactorBasis"] is None
     cats, v = model_vote(es)
     assert v == {"total": 0, "high": 0, "medium": 0, "low": 0, "level": None, "thin": True}
     assert model_levels(es) is None

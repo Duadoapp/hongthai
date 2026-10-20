@@ -92,7 +92,7 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
   （2 票裡 1 票也成立，和 HD14 以前兩個模式取較高一致）。四類的結果再取最高＝`model.level`
 - **系集只投「高」**：`p49Kt` ≥ 30% 投高、否則投低；**判「中」時不算分母**（不然它永遠投低、把中的票拉下來）。
   所以系集單獨撐不起高（IFS 低、GFS 低、系集高 → 1 × 2 < 3 → 低）
-- **沒有陣風的模式**（AIFS、AIGFS）：10 米平均風 × **1.4**（`config.GUST_FACTOR`）估算陣風，標
+- **沒有陣風的模式**（AIFS、AIGFS）：10 米平均風 × **機場的係數 G**（HD18，下一段）估算陣風，標
   `gustEstimated: true`，門檻同陣風；側風用估算陣風算。網頁與 AI 短評寫「估算陣風」
 - 雨：IFS（6 小時雨量，或系集 24 小時雨量 ≥ 50 mm 機率 ≥ 30%，就是 `model.ec.rain`）、GFS、AIFS、AIGFS 投；
   系集那筆不投雨
@@ -103,6 +103,30 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
 - `model.vote`：`total`（風那一類的分母，含系集）、`high`（投高的數）、`medium`（等級 ≥ 中的數，不含系集，
   同判中的規則）、`low`（投低的數）、`level`（四類投票結果取最高，全無資料 `null`）、`thin`（風的分母 < 2）
 - `model.ec`／`model.gfs`／`model.agreement` 欄位與值都不變（`ec.rain`、`gfs.fog` 等還是各自的等級）
+
+### 估算陣風的係數（HD18）
+
+Shawn 2026-10-20 定案，取代 HD14 的固定 1.4（`src/hongthai/gustfactor.py`）。拿 AIFS／AIGFS 去比同一格的
+HRES 陣風不公平（颱風路線不同時同一格本來就差很多；GFS 自己的陣風也只有 IFS 的 0.76，IFS 陣風偏高、不能當
+標準答案），所以改成**同一個模式自己的陣風 ÷ 平均風**：
+
+- 定義：G＝陣風 ÷ 10 米平均風。IFS 用 HRES `10fg`（該格的 `hresGustKt`）÷ **格結束步長**的 √(u10²+v10²)；
+  GFS 用 `GUST`（該格的 `gustKt`）÷ **同一時間點**（格內陣風最大那一點）的 10 米風速。同一模式、同一機場、
+  同一格自己比自己，一格一個比例（兩位小數）
+- **每個機場一個 G**：最近 **30 天**（`GUST_FACTOR_WINDOW_DAYS`）、每報每格，IFS 與 GFS 的比例合在一起取
+  **中位數**；只收平均風 **≥ 10 節**的格（`GUST_FACTOR_MIN_WIND_KT`）；中位數夾在 **1.2～2.0**
+  （`GUST_FACTOR_RANGE`，夾中位數、不夾樣本）
+- **樣本不足的順序**（`gustFactorBasis`）：機場合格樣本 ≥ 40（`GUST_FACTOR_MIN_SAMPLES`）→ `airport30d`；
+  不然全部機場合併的 30 天中位數（≥ 40）→ `all30d`；再不然這一報 IFS＋GFS 的全體中位數（所有機場、所有格）
+  → `run`；這一報一個 ≥ 10 節的格都沒有 → 固定 1.4（`GUST_FACTOR_DEFAULT`）→ `default`。**首報**（30 天窗裡
+  只有這一報，例如 `history/gustfactor/` 還沒有）一律 `run`——那時「30 天」就是這一報，標 `airport30d`／
+  `all30d` 會誤導
+- `ecmwf`／`gfs` 失敗、沿用舊資料的那一報不寫新樣本（那個模式寫 `[]`），G 照 30 天窗算；AIFS／AIGFS 沿用
+  舊數字時，用抄來的 `windKt` × **這一報**的 G 重算估算陣風（側風照新舊 G 的比例換算），不沿用舊 G
+- **IFS 與 GFS 定義不同**：`10fg` 是時段內最大陣風（0–90 小時是前 1 小時、之後前 3／6 小時），`GUST` 是
+  時間點的陣風。先合在一起取中位數，但樣本檔與報表**分開記、分開印**，30 天後用
+  `tools/gust_factor_report.py`（下面「怎麼跑」）看兩者差多少、對 METAR 準不準，再決定要不要只用其中一個；
+  AI 模式仍系統性偏低再加第二層修正
 
 ### 新天氣種類（第五階段，HD8）
 
@@ -174,8 +198,8 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
   `1600`、`0800`、`1500`、`8000` 換得回原值）
 
 - 陣風（模式與 TAF 同一套）：≥ 48 節高、≥ 37 節中；TAF 平均風 ≥ 35 節高
-- **估算陣風係數 1.4**（HD14）：AIFS、AIGFS 沒有陣風，用 10 米平均風 × 1.4（`config.GUST_FACTOR`）；
-  **累積一個月紀錄後檢討**
+- **估算陣風係數**（HD14 固定 1.4，HD18 起每個機場 30 天的 IFS＋GFS 陣風÷平均風中位數，夾 1.2–2.0）：
+  `10fg` 與 `GUST` 定義不同先合併，**30 天後用 `tools/gust_factor_report.py` 檢討**
 - **模式層投票 ≥ 一半就成立**（HD14）：2 票 1 票、3 票 2 票、4 票 2 票、5 票 3 票；系集只投高（判中時不算
   分母），所以系集單獨撐不起高（HD14 以前 `p49Kt` ≥ 30% 就是高）；霧的分母永遠是 1（只有 GFS）
 - 系集：陣風 ≥ 25 m/s（≈ 48.6 節，`p49Kt`）機率 ≥ 30% 投高；中級不用系集（沒有 37 節的機率）
@@ -198,6 +222,19 @@ pip install ".[dev]"
 python -m hongthai.build            # 產生 public/latest.json 與 data/（歷史紀錄）
 pytest -q && ruff check . && ruff format --check .
 ```
+
+估算陣風係數的驗證報表（HD18，30 天後用；純標準輸出、不改檔案）：
+
+```sh
+git worktree add ../hongthai-data data          # data 分支的 checkout
+python tools/gust_factor_report.py ../hongthai-data            # 最近 30 天
+python tools/gust_factor_report.py ../hongthai-data --days 7
+```
+
+印兩段：(1) 每份 `history/<時間>.json` 第一格（`generatedAt` 所在的格）IFS、GFS、AIFS、AIGFS 的 `gustKt`
+對同一份 METAR（有陣風用陣風、沒有用平均風；只算觀測 3 小時內、METAR 平均風 ≥ 10 節的），每個模式的樣本數、
+偏差中位數（模式 − METAR，節）、平均比值；(2) `history/gustfactor/` 每個機場 IFS、GFS 各自的中位數、合併
+中位數與樣本數，最後一行全部機場合併。
 
 中央氣象署的資料需要授權碼，從環境變數 `CWA_API_KEY` 讀；沒設定時氣象署標
 `sources.cwa.ok=false, error="no_api_key"`，其他照出。**不要把授權碼寫進程式或 repo。**
@@ -279,7 +316,8 @@ H10（2026-10-18）之後：
   `runs.ecmwf`／`runs.gfs`／`runs.aifs`／`runs.aigfs` 離現在 24 小時內的；archive 裡找不到才退回上一份 `latest.json`（先找
   `--archive`，沒有就從 Pages 抓）。`sources.<名稱>.ok` 仍是 `false`，另加 `reusedFrom`（那一份的
   `generatedAt`），`runs` 是那一份的（舊預報的真實時次）。模式時次離現在超過 24 小時就不沿用
-  （系集與 HRES 各自算），照缺資料處理。TAF、METAR、警報不沿用
+  （系集與 HRES 各自算），照缺資料處理。TAF、METAR、警報不沿用。HD18：`models[]` 的 `windKt` 一起抄，
+  AIFS／AIGFS 的估算陣風用抄來的 `windKt` × 這一報的係數重算
 
 ### 檔案
 
@@ -312,6 +350,8 @@ H10（2026-10-18）之後：
   `[{"airport": "VHHH", "from": "2026-10-20T00:00:00Z", "to": "2026-10-20T12:00:00Z", "note": {"zh-TW": "機管局公告…", "en": "…"}}]`
 - `src/hongthai/sources/`：各資料來源（每個 `fetch()` 回 dataclass，失敗丟自己的例外）
 - `src/hongthai/assess.py`：判讀（純函式）
+- `src/hongthai/gustfactor.py`：估算陣風的係數（HD18，上面「估算陣風的係數」）；30 天後的驗證報表
+  `tools/gust_factor_report.py`
 - `src/hongthai/build.py`：組 JSON、寫檔、失敗處理
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
   重做腳本 `tools/make_font_subset.py`
@@ -334,7 +374,28 @@ H10（2026-10-18）之後：
   每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`，以及 AI 對決的戰績
   `history/ai/<YYYY-MM-DD>.json` 與每日呼叫次數 `history/ai/calls-<YYYY-MM-DD>.json`（HD5；每日上限開發期間不限，
   次數照常記，之後評估看實際用量；下面
-  「AI 對決」）。這些都不進 GitHub Pages、不進 `latest.json`
+  「AI 對決」），估算陣風係數的樣本 `history/gustfactor/<YYYY-MM>.jsonl` 與這一報的係數
+  `history/gustfactor/latest.json`（HD18，格式在下面）。這些都不進 GitHub Pages、不進 `latest.json`
+
+`history/gustfactor/<YYYY-MM>.jsonl`（HD18）：一行一報一機場，IFS、GFS 分開記，只存合格（平均風 ≥ 10 節）
+的比例、兩位小數、照格的順序，沒有的寫 `[]`（模式失敗、沿用舊資料的那一報也是 `[]`）；月份是 `run`
+（＝那次的 `generatedAt`）的 UTC 月份：
+
+```json
+{"run": "2026-10-20T08:25:00Z", "icao": "RCTP", "ifs": [1.45, 1.52], "gfs": [1.31]}
+```
+
+`history/gustfactor/latest.json`：這一報算出的係數。`all` 是 30 天窗全部機場合併、`run` 是只算這一報
+（`g` 是夾過的中位數，沒樣本時 `null`）；`airports.<icao>.n` 是那個機場 30 天的樣本數、`g`／`basis` 是實際
+用的係數與依據：
+
+```json
+{"generatedAt": "2026-10-20T08:25:00Z",
+ "window": {"from": "2026-09-20T08:25:00Z", "to": "2026-10-20T08:25:00Z"},
+ "all": {"g": 1.47, "n": 1234, "nIfs": 640, "nGfs": 594},
+ "run": {"g": 1.45, "n": 412, "nIfs": 210, "nGfs": 202},
+ "airports": {"RCTP": {"g": 1.52, "n": 88, "nIfs": 44, "nGfs": 44, "basis": "airport30d"}}}
+```
 
 `history/timing/<YYYY-MM>.jsonl`：一行一筆 JSON，每個來源一跑完就 append（不等全部結束），所以
 「產生 latest.json」被 Actions 砍掉時已經寫的行也會推上去。`run` 和那次的 `generatedAt` 相同：
@@ -549,7 +610,8 @@ HD14（2026-10-20，多模式投票；欄位定案，Shawn 轉給 Duado；`schem
   "rain6hMm": 3.1, "ptype": "rain", "visibilityM": null, "levels": {"wind": "low", "rain": "low", "snow": "low",
   "fog": null}, "level": "low"}`
   - `run`：那個模式的時次（ISO 或 `null`；`ifs` 同 `runs.ecmwf`、`ifs-ens` 同 `runs.ecmwfEns`）
-  - `gustKt`：陣風（節，一位小數）；`gustEstimated`：`true`＝用 10 米平均風 × 1.4 估算（AIFS、AIGFS），
+  - `gustKt`：陣風（節，一位小數）；`gustEstimated`：`true`＝用 10 米平均風 × 係數估算（AIFS、AIGFS；
+    HD18 起係數是每個機場自己的，見下面 HD18），
     `false`＝模式自己的陣風（IFS、GFS），`gustKt` 是 `null` 時也是 `null`。網頁要寫「估算陣風」
   - `crosswindKt`（節，含陣風或估算陣風）、`rain6hMm`（mm）、`ptype`（值域同 `model.ec.ptype`；AIGFS 永遠
     `null`）、`visibilityM`（只有 GFS）
@@ -566,6 +628,19 @@ HD14（2026-10-20，多模式投票；欄位定案，Shawn 轉給 Duado；`schem
 - 大小：用 `data` 分支 `history/20261019T2349Z.json` 加 2026-10-20 01:1xZ 抓的 AIFS（18Z）、AIGFS（12Z）重算，
   `latest.json` 從 1,091 KB 變 **3,276 KB**（多約 2.2 MB，`indent=1` 每個鍵一行、每格 5 筆 × 約 17 行）；
   gzip 後 68 KB → 154 KB（Pages 回應是壓縮過的）。提示詞估的是多 400–500 KB，實際多很多
+
+HD18（2026-10-20，估算陣風的係數改成每個機場自己算；`schema` 維持 `1`，**既有欄位不改名、不改型別**）——
+`slots[].model.models[]` 每筆多三個鍵：
+
+- `windKt`：10 米平均風（節，一位小數；沒資料 `null`）。`ifs`＝格結束步長的 `10u`／`10v`（和風向同一個
+  時間點）、`gfs`＝格內陣風最大那一點的、`aifs`／`aigfs`＝估算陣風用的那個（格頭尾兩點大的）、`ifs-ens` 永遠
+  `null`
+- `gustFactor`：估算陣風用的係數（兩位小數，1.2–2.0；保底 1.4）；`gustFactorBasis`：`"airport30d"`（這個機場
+  30 天）、`"all30d"`（全部機場 30 天）、`"run"`（這一報全體）、`"default"`（固定 1.4）。只有估算陣風、而且
+  `gustKt` 有值的那幾筆（`aifs`、`aigfs`）有，其他是 `null`。`gustKt`＝`windKt` × `gustFactor`（一位小數）
+- 大小：2026-10-20 雲端開發機實際跑一報（模式全是 18Z，51 個機場）：`latest.json`（不縮排）2,148 KB，拿掉這
+  三個鍵是 1,868 KB，**多約 280 KB**（gzip 後 104 → 118 KB）。提示詞估 100–150 KB；每格 5 筆 × 三個鍵約
+  55 bytes × 20 格 × 51 個機場就是 280 KB
 
 規格以外加的欄位與值（網頁可以忽略）：
 

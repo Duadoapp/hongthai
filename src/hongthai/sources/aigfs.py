@@ -20,7 +20,7 @@
 - NOMADS 備援：`https://nomads.ncep.noaa.gov/pub/data/nccf/com/aigfs/prod/` 有同樣的目錄與檔名，
   但**沒有 `filter_aigfs` 這種裁區 CGI**（`/cgi-bin/filter_aigfs.pl`、`filter_aigfs_0p25.pl` 都
   404），所以不做備援：AWS 失敗就整個失敗、交給沿用（`build.REUSE_FIELDS`）
-- 陣風不在這裡估：`AigfsStep.wind_kt` 是平均風，`assess` 乘 `config.GUST_FACTOR`
+- 陣風不在這裡估：`AigfsStep.wind_kt` 是平均風，`assess` 乘每個機場的係數（HD18，`gustfactor.py`）
 """
 
 from __future__ import annotations
