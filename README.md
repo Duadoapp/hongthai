@@ -352,11 +352,14 @@ H10（2026-10-18）之後：
     ≥ 25 m/s 的機率）。HD2 以前的 m/s 鍵（`modelHighGustMs` 等）不再接受，讀到會報錯
 - `confirmed.json`：人工填的已確認停飛時段，例如
   `[{"airport": "VHHH", "from": "2026-10-20T00:00:00Z", "to": "2026-10-20T12:00:00Z", "note": {"zh-TW": "機管局公告…", "en": "…"}}]`
+- `events.json`：要完整保存、之後驗證的天氣事件（HD20，下面「事件保存」）
 - `src/hongthai/sources/`：各資料來源（每個 `fetch()` 回 dataclass，失敗丟自己的例外）
 - `src/hongthai/assess.py`：判讀（純函式）
 - `src/hongthai/gustfactor.py`：估算陣風的係數（HD18，上面「估算陣風的係數」）；30 天後的驗證報表
   `tools/gust_factor_report.py`
 - `src/hongthai/build.py`：組 JSON、寫檔、失敗處理
+- `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR 與颱風現報
+  （`.github/workflows/events.yml`）；推 `data` 分支用 `tools/push_data.sh`（`build.yml` 也用）
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
   重做腳本 `tools/make_font_subset.py`
 - `src/hongthai/ai/`：AI 對決（HD5，下面「AI 對決」）；模型字串、免責四語、上限都在 `ai/config.py`
@@ -379,7 +382,8 @@ H10（2026-10-18）之後：
   `history/ai/<YYYY-MM-DD>.json` 與每日呼叫次數 `history/ai/calls-<YYYY-MM-DD>.json`（HD5；每日上限開發期間不限，
   次數照常記，之後評估看實際用量；下面
   「AI 對決」），估算陣風係數的樣本 `history/gustfactor/<YYYY-MM>.jsonl` 與這一報的係數
-  `history/gustfactor/latest.json`（HD18，格式在下面）。這些都不進 GitHub Pages、不進 `latest.json`
+  `history/gustfactor/latest.json`（HD18，格式在下面），事件保存 `history/events/<id>/`（HD20，每報快照、
+  每小時 METAR、颱風現報；下面「事件保存」）。這些都不進 GitHub Pages、不進 `latest.json`
 
 `history/gustfactor/<YYYY-MM>.jsonl`（HD18）：一行一報一機場，IFS、GFS 分開記，只存合格（平均風 ≥ 10 節）
 的比例、兩位小數、照格的順序，沒有的寫 `[]`（模式失敗、沿用舊資料的那一報也是 `[]`）；月份是 `run`
@@ -673,6 +677,61 @@ HD18（2026-10-20，估算陣風的係數改成每個機場自己算；`schema` 
 - 官方與模式都沒資料的格：`level: "unknown"`、`basis: "none"`、`model.level: null`；
   `agreement` 在少一個模式時是 `null`
 - TAF 沒涵蓋、也沒有警報的 0–30 小時格：`official: null`、`basis: "model"`
+
+## 事件保存（HD20）
+
+颱風 29W（CHAMPI，薔琵）的 AI 模式與物理模式路線分歧很大，Shawn 2026-10-20 定案拿這顆完整驗證：期間內
+每一報、每小時的機場觀測與颱風位置都永久存在 `data` 分支的 `history/events/<id>/`，颱風過後用報告工具
+（HD22）算誤差。驗證報告出來前規則凍結（`docs/ORCHESTRATOR.md`「29W 驗證期凍結」）。
+
+- **`events.json`**（repo 根目錄）：一個事件一筆；`from`／`to` 是**台灣日期**（含兩端）。之後其他颱風
+  加一筆就好：
+
+  ```json
+  {"events": [{"id": "29W", "name": "CHAMPI（薔琵）", "from": "2026-10-19", "to": "2026-10-28",
+    "airports": ["RCTP", "…25 個"], "jma": {"tcId": "TC2636"}, "jtwc": {"id": "wp2926"}}]}
+  ```
+
+  `jma.tcId` 是 JMA bosai 的颱風代號（29W 是 `TC2636`，號數是 2630；`targetTc.json` 查得到），
+  `jtwc.id` 是 JTWC 警報的檔名（`wp2926`）。29W 的 25 個機場：台灣全部 10 個、那霸、宮古、石垣、鹿兒島、
+  福岡、福州、廈門、浦東、虹橋、香港、關西、中部、羽田、成田、仙台
+- **每報快照**：`build.py` 寫完 `history/<時間>.json` 後，`generatedAt` 在期間內就原樣再存一份
+  `history/events/<id>/<YYYYMMDDTHHMM>Z.json`（同一份內容，git 裡是同一個 blob、不多佔空間）。
+  期間開始時已經過去的報，在 Actions 手動跑 `events` workflow、勾 `backfill` 搬一次（已存在的跳過；
+  本機是 `python -m hongthai.events backfill --archive data`）
+- **每小時**（`.github/workflows/events.yml`，每小時 07 分；期間外 `python -m hongthai.events hourly`
+  印一行就結束）：三件事分開 try，失敗只記 log
+  1. 機場觀測 `metar/<YYYY-MM-DD>.jsonl`（觀測時間的 UTC 日期）：AviationWeather 一次請求全部站、
+     `hours=3`（半小時一報的機場兩筆都拿到、排程晚了也補得回來）；金門、馬祖用氣象署 `O-A0003-001`
+     （HD13，`CWA_API_KEY`）。一站一筆觀測一行，同一站同一 `observedAt` 已經有就不寫：
+
+     ```json
+     {"t": "2026-10-20T06:07:00Z", "icao": "RJFF", "observedAt": "2026-10-20T05:00:00Z",
+      "windDirDeg": 210, "windKt": 12, "gustKt": 22, "visibilityM": 9999, "wx": [],
+      "raw": "METAR RJFF 200500Z 21012G22KT …", "source": "aviationweather", "type": "METAR"}
+     ```
+
+     `t` 是抓的時間；`source` 是 `aviationweather` 或 `cwa`；`type` 是 `METAR`／`SPECI`（氣象署的是 `null`）
+  2. JMA 現報 `position/jma-<YYYY-MM-DD>.jsonl`：`https://www.jma.go.jp/bosai/typhoon/data/targetTc.json`
+     確認颱風還在，再讀 `…/data/<tcId>/specifications.json`（實況＋各預報點；非正式介面）
+  3. JTWC 現報 `position/jtwc-<YYYY-MM-DD>.jsonl`：`https://www.metoc.navy.mil/jtwc/products/<id>.tcw`
+     （文字警報，`T000 159N 1356E 130` 這種行＋本文的陣風與中心氣壓）；原文另存
+     `position/raw/jtwc-<YYYYMMDDTHHMM>Z.txt`（有新的一報或解析不出來時才存）
+
+  颱風位置一行一點（日期是**發布時間**的 UTC 日期；同一來源同一 `issuedAt`＋`validAt` 已經有就不寫）：
+
+  ```json
+  {"t": "2026-10-20T06:07:00Z", "issuedAt": "2026-10-20T03:45:00Z", "kind": "analysis",
+   "leadHours": 0, "validAt": "2026-10-20T03:00:00Z", "lat": 16.2, "lon": 134.9,
+   "pressureHpa": 945, "windKt": 100, "gustKt": 140, "source": "jma", "raw": {…}}
+  ```
+
+  `kind` 是 `analysis`（現報）或 `forecast`；`windKt` 是最大平均風——**JMA 是 10 分鐘平均、JTWC 是
+  1 分鐘平均**，不能直接比；JTWC 只有現報有 `pressureHpa`，另有 `warning`（警報編號）；`raw` 是 JMA 的
+  原始那筆、JTWC 的 `T` 行原文。正式最佳路徑之後在 HD22 換
+- **推 `data` 分支**：每小時和每天四次的主 build 可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
+  `git pull --rebase origin data` 再推，失敗重試 3 次（間隔 20 秒）。兩邊寫的檔不重疊，不會衝突
+- 實際停飛照舊用 `history/cancellations/`（不用另外存）
 
 ## AI 對決
 

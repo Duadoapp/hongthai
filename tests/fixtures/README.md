@@ -64,3 +64,12 @@ HD13（金門、馬祖的霧）：
 - `cwa_o-a0003-001_obs.json`：**照平台 API 文件與資料標準說明文件 V1.05 組的格式，不是真實回應**（沒有授權碼
   抓不到）——金門 467110「陰有霧」能見度 `0.3`、風 090° 1.5 m/s、陣風 3.2 m/s（20 分鐘前）；馬祖 467990
   能見度 `-99`、風向 990、風速 `X`、陣風 12.0 m/s（13 小時前，不算）；臺北 466920（沒要的站，會被濾掉）
+
+事件保存（HD20，2026-10-20 06Z 前後抓的真實回應，去掉沒用的欄位）：
+- `events_metar_hours2.json`：AviationWeather `metar?…&hours=2` 25 站裡挑 RCTP、ROMY、VHHH、RJFF、ZSPD 的
+  10 筆（半小時一報的站有兩三筆；RJFF 05:00Z 有陣風）
+- `jma_targettc.json`、`jma_tc2636_specifications.json`：JMA bosai 的 `targetTc.json` 與 29W（`TC2636`）
+  的 `specifications.json`（留 title、實況與前兩個預報點；拿掉 `galeWarning`、`stormWarning`、
+  `probabilityCircleRadius`、`position.dm`）
+- `jtwc_wp2926.tcw`：JTWC 29W 第 23 報（`WTPN52 PGTW 200300`，CRLF；拿掉風半徑的 `QUADRANT` 行，
+  結尾的歷史路徑只留最後 3 行）

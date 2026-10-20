@@ -548,18 +548,29 @@ def fetch(api_key: str | None, now: datetime, stations: tuple[str, ...] = ()) ->
     if not stations:
         return out
     try:  # 局屬站觀測（HD13）也分開：失敗只記代碼
-        r = http_get(
-            OBS_URL,
-            session=session,
-            params={"StationId": ",".join(stations)},
-            headers={"Authorization": api_key},
-            error=CwaError,
-        )
-        ob = r.json()
-        if str(ob.get("success")).lower() != "true":
-            raise CwaError("氣象署觀測回傳 success 不是 true", "api_error")
-        out.obs_raw = ob
-        out.obs = parse_obs(ob, stations)
+        out.obs_raw = fetch_obs(api_key, stations, session)
+        out.obs = parse_obs(out.obs_raw, stations)
     except (CwaError, ValueError, AttributeError) as e:
         out.obs_error = getattr(e, "code", None) if isinstance(e, CwaError) else "bad_json"
     return out
+
+
+def fetch_obs(
+    api_key: str, stations: tuple[str, ...], session: requests.Session | None = None
+) -> dict:
+    """局屬站觀測 `O-A0003-001` 的原始回應（解析用 `parse_obs`）。`fetch` 與每小時的事件保存
+    （HD20，`events.py`）共用；失敗丟 `CwaError`（不是 JSON 時是 `ValueError`）。"""
+    if session is None:
+        session = requests.Session()
+        session.mount("https://opendata.cwa.gov.tw/", NonStrictTLSAdapter())
+    r = http_get(
+        OBS_URL,
+        session=session,
+        params={"StationId": ",".join(stations)},
+        headers={"Authorization": api_key},
+        error=CwaError,
+    )
+    ob = r.json()
+    if str(ob.get("success")).lower() != "true":
+        raise CwaError("氣象署觀測回傳 success 不是 true", "api_error")
+    return ob

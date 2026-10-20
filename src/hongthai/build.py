@@ -16,6 +16,9 @@
     今天呼叫了幾次；HD5，見 `ai/run.py`）
   - `history/gustfactor/<YYYY-MM>.jsonl`（每報每機場 IFS、GFS 的「陣風÷平均風」樣本）與
     `history/gustfactor/latest.json`（這一報算出的每機場估算陣風係數；HD18，見 `gustfactor.py`）
+  - `history/events/<id>/<YYYYMMDDTHHMM>Z.json`：`generatedAt` 落在 `events.json` 某個事件
+    期間內的報，`history/<時間>.json` 原樣再存一份（HD20，`events.snapshot`；每小時的 METAR
+    與颱風現報也在 `history/events/<id>/` 底下，由 `python -m hongthai.events hourly` 寫）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
   `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
   以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）
@@ -64,7 +67,7 @@ from pathlib import Path
 
 import requests
 
-from . import assess, budget, cancellations, gustfactor, og
+from . import assess, budget, cancellations, events, gustfactor, og
 from .ai import run as ai
 from .config import (
     MODELS,
@@ -74,6 +77,7 @@ from .config import (
     Thresholds,
     load_airports,
     load_confirmed,
+    load_events,
     load_regions,
 )
 from .sources import aifs, aigfs, cwa, ecmwf, flights, gfs, hko, nws, smg, taf
@@ -722,6 +726,7 @@ def run(
     workdir: Path,
     pages_url: str = PAGES_URL,
     timing: Timing | None = None,
+    events_path: Path | None = None,
 ) -> dict:
     regions = load_regions(airports_path)
     airports = load_airports(airports_path)
@@ -819,7 +824,18 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-nws.json", nw.raw)
     _dump(history / f"{stamp}.json", latest, compact=True)
     _dump(archive / "latest.json", latest, compact=True)
+    if events_path is not None:
+        event_snapshots(events_path, history, now, history / f"{stamp}.json")
     return latest
+
+
+def event_snapshots(events_path: Path, history: Path, now: datetime, src: Path) -> None:
+    """事件期間內的報多存一份到 `history/events/<id>/`（HD20）；失敗只 log，不讓 build 失敗。"""
+    try:
+        for p in events.snapshot(history, load_events(events_path), now, src):
+            log.info("事件快照 → %s", p)
+    except Exception:  # 保險：事件保存不能讓 build 失敗
+        log.exception("事件快照失敗")
 
 
 def gust_factors(
@@ -921,6 +937,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--archive", type=Path, default=Path("data"))
     ap.add_argument("--airports", type=Path, default=Path("airports.json"))
     ap.add_argument("--confirmed", type=Path, default=Path("confirmed.json"))
+    ap.add_argument("--events", type=Path, default=Path("events.json"))
     ap.add_argument("--pages-url", default=PAGES_URL)
     args = ap.parse_args(argv)
 
@@ -948,6 +965,7 @@ def main(argv: list[str] | None = None) -> int:
                 workdir=Path(tmp),
                 pages_url=args.pages_url,
                 timing=timing,
+                events_path=args.events,
             )
         produced = True
         publish(args.out, args.archive, latest, now)
