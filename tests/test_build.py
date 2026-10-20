@@ -7,6 +7,7 @@ import re
 import threading
 import time
 from datetime import timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -761,6 +762,100 @@ def test_budget_timeout_recorded_and_next_sources_run(workspace, monkeypatch, ai
     assert out["sources"]["cwa"]["error"] == "no_api_key"
     assert out["sources"]["flights"]["ok"] is True
     assert out["runs"]["gfs"] == "2026-10-18T00:00:00Z"
+
+
+# ---- 颱風路徑（HD21）----
+
+
+def _events_json(workspace, start="2026-10-18", end="2026-10-20"):
+    (workspace / "events.json").write_text(
+        json.dumps({"events": [{"id": "29W", "name": "CHAMPI", "from": start, "to": end}]}),
+        encoding="utf-8",
+    )
+
+
+def test_tracks_only_during_event(workspace, monkeypatch, airports):
+    """事件期間外：不多抓海平面氣壓、不跑 `tracks`、`sources` 沒有 `tracks`。"""
+    _, gf, *_ = sample_inputs(airports)
+    asked = []
+    _fail_all_but(monkeypatch, gfs=lambda *a, **k: asked.append(k) or gf)
+    monkeypatch.setattr(build.tracks, "build_tracks", _boom)
+    _events_json(workspace, "2026-10-19", "2026-10-28")  # NOW 是台灣 10/18
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert "tracks" not in out["sources"]
+    assert asked == [{"mslp": False}]
+    assert "tracks" not in {line["source"] for line in _timing_lines(workspace)}
+
+
+def test_tracks_source_in_event(workspace, monkeypatch, airports):
+    ec, gf, *_ = sample_inputs(airports)
+    af, ag = sample_ai_models(airports)
+    asked = {}
+
+    def fetch(name, data):
+        def f(*a, **k):
+            asked[name] = k.get("mslp")
+            return data
+
+        return f
+
+    # AIGFS 失敗（`_fail_all_but` 的預設）→ 不在 mslp 裡
+    _fail_all_but(
+        monkeypatch, ecmwf=lambda *a, **k: ec, gfs=fetch("gfs", gf), aifs=fetch("aifs", af)
+    )
+    gf.mslp_files = [workspace / "g.grib2"]
+    got = {}
+
+    def fake_build_tracks(history, evs, ifs_run, mslp, workdir):
+        got.update(history=history, ids=[e.id for e in evs], ifs_run=ifs_run, mslp=mslp)
+        return build.tracks.TracksResult(bytes=1_300_000)
+
+    monkeypatch.setattr(build.tracks, "build_tracks", fake_build_tracks)
+    _events_json(workspace)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    src = out["sources"]["tracks"]
+    assert isinstance(src.pop("seconds"), float)
+    assert src == {"ok": True, "bytes": 1_300_000}
+    assert asked == {"gfs": True, "aifs": True}
+    assert got["history"] == Path("data") / "history"  # 相對於工作目錄
+    assert got["ids"] == ["29W"] and got["ifs_run"] == ec.run
+    assert got["mslp"] == {"gfs": (gf.run, [workspace / "g.grib2"]), "aifs": (af.run, [])}
+    line = next(x for x in _timing_lines(workspace) if x["source"] == "tracks")
+    assert (line["ok"], line["bytes"]) == (True, 1_300_000)
+
+
+def test_tracks_partial_or_timeout_not_fatal(workspace, monkeypatch, airports):
+    _, gf, *_ = sample_inputs(airports)
+    _fail_all_but(monkeypatch, gfs=lambda *a, **k: gf)
+    _events_json(workspace)
+    monkeypatch.setattr(
+        build.tracks,
+        "build_tracks",
+        lambda *a: build.tracks.TracksResult(failed=["ifs-ens@2026-10-18T00:00:00Z"]),
+    )
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["sources"]["tracks"]["ok"] is False
+    assert out["sources"]["tracks"]["error"] == "partial"
+
+    def slow(*a):
+        time.sleep(2)
+
+    monkeypatch.setattr(build.tracks, "build_tracks", slow)
+    monkeypatch.setitem(build.BUDGET_S, "tracks", 0.2)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["sources"]["tracks"] == {"ok": False, "error": "timeout", "seconds": 0.2}
+    assert out["sources"]["gfs"]["ok"] is True
+
+
+def test_track_events_bad_events_json(tmp_path, caplog):
+    (tmp_path / "events.json").write_text("{壞掉", encoding="utf-8")
+    assert build.track_events(tmp_path / "events.json", NOW) == []
+    assert build.track_events(None, NOW) == []
+    assert "events.json 讀不了" in caplog.text
 
 
 def test_abandoned_thread_stops_before_parsing():

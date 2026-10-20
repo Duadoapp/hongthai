@@ -38,6 +38,9 @@ NOMADS（備援，H10 以前唯一的來源）：
 - GRIB 的陣風是 m/s，解析完就換算成節（`GustPoint.gust_kt`，HD2）
 - HD18：同一時間點的 10 米平均風速（√(u²+v²)，節）也留下來（`GustPoint.wind_kt`），算估算陣風的
   係數用；不多抓參數
+- HD21：事件期間（`fetch(mslp=True)`）多抓海平面氣壓 `PRMSL:mean sea level`（`.idx` 的第一筆，和其他
+  幾筆不相鄰，每個步長多一個 `Range` 請求、約 1 MB），給 `tracks.py` 找颱風中心；只從 AWS 抓（NOMADS
+  的檔裁到機場的框，不夠找中心），抓到的檔記在 `GfsData.mslp_files`（中途改 NOMADS 時是空的）
 
 降水與能見度（HD8，2026-10-19 00Z 的 `.idx` 實測，全球 0.25° 每筆大小）：
 - `APCP:surface`：6 小時整的檔裡有**兩筆**，`6-12 hour acc fcst`（前 6 小時那桶）與
@@ -62,7 +65,7 @@ import logging
 import tempfile
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -98,6 +101,8 @@ IDX_OPTIONAL: tuple[tuple[str, ...], ...] = (
     ("CSNOW", "surface", "inst"),
     ("VIS", "surface", "inst"),
 )
+# HD21：颱風路徑（`tracks.py`）的海平面氣壓，事件期間才抓
+MSLP_FIELD: tuple[str, ...] = ("PRMSL", "mean sea level")
 # 類別降水 → 降水型態，前面的優先（凍雨最嚴重）
 PTYPE_CATEGORIES = (
     ("cfrzr", "freezing_rain"),
@@ -131,6 +136,8 @@ class GfsData:
     points: dict[str, list[GustPoint]]
     bytes_downloaded: int = 0
     mirror: str | None = None  # 最後從哪裡下載：aws／nomads
+    # HD21：有海平面氣壓的檔（`fetch(mslp=True)` 從 AWS 抓的步長），`tracks.py` 讀
+    mslp_files: list[Path] = field(default_factory=list)
 
 
 def subregion(airports: list[Airport]) -> dict[str, str]:
@@ -290,14 +297,20 @@ def find_latest_run(now: datetime, slot0: datetime, tries: int = 4) -> tuple[dat
     raise last
 
 
+def aws_path(tmp: Path, fh: int) -> Path:
+    return tmp / f"gfs-aws-f{fh:03d}.grib2"
+
+
 def _fetch_aws(
-    run: datetime, fh: int, airports: list[Airport], tmp: Path
+    run: datetime, fh: int, airports: list[Airport], tmp: Path, mslp: bool = False
 ) -> tuple[dict[str, list[GustPoint]], int]:
-    """AWS：`.idx` → 要的幾筆的 byte 範圍 → 一段一個 `Range` 請求，接成一個 GRIB 檔再解析。"""
+    """AWS：`.idx` → 要的幾筆的 byte 範圍 → 一段一個 `Range` 請求，接成一個 GRIB 檔再解析。
+    `mslp` 時多抓 `MSLP_FIELD`（可少，HD21）。"""
     url = f"{S3_URL}{run_dir(run)}/{file_name(run, fh)}"
     idx = http_get(f"{url}.idx", error=GfsError).text
-    ranges = byte_ranges(idx, IDX_FIELDS, fh, fields_for(fh))
-    path = tmp / f"gfs-aws-f{fh:03d}.grib2"
+    optional = fields_for(fh) + ((MSLP_FIELD,) if mslp else ())
+    ranges = byte_ranges(idx, IDX_FIELDS, fh, optional)
+    path = aws_path(tmp, fh)
     size = download_ranges(url, ranges, path, GfsError)
     return parse_file(path, airports), size
 
@@ -315,8 +328,13 @@ def _fetch_nomads(
 
 
 def fetch(
-    airports: list[Airport], now: datetime, slot0: datetime, workdir: str | Path | None = None
+    airports: list[Airport],
+    now: datetime,
+    slot0: datetime,
+    workdir: str | Path | None = None,
+    mslp: bool = False,
 ) -> GfsData:
+    """`mslp`：事件期間多抓海平面氣壓（HD21，只從 AWS）。"""
     t0 = time.monotonic()
     run, mirror = find_latest_run(now, slot0)
     rel0 = int(hours_between(run, slot0))
@@ -325,12 +343,15 @@ def fetch(
     points: dict[str, list[GustPoint]] = {a.icao: [] for a in airports}
     total = 0
     used: list[str] = []
+    mslp_files: list[Path] = []
     for fh in range(rel0, rel0 + SPAN_H + 1, STEP_H):
         got = None
         if mirror == "aws":
             note(mirror="aws")
             try:
-                got = _fetch_aws(run, fh, airports, tmp)
+                got = _fetch_aws(run, fh, airports, tmp, mslp)
+                if mslp:
+                    mslp_files.append(aws_path(tmp, fh))
             except GfsError as e:
                 log.warning("GFS f%03d 從 AWS 抓失敗，之後改用 NOMADS：%s", fh, e)
                 mirror = "nomads"
@@ -350,4 +371,6 @@ def fetch(
         total,
         time.monotonic() - t0,
     )
-    return GfsData(run, points, total, mirror)
+    if mirror != "aws":  # 中途改 NOMADS：後面的步長沒有氣壓場，整報不給（路徑之後補報再抽）
+        mslp_files = []
+    return GfsData(run, points, total, mirror, mslp_files)

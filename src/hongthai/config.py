@@ -165,11 +165,21 @@ class ConfirmedPeriod:
 
 
 @dataclass(frozen=True)
+class EventSeed:
+    """找颱風中心的備用起點（HD21，`events.json` 的 `seed`）：`at`（UTC）時的位置。"""
+
+    lat: float
+    lon: float
+    at: datetime
+
+
+@dataclass(frozen=True)
 class Event:
     """要完整保存、之後拿來驗證的天氣事件（HD20，`events.json`，第一筆是颱風 29W）。
 
     `start`／`end` 是**台灣日期**（含兩端）；`jma_tc_id` 是 JMA bosai 的颱風代號（`TC2636` 這種，
-    不是颱風號數）、`jtwc_id` 是 JTWC 的檔名代號（`wp2926`）；沒有就不抓那個來源。"""
+    不是颱風號數）、`jtwc_id` 是 JTWC 的檔名代號（`wp2926`）；沒有就不抓那個來源。`seed` 是路徑
+    抽取找中心的備用起點（HD21，`tracks.find_seed`），沒有現報時才用。"""
 
     id: str
     name: str
@@ -178,6 +188,7 @@ class Event:
     airports: tuple[str, ...]
     jma_tc_id: str | None = None
     jtwc_id: str | None = None
+    seed: EventSeed | None = None
 
 
 _EVENT_ID = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -309,11 +320,24 @@ def load_confirmed(path: str | Path) -> list[ConfirmedPeriod]:
     return out
 
 
+def _event_seed(raw: object) -> EventSeed | None:
+    """`seed`（可以沒有）：`{"lat", "lon", "at"}`，`at` 是 ISO 時間。格式不對丟 `ValueError`。"""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError(f"events.json 的 seed 要是物件：{raw!r}")
+    at = parse_time(str(raw["at"]))
+    if at is None:
+        raise ValueError(f"events.json 的 seed 沒有 at：{raw!r}")
+    return EventSeed(float(raw["lat"]), float(raw["lon"]), at)
+
+
 def load_events(path: str | Path) -> list[Event]:
     """`events.json`（HD20）；檔案不存在回空的。格式：
 
     {"events": [{"id": "29W", "name": "…", "from": "2026-10-19", "to": "2026-10-28",
-      "airports": ["RCTP", …], "jma": {"tcId": "TC2636"}, "jtwc": {"id": "wp2926"}}]}
+      "airports": ["RCTP", …], "jma": {"tcId": "TC2636"}, "jtwc": {"id": "wp2926"},
+      "seed": {"lat": 16.0, "lon": 135.6, "at": "2026-10-20T00:00Z"}}]}
 
     `id` 會當目錄名（`history/events/<id>/`），只能有英數、`-`、`_`；`id` 不能重複、`from` ≤ `to`、
     機場是四個大寫字母。不對就丟 `ValueError`。"""
@@ -332,6 +356,7 @@ def load_events(path: str | Path) -> list[Event]:
             airports=tuple(e.get("airports", [])),
             jma_tc_id=(e.get("jma") or {}).get("tcId") or None,
             jtwc_id=(e.get("jtwc") or {}).get("id") or None,
+            seed=_event_seed(e.get("seed")),
         )
         if not _EVENT_ID.match(ev.id):
             raise ValueError(f"events.json 的 id {ev.id!r} 只能有英數、-、_")

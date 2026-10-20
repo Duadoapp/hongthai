@@ -301,13 +301,15 @@ H10（2026-10-18）之後：
 | flights（抓＋統計＋寫檔） | 120 | 約 20 |
 | ai（AI 對決，HD5；兩個模型平行，每報最多 20 個機場） | 240（HD12；原 180） | 約 111–117，HD11 後第一報 178（單次請求逾時 60 秒） |
 | og（分享預覽圖 51 張，HD1；`publish()` 之後） | 60 | 約 3–6 |
+| tracks（颱風路徑，HD21；只在事件期間、四個模式抓完之後） | 150 | 約 5–10（ECMWF 路徑產品約 1.3 MB＋解析三個模式的氣壓場；2026-10-20 雲端開發機） |
 
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和 1380 秒（23 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
-  aifs 180＋aigfs 120 秒），Actions「產生 latest.json」那一步上限 25 分鐘、整個 job 35 分鐘（HD14 前是 20／30、
-  HD12 前 18／28、HD5 前 15／25）
+- 總和 1530 秒（25.5 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
+  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒），Actions「產生 latest.json」那一步上限 28 分鐘、整個 job
+  38 分鐘（HD21 前 25／35、HD14 前是 20／30、HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
+  多抓的海平面氣壓（每個步長約 1.0／1.0／0.5 MB，三個共約 52 MB）算在它們自己的預算裡
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
   重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
   下載先試 AWS 鏡像，那一報還沒同步到或失敗再回 ECMWF 入口，再失敗試 Google；實際從哪裡下載記在
@@ -360,6 +362,8 @@ H10（2026-10-18）之後：
 - `src/hongthai/build.py`：組 JSON、寫檔、失敗處理
 - `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR 與颱風現報
   （`.github/workflows/events.yml`）；推 `data` 分支用 `tools/push_data.sh`（`build.yml` 也用）
+- `src/hongthai/tracks.py`：颱風路徑抽取（HD21）：ECMWF 路徑產品（BUFR）與從海平面氣壓找中心
+  （下面「事件保存」）
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
   重做腳本 `tools/make_font_subset.py`
 - `src/hongthai/ai/`：AI 對決（HD5，下面「AI 對決」）；模型字串、免責四語、上限都在 `ai/config.py`
@@ -383,7 +387,7 @@ H10（2026-10-18）之後：
   次數照常記，之後評估看實際用量；下面
   「AI 對決」），估算陣風係數的樣本 `history/gustfactor/<YYYY-MM>.jsonl` 與這一報的係數
   `history/gustfactor/latest.json`（HD18，格式在下面），事件保存 `history/events/<id>/`（HD20，每報快照、
-  每小時 METAR、颱風現報；下面「事件保存」）。這些都不進 GitHub Pages、不進 `latest.json`
+  每小時 METAR、颱風現報；HD21 起多各模式每一報的颱風路徑 `history/events/<id>/tracks/`；下面「事件保存」）。這些都不進 GitHub Pages、不進 `latest.json`
 
 `history/gustfactor/<YYYY-MM>.jsonl`（HD18）：一行一報一機場，IFS、GFS 分開記，只存合格（平均風 ≥ 10 節）
 的比例、兩位小數、照格的順序，沒有的寫 `[]`（模式失敗、沿用舊資料的那一報也是 `[]`）；月份是 `run`
@@ -668,6 +672,9 @@ HD18（2026-10-20，估算陣風的係數改成每個機場自己算；`schema` 
 - `sources.gfs.mirror`（H10）：GFS 最後從哪裡下載，`"aws"`（AWS 開放資料鏡像）／`"nomads"`
 - `sources.ecmwf.reusedFrom`、`sources.gfs.reusedFrom`：這次失敗、模式資料沿用之前的結果時，抄的
   那一份的 `generatedAt`（`ok` 仍是 `false`，網頁照樣顯示「這次沒讀到」）
+- `sources.tracks`（HD21）：颱風路徑抽取，**只在 `events.json` 有事件在期間內時才有**：
+  `{"ok", "seconds", "bytes"}`；有模式抽不出來時 `ok: false`、`error: "partial"`（其他模式照寫），超時
+  `error: "timeout"`。路徑本身不進 `latest.json`（在 `data` 分支，下面「事件保存」）
 - `sources.flights.statsError`：航班取消／延誤統計算不出來或寫檔失敗時才有，`"<機場>:<訊息>"`
   （多個用 `; ` 接）；不影響 `latest.json` 其他內容
 - `warnings[].code`（天文台／SMG 信號代碼，例如 `TC8NE`、`TC3`）、`warnings[].detail`（氣象署警戒區原文、
@@ -729,6 +736,55 @@ HD18（2026-10-20，估算陣風的係數改成每個機場自己算；`schema` 
   `kind` 是 `analysis`（現報）或 `forecast`；`windKt` 是最大平均風——**JMA 是 10 分鐘平均、JTWC 是
   1 分鐘平均**，不能直接比；JTWC 只有現報有 `pressureHpa`，另有 `warning`（警報編號）；`raw` 是 JMA 的
   原始那筆、JTWC 的 `T` 行原文。正式最佳路徑之後在 HD22 換
+- **颱風路徑**（HD21，`src/hongthai/tracks.py`）`tracks/<起報 YYYYMMDDTHHMM>Z-<模式>.json`：每個模式
+  每一報抽一次（已經有的跳過），颱風過後對最佳路徑算每個提前時間的距離誤差（HD22）。主 build 裡是來源
+  `tracks`（模式都抓完後跑、預算 150 秒；`latest.json` 只多 `sources.tracks`，期間外不跑），兩種做法：
+  - **IFS（`ifs`）、IFS 系集（`ifs-ens`）**：ECMWF 開放資料自帶的颱風路徑產品，不自己找中心。請求是
+    `stream="oper"`／`"enfo"`、`type="tf"`、`step=360`（00／12Z）或 `144`（06／18Z），BUFR，用 `eccodes`
+    解析；00Z 那報 oper 42,726 bytes、enfo 1,252,262 bytes。用這一報 HRES 的時次（系集的路徑產品四個時次
+    都有）。只留事件那顆：`stormIdentifier` 等於 JTWC 編號（`wp2926` → `29W`）或名稱等於事件名稱的英文
+    （`CHAMPI`）——**ECMWF 把 29W 叫 `36W`**，實際靠名稱比到；都比不到就取離 JMA／JTWC 現報 300 公里內最近的。
+
+    ```json
+    {"model": "ifs-ens", "run": "2026-10-20T00:00:00Z",
+     "storm": {"id": "36W", "name": "CHAMPI", "matchedBy": "name", "observed": {"lat": 16.0, "lon": 135.6}},
+     "members": [{"member": 1, "points": [{"validAt": "2026-10-20T00:00:00Z", "lat": 16.1, "lon": 135.1,
+                                           "pressureHpa": 953.0, "windKt": 119.0}, …]}, …],
+     "mean": [{"validAt": "2026-10-20T00:00:00Z", "lat": 16.0, "lon": 135.5, "n": 51}, …]}
+    ```
+
+    `members` 的 HRES 只有一個（`member: 0`）；系集 51 個（1–50、51 是控制報）。起報那一刻的點是 ECMWF 的
+    分析位置，`observed` 是發布中心的觀測位置；`pressureHpa` 是中心氣壓、`windKt` 是 10 米最大風（節）。
+    `mean` 是系集每個時間點有點的成員的**中位數位置**（經緯各取中位數），成員少於 10 個的時間點不寫；
+    HRES 的 `mean` 是空的。產品裡沒有這顆時 `storm: null`、`members: []`（照寫，表示那報找過了）。系集一報
+    約 110–140 KB
+  - **GFS、AIGFS、AIFS**：事件期間三個來源多抓海平面氣壓（GFS、AIGFS 的 `PRMSL:mean sea level`、AIFS 的
+    `msl`；步長和原本一樣，起報後第一個 6 小時格起 120 小時、每 6 小時），從氣壓場找中心：
+    1. 起點：起報時間前後 3 小時內 JTWC、再 JMA 的現報（`position/` 的 `analysis`，離起報時間最近的）；
+       都沒有就用 `events.json` 可以加的 `"seed": {"lat", "lon", "at"}`（`at` 也要在 3 小時內）；再沒有就用
+       同一報 ECMWF 路徑產品裡那顆的觀測位置（`ecmwf-tf`；HD20 上線前的報沒有現報，補過去的報靠這個）；
+       都沒有就跳過這報、記 log
+    2. 第一個步長在起點 ±4° 的方框找海平面氣壓最小值；之後每步在上一步中心 ±3° 的方框找（6 小時移動上限
+       約 330 公里）；格點 0.25°、不內插
+    3. 停止（這步起不再追）：最小值 > 1005 hPa（`weak`）、方框裡最小點在邊界上（`edge`）、中心跨出北緯
+       0–40°／東經 100–180°（`domain`）、步長不連續（`gap`）；追到最後一個步長是 `end`
+
+    ```json
+    {"model": "gfs", "run": "2026-10-20T00:00:00Z",
+     "seed": {"lat": 16.0, "lon": 135.6, "at": "2026-10-20T00:00:00Z", "source": "ecmwf-tf"},
+     "points": [{"validAt": "2026-10-20T00:00:00Z", "lat": 16.25, "lon": 135.75, "mslpHpa": 924.0},
+                {"validAt": "2026-10-20T06:00:00Z", "lat": 16.75, "lon": 134.25, "mslpHpa": 921.8}, …],
+     "stop": "weak"}
+    ```
+
+    `seed.source` 是 `jtwc`／`jma`／`events.json`／`ecmwf-tf`。一報約 1.7 KB
+  - **補過去的報**：Actions 手動跑 `events` workflow、勾 `backfill-tracks`（本機
+    `python -m hongthai.events backfill-tracks --archive data --from 2026-10-19T00:00Z`）：讀 `--from` 以後
+    每份快照 `history/events/<id>/<時間>.json` 的 `runs`，每個模式每個時次只抽一次（已經有的跳過；IFS／系集
+    用 `runs.ecmwf` 與 `runs.ecmwfEns`），步長照那一報 build 時的（最早引用它的那份快照的 6 小時格起 120
+    小時）。GFS、AIGFS 從 AWS 重抓海平面氣壓（留 30 天）、IFS、AIFS 從 ECMWF 開放資料抓（約 4 天，拿不到
+    記 log）。2026-10-20 08:30Z 在雲端開發機對 `data` 分支實跑：21 份快照 → 22 份路徑（10-18 12Z 到 10-20
+    00Z，IFS／系集各 6、GFS 6、AIGFS 2、AIFS 2），下載 190,933,455 bytes、175 秒
 - **推 `data` 分支**：每小時和每天四次的主 build 可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
   `git pull --rebase origin data` 再推，失敗重試 3 次（間隔 20 秒）。兩邊寫的檔不重疊，不會衝突
 - 實際停飛照舊用 `history/cancellations/`（不用另外存）

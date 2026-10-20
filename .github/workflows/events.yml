@@ -2,7 +2,10 @@ name: events
 
 # 事件保存（HD20，颱風 29W 驗證）：每小時存機場 METAR、JMA／JTWC 颱風現報到 data 分支的
 # history/events/<id>/。期間（events.json 的 from～to，台灣日期）外 `hourly` 印一行就結束、不推。
-# 手動跑時勾 backfill：把 history/ 裡期間內已經過去的報搬進 history/events/<id>/（已存在的跳過）。
+# 手動跑時勾 backfill：把 history/ 裡期間內已經過去的報搬進 history/events/<id>/（已存在的跳過）；
+# 勾 backfill-tracks（HD21）：從 2026-10-19T00:00Z 起的快照補抽各模式的颱風路徑到
+# history/events/<id>/tracks/（已存在的跳過；GFS、AIGFS 從 AWS 重抓海平面氣壓、IFS／AIFS 從 ECMWF
+# 開放資料抓，拿不到的記 log）。
 on:
   schedule:
     - cron: "7 * * * *"
@@ -10,6 +13,10 @@ on:
     inputs:
       backfill:
         description: "把期間內已經過去的報搬進 history/events/<id>/"
+        type: boolean
+        default: false
+      backfill-tracks:
+        description: "補抽 2026-10-19T00:00Z 以後各報的颱風路徑（history/events/<id>/tracks/）"
         type: boolean
         default: false
 
@@ -23,7 +30,7 @@ concurrency:
 jobs:
   events:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30 # 每小時的只要 1 分鐘；手動 backfill-tracks 每報約 1 分鐘下載＋解析（HD20 是 10）
     steps:
       - uses: actions/checkout@v6
 
@@ -31,9 +38,17 @@ jobs:
         with:
           python-version: "3.12"
 
-      # hongthai.events 不用 eccodes（不 import 模式來源），只裝 requests 省時間
+      # hongthai.events 的每小時不用 eccodes（不 import 模式來源），只裝 requests 省時間；
+      # backfill-tracks 要解析 GRIB／BUFR，裝 eccodes 與整個套件（同 build.yml）
       - name: 裝套件
+        if: "!(github.event_name == 'workflow_dispatch' && inputs.backfill-tracks)"
         run: pip install requests
+
+      - name: 裝套件（backfill-tracks）
+        if: github.event_name == 'workflow_dispatch' && inputs.backfill-tracks
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libeccodes-dev
+          pip install .
 
       - name: 取出 data 分支
         run: |
@@ -45,6 +60,12 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m hongthai.events backfill --archive data
+
+      - name: 補颱風路徑（手動、backfill-tracks）
+        if: github.event_name == 'workflow_dispatch' && inputs.backfill-tracks
+        env:
+          PYTHONPATH: src
+        run: python -m hongthai.events backfill-tracks --archive data --from 2026-10-19T00:00Z
 
       - name: 每小時 METAR 與颱風現報
         env:

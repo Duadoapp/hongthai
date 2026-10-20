@@ -17,6 +17,8 @@
   開發機，不是 Actions）。AWS 那時回 `503 Slow Down`（連 `.index` 都是），所以多半會落到 `ecmwf`
 - 6 小時雨量（降雪）＝`tp(t) − tp(t−6)`（`sf` 同），所以和 HRES 一樣多抓第一格的開始步長
   （`steps`，開始步長是 0 時 `tp(0)` 當 0）
+- HD21：事件期間（`fetch(mslp=True)`）同一個請求多抓海平面氣壓 `msl`（Pa，每個步長約 0.49 MB，
+  2026-10-20 查 00Z 的 `.index`），給 `tracks.py` 找颱風中心；`AifsData.mslp_files` 是那個檔
 - 陣風不在這裡估：`AifsStep.wind_kt` 是平均風，`assess` 乘每個機場的係數（HD18，`gustfactor.py`）
 - 降水型態（`AifsStep.ptype`）：6 小時降雪 ≥ 6 小時總降水的一半 → `snow`，否則 `rain`；6 小時總降水
   < `NO_PRECIP_MM`（0.1 mm，GRIB 打包的雜訊約 0.01 mm）→ `none`。不用 2 米溫度猜型態
@@ -28,7 +30,7 @@ import functools
 import logging
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from math import hypot
 from pathlib import Path
@@ -43,6 +45,7 @@ log = logging.getLogger("hongthai")
 
 MODEL = "aifs-single"
 PARAMS = ("10u", "10v", "tp", "sf", "2t")
+MSLP_PARAM = "msl"  # HD21，事件期間才抓
 STEP_H = 6
 SPAN_H = 120
 NO_PRECIP_MM = 0.1
@@ -79,6 +82,7 @@ class AifsData:
     points: dict[str, list[AifsStep]]
     bytes_downloaded: int = 0
     mirror: str | None = None
+    mslp_files: list[Path] = field(default_factory=list)  # HD21：有海平面氣壓的檔
 
 
 def steps(rel0: float) -> list[int]:
@@ -128,8 +132,13 @@ def parse(path: str | Path, airports: list[Airport]) -> tuple[datetime, dict[str
     return run, out
 
 
-def fetch(airports: list[Airport], slot0: datetime, workdir: str | Path | None = None) -> AifsData:
-    """抓最新一報 AIFS Single，涵蓋 slot0 起 120 小時。"""
+def fetch(
+    airports: list[Airport],
+    slot0: datetime,
+    workdir: str | Path | None = None,
+    mslp: bool = False,
+) -> AifsData:
+    """抓最新一報 AIFS Single，涵蓋 slot0 起 120 小時。`mslp`：多抓海平面氣壓（HD21）。"""
     t0 = time.monotonic()
     clients = functools.cache(functools.partial(ecmwf._client, model=MODEL))
     tmp = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="hongthai-aifs-"))
@@ -143,9 +152,15 @@ def fetch(airports: list[Airport], slot0: datetime, workdir: str | Path | None =
         time=run.hour,
         stream="oper",
         type="fc",
-        param=list(PARAMS),
+        param=[*PARAMS, *((MSLP_PARAM,) if mslp else ())],
         step=steps(hours_between(run, slot0)),
     )
     run, points = parse(tmp / "aifs.grib2", airports)
     log.info("AIFS %s：%d bytes（%s），%.1f 秒", run, size, mirror, time.monotonic() - t0)
-    return AifsData(run, {a.icao: points.get(a.icao, []) for a in airports}, size, mirror)
+    return AifsData(
+        run,
+        {a.icao: points.get(a.icao, []) for a in airports},
+        size,
+        mirror,
+        [tmp / "aifs.grib2"] if mslp else [],
+    )

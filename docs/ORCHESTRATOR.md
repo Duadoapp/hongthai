@@ -284,6 +284,15 @@
 - 不改等級規則、投票方式、門檻；只修 bug。估算陣風係數兩天後自動切 `airport30d` 是既定行為，照常，切換時間記日誌
 - 保存（HD20）：`events.json` 的 29W（台灣日期 10-19～10-28、25 個機場）期間每報快照、每小時 METAR 與
   JMA／JTWC 現報都在 `data` 分支 `history/events/29W/`（README「事件保存」）；之後的颱風在 `events.json` 加一筆
+- 路徑抽取（**HD21 已實作**，定案第 6 點）：`history/events/29W/tracks/<起報>-<模式>.json`，IFS／系集用 ECMWF
+  `type: tf`（BUFR、`eccodes` 解析，不加 `pdbufr`），GFS／AIGFS／AIFS 從海平面氣壓找中心；build 的來源 `tracks`
+  （預算 150 秒，總和 1530 秒，`build.yml` 那步 28、job 38 分鐘），`latest.json` 只多 `sources.tracks`；過去的報
+  用 `events` workflow 的 `backfill-tracks` 補（合併後 Shawn 手動跑一次）。和提示詞不一樣的地方：
+  (a) ECMWF 把 29W 編成 `36W`，比對實際靠名稱 `CHAMPI`；(b) 起點多一個備案——同一報 ECMWF 路徑產品裡那顆的
+  觀測位置（`seed.source: "ecmwf-tf"`），排在 `events.json` 的 `seed` 之後；HD20 上線（10-20 06Z）前的報
+  沒有 JMA／JTWC 現報，不靠這個就補不到；`events.json` 的 `seed` 也要在起報前後 3 小時內才用；
+  (c) 起點的現報取離起報時間**最近**的（不是窗內最新的）；(d) 找中心的檔多 `stop`（停止原因）；
+  (e) 有模式抽不出來時 `sources.tracks` 是 `ok: false`、`error: "partial"`（其他照寫）
 
 ## 和 Duado 的分工
 
@@ -427,8 +436,8 @@ NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權�
 
 - 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 300（H10 起，原 240）、gfs 180、aifs 180、aigfs 120
   （HD14）、taf 45、hko 30、smg 30、cwa 45、nws 30（HD3）、flights 120、ai 240（HD12 起，原 180，HD5）、
-  og 60（HD1）秒，總和 23 分鐘），超過記 `error: "timeout"` 繼續跑下一個；Actions 那一步 25 分鐘、job 35 分鐘
-  （HD14 前 20／30、HD12 前 18／28、HD5 前 15／25）
+  og 60（HD1）、tracks 150（HD21，只在事件期間）秒，總和 25.5 分鐘），超過記 `error: "timeout"` 繼續跑下一個；
+  Actions 那一步 28 分鐘、job 38 分鐘（HD21 前 25／35、HD14 前 20／30、HD12 前 18／28、HD5 前 15／25）
 - ECMWF 重試最多 3 次、間隔 10 秒、不照 Retry-After；找最新一報先問入口、下載先試 AWS 鏡像
   （→ 入口 → Google；AWS 下載不重試，S3 的 503 Slow Down 一來就換），`sources.ecmwf.mirror` 記實際來源。`ecmwf-opendata` 最低 0.3.34（有重試參數）
 - GFS（H10）：先 AWS 開放資料鏡像（`.idx`＋HTTP `Range` 只抓三筆），失敗才 NOMADS（2026-10-18 12:42Z 起

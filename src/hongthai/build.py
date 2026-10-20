@@ -19,6 +19,8 @@
   - `history/events/<id>/<YYYYMMDDTHHMM>Z.json`：`generatedAt` 落在 `events.json` 某個事件
     期間內的報，`history/<時間>.json` 原樣再存一份（HD20，`events.snapshot`；每小時的 METAR
     與颱風現報也在 `history/events/<id>/` 底下，由 `python -m hongthai.events hourly` 寫）
+  - `history/events/<id>/tracks/<起報時間>-<模式>.json`：事件期間每個模式每一報的颱風路徑（HD21，
+    `tracks.py`；來源 `tracks`，見下面）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
   `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
   以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）
@@ -46,6 +48,12 @@ AI 失敗不影響 `latest.json` 其他內容：頂層 `ai`、每個機場的 `a
 `reusedFrom`（那一份的 `generatedAt`）；`runs` 用那一份的（舊預報的真實時次）。模式時次超過 24 小時
 就不沿用（系集與 HRES 各自判斷），所以連續失敗時 24 小時後自然停掉。TAF、METAR、警報不沿用。
 
+颱風路徑（HD21，`tracks.py`）：有事件在期間內時，GFS、AIGFS、AIFS 多抓海平面氣壓（`mslp=True`），
+四個模式抓完後跑來源 `tracks`（`BUDGET_S["tracks"]`）：IFS／系集抓 ECMWF 路徑產品、另外三個從氣壓場
+找中心，寫 `history/events/<id>/tracks/`。`latest.json` 只多 `sources.tracks`（`ok`、`seconds`、
+`bytes`；有模式抽不出來時 `ok: false`、`error: "partial"`，其他照寫）；期間外不跑、沒有
+`sources.tracks`。
+
 估算陣風的係數（HD18）：模式都抓完、組 `latest.json` 之前，用這一報的 IFS、GFS 算樣本、寫進
 `history/gustfactor/`、讀 30 天窗算每個機場的 G（`gust_factors`），交給 `assess`。沿用 AIFS／AIGFS
 舊數字時，`_rescore` 用抄來的 `windKt` × 這一報的 G 重算估算陣風（`assess.refactor_estimated`）。
@@ -67,12 +75,13 @@ from pathlib import Path
 
 import requests
 
-from . import assess, budget, cancellations, events, gustfactor, og
+from . import assess, budget, cancellations, events, gustfactor, og, tracks
 from .ai import run as ai
 from .config import (
     MODELS,
     Airport,
     ConfirmedPeriod,
+    Event,
     Region,
     Thresholds,
     load_airports,
@@ -92,13 +101,16 @@ SOURCE_NAMES = ("ecmwf", "gfs", "aifs", "aigfs", "taf", "hko", "cwa", "smg", "nw
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
 # 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。HD14 的 aifs
 # 約 66 MB、55 秒，aigfs 約 51 MB、38 秒（2026-10-20 雲端開發機實測）。
-# 總和 1380 秒（23 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、
-# HD14 加 aifs 180＋aigfs 120 秒），`build.yml` 那一步的上限是 25 分鐘（HD14 前 20、HD12 前 18）。
+# 總和 1530 秒（25.5 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、
+# HD14 加 aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒），`build.yml` 那一步的上限是 28 分鐘
+# （HD21 前 25、HD14 前 20、HD12 前 18）。HD21 的海平面氣壓算在 gfs／aifs／aigfs 自己的預算裡
+# （每個步長約 1.0／0.5／1.0 MB，21 個步長共約 52 MB；2026-10-20 雲端開發機實測）。
 BUDGET_S: dict[str, float] = {
     "ecmwf": 300,  # HRES＋系集，含鏡像切換
     "gfs": 180,
     "aifs": 180,  # HD14：ECMWF AIFS Single，鏡像切換同 ecmwf
     "aigfs": 120,  # HD14：NOAA AIGFS，只有 AWS
+    "tracks": 150,  # HD21：颱風路徑，只在事件期間；ECMWF 路徑產品約 1.3 MB＋解析三個模式的氣壓場
     "taf": 45,  # TAF 與 METAR 同一個來源，各一個請求
     "hko": 30,
     "smg": 30,
@@ -734,6 +746,8 @@ def run(
     slot0 = floor_6h(now)
     status: dict[str, dict] = {}
     history = archive / "history"
+    tracked = track_events(events_path, now)
+    mslp = bool(tracked)  # HD21：事件期間多抓海平面氣壓
 
     ec = _call(
         "ecmwf",
@@ -744,25 +758,33 @@ def run(
     )
     gf = _call(
         "gfs",
-        lambda: gfs.fetch(airports, now, slot0, workdir / "gfs"),
+        lambda: gfs.fetch(airports, now, slot0, workdir / "gfs", mslp=mslp),
         status,
         timing,
         _download_extra,
     )
     af = _call(
         "aifs",
-        lambda: aifs.fetch(airports, slot0, workdir / "aifs"),
+        lambda: aifs.fetch(airports, slot0, workdir / "aifs", mslp=mslp),
         status,
         timing,
         _download_extra,
     )
     ag = _call(
         "aigfs",
-        lambda: aigfs.fetch(airports, now, slot0, workdir / "aigfs"),
+        lambda: aigfs.fetch(airports, now, slot0, workdir / "aigfs", mslp=mslp),
         status,
         timing,
         _download_extra,
     )
+    if tracked:
+        _call(
+            "tracks",
+            lambda: run_tracks(history, tracked, ec, gf, af, ag, workdir / "tracks"),
+            status,
+            timing,
+            lambda n: {"bytes": n},
+        )
     tf = _call("taf", lambda: taf.fetch(airports), status, timing)
     hk = _call("hko", hko.fetch, status, timing)
     stations = tuple(a.cwa_station for a in airports if a.cwa_station)
@@ -827,6 +849,45 @@ def run(
     if events_path is not None:
         event_snapshots(events_path, history, now, history / f"{stamp}.json")
     return latest
+
+
+def track_events(events_path: Path | None, now: datetime) -> list[Event]:
+    """`now` 在期間內、要抽颱風路徑的事件（HD21）；`events.json` 讀不了只 log、當作沒有。"""
+    if events_path is None:
+        return []
+    try:
+        return events.active(load_events(events_path), now)
+    except Exception:  # 保險：事件設定壞了不能讓 build 失敗
+        log.exception("events.json 讀不了，不抽颱風路徑")
+        return []
+
+
+def run_tracks(
+    history: Path,
+    evs: list[Event],
+    ec: ecmwf.EcmwfData | None,
+    gf: gfs.GfsData | None,
+    af: aifs.AifsData | None,
+    ag: aigfs.AigfsData | None,
+    workdir: Path,
+) -> int:
+    """來源 `tracks`（HD21）：回傳下載量；有模式抽不出來時寫完其他的再丟 `partial`。"""
+    mslp = {
+        name: (d.run, d.mslp_files)
+        for name, d in (("gfs", gf), ("aigfs", ag), ("aifs", af))
+        if d is not None
+    }
+    res = tracks.build_tracks(history, evs, ec.run if ec else None, mslp, workdir)
+    log.info(
+        "颱風路徑：寫了 %d 份、已經有 %d、沒有起點 %d、失敗 %s",
+        len(res.written),
+        res.skipped,
+        res.no_seed,
+        res.failed or "無",
+    )
+    if res.failed:
+        raise tracks.TracksError(f"颱風路徑抽不出來：{', '.join(res.failed)}", "partial")
+    return res.bytes
 
 
 def event_snapshots(events_path: Path, history: Path, now: datetime, src: Path) -> None:

@@ -9,7 +9,7 @@ import pytest
 from conftest import FIXTURES, ROOT, load_json, utc
 
 from hongthai import build, events
-from hongthai.config import Event, load_events
+from hongthai.config import Event, EventSeed, load_events
 from hongthai.sources import SourceError, cwa
 
 FETCHED = utc(2026, 10, 20, 6, 7)
@@ -62,6 +62,8 @@ def test_active_taiwan_dates(t, on):
         ({"id": "../x"}, "只能有英數"),
         ({"to": "2026-10-18"}, "早於"),
         ({"airports": ["rctp"]}, "不是 ICAO"),
+        ({"seed": [16, 135]}, "seed 要是物件"),
+        ({"seed": {"lat": 16, "lon": 135, "at": ""}}, "seed 沒有 at"),
     ],
 )
 def test_events_json_rejected(tmp_path, change, message):
@@ -70,6 +72,17 @@ def test_events_json_rejected(tmp_path, change, message):
     p.write_text(json.dumps({"events": [e]}), "utf-8")
     with pytest.raises(ValueError, match=message):
         load_events(p)
+
+
+def test_events_json_seed(tmp_path):
+    """HD21：找颱風中心的備用起點（可以沒有）。"""
+    e = {"id": "29W", "from": "2026-10-19", "to": "2026-10-28"}
+    seed = {"lat": 16.0, "lon": 135.6, "at": "2026-10-20T00:00Z"}
+    p = tmp_path / "events.json"
+    p.write_text(json.dumps({"events": [{**e, "seed": seed}]}), "utf-8")
+    (ev,) = load_events(p)
+    assert ev.seed == EventSeed(16.0, 135.6, utc(2026, 10, 20))
+    assert load_events(ROOT / "events.json")[0].seed is None
 
 
 def test_events_json_missing_or_duplicate(tmp_path):

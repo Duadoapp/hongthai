@@ -627,6 +627,41 @@ def test_gfs_fetch_from_aws(monkeypatch, airports, tmp_path):
     assert pts[0].wdir == pytest.approx(355.5, abs=0.1)
 
 
+def test_gfs_fetch_mslp_from_aws(monkeypatch, airports, tmp_path):
+    """HD21：事件期間多抓 PRMSL，檔記在 `mslp_files`，`tracks.read_mslp` 讀得到。"""
+    from conftest import mslp_grib
+
+    from hongthai import tracks
+
+    fake = _fake_noaa(monkeypatch)
+    prmsl = mslp_grib("prmsl", (6,), 0.0, {6: (16, 135, 40)})
+    fake.full = prmsl + fake.full[100:]
+    shift = len(prmsl) - 100  # 換掉原本 100 bytes 的假 PRMSL，後面的起點都往後移
+    fake.idx = "".join(
+        f"{n}:{int(start) + (shift if n != '1' else 0)}:{rest}\n"
+        for n, start, rest in (line.split(":", 2) for line in fake.idx.splitlines())
+    )
+    data = gfs.fetch(airports, utc(2026, 10, 18, 8, 10), utc(2026, 10, 18, 6), tmp_path, mslp=True)
+    assert data.mirror == "aws"
+    # 假檔裡 PRMSL 緊接著 GUST → 併成同一段；下載量多了每個步長一個 PRMSL
+    assert fake.calls.count("aws:range") == 2 * 21
+    gust, u, v = _grib_messages(FIXTURES / "gfs_tw_f006.grb2")
+    assert data.bytes_downloaded == 21 * (len(prmsl) + len(gust) + len(u) + len(v))
+    assert data.mslp_files == [tmp_path / f"gfs-aws-f{fh:03d}.grib2" for fh in range(0, 121, 6)]
+    assert len(tracks.read_mslp(data.mslp_files[:2])) == 1  # 每個檔都是同一個 f006
+    assert data.points["RCTP"][0].gust_kt == pytest.approx(2.8 * KT_PER_MS, abs=0.02)
+    # 中途改 NOMADS → 不給（後面的步長沒有氣壓場）
+    _fake_noaa(monkeypatch, aws_ok_steps={0, 6})
+    data = gfs.fetch(airports, utc(2026, 10, 18, 8, 10), utc(2026, 10, 18, 6), tmp_path, mslp=True)
+    assert (data.mirror, data.mslp_files) == ("nomads", [])
+    # 沒有 mslp：照舊兩段、不記檔
+    _fake_noaa(monkeypatch)
+    assert (
+        gfs.fetch(airports, utc(2026, 10, 18, 8, 10), utc(2026, 10, 18, 6), tmp_path).mslp_files
+        == []
+    )
+
+
 def test_gfs_fetch_aws_failure_falls_back_to_nomads(monkeypatch, airports, tmp_path):
     """AWS 第三個步長回的不是 GRIB → 那個步長起改 NOMADS，之後不回 AWS。"""
     fake = _fake_noaa(monkeypatch, aws_ok_steps={0, 6})
