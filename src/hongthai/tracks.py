@@ -27,18 +27,21 @@
     （經緯各取中位數，`n` 是成員數；少於 `MIN_ENS_MEMBERS` 個的時間點不寫），HRES 的 `mean` 是空的。
     產品裡沒有這顆時 `storm` 是 null、`members` 空的（照寫，表示那報找過了）
 
-- **GFS、AIGFS、AIFS**：從海平面氣壓場找中心。三個來源事件期間多抓海平面氣壓（GFS、AIGFS `PRMSL`、
-  AIFS `msl`，步長和原本一樣：起報後第一個 6 小時格起 120 小時、每 6 小時），`find_track`：
+- **GFS、AIGFS、AIFS、WeatherNext 3（`wn3`，HD15）**：從海平面氣壓場找中心。WN3 用 0.1° 統計
+  Zarr 的平均場（`mean_sea_level_pressure_mean`，`sources/wn3.py` 讀、`grid_field` 換成 `Field`），
+  其他三個是 GRIB（`read_mslp`，也經過 `grid_field`）；`find_track` 不管格距。GRIB 的三個來源
+  事件期間多抓海平面氣壓（GFS、AIGFS `PRMSL`、AIFS `msl`，步長和原本一樣：起報後第一個 6 小時格起
+  120 小時、每 6 小時），`find_track`：
   1. 起點（`find_seed`）：起報時間前後 `SEED_WINDOW`（3 小時）內 JTWC、再 JMA 的 `analysis`
      （`position/*.jsonl`，離起報時間最近的、同樣近取發布較晚的）；都沒有就用 `events.json` 的
      `seed`（`at` 也要在 3 小時內）；再沒有就用同一報 ECMWF `tf` 產品裡那顆的觀測位置（`ecmwf-tf`；
      HD20 上線以前的報沒有現報，補過去的報靠這個）；都沒有就跳過這報、記 log（不寫檔）
   2. 第一個步長在起點 ±`SEED_BOX_DEG`（4°）的方框找最小值；之後每步在上一步中心
-     ±`STEP_BOX_DEG`（3°）的方框找。格點 0.25°、不內插
+     ±`STEP_BOX_DEG`（3°）的方框找。格點 0.25°（WN3 0.1°）、不內插
   3. 停止（這步起不再追，`stop` 記原因）：最小值 > `MAX_CENTER_HPA`（1005 hPa，`weak`）、方框裡
      最小點在邊界上（`edge`）、中心跨出北緯 0–40°／東經 100–180°（`domain`）、步長不連續（`gap`）；
      追到最後一個步長是 `end`
-  - 格式：`{"model": "gfs"|"aigfs"|"aifs", "run", "seed": {"lat", "lon", "at", "source"},
+  - 格式：`{"model": "gfs"|"aigfs"|"aifs"|"wn3", "run", "seed": {"lat", "lon", "at", "source"},
     "points": [{"validAt", "lat", "lon", "mslpHpa"}], "stop"}`
 
 接進 build（`build_tracks`）：模式都抓完之後、只在有事件在期間內時跑（`BUDGET_S["tracks"]`）；
@@ -74,8 +77,10 @@ from .units import ms_to_kt
 
 log = logging.getLogger("hongthai")
 
-TRACK_MODELS = ("ifs", "ifs-ens", "gfs", "aigfs", "aifs")
+TRACK_MODELS = ("ifs", "ifs-ens", "gfs", "aigfs", "aifs", "wn3")
 MSLP_MODELS = ("gfs", "aigfs", "aifs")
+# HD15：來源自己讀好海平面氣壓網格（`grid_field`）的模式，不經過 GRIB 檔
+GRID_MODELS = ("wn3",)
 TF_STREAMS = {"ifs": "oper", "ifs-ens": "enfo"}
 TF_STEP = {0: 360, 6: 144, 12: 360, 18: 144}
 # 每個模式在快照 `runs` 裡的鍵（補過去的報用）；系集的路徑產品四個時次都有，和 HRES 一樣抽
@@ -227,6 +232,16 @@ def read_mslp(paths: Iterable[Path]) -> dict[datetime, Field]:
     return out
 
 
+def grid_field(lats: np.ndarray, lons: np.ndarray, pa: np.ndarray) -> Field:
+    """任何規則經緯網格的海平面氣壓（Pa；`pa[緯, 經]`，經度 0–360 或 −180–180、緯度哪個方向都可以）
+    → 裁到追蹤範圍（含邊）、排好的 `Field`（hPa）。HD15 起 GRIB 的三個模式（`read_mslp`）與
+    WeatherNext 3（0.1° 統計 Zarr）都經過這裡，`find_track` 不管格距。"""
+    lats = np.asarray(lats, dtype=float)
+    li, lj, lons360 = _crop(lats, np.asarray(lons, dtype=float))
+    vals = np.asarray(pa, dtype=float)[np.ix_(li, lj)] / 100
+    return Field(lats[li], lons360[lj], vals)
+
+
 def _read_dataset(ds, out: dict[datetime, Field]) -> None:
     names = [v for v in ds.data_vars if ds[v].attrs.get("GRIB_shortName") in MSLP_SHORT_NAMES]
     if not names:
@@ -234,13 +249,12 @@ def _read_dataset(ds, out: dict[datetime, Field]) -> None:
     run = grib._to_datetime(ds["time"].values)
     steps = np.atleast_1d(ds["step"].values) / np.timedelta64(1, "h")
     lats = np.asarray(ds["latitude"].values, dtype=float)
-    li, lj, lons = _crop(lats, np.asarray(ds["longitude"].values, dtype=float))
+    lons = np.asarray(ds["longitude"].values, dtype=float)
     for var in names:
         da = ds[var]
         for k, step in enumerate(steps):
             one = da.isel(step=k) if "step" in da.dims else da
-            vals = np.asarray(one.values, dtype=float)[np.ix_(li, lj)] / 100
-            out[run + timedelta(hours=float(step))] = Field(lats[li], lons[lj], vals)
+            out[run + timedelta(hours=float(step))] = grid_field(lats, lons, one.values)
 
 
 def box_min(
@@ -645,14 +659,21 @@ def build_tracks(
     ifs_run: datetime | None,
     mslp: dict[str, tuple[datetime, list[Path]]],
     workdir: Path,
+    grids: dict[str, tuple[datetime, dict[datetime, Field]]] | None = None,
 ) -> TracksResult:
     """build 裡用：IFS／系集用 `ifs_run`（這一報 HRES 的時次），`mslp` 是各模式（`MSLP_MODELS`）
-    這一報的時次與有海平面氣壓的檔。沒抓到的模式（來源失敗）不在 `mslp` 裡，只 log。"""
+    這一報的時次與有海平面氣壓的檔；`grids` 是已經讀成 `Field` 的模式（`GRID_MODELS`，HD15 的
+    WeatherNext 3）。沒抓到的模式（來源失敗）不在 `mslp`／`grids` 裡，只 log。"""
     dl = Downloads(workdir)
     res = TracksResult()
     cache: dict[str, dict[datetime, Field]] = {}
+    grids = grids or {}
 
     def fields_of(model: str) -> dict[datetime, Field]:
+        if model in grids:
+            if not grids[model][1]:
+                raise TracksError(f"{model} 這一報沒有讀到海平面氣壓", "no_mslp")
+            return grids[model][1]
         if model not in cache:
             files = mslp[model][1]
             if not files:
@@ -668,6 +689,7 @@ def build_tracks(
             jobs.append((model, mslp[model][0]))
         else:
             log.warning("%s 這一報沒抓到，不抽路徑", model)
+    jobs += [(model, grids[model][0]) for model in GRID_MODELS if model in grids]
     if ifs_run is None:
         log.warning("ECMWF 這一報沒抓到，IFS／系集不抽路徑")
     for e in events:

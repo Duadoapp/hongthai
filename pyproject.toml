@@ -21,6 +21,9 @@ dependencies = [
     "anthropic>=1.15.0",  # AI 對決（HD5）：Claude
     "google-genai>=2.31.0",  # AI 對決（HD5）：Gemini（Vertex AI）
     "google-auth>=2.62.0",  # AI 對決（HD5）：Vertex 的服務帳號
+    "google-cloud-bigquery>=3.46",  # WeatherNext 3（HD15）：BigQuery
+    "gcsfs>=2026.9",  # WeatherNext 3（HD15）：GCS Zarr 備援與海平面氣壓
+    "zarr>=3.1",  # WeatherNext 3 的 Zarr v3
 ]
 
 [project.optional-dependencies]

@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from conftest import FIXTURES, mslp_grib, utc
 
-from hongthai import events, tracks
+from hongthai import events, tracks, wn3report
 from hongthai.config import Event, EventSeed
 from hongthai.sources import ecmwf
 
@@ -616,6 +616,13 @@ def test_events_cli_backfill_tracks(tmp_path, monkeypatch, capsys):
         return {"29W": r}
 
     monkeypatch.setattr(tracks, "backfill_tracks", fake)
+    wn = {}
+
+    def fake_wn3(history, evs, aps, since, now, workdir):  # HD15：接著補 WeatherNext 3
+        wn.update(n_airports=len(aps), since=since)
+        return {"29W": wn3report.Wn3Result(written=[Path("20261020T0000Z.json")], skipped=3)}
+
+    monkeypatch.setattr(wn3report, "backfill", fake_wn3)
     (tmp_path / "events.json").write_text(
         json.dumps(
             {"events": [{"id": "29W", "name": "CHAMPI", "from": "2026-10-19", "to": "2026-10-28"}]}
@@ -631,3 +638,5 @@ def test_events_cli_backfill_tracks(tmp_path, monkeypatch, capsys):
     }
     out = capsys.readouterr().out
     assert "29W：寫了 1 份、已經有 2" in out and "1,234 bytes" in out
+    assert wn == {"n_airports": 51, "since": utc(2026, 10, 19, 6)}
+    assert "29W WeatherNext 3：寫了 1 份、已經有 3" in out

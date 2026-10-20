@@ -134,6 +134,7 @@ MODEL_TEXT = {
     "icon": "德國模式",  # HD16
     "jma": "日本模式",
     "wn2-ens": "Google 的 AI 系集",
+    "wn3": "Google 的新一代 AI 系集",  # HD15，只在 `observe` 模式出現
 }
 LEVEL_WORD = {"high": "高", "medium": "中以上"}
 

@@ -22,6 +22,7 @@
     與颱風現報也在 `history/events/<id>/` 底下，由 `python -m hongthai.events hourly` 寫）
   - `history/events/<id>/tracks/<起報時間>-<模式>.json`：事件期間每個模式每一報的颱風路徑（HD21，
     `tracks.py`；來源 `tracks`，見下面）
+  - `history/events/<id>/wn3/<起報時間>.json`：WeatherNext 3 每格的數字（HD15，`wn3report.py`）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
   `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
   以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）
@@ -58,6 +59,13 @@ Open-Meteo 的三個模式（`openmeteo`，HD16）也**不沿用**：失敗那�
 `bytes`；有模式抽不出來時 `ok: false`、`error: "partial"`，其他照寫）；期間外不跑、沒有
 `sources.tracks`。
 
+WeatherNext 3（HD15，`sources/wn3.py`、`wn3report.py`）：模式由 `config.WN3_MODE`（環境變數
+`WN3_MODE`）決定。`report-only`（預設，條款的結論）：`latest.json` 沒有 WN3（只有 `sources.wn3`），
+只在「5 天前那一報」（`wn3report.report_run`，資料已經是 CC BY 4.0）的起報時間落在事件期間時跑
+來源 `wn3`，寫 `history/events/<id>/wn3/` 與路徑檔；`observe`：每報抓最新一報進 `models[]`
+（`voting` 看 `WN3_VOTING`），事件期間也寫事件檔、路徑由來源 `tracks` 一起抽。不沿用舊資料。
+核准前 `sources.wn3` 是 `ok: false`（`http_403` 之類），是預期的。
+
 估算陣風的係數（HD18）：模式都抓完、組 `latest.json` 之前，用這一報的 IFS、GFS 算樣本、寫進
 `history/gustfactor/`、讀 30 天窗算每個機場的 G（`gust_factors`），交給 `assess`。沿用 AIFS／AIGFS
 舊數字時，`_rescore` 用抄來的 `windKt` × 這一報的 G 重算估算陣風（`assess.refactor_estimated`）。
@@ -79,7 +87,7 @@ from pathlib import Path
 
 import requests
 
-from . import assess, budget, cancellations, events, gustfactor, og, tracks
+from . import assess, budget, cancellations, events, gustfactor, og, tracks, wn3report
 from .ai import run as ai
 from .config import (
     MODELS,
@@ -92,8 +100,23 @@ from .config import (
     load_confirmed,
     load_events,
     load_regions,
+    wn3_mode,
 )
-from .sources import aifs, aigfs, cwa, ecmwf, flights, gfs, hko, jma, nws, openmeteo, smg, taf
+from .sources import (
+    aifs,
+    aigfs,
+    cwa,
+    ecmwf,
+    flights,
+    gfs,
+    hko,
+    jma,
+    nws,
+    openmeteo,
+    smg,
+    taf,
+    wn3,
+)
 from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
 
 log = logging.getLogger("hongthai")
@@ -117,10 +140,11 @@ SOURCE_NAMES = (
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
 # 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。HD14 的 aifs
 # 約 66 MB、55 秒，aigfs 約 51 MB、38 秒（2026-10-20 雲端開發機實測）。
-# 總和 1665 秒（27.75 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加
+# 總和 1785 秒（29.75 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加
 # 60 秒、HD14 加 aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加
-# openmeteo 90 秒），`build.yml` 那一步的上限是 30 分鐘（HD16 前 28、HD21 前 25、HD14 前 20、
-# HD12 前 18）。HD16 的 openmeteo 兩個請求約 1.2 MB、2 秒（2026-10-20 雲端開發機實測）。
+# openmeteo 90 秒、HD15 加 wn3 120 秒），`build.yml` 那一步的上限是 32 分鐘（HD15 前 30、HD16 前
+# 28、HD21 前 25、HD14 前 20、HD12 前 18）。HD16 的 openmeteo 兩個請求約 1.2 MB、2 秒
+# （2026-10-20 雲端開發機實測）。
 # HD21 的海平面氣壓算在 gfs／aifs／aigfs 自己的預算裡（每個步長約 1.0／0.5／1.0 MB，21 個步長
 # 共約 52 MB；2026-10-20 雲端開發機實測）。
 BUDGET_S: dict[str, float] = {
@@ -129,6 +153,9 @@ BUDGET_S: dict[str, float] = {
     "aifs": 180,  # HD14：ECMWF AIFS Single，鏡像切換同 ecmwf
     "aigfs": 120,  # HD14：NOAA AIGFS，只有 AWS
     "openmeteo": 90,  # HD16：ICON、JMA GSM、WeatherNext 2 系集，兩個請求各 60 秒逾時、不重試
+    # HD15：WeatherNext 3，BigQuery 一個查詢（失敗退 GCS Zarr）＋事件期間的海平面氣壓；核准前每報
+    # 幾秒就 `http_403`。`report-only`（預設）只在 5 天前那一報落在事件期間時才跑
+    "wn3": 120,
     "tracks": 150,  # HD21：颱風路徑，只在事件期間；ECMWF 路徑產品約 1.3 MB＋解析三個模式的氣壓場
     "taf": 45,  # TAF 與 METAR 同一個來源，各一個請求
     "hko": 30,
@@ -234,7 +261,9 @@ class Timing:
     已經寫進去的行也會推上去；沒有 `done` 那行就表示那次被砍了。欄位名固定（主對話直接看這個檔）：
     - 開始：`{"run", "source": "start", "ok": true, "seconds": 0, "commit"}`
     - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf、gfs、aifs、aigfs
-      （HD14）多 `mirror`；openmeteo（HD16）多 `calls`（Open-Meteo 的加權呼叫次數，失敗是 null）
+      （HD14）多 `mirror`；openmeteo（HD16）多 `calls`（Open-Meteo 的加權呼叫次數，失敗是 null）；
+      wn3（HD15）多 `mode`、`via`（`bigquery`／`zarr`）、`estimateBytes`（BigQuery dry run）、
+      `bytesBilled`
     - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
     - AI 對決（HD5）：`{"run", "source": "ai", "ok", "error", "seconds", "bytes": 0,
       "calls": {"claude": n, "gemini": n}}`（`calls` 是這一報的呼叫次數）
@@ -269,6 +298,9 @@ class Timing:
             fields["calls"] = st.get("calls")
         if name == "openmeteo":
             fields["calls"] = st.get("calls")
+        if name == "wn3":  # HD15
+            for k in ("mode", "via", "estimateBytes", "bytesBilled"):
+                fields[k] = st.get(k)
         self.write(**fields)
 
 
@@ -278,10 +310,12 @@ def _call(
     status: dict,
     timing: Timing | None = None,
     extra: Callable[[object], dict] | None = None,
+    base: dict | None = None,
 ) -> object | None:
     """在 `BUDGET_S[name]` 秒內跑一個來源；失敗或超時記成 `ok=false`＋原因，回傳 None。
 
-    成功時 `extra(結果)` 回傳的欄位併進 `sources.<名稱>`。跑完立刻寫一行耗時紀錄。
+    成功時 `extra(結果)` 回傳的欄位併進 `sources.<名稱>`；`base` 的欄位成功失敗都併進去（HD15
+    `wn3` 的 `mode`）。跑完立刻寫一行耗時紀錄。
     """
     limit = BUDGET_S[name]
     out = budget.run(name, fn, limit)
@@ -305,6 +339,8 @@ def _call(
         status[name] = {"ok": True, "seconds": round(out.seconds, 1)}
         if extra is not None:
             status[name].update(extra(result))
+    if base:
+        status[name].update(base)
     if timing is not None:
         timing.source(name, status[name], out.context)
     return result
@@ -334,6 +370,24 @@ def _openmeteo_extra(om: openmeteo.OpenMeteoData) -> dict:
     d: dict[str, object] = {"bytes": om.bytes_downloaded, "calls": om.calls}
     if om.meta_errors:
         d["runError"] = ",".join(f"{k}:{v}" for k, v in om.meta_errors.items())
+    return d
+
+
+def _wn3_extra(w: wn3.Wn3Data) -> dict:
+    """`sources.wn3`（HD15）：哪一報、走哪條路、BigQuery 的估計／實際掃描量與計費量、Zarr 讀的量；
+    BigQuery 失敗退到 Zarr 時 `bqError`、海平面氣壓讀不到時 `mslpError`。"""
+    d: dict[str, object] = {
+        "run": iso(w.run),
+        "via": w.via,
+        "bytes": w.bytes_downloaded,
+        "estimateBytes": w.estimate_bytes,
+        "bytesProcessed": w.bytes_processed,
+        "bytesBilled": w.bytes_billed,
+    }
+    if w.bq_error:
+        d["bqError"] = w.bq_error
+    if w.mslp_error:
+        d["mslpError"] = w.mslp_error
     return d
 
 
@@ -659,9 +713,12 @@ def assemble(
     factors: dict[str, assess.GustFactor] | None = None,
     jm: jma.JmaData | None = None,
     om: openmeteo.OpenMeteoData | None = None,
+    wn: wn3.Wn3Data | None = None,
 ) -> dict:
     """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。`factors` 是每個機場估算陣風的
-    係數（HD18；沒有的機場用 1.4、`default`）。`om` 是 Open-Meteo 的三個模式（HD16）。"""
+    係數（HD18；沒有的機場用 1.4、`default`）。`om` 是 Open-Meteo 的三個模式（HD16）。`wn` 是
+    WeatherNext 3（HD15）：只有 `MODELS` 裡有 `wn3`（`observe` 模式）才寫進 `runs` 與
+    `models[]`。"""
     slots = slot_bounds(now)
     window_start, window_end = slots[0][0], slots[-1][1]
     runs = {
@@ -673,6 +730,9 @@ def assemble(
         # HD16：Open-Meteo 的 metadata 給的最近一報（`sources/openmeteo.py`）
         **{mid: iso(om.runs.get(mid)) if om else None for mid in openmeteo.META_URLS},
     }
+    observe_wn3 = any(m.id == assess.WN3_ID for m in MODELS)
+    if observe_wn3:
+        runs[assess.WN3_ID] = iso(wn.run) if wn else None
     by_model = model_runs(runs)
     out_airports = []
     for a in airports:
@@ -698,6 +758,7 @@ def assemble(
             icon=om.hourly["icon"].get(a.icao) if om else None,
             jma=om.hourly["jma"].get(a.icao) if om else None,
             wn2=om.ensemble.get(a.icao) if om else None,
+            wn3=wn.points.get(a.icao) if wn and observe_wn3 else None,
         )
         out_airports.append(
             {
@@ -820,10 +881,35 @@ def run(
         _download_extra,
     )
     om = _call("openmeteo", lambda: openmeteo.fetch(airports), status, timing, _openmeteo_extra)
+    wn_mode = wn3_mode()
+    wn_run, wn_events = wn3_targets(wn_mode, now, events_path, history)
+    wn: wn3.Wn3Data | None = None
+    if wn_run is not None:
+        observe = wn_mode == "observe"
+        if observe:
+            wn_start, wn_end = slot0, slot0 + timedelta(hours=wn3.SPAN_H)
+        else:
+            wn_start, wn_end = wn3report.report_window(wn_run)
+        wn = _call(
+            "wn3",
+            lambda: wn3.fetch(
+                airports,
+                wn_run,
+                wn_start,
+                wn_end,
+                mslp=bool(wn_events),
+                retry_previous=observe,
+            ),
+            status,
+            timing,
+            _wn3_extra,
+            {"mode": wn_mode},
+        )
     if tracked:
+        wn_grid = wn if wn_mode == "observe" else None
         _call(
             "tracks",
-            lambda: run_tracks(history, tracked, ec, gf, af, ag, workdir / "tracks"),
+            lambda: run_tracks(history, tracked, ec, gf, af, ag, workdir / "tracks", wn_grid),
             status,
             timing,
             lambda n: {"bytes": n},
@@ -864,7 +950,10 @@ def run(
         factors=factors,
         jm=jm,
         om=om,
+        wn=wn,
     )
+    if wn is not None and wn_events:
+        wn3_files(history, wn_events, wn, airports, factors, wn_mode, workdir / "wn3")
     failed = [n for n, d in (("ecmwf", ec), ("gfs", gf), ("aifs", af), ("aigfs", ag)) if d is None]
     if failed:
         sources: dict[str, dict | None] = {n: find_reuse_source(archive, n, now) for n in failed}
@@ -913,6 +1002,56 @@ def track_events(events_path: Path | None, now: datetime) -> list[Event]:
         return []
 
 
+def wn3_targets(
+    mode: str, now: datetime, events_path: Path | None, history: Path
+) -> tuple[datetime | None, list[Event]]:
+    """這一報 WeatherNext 3（HD15）要抓哪一報、寫進哪些事件（`wn3report.targets`）。`report-only`
+    時沒有事件、或每個事件那一報的事件檔與路徑檔都寫過了，就回 `(None, [])`（不跑來源 `wn3`，
+    省一次 BigQuery 查詢）。`events.json` 讀不了只 log、當作沒有事件。"""
+    try:
+        evs = load_events(events_path) if events_path is not None else []
+    except Exception:  # 保險：事件設定壞了不能讓 build 失敗
+        log.exception("events.json 讀不了，WeatherNext 3 不寫事件檔")
+        evs = []
+    run, targets = wn3report.targets(mode, now, evs)
+    if mode == "observe":
+        return run, targets
+    todo = [
+        e
+        for e in targets
+        if not (
+            wn3report.report_path(events.event_dir(history, e), run).exists()
+            and tracks.track_path(events.event_dir(history, e), run, "wn3").exists()
+        )
+    ]
+    return (run, todo) if todo else (None, [])
+
+
+def wn3_files(
+    history: Path,
+    evs: list[Event],
+    wn: wn3.Wn3Data,
+    airports: list[Airport],
+    factors: dict[str, assess.GustFactor],
+    mode: str,
+    workdir: Path,
+) -> None:
+    """事件檔 `history/events/<id>/wn3/`（HD15，`wn3report`）；`report-only` 時路徑也在這裡抽
+    （`observe` 的路徑由來源 `tracks` 抽）。失敗只 log，不讓 build 失敗。"""
+    try:
+        res = wn3report.write_event_files(
+            history, evs, wn, airports, factors, mode, workdir, with_tracks=mode != "observe"
+        )
+        log.info(
+            "WeatherNext 3 事件檔：寫了 %d 份、已經有 %d、失敗 %s",
+            len(res.written),
+            res.skipped,
+            res.failed or "無",
+        )
+    except Exception:  # 保險
+        log.exception("WeatherNext 3 事件檔寫不了")
+
+
 def run_tracks(
     history: Path,
     evs: list[Event],
@@ -921,14 +1060,18 @@ def run_tracks(
     af: aifs.AifsData | None,
     ag: aigfs.AigfsData | None,
     workdir: Path,
+    wn: wn3.Wn3Data | None = None,
 ) -> int:
-    """來源 `tracks`（HD21）：回傳下載量；有模式抽不出來時寫完其他的再丟 `partial`。"""
+    """來源 `tracks`（HD21）：回傳下載量；有模式抽不出來時寫完其他的再丟 `partial`。`wn` 是
+    `observe` 模式的 WeatherNext 3（HD15，平均海平面氣壓網格）。"""
     mslp = {
         name: (d.run, d.mslp_files)
         for name, d in (("gfs", gf), ("aigfs", ag), ("aifs", af))
         if d is not None
     }
-    res = tracks.build_tracks(history, evs, ec.run if ec else None, mslp, workdir)
+    # 沒有 WN3 時照 HD21 的呼叫方式（不帶 `grids`）
+    grids = {"grids": {"wn3": (wn.run, wn3report.grid_fields(wn))}} if wn is not None else {}
+    res = tracks.build_tracks(history, evs, ec.run if ec else None, mslp, workdir, **grids)
     log.info(
         "颱風路徑：寫了 %d 份、已經有 %d、沒有起點 %d、失敗 %s",
         len(res.written),

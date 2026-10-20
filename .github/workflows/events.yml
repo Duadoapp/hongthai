@@ -5,7 +5,8 @@ name: events
 # 手動跑時勾 backfill：把 history/ 裡期間內已經過去的報搬進 history/events/<id>/（已存在的跳過）；
 # 勾 backfill-tracks（HD21）：從 2026-10-19T00:00Z 起的快照補抽各模式的颱風路徑到
 # history/events/<id>/tracks/（已存在的跳過；GFS、AIGFS 從 AWS 重抓海平面氣壓、IFS／AIFS 從 ECMWF
-# 開放資料抓，拿不到的記 log）。
+# 開放資料抓，拿不到的記 log）；接著補 WeatherNext 3（HD15：起報 ≤ 現在 − 121 小時、CC BY 4.0 的報，事件檔
+# history/events/<id>/wn3/ 與路徑；要 Google 服務帳號，還沒核准時第一報 403 就停）。
 on:
   schedule:
     - cron: "7 * * * *"
@@ -30,7 +31,7 @@ concurrency:
 jobs:
   events:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30 # 每小時的只要 1 分鐘；手動 backfill-tracks 每報約 1 分鐘下載＋解析（HD20 是 10）
+    timeout-minutes: 45 # 每小時的只要 1 分鐘；手動 backfill-tracks 每報約 1 分鐘下載＋解析，WN3 每報一個 BigQuery 查詢＋21 張氣壓（HD15 前 30、HD20 是 10）
     steps:
       - uses: actions/checkout@v6
 
@@ -65,6 +66,10 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.backfill-tracks
         env:
           PYTHONPATH: src
+          # HD15：WeatherNext 3 補報用 build.yml 同一把服務帳號
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          WN3_BQ_TABLE: ${{ vars.WN3_BQ_TABLE }}
         run: python -m hongthai.events backfill-tracks --archive data --from 2026-10-19T00:00Z
 
       - name: 每小時 METAR 與颱風現報
