@@ -8,9 +8,9 @@
   之後用 GEFS 系集成員自己算）；`p29Kt`（＝`p15`）只輸出、不進規則
 - 官方（只看 0–30 小時）：天文台／SMG 8 號或以上 → 高，3 號 → 中；氣象署陸上颱風警報且機場在警戒區
   → 高，海上警報 → 中；NWS（關島，HD3）Typhoon／Tropical Storm Warning → 高、Watch → 中
-  （對照在 `sources/nws.py`）；JMA（日本與沖繩，HD9）大雪特別警報 → 高、大雪警報 → 中、暴風雪警報
-  低（只列出），算 `snow`（對照在 `sources/jma.py`）；TAF 該時段陣風 ≥ 48 節（或平均風 ≥ 35 節）
-  → 高，陣風 ≥ 37 節 → 中
+  （對照在 `sources/nws.py`）；JMA（日本與沖繩，HD9）大雪特別警報、暴風雪特別警報（HD16）→ 高、
+  大雪警報 → 中、暴風雪警報低（只列出），算 `snow`（對照在 `sources/jma.py`）；
+  TAF 該時段陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高，陣風 ≥ 37 節 → 中
 - 陣風門檻（TAF 與模式同一套）的依據：桃園機場空橋規則，最大瞬間風速 37 節（蒲福 8 級）啟動
   空橋防護、48 節（10 級）空橋停用、55 節以上全部綁死
 - 0–30 小時以官方為準；官方與模式差一級以上標「落差」（`gap`）
@@ -80,10 +80,11 @@
   - `model.agreement` **還是只看陣風**（值域不變）
 - 警報：天文台黑雨 → 中，紅雨、雷暴警告低（只列出）；氣象署大豪雨、超大豪雨特報且機場在範圍
   → 中。這幾種算 `rain`（`RAIN_WARNING_KINDS`）；氣象署濃霧特報且機場在範圍 → 中，算 `fog`
-  （`FOG_WARNING_KINDS`，HD13）；JMA 大雪特別警報 → 高、大雪警報 → 中、暴風雪警報低（只列出），
-  算 `snow`（`SNOW_WARNING_KINDS`，HD9）；其他警報算 `wind`。**低的警報不會自己撐起
-  官方層**：一格沒有 TAF、只有低的警報時 `official` 是 null、退回模式（天文台 1 號信號也是低，
-  HD8 起一樣照這條）；有 TAF 或有中以上的警報時，`official.warnings` 列全部（含低的）
+  （`FOG_WARNING_KINDS`，HD13）；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、
+  暴風雪警報低（只列出），算 `snow`（`SNOW_WARNING_KINDS`，HD9）；其他警報算 `wind`。
+  **低的警報不會自己撐起官方層**：一格沒有 TAF、只有低的警報時 `official` 是 null、退回模式
+  （天文台 1 號信號也是低，HD8 起一樣照這條）；有 TAF 或有中以上的警報時，`official.warnings`
+  列全部（含低的）
 - `causes`：從決定 `level` 的那一層（`official` 或 `model`；`confirmed` 看被它蓋掉的那一層：
   有官方層就是官方層）把等級 ≥ 中的種類列出——`wind`、`rain`、`snow`、`fog`；等級高的在前，
   同級照 `wind`、`snow`、`fog`、`rain` 的固定順序（`CAUSE_ORDER`），第一個就是主因；
@@ -117,6 +118,23 @@
   AIFS、AIGFS 的雨用 6 小時雨量；雪只有有降水型態的模式投（AIGFS 的 `ptype` 永遠 None → 不投）；
   霧只有 GFS（分母 1）
 - `model.agreement` 照舊只看 IFS 與 GFS 的陣風；`causes` 依據是模式層時用投票後各類的等級
+
+Open-Meteo 三票與旁觀模式（HD16，Shawn 2026-10-20 19:04 定案）——五票變**八票**：
+- ICON（`icon`，有陣風）、JMA GSM（`jma`，Open-Meteo 沒有陣風 → 估算）：逐時資料換成格
+  （`hourly_for_slot`）：陣風取格內「前一小時最大陣風」的最大（(from, to] 的小時）、風向與平均風
+  用同一個小時的；估算的（JMA）同 AIFS：格頭尾含在內的小時裡最大的平均風 × G；6 小時雨量是
+  (from, to] 逐時加總；型態看降雪水當量與天氣碼（`openmeteo.slot_ptype`）→ 兩個都投雨、雪；
+  能見度兩個都沒有（2026-10-20 實抓全是 null），霧的分母還是只有 GFS
+- WeatherNext 2 系集（`wn2-ens`）比照 IFS 系集只投高（`ensemble_for_slot`）：64 個成員各自取格頭尾
+  兩個時間點大的 10 米風 × 機場的 G＝估算陣風，≥ `modelHighGustKt` 的成員比例（`p49Kt`，兩位小數；
+  沒有值的成員不算分母）≥ `ecP49High` 投高、否則投低；不投雨、雪、霧。那筆的 `windKt`／`gustKt`
+  是中位數（64 個成員格內最大風的中位數，`gustKt`＝它 × G，`gustEstimated: true`）
+- `models[]` 每筆多 `p49Kt`：只有 WN2 系集那筆有值（成員比例），其他筆一律 null（IFS 系集的機率
+  照舊在 `model.ec.p49Kt`）
+- 旁觀模式（`Model.voting=False`，`NON_VOTING`）：`models[]` 照常寫（`levels`、`level` 都算），但
+  `vote`／`tally`／`model_vote` 一律跳過，不算任何一類的分母、不投票，`vote.total` 不含它。
+  HD16 的三票都投票；這個開關給 HD15 的 WeatherNext 3 與之後的新模式
+- G 一律是 HD19 的（IFS 樣本）；新模式不進樣本（`gustfactor.py`）。這三個模式不沿用舊資料
 """
 
 from __future__ import annotations
@@ -125,12 +143,14 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import radians, sin
+from statistics import median
 
 from .config import GUST_FACTOR_DEFAULT, MODELS, ConfirmedPeriod, Runway, Thresholds
 from .sources.aifs import AifsStep
 from .sources.aigfs import AigfsStep
 from .sources.ecmwf import EcmwfPoint, PrecipStep
 from .sources.gfs import GustPoint
+from .sources.openmeteo import EnsStep, OmHour, member_winds, rain_sum, slot_ptype
 from .sources.taf import Metar, TafPeriod
 from .timeutil import iso
 from .units import kt_to_ms, ms_to_kt
@@ -147,12 +167,16 @@ RAIN_WARNING_KINDS = frozenset(
     {"rainstorm_black", "rainstorm_red", "thunderstorm", "cwa_heavy_rain"}
 )
 FOG_WARNING_KINDS = frozenset({"cwa_dense_fog"})  # 算 `fog` 的警報種類（HD13）
-# 算 `snow` 的警報種類（HD9）
-SNOW_WARNING_KINDS = frozenset({"jma_heavy_snow", "jma_heavy_snow_emergency", "jma_snowstorm"})
+# 算 `snow` 的警報種類（HD9；HD16 加暴風雪特別警報）
+SNOW_WARNING_KINDS = frozenset(
+    {"jma_heavy_snow", "jma_heavy_snow_emergency", "jma_snowstorm", "jma_snowstorm_emergency"}
+)
 SNOWY_PTYPES = frozenset({"snow", "wet_snow", "rain_snow"})
 # `slots[].model.models[]` 每筆的數字欄位（HD14）
 MODEL_NUM_KEYS = ("gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")
 ONLY_HIGH = frozenset(m.id for m in MODELS if m.votes_only_high)
+ESTIMATED = frozenset(m.id for m in MODELS if m.gust_estimated)
+ENS_ID = "ifs-ens"  # IFS 系集：機率從 `model.ec` 來（其他只投高的模式從自己那筆的 `p49Kt`，HD16）
 FREEZING_PTYPES = frozenset({"freezing_rain", "freezing_drizzle", "ice_pellets"})
 
 
@@ -175,7 +199,7 @@ class ActiveWarning:
     source: str  # hko／cwa／smg／nws／jma
     # tc_signal／typhoon_land／typhoon_sea／typhoon_warning／typhoon_watch／ts_warning／ts_watch；
     # HD8：rainstorm_black／rainstorm_red／thunderstorm／cwa_heavy_rain；HD13：cwa_dense_fog；
-    # HD9：jma_heavy_snow／jma_heavy_snow_emergency／jma_snowstorm
+    # HD9：jma_heavy_snow／jma_heavy_snow_emergency／jma_snowstorm；HD16：jma_snowstorm_emergency
     kind: str
     level: str
     text: dict[str, str]
@@ -595,6 +619,75 @@ def estimated_for_slot(
     }
 
 
+def hourly_for_slot(
+    hours: Sequence[OmHour] | None,
+    start: datetime,
+    end: datetime,
+    runways: Sequence[Runway] = (),
+    factor: GustFactor | None = None,
+) -> dict:
+    """Open-Meteo 逐時資料（ICON、JMA GSM，HD16）一格的數字。`factor` 是 None：有陣風（ICON），
+    取 (from, to] 小時裡前一小時最大陣風的最大，`windKt` 是同一小時的平均風、側風每小時用陣風與
+    風向算再取大；給了 `factor`：估算（JMA），同 `estimated_for_slot`——[from, to] 小時裡最大的
+    平均風 × G。雨量是 (from, to] 逐時加總、型態見 `openmeteo.slot_ptype`、能見度取 [from, to]
+    的最小值。"""
+    hours = hours or []
+    inst = [h for h in hours if start <= h.valid <= end]
+    prev = [h for h in hours if start < h.valid <= end]
+    vis = min((h.vis_m for h in inst if h.vis_m is not None), default=None)
+    rain = rain_sum(prev)
+    out: dict[str, float | str | None] = {
+        "rain6hMm": _round(rain, 1),
+        "ptype": slot_ptype(prev),
+        "visibilityM": None if vis is None else round(vis),
+    }
+    if factor is not None:
+        winds = [(h.wind_kt, h.wdir) for h in inst if h.wind_kt is not None]
+        wind = _round(_max(w for w, _ in winds), 1)
+        return {
+            "windKt": wind,
+            "gustKt": estimated_gust(wind, factor.g),
+            "gustFactor": factor.g,
+            "gustFactorBasis": factor.basis,
+            "crosswindKt": _round(
+                _max(crosswind_kt(w * factor.g, d, runways) for w, d in winds), 1
+            ),
+            **out,
+        }
+    hits = [h for h in prev if h.gust_kt is not None]
+    top = max(hits, key=lambda h: h.gust_kt or 0) if hits else None
+    return {
+        "windKt": _round(top.wind_kt, 1) if top else None,
+        "gustKt": _round(top.gust_kt, 1) if top else None,
+        "crosswindKt": _round(_max(crosswind_kt(h.gust_kt, h.wdir, runways) for h in hits), 1),
+        **out,
+    }
+
+
+def ensemble_for_slot(
+    steps: Sequence[EnsStep] | None,
+    start: datetime,
+    end: datetime,
+    th: Thresholds,
+    factor: GustFactor = DEFAULT_GUST_FACTOR,
+) -> dict:
+    """WeatherNext 2 系集（HD16）一格：每個成員取格頭尾兩個時間點大的 10 米風（一位小數）× G＝
+    估算陣風，`p49Kt`＝估算陣風 ≥ `modelHighGustKt` 的成員比例（兩位小數）；`windKt` 是成員風的
+    中位數、`gustKt`＝它 × G。沒有成員資料時全是 None。"""
+    winds = [round(w, 1) for w in member_winds([s for s in steps or [] if start <= s.valid <= end])]
+    if not winds:
+        return {"windKt": None, "gustKt": None, "p49Kt": None}
+    hit = sum((estimated_gust(w, factor.g) or 0) >= th.model_high_gust_kt for w in winds)
+    wind = _round(median(winds), 1)
+    return {
+        "windKt": wind,
+        "gustKt": estimated_gust(wind, factor.g),
+        "gustFactor": factor.g,
+        "gustFactorBasis": factor.basis,
+        "p49Kt": round(hit / len(winds), 2),
+    }
+
+
 def refactor_estimated(entry: dict, factor: GustFactor) -> None:
     """沿用的 AIFS／AIGFS 那筆（HD18）：用抄來的 `windKt` × 這一報的 G 重算 `gustKt`，側風（和
     估算陣風成正比）照新舊 G 的比例換算。HD18 以前的那筆沒有 `windKt`／`gustFactor`：舊 G 當 1.4、
@@ -616,16 +709,20 @@ def model_entries(
     ec: dict, gfs: dict, others: dict[str, dict], runs: dict[str, str | None], th: Thresholds
 ) -> list[dict]:
     """`slots[].model.models[]`（HD14）：照 `config.MODELS` 的順序，每個模式一筆，沒資料的也有
-    （數字、`levels`、`level` 全是 null）。`ec`／`gfs` 要先 `fill_model_wx`（IFS、GFS 三類的等級
-    直接用 `model.ec`／`model.gfs` 的，值照舊）；其他模式的數字從 `others[id]`
-    （`estimated_for_slot` 的結果，或沿用時抄來的那筆）；`windKt`（HD18）也從 `others[id]`
-    （IFS、GFS 是 `ec_wind_for_slot`／`gfs_wind_for_slot`，系集沒有）。`gustFactor`／
-    `gustFactorBasis` 只有估算陣風、而且有陣風的那幾筆有。
+    （數字、`levels`、`level` 全是 null；旁觀模式也照寫，HD16）。`ec`／`gfs` 要先
+    `fill_model_wx`（IFS、GFS 三類的等級直接用 `model.ec`／`model.gfs` 的，值照舊）；其他模式的
+    數字從 `others[id]`（`estimated_for_slot` 等的結果，或沿用時抄來的那筆）；`windKt`（HD18）
+    也從 `others[id]`（IFS、GFS 是 `ec_wind_for_slot`／`gfs_wind_for_slot`，IFS 系集沒有）。
+    `gustFactor`／`gustFactorBasis` 只有估算陣風、而且有陣風的那幾筆有。
 
     - `ifs`：HRES 陣風、側風、雨量、型態；雨＝`ec.rain`（HRES 雨量或系集 24 小時雨量機率，同 HD8）
     - `gfs`：陣風、側風、雨量、型態、能見度（霧只有它）
     - `ifs-ens`（`votes_only_high`）：數字全 null，`levels.wind`＝`p49Kt` ≥ `ecP49High` 高、否則低
-    - 其他（AIFS、AIGFS）：估算陣風（`gustEstimated: true`）；有降水型態才投雪
+    - 其他只投高的（WN2 系集，HD16）：`windKt`／`gustKt` 是中位數成員的（估算），`p49Kt` 是成員
+      比例（`ensemble_for_slot`），`levels.wind` 同上、其他三類 null
+    - 其他（AIFS、AIGFS、ICON、JMA GSM）：`gust_estimated` 的是估算陣風（`gustEstimated: true`）；
+      有降水型態才投雪
+    - `p49Kt`（HD16）：只有「IFS 系集以外、只投高」的那筆有值，其他 null
     """
     out = []
     for m in MODELS:
@@ -645,7 +742,9 @@ def model_entries(
             lv.update(rain=gfs.get("rain"), snow=gfs.get("snow"), fog=gfs.get("fog"))
         elif m.votes_only_high:
             nums = dict.fromkeys(MODEL_NUM_KEYS)
-            p49 = _num(ec.get("p49Kt"))
+            if m.id != ENS_ID:
+                nums["gustKt"] = _num(src.get("gustKt"))
+            p49 = _num((ec if m.id == ENS_ID else src).get("p49Kt"))
             lv["wind"] = None if p49 is None else "high" if p49 >= th.ec_p49_high else "low"
         else:
             nums = {k: src.get(k) for k in MODEL_NUM_KEYS}
@@ -660,7 +759,7 @@ def model_entries(
             {
                 "id": m.id,
                 "run": runs.get(m.id),
-                "windKt": None if m.votes_only_high else _num(src.get("windKt")),
+                "windKt": None if m.id == ENS_ID else _num(src.get("windKt")),
                 "gustKt": nums["gustKt"],
                 "gustEstimated": None if nums["gustKt"] is None else m.gust_estimated,
                 "gustFactor": _num(src.get("gustFactor")) if estimated else None,
@@ -669,6 +768,7 @@ def model_entries(
                 "rain6hMm": nums["rain6hMm"],
                 "ptype": nums["ptype"],
                 "visibilityM": nums["visibilityM"],
+                "p49Kt": _num(src.get("p49Kt")) if m.votes_only_high and m.id != ENS_ID else None,
                 "levels": lv,
                 "level": max_level(lv.values()),
             }
@@ -676,41 +776,68 @@ def model_entries(
     return out
 
 
-def _pool(levels: Sequence[str | None], only_high: Sequence[bool], target: str) -> list[str]:
-    """判 `target` 那一輪的分母：有等級的模式；判「中」時 `only_high` 為真的不算。"""
-    flags = list(only_high) + [False] * (len(levels) - len(only_high))
+def non_voting() -> frozenset[str]:
+    """旁觀模式（`Model.voting=False`，HD16）的 id；每次從 `MODELS` 算（測試可以換掉 `MODELS`）。"""
+    return frozenset(m.id for m in MODELS if not m.voting)
+
+
+def _flags(flags: Sequence[bool], n: int, default: bool) -> list[bool]:
+    return list(flags) + [default] * (n - len(flags))
+
+
+def _pool(
+    levels: Sequence[str | None],
+    only_high: Sequence[bool],
+    target: str,
+    voting: Sequence[bool] = (),
+) -> list[str]:
+    """判 `target` 那一輪的分母：有等級、而且投票（`voting` 不是假，HD16）的模式；判「中」時
+    `only_high` 為真的不算。"""
+    n = len(levels)
     return [
         lv
-        for lv, oh in zip(levels, flags, strict=True)
-        if lv in LEVELS and not (oh and target == "medium")
+        for lv, oh, vt in zip(
+            levels, _flags(only_high, n, False), _flags(voting, n, True), strict=True
+        )
+        if vt and lv in LEVELS and not (oh and target == "medium")
     ]
 
 
-def vote(levels: Sequence[str | None], only_high: Sequence[bool] = ()) -> str | None:
+def vote(
+    levels: Sequence[str | None], only_high: Sequence[bool] = (), voting: Sequence[bool] = ()
+) -> str | None:
     """一類的投票（HD14）：分母＝有等級（不是 None）的模式數；對 高、中、低 依序看，票數
     （等級 ≥ 它的模式數）× 2 ≥ 分母就成立，取成立的最高。判「中」時 `only_high` 為真的模式不算
-    （不在分母、也不算票）。分母 0 回 None。"""
+    （不在分母、也不算票）；`voting` 為假的旁觀模式（HD16）哪一輪都不算。分母 0 回 None。"""
     for target in ("high", "medium", "low"):
-        pool = _pool(levels, only_high, target)
+        pool = _pool(levels, only_high, target, voting)
         if pool and sum(rank(lv) >= rank(target) for lv in pool) * 2 >= len(pool):
             return target
     return None
 
 
 def tally(entries: Sequence[dict], cause: str, target: str) -> tuple[int, int]:
-    """`models[]` 某一類判 `target` 那一輪的（票數, 分母），給 AI 短評的「投票」句。"""
+    """`models[]` 某一類判 `target` 那一輪的（票數, 分母），給 AI 短評的「投票」句；旁觀模式
+    不算（HD16）。"""
+    skip = non_voting()
     lv = [(e.get("levels") or {}).get(cause) for e in entries]
-    pool = _pool(lv, [e.get("id") in ONLY_HIGH for e in entries], target)
+    only_high = [e.get("id") in ONLY_HIGH for e in entries]
+    pool = _pool(lv, only_high, target, [e.get("id") not in skip for e in entries])
     return sum(rank(x) >= rank(target) for x in pool), len(pool)
 
 
 def model_vote(entries: Sequence[dict]) -> tuple[dict[str, str | None], dict]:
     """`models[]` → 四類各自投票的結果與 `model.vote`。
 
-    `vote` 的票數都是「風」那一類的：`total` 分母（含 IFS 系集）、`high` 投高的數、`medium` 等級
-    ≥ 中的數（不含只投高的模式，同判中的規則）、`low` 投低的數；`level` 是四類投票結果取最高；
-    `thin`＝風的分母 < 2。"""
-    rows = [(e.get("levels") or {}, e.get("id") in ONLY_HIGH) for e in entries]
+    `vote` 的票數都是「風」那一類的：`total` 分母（含只投高的系集、不含旁觀模式）、`high` 投高的數、
+    `medium` 等級 ≥ 中的數（不含只投高的模式，同判中的規則）、`low` 投低的數；`level` 是四類投票
+    結果取最高；`thin`＝風的分母 < 2。旁觀模式（HD16）完全不算。"""
+    skip = non_voting()
+    rows = [
+        (e.get("levels") or {}, e.get("id") in ONLY_HIGH)
+        for e in entries
+        if e.get("id") not in skip
+    ]
     cats = {c: vote([lv.get(c) for lv, _ in rows], [oh for _, oh in rows]) for c in CAUSES}
     wind = [(lv.get("wind"), oh) for lv, oh in rows if lv.get("wind") in LEVELS]
     return cats, {
@@ -785,10 +912,14 @@ def assess_slots(
     aigfs: Sequence[AigfsStep] | None = None,
     runs: dict[str, str | None] | None = None,
     gust_factor: GustFactor = DEFAULT_GUST_FACTOR,
+    icon: Sequence[OmHour] | None = None,
+    jma: Sequence[OmHour] | None = None,
+    wn2: Sequence[EnsStep] | None = None,
 ) -> list[dict]:
-    """單一機場的所有格。`taf_periods`／`ec`／`gfs`／`metar`／`aifs`／`aigfs` 是 None 代表該來源
-    失敗或沒資料。`runs` 是各模式（`config.MODELS` 的 id）的時次，寫進 `models[].run`；
-    `gust_factor` 是這個機場估算陣風的係數（HD18）。"""
+    """單一機場的所有格。`taf_periods`／`ec`／`gfs`／`metar`／`aifs`／`aigfs`／`icon`／`jma`／`wn2`
+    是 None 代表該來源失敗或沒資料。`runs` 是各模式（`config.MODELS` 的 id）的時次，寫進
+    `models[].run`；`gust_factor` 是這個機場估算陣風的係數（HD18）。`icon`／`jma`／`wn2` 是
+    Open-Meteo 的 ICON、JMA GSM、WeatherNext 2 系集（HD16）。"""
     official_until = now + timedelta(hours=OFFICIAL_HORIZON_H)
     warning_until = now + timedelta(hours=WARNING_HORIZON_H)
     metar_xw = metar_crosswind(metar, now, runways)
@@ -802,6 +933,14 @@ def assess_slots(
             "gfs": {"windKt": gfs_wind_for_slot(gfs, start, end)},
             "aifs": estimated_for_slot(aifs, start, end, runways, gust_factor),
             "aigfs": estimated_for_slot(aigfs, start, end, runways, gust_factor),
+            # HD16：Open-Meteo
+            **{
+                mid: hourly_for_slot(
+                    hours, start, end, runways, gust_factor if mid in ESTIMATED else None
+                )
+                for mid, hours in (("icon", icon), ("jma", jma))
+            },
+            "wn2-ens": ensemble_for_slot(wn2, start, end, thresholds, gust_factor),
         }
         entries = model_entries(ec_v, gfs_v, others, runs or {}, thresholds)
         _, vote_v = model_vote(entries)

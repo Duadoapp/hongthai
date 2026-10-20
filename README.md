@@ -52,9 +52,9 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
-| 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14） | **五個模式投票**（HD14，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS 用平均風 × 1.4 估算）≥ 48 節高、≥ 37 節中；系集只投高（陣風 ≥ 49 節機率 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
-| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視、日本氣象廳（JMA）日本與沖繩的大雪警報（HD9） | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；JMA 大雪特別警報 → 高、大雪警報 → 中、暴風雪警報低（只列出），算 `snow`；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
-| 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS 的 10 米風向配各自的陣風；AIFS、AIGFS 的 10 米風向配估算陣風 | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級**（模式層是每個模式各自取較高，再投票） |
+| 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14）；Open-Meteo 的 DWD ICON（陣風）、JMA GSM（10 米風）、Google WeatherNext 2 系集 64 個成員的 10 米風（HD16） | **八個模式投票**（HD14、HD16，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS、JMA GSM、WeatherNext 2 用平均風 × 機場的係數估算）≥ 48 節高、≥ 37 節中；兩個系集只投高（IFS 系集陣風 ≥ 49 節機率 ≥ 30%、WeatherNext 2 估算陣風 ≥ 48 節的成員 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
+| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視、日本氣象廳（JMA）日本與沖繩的大雪警報（HD9） | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、暴風雪警報低（只列出），算 `snow`；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
+| 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS、ICON 的 10 米風向配各自的陣風；AIFS、AIGFS、JMA GSM 的 10 米風向配估算陣風（WeatherNext 2 系集不算側風） | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級**（模式層是每個模式各自取較高，再投票） |
 
 - 門檻依據：陣風（TAF 與模式同一套）是桃園機場空橋規則——最大瞬間風速 37 節（蒲福 8 級）啟動空橋防護、
   48 節（10 級）空橋停用、55 節以上全部綁死；側風是窄體客機常見作業限制——737-800 濕跑道起飛約 27 節、
@@ -81,28 +81,44 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 - `confirmed.json` 人工填的已確認停飛時段 → 該格 `level: "confirmed"`
 - 門檻在 `airports.json`，細節（時間格怎麼對、警報套幾小時）寫在 `src/hongthai/assess.py` 開頭
 
-### 多模式投票（HD14）
+### 多模式投票（HD14、HD16）
 
 Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高）」改成**投票**，官方層（TAF、METAR、警報）
 照舊優先、`gap` 照舊（官方層等級和投票結果不同）：
 
-- 五票（`config.MODELS`，輸出順序）：`ifs`（ECMWF HRES）、`gfs`（NOAA GFS）、`ifs-ens`（ECMWF 系集）、
-  `aifs`（ECMWF AIFS Single，AI 模式）、`aigfs`（NOAA AIGFS，AI 模式）。每個模式一票、權重相同
+- **八票**（`config.MODELS`，輸出順序）：`ifs`（ECMWF HRES）、`gfs`（NOAA GFS）、`ifs-ens`（ECMWF 系集）、
+  `aifs`（ECMWF AIFS Single，AI 模式）、`aigfs`（NOAA AIGFS，AI 模式），HD16（2026-10-21 上線）加 `icon`
+  （DWD ICON global）、`jma`（JMA GSM）、`wn2-ens`（Google WeatherNext 2 系集），後三個經 Open-Meteo
+  （`src/hongthai/sources/openmeteo.py`）。每個模式一票、權重相同
 - 每一類（`wind`、`rain`、`snow`、`fog`）各自投：某等級 L 的票＝這一類等級 ≥ L 的模式數，**票數 × 2 ≥
   分母就成立**，從高往低看，取成立的最高。分母＝這一格這一類**有資料**的模式；只有 1 個模式有資料就它決定
   （2 票裡 1 票也成立，和 HD14 以前兩個模式取較高一致）。四類的結果再取最高＝`model.level`
 - **系集只投「高」**：`p49Kt` ≥ 30% 投高、否則投低；**判「中」時不算分母**（不然它永遠投低、把中的票拉下來）。
   所以系集單獨撐不起高（IFS 低、GFS 低、系集高 → 1 × 2 < 3 → 低）
-- **沒有陣風的模式**（AIFS、AIGFS）：10 米平均風 × **機場的係數 G**（HD18，下一段）估算陣風，標
-  `gustEstimated: true`，門檻同陣風；側風用估算陣風算。網頁與 AI 短評寫「估算陣風」
-- 雨：IFS（6 小時雨量，或系集 24 小時雨量 ≥ 50 mm 機率 ≥ 30%，就是 `model.ec.rain`）、GFS、AIFS、AIGFS 投；
-  系集那筆不投雨
+- **WeatherNext 2 系集也只投「高」**（HD16，比照 IFS 系集）：64 個成員各自取格頭尾兩個時間點大的 10 米風 ×
+  機場的 G＝估算陣風，≥ 48 節（`modelHighGustKt`）的成員比例（`models[].p49Kt`）≥ 30%（`ecP49High`）投高、
+  否則投低，判中時不算分母；不投雨、雪、霧。那筆的 `windKt`／`gustKt` 是成員的中位數（估算）
+- **沒有陣風的模式**（AIFS、AIGFS、HD16 起 JMA GSM）：10 米平均風 × **機場的係數 G**（HD18，下一段）估算
+  陣風，標 `gustEstimated: true`，門檻同陣風；側風用估算陣風算。網頁與 AI 短評寫「估算陣風」。ICON 有自己
+  的陣風（Open-Meteo 的「前一小時最大陣風」，一格取 6 個小時裡最大的）
+- 雨：IFS（6 小時雨量，或系集 24 小時雨量 ≥ 50 mm 機率 ≥ 30%，就是 `model.ec.rain`）、GFS、AIFS、AIGFS、
+  ICON、JMA GSM（逐時雨量加總，HD16）投；兩個系集不投雨
 - 雪：**只有有降水型態的模式投**——IFS（`ptype`）、GFS（類別降水）、AIFS（6 小時降雪 ≥ 6 小時總降水的一半
-  → `snow`，否則 `rain`，< 0.1 mm → `none`）；AIGFS 沒有型態、不投（雪的分母不算它）。不用 2 米溫度猜型態
-- 霧：只有 GFS 有能見度，**霧的分母永遠是 1**（GFS 說了算，最高到中，HD10）
+  → `snow`，否則 `rain`，< 0.1 mm → `none`）、ICON 與 JMA GSM（HD16：格內有凍雨天氣碼 66／67 →
+  `freezing_rain`、凍毛毛雨 56／57 → `freezing_drizzle`；否則降雪水當量（公分 ÷ 0.7）≥ 總降水的一半 → `snow`；
+  其他同 AIFS）；AIGFS 沒有型態、不投（雪的分母不算它）。不用 2 米溫度猜型態
+- 霧：只有 GFS 有能見度，**霧的分母永遠是 1**（GFS 說了算，最高到中，HD10）。Open-Meteo 的 ICON global、
+  JMA GSM 能見度 2026-10-20 實抓全是 `null`（提示詞以為 ICON 有），所以 HD16 沒有改變霧的分母；哪天有值了
+  會自動投（最高到中）
+- **旁觀模式**（HD16，`Model.voting=False`）：照樣抓、照樣寫進 `models[]`（含 `levels`、`level`）與路徑檔，
+  但**不算進任何一類的分母、不投票**（`vote.total` 不含它）；頂層 `models[].voting` 讓網頁標「旁觀，不投票」。
+  HD16 的三票都投票，這個開關給 HD15 的 WeatherNext 3 與之後的新模式（先旁觀、累積紀錄再改成投票）
+- **Open-Meteo 失敗或逾時**：這一報沒有這三票（三筆全 `null`、不算分母，其他照 5 票算），`sources.openmeteo.ok:
+  false`＋`error`，整報照出；**也不沿用舊資料**（和 `ecmwf`／`gfs`／`aifs`／`aigfs` 的沿用不同：不想把 24 小時前
+  的 WeatherNext 2 當今天的票）
 - `causes`：依據是模式層時用**投票後**各類的等級排（同級 `wind`、`snow`、`rain`、`fog`）
-- `model.vote`：`total`（風那一類的分母，含系集）、`high`（投高的數）、`medium`（等級 ≥ 中的數，不含系集，
-  同判中的規則）、`low`（投低的數）、`level`（四類投票結果取最高，全無資料 `null`）、`thin`（風的分母 < 2）
+- `model.vote`：`total`（風那一類的分母，含系集、不含旁觀模式）、`high`（投高的數）、`medium`（等級 ≥ 中的數，
+  不含兩個系集，同判中的規則）、`low`（投低的數）、`level`（四類投票結果取最高，全無資料 `null`）、`thin`（風的分母 < 2）
 - `model.ec`／`model.gfs`／`model.agreement` 欄位與值都不變（`ec.rain`、`gfs.fog` 等還是各自的等級）
 
 ### 估算陣風的係數（HD18、HD19）
@@ -170,14 +186,15 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
 | 中央氣象署 | 天氣特報「大豪雨」「超大豪雨」且機場的縣市在範圍 `cwa_heavy_rain` | 中（大雨、豪雨特報不算） |
 | 中央氣象署 | 天氣特報「濃霧」且機場的縣市在範圍 `cwa_dense_fog`（HD13，台灣十個機場都適用） | 中 |
 | 日本氣象廳 | 機場所在市町村的大雪警報 `jma_heavy_snow`（HD9，日本 8 個＋沖繩 3 個） | 中 |
-| 日本氣象廳 | 大雪特別警報 `jma_heavy_snow_emergency` | 高 |
+| 日本氣象廳 | 大雪特別警報 `jma_heavy_snow_emergency`、暴風雪特別警報 `jma_snowstorm_emergency`（HD16） | 高 |
 | 日本氣象廳 | 暴風雪警報 `jma_snowstorm` | 低：**只列出、不升級**（大雪注意報、風雪注意報不列） |
 
-- 前三列算 `rain`、濃霧特報算 `fog`、JMA 三種算 `snow`，其他（颱風、熱帶氣旋信號）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
+- 前三列算 `rain`、濃霧特報算 `fog`、JMA 四種算 `snow`，其他（颱風、熱帶氣旋信號）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
   TAF、只有低的警報時 `official` 是 `null`、退回模式；有 TAF 或有中以上的警報時照舊，
   `official.warnings[]` 列全部（含低的）。天文台 1 號信號也是低，HD8 起一樣照這條
 - JMA 只接雪（HD9）：大雨、暴風、波浪等其他警報不接（風的警報留給之後；29W 驗證期間不能動到風的等級）；
-  暴風雪特別警報（代碼 `32`）不在定案裡，先不接。澳門、韓國、越南、菲律賓這階段不加警報
+  暴風雪特別警報（代碼 `32`）HD16 起接（Shawn 2026-10-20 19:04，和大雪特別警報同級）。澳門、韓國、越南、
+  菲律賓這階段不加警報
 
 `causes`（每格，主因在前）：從決定 `level` 的那一層（`basis` 是 `official` 看官方層、`model` 看模式層；
 `confirmed` 看被它蓋掉的那一層——有官方層就是官方層）把等級 ≥ 中的種類列出：`wind`（陣風、側風或風的
@@ -209,8 +226,17 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
 - **估算陣風係數**（HD14 固定 1.4，HD18 起每個機場 30 天的陣風÷平均風中位數，夾 1.2–2.0）：
   `10fg` 與 `GUST` 定義不同，HD18 先合併，**HD19 起只用 IFS**、GFS 樣本照存，**30 天後用
   `tools/gust_factor_report.py` 檢討**
-- **模式層投票 ≥ 一半就成立**（HD14）：2 票 1 票、3 票 2 票、4 票 2 票、5 票 3 票；系集只投高（判中時不算
-  分母），所以系集單獨撐不起高（HD14 以前 `p49Kt` ≥ 30% 就是高）；霧的分母永遠是 1（只有 GFS）
+- **模式層投票 ≥ 一半就成立**（HD14）：2 票 1 票、3 票 2 票、4 票 2 票、5 票 3 票、8 票 4 票（HD16）；系集
+  只投高（判中時不算分母），所以系集單獨撐不起高（HD14 以前 `p49Kt` ≥ 30% 就是高）；霧的分母永遠是 1（只有 GFS）
+- **WeatherNext 2 的授權不確定**（HD16）：Open-Meteo 免費版只限非商業；Open-Meteo 的 WeatherNext 頁沒列 Google
+  額外限制，但 Google 對即時 WeatherNext 資料另有實驗條款，Open-Meteo 拿這份資料的授權來源查不到。HongThai、
+  Duado 目前沒收費、沒廣告，先照 Open-Meteo 的 CC BY 4.0 用（下面「資料來源與授權」）
+- **Open-Meteo 的起報時間**（HD16）：資料回應裡沒有，`runs.icon`／`runs.jma`／`runs.wn2-ens` 是抓完資料後問
+  metadata API 的「最近一報」（`last_run_initialisation_time`）；剛好碰到換報的那幾分鐘可能和實際用到的資料差
+  一報，問不到是 `null`（`sources.openmeteo.runError`）。ICON 06／18Z 那報只到 120 小時，最後幾格 Open-Meteo
+  自動接前一報；JMA GSM 的逐時值是 Open-Meteo 從 3／6 小時內插的
+- **WeatherNext 2 一天只有兩報**（Open-Meteo 只處理 00／12Z，00Z 那報約 11Z 才上 API），所以 01:05Z、08:25Z
+  兩報用的是前一天 12Z、13:05Z／20:25Z 用的是當天 00Z
 - 系集：陣風 ≥ 25 m/s（≈ 48.6 節，`p49Kt`）機率 ≥ 30% 投高；中級不用系集（沒有 37 節的機率）
 - 側風：含陣風側風 ≥ 33 節高、≥ 27 節中；用陣風（不是平均風）算側風；沒有風向時側風＝風速本身
 - 跑道方位用真北；所有跑道取最小側風（假設最好的那條都能用，沒算跑道關閉、長度、機型限制）；
@@ -299,6 +325,7 @@ H10（2026-10-18）之後：
 | gfs（AWS 鏡像，NOMADS 備援） | 180 | 約 110（NOMADS）|
 | aifs（ECMWF AIFS Single，HD14；鏡像同 ecmwf） | 180 | 55（2026-10-20，66 MB，從 ECMWF 入口；AWS 回 503） |
 | aigfs（NOAA AIGFS，HD14；只有 AWS） | 120 | 38（2026-10-20，51 MB） |
+| openmeteo（ICON、JMA GSM、WeatherNext 2 系集，HD16；兩個請求、各 60 秒逾時、不重試） | 90 | 約 2–3（2026-10-20 雲端開發機，預報 632 KB／1.0 秒、系集 3 個變數時 1.6 MB／1.2 秒；只抓風速約 560 KB） |
 | taf（含 METAR） | 45 | 幾秒 |
 | hko、smg | 各 30 | 幾秒 |
 | cwa | 45 | 幾秒 |
@@ -312,9 +339,10 @@ H10（2026-10-18）之後：
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和 1575 秒（26.25 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
-  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒），Actions「產生 latest.json」那一步上限 28 分鐘、整個 job
-  38 分鐘（HD21 前 25／35、HD14 前是 20／30、HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
+- 總和 1665 秒（27.75 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
+  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒），Actions「產生
+  latest.json」那一步上限 30 分鐘、整個 job 40 分鐘（HD16 前 28／38、HD21 前 25／35、HD14 前是 20／30、
+  HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
   多抓的海平面氣壓（每個步長約 1.0／1.0／0.5 MB，三個共約 52 MB）算在它們自己的預算裡
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
   重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
@@ -329,7 +357,8 @@ H10（2026-10-18）之後：
   `--archive`，沒有就從 Pages 抓）。`sources.<名稱>.ok` 仍是 `false`，另加 `reusedFrom`（那一份的
   `generatedAt`），`runs` 是那一份的（舊預報的真實時次）。模式時次離現在超過 24 小時就不沿用
   （系集與 HRES 各自算），照缺資料處理。TAF、METAR、警報不沿用。HD18：`models[]` 的 `windKt` 一起抄，
-  AIFS／AIGFS 的估算陣風用抄來的 `windKt` × 這一報的係數重算
+  AIFS／AIGFS 的估算陣風用抄來的 `windKt` × 這一報的係數重算。**Open-Meteo（HD16）不沿用**（上面「多模式
+  投票」）；別的模式沿用、重組 `models[]` 時，ICON、JMA GSM、WeatherNext 2 那三筆用這一報自己的數字
 
 ### 檔案
 
@@ -386,15 +415,16 @@ H10（2026-10-18）之後：
 
 ### 輸出
 
-- `latest.json` 與 `history/<YYYYMMDDTHHMM>Z.json` 的 JSON 不縮排（HD14 起，檔案約 1.9 MB）；原始快照
-  `history/raw/` 照舊縮排
+- `latest.json` 與 `history/<YYYYMMDDTHHMM>Z.json` 的 JSON 不縮排（HD14 起，檔案約 1.9 MB；HD18 後約 2.2 MB、
+  HD16 後約 3.0 MB）；原始快照 `history/raw/` 照舊縮排（Open-Meteo 那份例外，不縮排）
 - GitHub Pages（`public/`）：`latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（歷次結果，**只放最近 7 天**：
   H9 起一份約 515 KB、HD3 起約 642 KB（2026-10-18 實測），`publish()` 只複製檔名時間（＝`generatedAt`）在 7 天內的，Pages 上更舊的刪掉；
   `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，
   每報重畫、不進 `data` 分支）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
-  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws,jma}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
-  `/alerts/active` 的原始回應，HD3 起；JMA 是 `{office 代碼: 警報 JSON}`，HD9 起；氣象署天氣特報 `W-C0033-001` 是另一個檔 `<HHMM>Z-cwa-hazards.json`，
+  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws,jma,openmeteo}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
+  `/alerts/active` 的原始回應，HD3 起；JMA 是 `{office 代碼: 警報 JSON}`，HD9 起；Open-Meteo 是
+  `{"forecast": 預報回應, "ensemble": 系集回應}`，HD16 起，**不縮排**、一份約 1.2 MB（zlib 後約 190 KB）；氣象署天氣特報 `W-C0033-001` 是另一個檔 `<HHMM>Z-cwa-hazards.json`，
   HD8 起，`-cwa.json` 照舊是颱風警報；金門、馬祖的局屬站觀測 `O-A0003-001` 是 `<HHMM>Z-cwa-obs.json`，HD13 起）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
   原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`、
@@ -641,7 +671,7 @@ HD14（2026-10-20，多模式投票；欄位定案，Shawn 轉給 Duado；`schem
 `model.agreement` 不改名、不改型別、不拿掉，值也照舊算**；`model.level` 改由投票決定）：
 
 - 頂層 `models`：`[{"id": "ifs", "name": {四語}}, …]`，照 `config.MODELS` 的順序（`ifs`、`gfs`、`ifs-ens`、
-  `aifs`、`aigfs`；之後 `wn3`、`icon`、`jma`）。四語名：歐洲中期預報中心 IFS／ECMWF IFS、美國 GFS／NOAA GFS、
+  `aifs`、`aigfs`；HD16 加 `icon`、`jma`、`wn2-ens`，之後 `wn3`）。四語名：歐洲中期預報中心 IFS／ECMWF IFS、美國 GFS／NOAA GFS、
   歐洲系集／ECMWF ensemble、歐洲 AI 模式 AIFS／ECMWF AIFS、美國 AI 模式 AIGFS／NOAA AIGFS（zh-HK 同 zh-TW、
   zh-CN 簡體）。每格不放名稱，用 `id` 對
 - `slots[].model.models[]`：照頂層 `models` 的順序、每個模式一筆，**該模式這一報沒資料時也出現**（數字、
@@ -681,6 +711,33 @@ HD18（2026-10-20，估算陣風的係數改成每個機場自己算；`schema` 
 - 大小：2026-10-20 雲端開發機實際跑一報（模式全是 18Z，51 個機場）：`latest.json`（不縮排）2,148 KB，拿掉這
   三個鍵是 1,868 KB，**多約 280 KB**（gzip 後 104 → 118 KB）。提示詞估 100–150 KB；每格 5 筆 × 三個鍵約
   55 bytes × 20 格 × 51 個機場就是 280 KB
+
+HD16（2026-10-20，Open-Meteo 三票、旁觀開關、暴風雪特別警報；`schema` 維持 `1`，**只加值，既有欄位不改名、
+不改型別**；要經 Shawn 轉給 Duado 總指揮）：
+
+- 頂層 `models[]` 多三筆（照順序接在 `aigfs` 後面）：`icon` 德國 ICON／德國 ICON／德国 ICON／DWD ICON、`jma`
+  日本 GSM／JMA GSM、`wn2-ens` Google WeatherNext 2 系集／Google WeatherNext 2 ensemble；**每筆多 `voting`**
+  （布林；`false` 是旁觀模式，網頁標「旁觀，不投票」。目前八筆都是 `true`）
+- `slots[].model.models[]` 每格 8 筆，每筆多 `p49Kt`：只有 `wn2-ens` 那筆有值（64 個成員裡估算陣風 ≥ 48 節的
+  比例，0–1、兩位小數），其他筆一律 `null`（IFS 系集的機率照舊在 `model.ec.p49Kt`）。
+  - `icon`：`gustKt` 是自己的陣風（`gustEstimated: false`）、`windKt` 是同一小時的平均風；有雨量、型態，沒有
+    能見度（Open-Meteo 給 `null`）
+  - `jma`：估算陣風（`gustEstimated: true`、`gustFactor`／`gustFactorBasis`）；有雨量、型態，沒有能見度
+  - `wn2-ens`：`windKt`／`gustKt` 是成員中位數的平均風與估算陣風（`gustEstimated: true`、有 `gustFactor`）、
+    `crosswindKt`／`rain6hMm`／`ptype`／`visibilityM` 永遠 `null`；`levels.wind` 只有 `high`／`low`，其他三類
+    `null`
+  - Open-Meteo 失敗那一報三筆的數字、`levels`、`level` 全是 `null`（不沿用）
+- `slots[].model.vote`：`total` 最多 8（旁觀模式不算）
+- 頂層 `runs.icon`、`runs.jma`、`runs.wn2-ens`（ISO 或 `null`；Open-Meteo metadata 的最近一報）
+- `sources.openmeteo`：`ok`、`seconds`、`bytes`、`calls`（這一報的加權呼叫次數，51 個機場 397.8）；失敗時
+  `error`（`timeout`、`http_429`、`network`、`bad_format`……），沒有 `reusedFrom`；metadata 問不到時多
+  `runError`（例如 `"wn2-ens:timeout"`，資料照用）
+- `warnings[].kind` 多 `jma_snowstorm_emergency`（高、算 `snow`，`code` `32`）；四語「日本氣象廳暴風雪特別警報
+  （千歳市）」／「日本气象厅暴风雪特别警报（千歳市）」／「JMA snowstorm emergency warning (Chitose)」
+- 資料來源頁要標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2」（下面「資料來源與授權」）
+- 大小：用 Pages 上 2026-10-20 05:55Z 那報加 11:17Z 抓的 Open-Meteo 重算，`latest.json`（不縮排）2,214 KB →
+  **3,023 KB（多約 790 KB）**；gzip 後 142 → 174 KB。每格多 3 筆（各約 240 bytes）× 1,020 格，加上既有 5 筆
+  多 `p49Kt`
 
 規格以外加的欄位與值（網頁可以忽略）：
 
@@ -1021,6 +1078,7 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 | NOAA GFS（[AWS 開放資料鏡像 `noaa-gfs-bdp-pds`](https://registry.opendata.aws/noaa-gfs-bdp-pds/)，[NOMADS](https://nomads.ncep.noaa.gov/) 備援） | 地面陣風 `GUST`、10 米風 `UGRD`／`VGRD`；HD8 起 6 小時降水 `APCP`、類別降水 `CRAIN`／`CFRZR`／`CICEP`／`CSNOW`、地面能見度 `VIS` | 美國政府公有領域 |
 | [ECMWF AIFS Single](https://www.ecmwf.int/en/forecasts/datasets/open-data)（ECMWF 開放資料，經 AWS／Google 鏡像；HD14） | AI 模式的 10 米風 `10u`／`10v`、總降水 `tp`、降雪 `sf`、2 米溫度 `2t`（每 6 小時） | CC BY 4.0，© ECMWF |
 | NOAA AIGFS（[AWS 開放資料 `noaa-nws-graphcastgfs-pds`](https://registry.opendata.aws/noaa-nws-graphcastgfs-pds/)；HD14） | AI 模式的 10 米風 `UGRD`／`VGRD`、6 小時降水 `APCP`、2 米溫度 `TMP` | 美國政府公有領域 |
+| [Open-Meteo](https://open-meteo.com/)（[預報 API](https://open-meteo.com/en/docs) `models=icon_global,jma_gsm`、[系集 API](https://open-meteo.com/en/docs/ensemble-api) `models=google_weathernext2_ensemble`；HD16） | DWD ICON global 與 JMA GSM 的逐時 10 米風、風向、陣風（ICON）、雨量、降雪、天氣碼；Google WeatherNext 2 系集 64 個成員的 10 米風（6 小時一點） | **CC BY 4.0**（Open-Meteo 的資料授權；原始模式 © DWD、JMA、Google）。**免費版只限非商業**、每日 10,000／每月 300,000 次（加權）：**一旦 HongThai 或 Duado 收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或拿掉這三個模式**。網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2」。Google 對即時 WeatherNext 資料另有實驗條款，Open-Meteo 的授權來源查不到（上面「已知的保守假設」） |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
 | [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 46 個機場（H9 的 36 個、HD3 的 10 個）的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
 | [OpenStreetMap](https://www.openstreetmap.org/way/114511749)（跑道 way 114511749 的兩端座標，HD3） | 石垣跑道真北方位（用座標算出的一個數字） | © OpenStreetMap contributors，[ODbL](https://www.openstreetmap.org/copyright) |
@@ -1068,6 +1126,28 @@ HD14 新模式（2026-10-20 實測，細節在 `src/hongthai/sources/aifs.py`、
   用 `.idx` 的 byte 範圍只抓 `UGRD`／`VGRD:10 m`、`TMP:2 m`、`APCP` 一筆（有「前 6 小時」那桶就用它，沒有
   就用從起報累積的那筆相減），每個步長 3 個 `Range` 請求、約 2.4 MB，21 個步長 51 MB、38 秒。NOMADS
   `/pub/data/nccf/com/aigfs/prod/` 有同樣的檔，但沒有 `filter_aigfs` 裁區 CGI，**不做備援**（AWS 失敗就沿用）
+
+HD16 Open-Meteo（2026-10-20 11:17Z 實抓，細節在 `src/hongthai/sources/openmeteo.py` 開頭）：
+- 兩個請求、各一次帶 51 個機場的座標：預報 `api.open-meteo.com/v1/forecast?models=icon_global,jma_gsm&hourly=
+  wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,snowfall,visibility,weather_code&forecast_days=6
+  &wind_speed_unit=kn&timezone=UTC` 632,290 bytes、1.0 秒；系集 `ensemble-api.open-meteo.com/v1/ensemble?models=
+  google_weathernext2_ensemble&hourly=wind_speed_10m&forecast_days=6&temporal_resolution=native
+  &wind_speed_unit=kn&timezone=UTC`：實抓時照提示詞多帶 `wind_direction_10m,precipitation`，1,635,607 bytes、
+  1.2 秒；只要風速約 561 KB。**系集只要風速**：WN2 只投風的高、不算側風、不投雨，而且 3 個變數會超過每分鐘上限
+- **加權呼叫次數**（文件 API 頁「equivalent to N calls」的公式：`max(1, 變數數 × 模式數（系集是成員數）÷ 10 ×
+  max(1, 天數 ÷ 14)) × 座標數`）：預報 1.4 × 51 ＝ 71.4、系集 6.4 × 51 ＝ 326.4，**一報 397.8、一天 4 報約
+  1,591**（每月約 4.9 萬）。免費版上限是**每分鐘 600**、每小時 5,000、每日 10,000、每月 300,000（使用條款）：
+  照提示詞抓系集 3 個變數是 19.2 × 51 ＝ 979.2，一個請求就超過每分鐘 600，所以只抓風速。沒超過提示詞的
+  每日 5,000，WeatherNext 2 也是 51 個機場全抓
+- JMA GSM 沒有陣風（`wind_gusts_10m_jma_gsm` 全是 `null`、單位 `undefined`）→ 估算；ICON global、JMA GSM 都沒有
+  能見度。系集的成員 0 是不帶後綴的 `wind_speed_10m`，其他 `_member01`…`_member63`
+- 起報時間用 metadata API（`api.open-meteo.com/data/dwd_icon/static/meta.json`、`…/jma_gsm/…`、
+  `ensemble-api.open-meteo.com/data/google_weathernext2_ensemble/static/meta.json` 的
+  `last_run_initialisation_time`）。11:21Z 查：ICON 06Z（09:26Z 上 API）、WeatherNext 2 00Z（11:02Z 上 API）
+- 雲端開發機連 Open-Meteo 時 TLS 建立約四成在 30 秒後被斷（curl、`requests` 都一樣、和請求大小無關，像是開發機
+  出口的問題；當天測試時也照提示詞的 3 變數系集打了幾次，每次 979 次加權，超過每分鐘上限）。Actions 上沒試過，
+  **合併後前幾報要看 `sources.openmeteo`**：常常 `network` 失敗的話，考慮只對連線失敗（請求沒到 API、不算次數）
+  重試一次
 
 NWS（關島、帛琉，HD3，2026-10-18 查）：
 - 關島：`/zones?area=GU` 有 `GUZ001`（public／fire，名稱 Guam，`cwa` 是 GUM＝NWS 關島分處）；PGUM 的

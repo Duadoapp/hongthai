@@ -221,6 +221,28 @@
     HD15 WeatherNext 3：10/20 19:04 已送 allowlist 申請（BigQuery、GCS Zarr、WN2 Zarr、WN2 Mean Zarr），雲端先照文件用 mock
     做好掛著；上線前要讀完 GDM 即時資料條款，不能公開顯示就只用 1 小時前以後的資料（CC BY 4.0）做報告比對。
     提示詞 `docs/prompts/2026-10-20-HD16-openmeteo-models.md`、`docs/prompts/2026-10-20-HD15-weathernext3.md`。
+    **HD16 已實作（HD16 PR）**：8 票（`icon`、`jma`、`wn2-ens` 接在 `aigfs` 後面）、`Model.voting` 旁觀開關、
+    暴風雪特別警報 `32`。**授權條件（定案第 7 點）：(a) 一旦 HongThai 或 Duado 收費、訂閱或放廣告，必須改買
+    Open-Meteo 商業方案或拿掉這三個模式；(b) 網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・
+    Google WeatherNext 2」**；WN2 的授權來源查不到記在 README「已知的保守假設」。和提示詞不一樣、或提示詞沒寫死的地方：
+    - **ICON global 在 Open-Meteo 也沒有能見度**（2026-10-20 實抓全是 `null`，JMA 也沒有）→ 霧的分母還是只有
+      GFS（提示詞寫「ICON 有能見度 → 分母變 2」）。程式照樣會讀，哪天有值了自動投（最高到中）
+    - JMA GSM 沒有陣風 → `jma` 是 `gust_estimated`（`config.MODELS` 寫死；Open-Meteo 之後給陣風要改這裡）
+    - 起報時間：Open-Meteo 有 metadata API（`last_run_initialisation_time`），抓完資料後問（每個 5 秒逾時）；問不到 `runs.*` 是
+      `null`、`sources.openmeteo.runError` 記原因，資料照用（不是提示詞說的「推算」）
+    - **系集只抓 `wind_speed_10m`**（提示詞的網址多帶風向、雨量）：免費版使用條款另有**每分鐘 600 次**的上限，
+      照提示詞 3 個變數的系集請求一個就是 979.2 次（64 成員 × 3 ÷ 10 × 51）；WN2 只投風的高、不算側風、不投雨，
+      用不到另外兩個。只抓風速是 326.4 次，加預報 71.4 一報 **397.8**、一天 4 報約 **1,591** < 5,000，所以 WN2
+      51 個機場全抓（沒做「只抓 20 個」）；`sources.openmeteo.calls` 與 timing 那行的 `calls` 記每報的數
+    - WN2 的高門檻用 `modelHighGustKt`（48 節，機場可覆寫），提示詞寫「49 節」是沿用 `p49Kt` 的名字；成員
+      沒值的不算分母；`windKt` 是 64 個成員格內最大風的中位數（偶數個取中間兩個的平均），`gustKt`＝它 × G
+    - 一格的換算：ICON 陣風取 (from, to] 小時的「前一小時最大陣風」最大、`windKt` 是同一小時的平均風；JMA 同
+      AIFS（[from, to] 小時最大平均風 × G）；雨量 (from, to] 逐時加總。型態：凍雨碼 66／67 → `freezing_rain`、
+      **56／57 → `freezing_drizzle`**（提示詞只寫凍雨碼，兩個等級規則一樣）；降雪公分 ÷ 0.7 換水當量
+    - 部分失敗：任何一個資料請求失敗就整個 `openmeteo` 失敗（三票都沒有），不做「預報成功、系集失敗」的半套
+    - `latest.json` 多約 **790 KB**（2,214 → 3,023 KB；gzip 142 → 174 KB），原始快照一報約 1.2 MB（不縮排；
+      zlib 後約 190 KB）——每天 `data` 分支多約 3 MB（history）＋5 MB（raw），要省再說
+    - `models[].voting` 要經 Shawn 轉 Duado（網頁標「旁觀，不投票」）；其他要轉的欄位見 README「輸出」HD16 段
     **HD18（2026-10-20 定案，Shawn 確認 12 條）：估算陣風的係數改成每個機場自己算**——G＝陣風÷10 米平均風，用 IFS（`10fg`÷
     √(u²+v²)）與 GFS（`GUST`÷10 米風速）各自的資料、同一模式同一機場同一格自己比自己（拿 AIFS／AIGFS 去比 HRES 陣風不公平：
     颱風路線不同時同一格本來就差很多，而且 GFS 自己的陣風也只有 IFS 的 0.76、IFS 陣風偏高不能當標準答案）；最近 30 天、
@@ -344,6 +366,12 @@
   `warnings[].kind` 多 `cwa_dense_fog`（中、算 `fog`）；`airports[].metar.source: "cwa"`（氣象署局屬站觀測，
   AviationWeather 的沒有這個鍵）；`slots[].official.kind` 多 `metar`（沒有 TAF 的機場第一格由 METAR 撐起，
   `wx` 是物件）
+- HD16（Open-Meteo 三票）要經 Shawn 轉給 Duado 總指揮的（只加值，`schema` 維持 `1`）：頂層 `models[]` 多
+  `icon`、`jma`、`wn2-ens` 三筆、**每筆多 `voting`（布林，`false` 時網頁標「旁觀，不投票」）**；
+  `slots[].model.models[]` 每格 8 筆、每筆多 `p49Kt`（只有 `wn2-ens` 有值：成員比例）；`vote.total` 最多 8；
+  `runs.icon`／`runs.jma`／`runs.wn2-ens`；`sources.openmeteo`（`ok`、`seconds`、`bytes`、`calls`、失敗時
+  `error`、`runError`）；`warnings[].kind` 多 `jma_snowstorm_emergency`（高、算 `snow`）。資料來源頁要標
+  「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2」。完整定義在 README「輸出」的 HD16 段
 - HD9（JMA 大雪警報）要經 Shawn 轉給 Duado 的（只加值）：`warnings[].source` 多 `"jma"`、`kind` 多
   `jma_heavy_snow`（中）、`jma_heavy_snow_emergency`（高）、`jma_snowstorm`（低，只列出），都算 `snow`、一定有四語
   `text`；`sources.jma`；日本 8 個＋沖繩 3 個 `official.warnings` 變 `true`。網頁 `WARNING_KINDS` 已有
@@ -460,9 +488,10 @@ NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權�
 ### 來源逾時與沿用（H7，2026-10-18 build #4 被 ECMWF 429 卡到被砍之後）
 
 - 每個來源有時間預算（`build.py` 的 `BUDGET_S`：ecmwf 300（H10 起，原 240）、gfs 180、aifs 180、aigfs 120
-  （HD14）、taf 45、hko 30、smg 30、cwa 45、nws 30（HD3）、flights 120、ai 240（HD12 起，原 180，HD5）、
-  og 60（HD1）、tracks 150（HD21，只在事件期間）秒，總和 25.5 分鐘），超過記 `error: "timeout"` 繼續跑下一個；
-  Actions 那一步 28 分鐘、job 38 分鐘（HD21 前 25／35、HD14 前 20／30、HD12 前 18／28、HD5 前 15／25）
+  （HD14）、openmeteo 90（HD16）、taf 45、hko 30、smg 30、cwa 45、nws 30（HD3）、jma 45（HD9）、flights 120、
+  ai 240（HD12 起，原 180，HD5）、og 60（HD1）、tracks 150（HD21，只在事件期間）秒，總和 1665 秒＝27.75 分鐘），
+  超過記 `error: "timeout"` 繼續跑下一個；Actions 那一步 30 分鐘、job 40 分鐘（HD16 前 28／38、HD21 前 25／35、
+  HD14 前 20／30、HD12 前 18／28、HD5 前 15／25）
 - ECMWF 重試最多 3 次、間隔 10 秒、不照 Retry-After；找最新一報先問入口、下載先試 AWS 鏡像
   （→ 入口 → Google；AWS 下載不重試，S3 的 503 Slow Down 一來就換），`sources.ecmwf.mirror` 記實際來源。`ecmwf-opendata` 最低 0.3.34（有重試參數）
 - GFS（H10）：先 AWS 開放資料鏡像（`.idx`＋HTTP `Range` 只抓三筆），失敗才 NOMADS（2026-10-18 12:42Z 起
@@ -470,7 +499,8 @@ NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權�
 - ECMWF HRES（H10）：每個步長只有一個陣風參數（`10fg` 或 `10fg3`，不能只抓 `10fg3`）；`10u`／`10v`
   只抓 6 小時整的步長，一報從約 112 MB 降到約 82 MB（目標 70 MB 沒達到，見 PR 說明）
 - `ecmwf`／`gfs`／`aifs`／`aigfs` 失敗時沿用「最近一份有該模式資料」的同機場同格 `model.ec`／`model.gfs`
-  （AIFS、AIGFS 是 `model.models[]` 同 `id` 那筆的數字，HD14），等級與投票照常算。
+  （AIFS、AIGFS 是 `model.models[]` 同 `id` 那筆的數字，HD14），等級與投票照常算。**`openmeteo`（HD16）不沿用**：
+  失敗那報 ICON、JMA GSM、WN2 三筆是 `null`、不算分母。
   H10 起往前找：`data` 分支 `history/<時間>.json` 由新到舊，第一份 `sources.<名稱>.ok` 是 `true` 而且
   模式時次在 24 小時內的；找不到才退回上一份 `latest.json`。`ok` 維持 `false`、加 `reusedFrom`
   （那一份的 `generatedAt`），`runs` 是那一份的。模式時次超過 24 小時不沿用（系集各自算），

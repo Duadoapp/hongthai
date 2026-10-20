@@ -17,8 +17,9 @@ from conftest import FIXTURES, ROOT, load_json, utc
 from hongthai import budget, build, grib
 from hongthai.ai import config as ai_config
 from hongthai.ai.parse import AiError
+from hongthai.assess import DEFAULT_GUST_FACTOR
 from hongthai.config import ConfirmedPeriod, Thresholds, load_airports, load_regions
-from hongthai.sources import aifs, aigfs, cwa, ecmwf, gfs, hko, jma, nws, smg, taf
+from hongthai.sources import aifs, aigfs, cwa, ecmwf, gfs, hko, jma, nws, openmeteo, smg, taf
 from hongthai.sources.gfs import GfsData, GustPoint
 
 # 地區與機場的顯示順序（H9；HD3 加越南、菲律賓、關島・帛琉；Duado spec 第 16 節）
@@ -69,6 +70,7 @@ MODEL_ENTRY_KEYS = {
     "rain6hMm",
     "ptype",
     "visibilityM",
+    "p49Kt",  # HD16
     "levels",
     "level",
 }
@@ -156,6 +158,37 @@ def sample_ai_models(airports):
     return af, ag
 
 
+def sample_openmeteo(airports, icon_gust=20.0, jma_wind=15.0, wn2_winds=(20.0, 40.0, 10.0, 36.0)):
+    """HD16 的 ICON、JMA GSM、WeatherNext 2 系集：每個機場整段一樣（ICON 陣風、JMA 平均風、WN2 每個
+    成員的 10 米風，節）。"""
+    t0 = utc(2026, 10, 18, 0)
+    hours = [t0 + timedelta(hours=h) for h in range(144)]
+    return openmeteo.OpenMeteoData(
+        runs={"icon": utc(2026, 10, 18, 0), "jma": utc(2026, 10, 17, 18), "wn2-ens": None},
+        hourly={
+            "icon": {
+                a.icao: [
+                    openmeteo.OmHour(t, 15.0, 90.0, icon_gust, 0.5, 0.0, None, 61) for t in hours
+                ]
+                for a in airports
+            },
+            "jma": {
+                a.icao: [
+                    openmeteo.OmHour(t, jma_wind, 90.0, None, 0.0, 0.0, None, 0) for t in hours
+                ]
+                for a in airports
+            },
+        },
+        ensemble={
+            a.icao: [openmeteo.EnsStep(t, tuple(wn2_winds)) for t in hours[::6]] for a in airports
+        },
+        raw={"forecast": [{"hourly": {}}], "ensemble": [{"hourly": {}}]},
+        bytes_downloaded=2_300_000,
+        calls=397.8,
+        members=len(wn2_winds),
+    )
+
+
 AI_COMMENT = {"zh-TW": "高。", "zh-HK": "高。", "zh-CN": "高。", "en": "High."}
 
 
@@ -240,9 +273,19 @@ def test_top_level(latest):
         "en": "Taiwan",
     }
     # 多模式投票（HD14）：頂層 models（id、四語名稱，照 config.MODELS 的順序）
-    assert [m["id"] for m in latest["models"]] == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
+    assert [m["id"] for m in latest["models"]] == [
+        "ifs",
+        "gfs",
+        "ifs-ens",
+        "aifs",
+        "aigfs",
+        "icon",
+        "jma",
+        "wn2-ens",
+    ]
     for m in latest["models"]:
-        assert set(m) == {"id", "name"} and set(m["name"]) == LANGS
+        assert set(m) == {"id", "name", "voting"} and set(m["name"]) == LANGS
+        assert m["voting"] is True  # HD16：三票都投票（旁觀模式之後才有）
     assert latest["models"][3]["name"] == {
         "zh-TW": "歐洲 AI 模式 AIFS",
         "zh-HK": "歐洲 AI 模式 AIFS",
@@ -421,7 +464,16 @@ def test_slot_shape(latest):
             assert m["level"] in ("low", "medium", "high", None)
             assert m["agreement"] in ("agree", "disagree", None)
             # HD14：每格 5 筆 models[]（照 config.MODELS）與 vote
-            assert [e["id"] for e in m["models"]] == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
+            assert [e["id"] for e in m["models"]] == [
+                "ifs",
+                "gfs",
+                "ifs-ens",
+                "aifs",
+                "aigfs",
+                "icon",
+                "jma",
+                "wn2-ens",
+            ]
             for e in m["models"]:
                 assert set(e) == MODEL_ENTRY_KEYS
                 assert e["run"] is None or ISO_Z.match(e["run"])
@@ -435,7 +487,7 @@ def test_slot_shape(latest):
             v = m["vote"]
             assert set(v) == {"total", "high", "medium", "low", "level", "thin"}
             assert v["level"] == m["level"] and isinstance(v["thin"], bool)
-            assert 0 <= v["high"] <= v["total"] <= 5 and v["low"] <= v["total"]
+            assert 0 <= v["high"] <= v["total"] <= 8 and v["low"] <= v["total"]
 
 
 def test_content_from_samples(latest):
@@ -639,7 +691,8 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(build.flights, "fetch", lambda now: build.flights.FlightsData({}, {}))
     monkeypatch.setattr(build.nws, "fetch", lambda zones: build.nws.NwsData([], {}))
     monkeypatch.setattr(build.jma, "fetch", lambda areas: build.jma.JmaData({}, {}))
-    for mod in (build.aifs, build.aigfs):  # HD14 的兩個模式預設失敗（測試不連網）
+    # HD14 的兩個模式、HD16 的 Open-Meteo 預設失敗（測試不連網）
+    for mod in (build.aifs, build.aigfs, build.openmeteo):
         monkeypatch.setattr(mod, "fetch", _boom)
 
     def no_network(*a, **k):  # 模式失敗時會去 Pages 抓上一份；測試不連網
@@ -679,6 +732,9 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
         "gfs": None,
         "aifs": None,
         "aigfs": None,
+        "icon": None,  # HD16
+        "jma": None,
+        "wn2-ens": None,
     }
     assert all(s["level"] == "unknown" for a in out["airports"] for s in a["slots"])
     # 沒有上一份、全部 unknown → 沒有機場要評；沒設金鑰照樣記 no_api_key
@@ -711,6 +767,8 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     jm = sample_jma(airports)
     areas_asked = []
     monkeypatch.setattr(build.jma, "fetch", lambda areas: areas_asked.extend(areas) or jm)
+    om = sample_openmeteo(airports)
+    monkeypatch.setattr(build.openmeteo, "fetch", lambda *a, **k: om)
     monkeypatch.setattr(build, "utcnow", lambda: NOW)
     monkeypatch.setattr(build.ai, "EVALUATORS", {"claude": fake_ai("high"), "gemini": fake_ai()})
     assert build.main([]) == 0
@@ -727,8 +785,22 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     assert [r["id"] for r in out["regions"]] == list(REGIONS)
     raw = workspace / "data" / "history" / "raw" / "2026-10-18"
     assert sorted(p.name for p in raw.iterdir()) == [
-        f"0810Z-{n}.json" for n in ("cwa", "hko", "jma", "metar", "nws", "smg", "taf")
+        f"0810Z-{n}.json" for n in ("cwa", "hko", "jma", "metar", "nws", "openmeteo", "smg", "taf")
     ]
+    # HD16：Open-Meteo 原文不縮排（約 1.2 MB）
+    assert json.loads((raw / "0810Z-openmeteo.json").read_text("utf-8")) == om.raw
+    assert "\n " not in (raw / "0810Z-openmeteo.json").read_text("utf-8")
+    assert out["sources"]["openmeteo"] == {
+        "ok": True,
+        "seconds": out["sources"]["openmeteo"]["seconds"],
+        "bytes": 2_300_000,
+        "calls": 397.8,
+    }
+    assert (out["runs"]["icon"], out["runs"]["jma"], out["runs"]["wn2-ens"]) == (
+        "2026-10-18T00:00:00Z",
+        "2026-10-17T18:00:00Z",
+        None,
+    )
     # HD14：latest.json 與 history/<時間>.json 不縮排（一行＋結尾換行）；原始快照照舊縮排
     for p in (
         workspace / "public" / "latest.json",
@@ -814,7 +886,8 @@ def test_flight_fetch_error_reported(workspace, monkeypatch):
 
 
 def _fail_all_but(monkeypatch, **fetches):
-    for name in ("ecmwf", "gfs", "aifs", "aigfs", "taf", "hko", "smg", "nws", "jma"):
+    names = ("ecmwf", "gfs", "aifs", "aigfs", "openmeteo", "taf", "hko", "smg", "nws", "jma")
+    for name in names:
         monkeypatch.setattr(getattr(build, name), "fetch", fetches.get(name, _boom))
     monkeypatch.delenv("CWA_API_KEY", raising=False)
     monkeypatch.setattr(build, "utcnow", lambda: NOW)
@@ -1006,6 +1079,9 @@ def test_ecmwf_failure_reuses_previous_model(workspace, monkeypatch):
         "gfs": None,
         "aifs": None,
         "aigfs": None,
+        "icon": None,  # HD16
+        "jma": None,
+        "wn2-ens": None,
     }
     # gfs 也失敗了，但上一份的 runs.gfs 是 null → 不沿用
     assert "reusedFrom" not in out["sources"]["gfs"]
@@ -1058,6 +1134,9 @@ def test_reuse_expires_after_24h(workspace, monkeypatch):
         "gfs": None,
         "aifs": None,
         "aigfs": None,
+        "icon": None,  # HD16
+        "jma": None,
+        "wn2-ens": None,
     }
     s0 = _airport(out, "VHHH")["slots"][0]
     assert s0["model"]["ec"]["hresGustMs"] is None
@@ -1206,6 +1285,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "gfs",
         "aifs",
         "aigfs",
+        "openmeteo",  # HD16
         "taf",
         "hko",
         "cwa",
@@ -1232,10 +1312,13 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     assert set(gfs_line) == {"run", "source", "ok", "error", "seconds", "bytes", "mirror"}
     assert (gfs_line["ok"], gfs_line["error"], gfs_line["bytes"]) == (True, None, 0)
     assert gfs_line["mirror"] is None  # 假的 fetch 沒有記 mirror
-    assert lines[7]["error"] == "no_api_key"
+    assert lines[8]["error"] == "no_api_key"
     for line in lines[3:5]:  # HD14：aifs、aigfs 也記 mirror
         assert set(line) == {"run", "source", "ok", "error", "seconds", "bytes", "mirror"}
-    ai_line = lines[12]
+    om_line = lines[5]  # HD16：openmeteo 記加權呼叫次數（失敗是 null）
+    assert set(om_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
+    assert (om_line["ok"], om_line["calls"]) == (False, None)
+    ai_line = lines[13]
     assert set(ai_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert ai_line["bytes"] == 0 and ai_line["calls"] == {"claude": 0, "gemini": 0}
     assert lines[-1]["ok"] is True and isinstance(lines[-1]["seconds"], float)
@@ -1700,9 +1783,19 @@ def test_rescore_revotes_models():
     }
     build._rescore(slot, Thresholds())
     m = slot["model"]
-    assert [e["id"] for e in m["models"]] == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
+    assert [e["id"] for e in m["models"]] == [
+        "ifs",
+        "gfs",
+        "ifs-ens",
+        "aifs",
+        "aigfs",
+        "icon",
+        "jma",
+        "wn2-ens",
+    ]
     assert m["models"][3]["run"] == "2026-10-18T00:00:00Z"  # 沒給 runs 時維持原值
-    assert [e["levels"]["wind"] for e in m["models"]] == ["high", "medium", "high", "medium", None]
+    winds = [e["levels"]["wind"] for e in m["models"]]
+    assert winds == ["high", "medium", "high", "medium", None, None, None, None]
     # 高 2 × 2 ≥ 4（IFS、系集）→ 高
     assert m["vote"] == {
         "total": 4,
@@ -1714,7 +1807,7 @@ def test_rescore_revotes_models():
     }
     assert (m["level"], slot["level"], slot["causes"]) == ("high", "high", ["wind"])
     build._rescore(slot, Thresholds(), {"ifs": "2026-10-18T06:00:00Z"})
-    assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z", None, None, None, None]
+    assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z"] + [None] * 7
 
 
 # ---- 估算陣風的係數（HD18）----
@@ -1822,3 +1915,128 @@ def test_gust_factor_failure_falls_back_to_default(workspace, monkeypatch, airpo
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     ai = _airport(out, "RCTP")["slots"][0]["model"]["models"][3]
     assert (ai["gustKt"], ai["gustFactor"], ai["gustFactorBasis"]) == (43.4, 1.4, "default")
+
+
+# ---- HD16：Open-Meteo 三票 ----
+
+
+def _assemble(airports, om, status=None, **kw):
+    ec, gf, tf, hk, cw, sm, nw = sample_inputs(airports)
+    return build.assemble(
+        now=NOW,
+        regions=load_regions(ROOT / "airports.json"),
+        airports=airports,
+        confirmed=[],
+        status=status or {},
+        ec=ec,
+        gf=gf,
+        tf=tf,
+        hk=hk,
+        cw=cw,
+        sm=sm,
+        nw=nw,
+        om=om,
+        **kw,
+    )
+
+
+def test_openmeteo_three_votes_in_output(airports):
+    """ICON 陣風 20 節（低）、JMA 平均風 15 × 1.4 ＝ 21（估算，低）、WN2 4 個成員 20／40／10／36 節
+    × 1.4 → 28／56／14／50.4，2 個 ≥ 48 → 0.5 投高；中位數 28 → 39.2。新千歲第二格的 IFS、GFS、
+    AIFS、AIGFS 沒有資料（fixture 沒涵蓋），風的分母是 IFS 系集＋三票＝4。"""
+    out = _assemble(airports, sample_openmeteo(airports))
+    s = _airport(out, "RJCC")["slots"][1]
+    by = {e["id"]: e for e in s["model"]["models"]}
+    icon, jm, wn2 = by["icon"], by["jma"], by["wn2-ens"]
+    assert (icon["gustKt"], icon["windKt"], icon["gustEstimated"], icon["gustFactor"]) == (
+        20.0,
+        15.0,
+        False,
+        None,
+    )
+    assert (icon["rain6hMm"], icon["ptype"], icon["run"]) == (3.0, "rain", "2026-10-18T00:00:00Z")
+    assert icon["levels"] == {"wind": "low", "rain": "low", "snow": "low", "fog": None}
+    assert jm["levels"]["wind"] == "low"
+    assert (jm["windKt"], jm["gustKt"], jm["gustEstimated"], jm["gustFactorBasis"]) == (
+        15.0,
+        21.0,
+        True,
+        "default",
+    )
+    assert (jm["ptype"], jm["levels"]["snow"]) == ("none", "low")
+    assert (wn2["windKt"], wn2["gustKt"], wn2["p49Kt"], wn2["gustEstimated"]) == (
+        28.0,
+        39.2,
+        0.5,
+        True,
+    )
+    assert wn2["levels"] == {"wind": "high", "rain": None, "snow": None, "fog": None}
+    assert all(e["p49Kt"] is None for e in s["model"]["models"] if e["id"] != "wn2-ens")
+    v = s["model"]["vote"]
+    assert (v["total"], v["high"], v["medium"], v["low"]) == (4, 1, 0, 3)
+    # 高 1 × 2 < 4；中那一輪兩個系集不算，ICON、JMA 都低 → 低
+    assert v["level"] == s["model"]["level"] == "low"
+    assert out["runs"]["wn2-ens"] is None and wn2["run"] is None
+    assert [m["voting"] for m in out["models"]] == [True] * 8
+
+
+def test_openmeteo_failure_drops_three_votes(airports):
+    """Open-Meteo 失敗：三筆全 null、不算分母，其他照 5 票算；整報照出。"""
+    status = {"openmeteo": {"ok": False, "error": "timeout", "seconds": 90.0}}
+    out = _assemble(airports, None, status)
+    with_om = _assemble(airports, sample_openmeteo(airports))
+    assert out["sources"]["openmeteo"] == {"ok": False, "error": "timeout", "seconds": 90.0}
+    assert (out["runs"]["icon"], out["runs"]["jma"], out["runs"]["wn2-ens"]) == (None, None, None)
+    for a, b in zip(out["airports"], with_om["airports"], strict=True):
+        for s, t in zip(a["slots"], b["slots"], strict=True):
+            es = s["model"]["models"]
+            assert all(e["level"] is None and e["gustKt"] is None for e in es[5:])
+            assert s["model"]["vote"]["total"] <= 5
+            # 前五筆和有 Open-Meteo 時一模一樣
+            assert es[:5] == t["model"]["models"][:5]
+
+
+def test_openmeteo_not_reused(workspace, monkeypatch, airports):
+    """Open-Meteo 失敗不沿用：上一份有 ICON、WN2 的數字，這一報那三筆照樣是 null、沒有
+    `reusedFrom`。ECMWF 沿用時（`_rescore` 重組 `models[]`）也不會把舊的抄回來。"""
+    _, gf, *_ = sample_inputs(airports)
+    prev = _prev(
+        "2026-10-18T02:10:00Z",
+        {
+            "ecmwf": "2026-10-18T00:00:00Z",
+            "ecmwfEns": None,
+            "gfs": None,
+            "icon": "2026-10-18T00:00:00Z",
+        },
+        ec={"hresGustKt": 50.0, "crosswindKt": 12.5},
+    )
+    prev["sources"] = {"ecmwf": {"ok": True}, "openmeteo": {"ok": True}}
+    prev["airports"][0]["slots"][0]["model"]["models"] = [
+        _entry("icon", "2026-10-18T00:00:00Z", gustKt=60.0),
+        {**_entry("wn2-ens", None, gustKt=55.0), "p49Kt": 0.9, "windKt": 39.0},
+    ]
+    _write_hist(workspace, prev, ok={"ecmwf": True, "openmeteo": True})
+    _write_prev(workspace, prev)
+    _fail_all_but(monkeypatch, gfs=lambda *a, **k: gf)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["sources"]["ecmwf"]["reusedFrom"] == "2026-10-18T02:10:00Z"
+    src = out["sources"]["openmeteo"]
+    assert src["ok"] is False and "reusedFrom" not in src
+    assert out["runs"]["icon"] is None
+    by = {e["id"]: e for e in _airport(out, "VHHH")["slots"][0]["model"]["models"]}
+    assert by["ifs"]["gustKt"] == 50.0  # ECMWF 照沿用
+    for i in ("icon", "jma", "wn2-ens"):
+        assert by[i]["gustKt"] is None and by[i]["level"] is None and by[i]["p49Kt"] is None
+
+
+def test_rescore_keeps_this_runs_openmeteo_entries(airports):
+    """別的模式沿用時 `_rescore` 重組 `models[]`：Open-Meteo 三筆用這一報自己的數字（WN2 的成員
+    比例、估算陣風照舊），投票照算。"""
+    out = _assemble(airports, sample_openmeteo(airports))
+    s = _airport(out, "RJCC")["slots"][1]
+    before = [dict(e) for e in s["model"]["models"]]
+    build._rescore(s, Thresholds(), build.model_runs(out["runs"]), DEFAULT_GUST_FACTOR)
+    after = s["model"]["models"]
+    assert after[5:] == before[5:]
+    assert s["model"]["vote"]["total"] == 4

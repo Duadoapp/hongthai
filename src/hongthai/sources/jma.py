@@ -1,4 +1,4 @@
-"""日本氣象廳（JMA）防災 JSON 的警報：日本與沖繩機場的大雪警報（HD9）。
+"""日本氣象廳（JMA）防災 JSON 的警報：日本與沖繩機場的大雪警報（HD9）與暴風雪特別警報（HD16）。
 
 JMA bosai 的 JSON（JMA 網頁自己用的，非正式介面但穩定、不用金鑰，日本政府公有）：
 - 警報 `https://www.jma.go.jp/bosai/warning/data/r8/<office 代碼>.json`，一個都道府縣氣象台
@@ -19,8 +19,9 @@ JMA bosai 的 JSON（JMA 網頁自己用的，非正式介面但穩定、不用�
 - `status`：発表、継続、解除、発表警報・注意報はなし（沒有 `code`）。降級時（警報→注意報）代碼是
   降級後的種類，所以只要代碼對、狀態不是解除／なし就算生效中
 
-只接三種（Shawn 2026-10-19 定案）：大雪警報 → 中、大雪特別警報 → 高、暴風雪警報 → 低（只列出），
-都算 `snow`。注意報（大雪 12、風雪 13）不列；暴風雪特別警報 `32` 不在定案裡，先不接。
+接四種：大雪警報 → 中、大雪特別警報 → 高、暴風雪警報 → 低（只列出）（Shawn 2026-10-19 定案）；
+暴風雪特別警報 `32` → 高（HD16，Shawn 2026-10-20 19:04，和大雪特別警報同級），都算 `snow`。
+注意報（大雪 12、風雪 13）不列。
 每種電文（`dataTypeCode`）只看 `reportDatetime` 最新的那一筆（新的一報整份取代舊的；`infoType`
 是取消的那筆不算），再把各種電文合起來；同一個代碼出現在好幾種電文時取最新那筆的狀態。
 `issuedAt` 是那筆的 `reportDatetime`。
@@ -41,11 +42,13 @@ CODES = {
     "06": ("jma_heavy_snow", "medium"),
     "36": ("jma_heavy_snow_emergency", "high"),
     "02": ("jma_snowstorm", "low"),
+    "32": ("jma_snowstorm_emergency", "high"),  # HD16
 }
 _NAMES = {  # kind → zh-TW／zh-HK、zh-CN、en
     "jma_heavy_snow": ("大雪警報", "大雪警报", "heavy snow warning"),
     "jma_heavy_snow_emergency": ("大雪特別警報", "大雪特别警报", "heavy snow emergency warning"),
     "jma_snowstorm": ("暴風雪警報", "暴风雪警报", "snowstorm warning"),
+    "jma_snowstorm_emergency": ("暴風雪特別警報", "暴风雪特别警报", "snowstorm emergency warning"),
 }
 INACTIVE = frozenset({"解除", "発表警報・注意報はなし"})
 _EN_SUFFIXES = (" City", " Town", " Village")
@@ -58,7 +61,7 @@ class JmaError(SourceError):
 
 @dataclass
 class JmaWarning:
-    kind: str  # jma_heavy_snow／jma_heavy_snow_emergency／jma_snowstorm
+    kind: str  # jma_heavy_snow／jma_heavy_snow_emergency／jma_snowstorm／jma_snowstorm_emergency
     level: str
     code: str  # JMA 的警報種類代碼，例如 06
     text: dict[str, str]
