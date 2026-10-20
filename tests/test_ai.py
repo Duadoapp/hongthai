@@ -21,10 +21,11 @@ from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 from test_build import latest  # noqa: F401
 
-from hongthai import build
+from hongthai import assess, build
 from hongthai.ai import claude, config, gemini, parse, prompt, select
 from hongthai.ai import run as ai_run
 from hongthai.ai.parse import AiError
+from hongthai.config import Thresholds
 
 T0 = utc(2026, 10, 19, 0)
 RUN = "2026-10-19T02:15:00Z"
@@ -245,14 +246,20 @@ def test_airport_text_weather_types():
     }
     s0["model"]["ec"].update(rain6hMm=35.2, ptype="rain", p24hRain50=0.4)
     s0["model"]["gfs"].update(rain6hMm=12.0, ptype="snow", visibilityM=800)
+    _with_models(s0["model"])
     text = prompt.airport_text(ap, RUN)
-    line = next(ln for ln in text.splitlines() if ln.startswith("1. "))
+    lines = text.splitlines()
+    i = next(i for i, ln in enumerate(lines) if ln.startswith("1. "))
+    line = lines[i]
     assert "causes fog（濃霧）、rain（大雨）" in line
     assert (
         "wx（現象 FG +TSRA、能見度 300 公尺、雲底 100 呎、rain medium、snow low、fog high）" in line
     )
-    assert "EC rain6hMm 35.2 mm、EC ptype rain、p24hRain50 40%" in line
-    assert "GFS rain6hMm 12 mm、GFS ptype snow、GFS visibilityM 800 公尺" in line
+    assert "p49Kt 10%、p24hRain50 40%" in line
+    # HD14：每個模式一行，接在那一格後面
+    ifs = "  - 歐洲模式：陣風 40 節、側風 20 節、rain6hMm 35.2 mm、ptype rain"
+    gfs = "  - 美國模式：陣風 30 節、側風 10 節、rain6hMm 12 mm、ptype snow、visibilityM 800 公尺"
+    assert lines[i + 1].startswith(ifs) and lines[i + 2].startswith(gfs)
     assert "能見度 300 公尺、天氣 FG、雲底 100 呎" in text  # METAR
     second = next(ln for ln in text.splitlines() if ln.startswith("2. "))
     assert "causes 無" in second
@@ -262,6 +269,66 @@ def test_airport_text_weather_types():
     assert "模式層的霧最高只到 medium" in text  # HD10
     assert "短評要說出主要是哪種天氣造成" in text
     assert "第一句要點出主因天氣" in prompt.SYSTEM
+
+
+def _with_models(m: dict, others: dict | None = None) -> dict:
+    """用 `assess` 把 `ec`／`gfs`（＋其他模式的數字）組成 `models[]` 與 `vote`（HD14）。"""
+    th = Thresholds()
+    assess.fill_model_wx(m["ec"], m["gfs"], th)
+    m["models"] = assess.model_entries(m["ec"], m["gfs"], others or {}, {}, th)
+    _, m["vote"] = assess.model_vote(m["models"])
+    m["level"] = m["vote"]["level"]
+    return m
+
+
+def test_airport_text_models_and_vote_hd14():
+    """HD14：投票句、每個模式一行（白話名、估算陣風標「估」）、系集只投高。"""
+    ap = airport("RCTP", lv(2, "medium"))
+    m = ap["slots"][0]["model"]
+    m["ec"].update(hresGustKt=50.0, p49Kt=0.4)
+    m["gfs"].update(gustKt=49.0)
+    _with_models(
+        m,
+        {
+            "aifs": {"gustKt": 43.4, "crosswindKt": 20.0, "rain6hMm": 3.1, "ptype": "rain"},
+            "aigfs": {"gustKt": 14.0, "rain6hMm": 0.4},
+        },
+    )
+    text = prompt.airport_text(ap, RUN)
+    lines = text.splitlines()
+    i = next(i for i, ln in enumerate(lines) if ln.startswith("1. "))
+    assert "模式：等級 high、投票（強風）：5 個模式中 3 個認為高 → high、" in lines[i]
+    assert lines[i + 1 : i + 6] == [
+        "  - 歐洲模式：陣風 50 節、側風 20 節、rain6hMm —、ptype —、visibilityM —、"
+        "等級 high（wind high、rain —、snow —、fog —）",
+        "  - 美國模式：陣風 49 節、側風 10 節、rain6hMm —、ptype —、visibilityM —、"
+        "等級 high（wind high、rain —、snow —、fog —）",
+        "  - 歐洲系集：p49Kt 40% → 投 high（只投高）",
+        "  - 歐洲 AI 模式：陣風 43.4 節（估）、側風 20 節、rain6hMm 3.1 mm、ptype rain、"
+        "visibilityM —、等級 medium（wind medium、rain low、snow low、fog —）",
+        "  - 美國 AI 模式：陣風 14 節（估）、側風 —、rain6hMm 0.4 mm、ptype —、visibilityM —、"
+        "等級 low（wind low、rain low、snow —、fog —）",
+    ]
+    assert lines[i + 6].startswith("2. ")
+    # 規則說明：投票、系集只投高、估算陣風
+    assert "達到有資料模式數的一半就成立" in text
+    assert "歐洲系集只投 high：p49Kt ≥ 30% 投 high" in text
+    assert "10 米平均風 × 1.4 估算（標「估」）" in text
+    for must in ("估算陣風", "estimated gust", "五個模式中三個認為高", "US AI model"):
+        assert must in prompt.SYSTEM, must
+
+
+def test_airport_text_vote_low_and_thin_hd14():
+    ap = airport("RCTP")
+    m = ap["slots"][0]["model"]
+    m["ec"] = {}
+    _with_models(m)
+    line = next(ln for ln in prompt.airport_text(ap, RUN).splitlines() if ln.startswith("1. "))
+    assert "投票：每一類都沒有過半的模式認為中以上 → low（風只有 1 個模式有資料）" in line
+    ap["slots"][0]["model"] = {"ec": {}, "gfs": {}, "level": None, "agreement": None}
+    _with_models(ap["slots"][0]["model"])
+    line = next(ln for ln in prompt.airport_text(ap, RUN).splitlines() if ln.startswith("1. "))
+    assert "投票：沒有模式資料" in line
 
 
 def test_airport_text_cwa_station_metar():
@@ -1249,6 +1316,30 @@ def test_en_plain_words_ok_hd17(en):
 )
 def test_other_tokens_still_blocked_hd17(langs, message):
     assert str(_wording(**langs)) == f"bad_wording: {message}"
+
+
+@pytest.mark.parametrize(
+    ("langs", "message"),
+    [
+        ({"zh-TW": "AIFS 估算陣風 43 節，停飛風險中。"}, "zh-TW：內部代號 AIFS"),
+        ({"zh-HK": "AIGFS 估算陣風 43 節，停飛風險中。"}, "zh-HK：內部代號 AIGFS"),
+        ({"en": "The AIFS estimated gust is 43 kt; disruption risk Medium."}, "en：內部代號 AIFS"),
+        ({"en": "gustEstimated is true; disruption risk Medium."}, "en：內部代號 gustEstimated"),
+    ],
+)
+def test_bad_wording_model_names_hd14(langs, message):
+    assert str(_wording(**langs)) == f"bad_wording: {message}"
+
+
+def test_good_wording_hd14():
+    comment = {
+        "zh-TW": "主因是強風：五個模式中三個認為高，歐洲 AI 模式估算陣風 43 節，停飛風險高。",
+        "zh-HK": "主因是強風：五個模式中三個認為高，歐洲 AI 模式估算陣風 43 節，停飛風險高。",
+        "zh-CN": "主因是强风：五个模式中三个认为高，欧洲 AI 模式估算阵风 43 节，停飞风险高。",
+        "en": "Mainly strong wind: three of five models say High, and the European AI model's "
+        "estimated gust is 43 kt; disruption risk High.",
+    }
+    assert parse.parse_response(_resp(comment=comment))["comment"] == comment
 
 
 def seq_model(*outcomes: str | None, delay: float = 0.0):

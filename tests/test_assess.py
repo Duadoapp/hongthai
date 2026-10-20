@@ -23,6 +23,8 @@ from hongthai.assess import (
 )
 from hongthai.config import ConfirmedPeriod, Runway, Thresholds
 from hongthai.grib import wind_dir_from_uv
+from hongthai.sources.aifs import AifsStep
+from hongthai.sources.aigfs import AigfsStep
 from hongthai.sources.ecmwf import EcmwfPoint, GustInterval, PrecipStep, ProbWindow
 from hongthai.sources.gfs import GustPoint
 from hongthai.sources.taf import Metar, TafPeriod
@@ -264,7 +266,8 @@ def test_taf_below_threshold_low_and_no_overlap_none():
 
 def test_official_overrides_model_within_30h():
     periods = [taf("main", 10, None, 0, 30)]
-    slots = run(ec=flat_ec(50), taf_periods=periods)
+    # HD14 投票：IFS、GFS 都高（系集低）模式層才是高
+    slots = run(ec=flat_ec(50), gfs=flat_gfs(50), taf_periods=periods)
     s = slots[0]
     assert (s["level"], s["basis"]) == ("low", "official")
     assert s["model"]["level"] == "high"
@@ -491,6 +494,17 @@ REAL_1615Z_TAF = [
 ]
 
 
+# HD14 起模式層投票（這份檔只有 IFS、GFS、IFS 系集三票）：這三格 HD2 的規則是高，投票變中
+HD14_VOTE = {
+    # IFS 45.7、GFS 44.5 節都是中，只有系集 p49Kt 49% 投高：高 1 票 × 2 < 3；中 2／2（系集不算）
+    ("RCTP", "2026-10-23T00"): "medium",
+    # 同上（IFS 側風 28.0 節中、陣風 39.5 中；GFS 41.6 中；系集 42% 高）
+    ("RCSS", "2026-10-23T00"): "medium",
+    # 只有 IFS 側風 39.2 節投高，GFS 低、系集 21% 低：高 1／3 不成立；中 1／2（系集不算）成立
+    ("RCKH", "2026-10-22T18"): "medium",
+}
+
+
 def test_real_case_20261018_1615z():
     wrong = []
     for icao, start, hres, gfs_ms, p10, p15, p25, ec_xw, gfs_xw, old, new in REAL_1615Z_MODEL:
@@ -498,6 +512,7 @@ def test_real_case_20261018_1615z():
         g = {"gustMs": gfs_ms, "crosswindKt": gfs_xw}
         fill_kt(e, g)
         assert e["p49Kt"] == p25 and e["p37Kt"] is None
+        new = HD14_VOTE.get((icao, start), new)
         if (got := model_level(e, g, TH)) != new:
             wrong.append((icao, start, old, new, got))
     for icao, start, wind, gust, xw, old, new in REAL_1615Z_TAF:
@@ -954,7 +969,9 @@ def test_model_fog_capped_with_heavy_rain_and_wind_hun():
     )[0]
     assert (s["model"]["gfs"]["rain"], s["model"]["gfs"]["fog"]) == ("high", "medium")
     assert s["model"]["level"] == "high"
-    assert s["causes"] == ["wind", "rain", "fog"]
+    # HD14 投票：風只有 IFS 高（GFS 中、系集 0% 低）→ 高 1／3 不成立、中 2／2 → 中；
+    # 雨 IFS 中、GFS 高 → 高 1／2 成立。所以雨排第一（HD10 時是風、雨、霧）
+    assert s["causes"] == ["rain", "wind", "fog"]
 
 
 def test_model_fog_and_rain_both_medium_rain_first_ttt():
@@ -998,3 +1015,119 @@ def test_causes_from_official_layer_ignore_model():
     s = run(taf_periods=[wxp((), 9999, gust=40)], ec=precip_ec(80))[0]
     assert (s["basis"], s["level"], s["causes"]) == ("official", "medium", ["wind"])
     assert s["gap"] is True  # 模式層是高
+
+
+# ---- 多模式投票（HD14）----
+
+
+def flat_aifs(wind=31.0, wdir=None, rain=0.0, snow=0.0) -> list[AifsStep]:
+    """整段一樣的 AIFS（10 米平均風，節）。"""
+    return [AifsStep(S0 + timedelta(hours=h), wind, wdir, rain, snow) for h in range(0, 121, 6)]
+
+
+def flat_aigfs(wind=10.0, rain=0.0) -> list[AigfsStep]:
+    return [AigfsStep(S0 + timedelta(hours=h), wind, None, rain) for h in range(0, 121, 6)]
+
+
+RUNS = {
+    "ifs": "2026-10-18T00:00:00Z",
+    "gfs": "2026-10-18T00:00:00Z",
+    "ifs-ens": "2026-10-18T00:00:00Z",
+    "aifs": "2026-10-18T00:00:00Z",
+    "aigfs": None,
+}
+
+
+def test_models_entries_numbers_and_levels():
+    rwy = (Runway("05/23", (50.0, 230.0)),)
+    s = run(
+        ec=precip_ec(12.3, "rain", hres=40),
+        gfs=precip_gfs(31.0, "rain", 5000, g=20),
+        aifs=flat_aifs(31.0, 140.0, rain=3.1),
+        aigfs=flat_aigfs(10.0, rain=0.4),
+        runways=rwy,
+        runs=RUNS,
+    )[0]
+    m = s["model"]
+    by = {e["id"]: e for e in m["models"]}
+    assert list(by) == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
+    ifs, g, ens, ai, ag = by.values()
+    assert (ifs["gustKt"], ifs["gustEstimated"], ifs["rain6hMm"], ifs["ptype"]) == (
+        40.0,
+        False,
+        12.3,
+        "rain",
+    )
+    # HRES 沒有風向 → 側風＝陣風 40 節 ≥ 33 → 高
+    assert ifs["crosswindKt"] == 40.0
+    assert ifs["levels"] == {"wind": "high", "rain": "low", "snow": "low", "fog": None}
+    # IFS／GFS 三類的等級就是 model.ec／model.gfs 的（值照舊）
+    assert (ifs["levels"]["rain"], ifs["levels"]["snow"]) == (m["ec"]["rain"], m["ec"]["snow"])
+    assert g["levels"] == {"wind": "low", "rain": "medium", "snow": "low", "fog": "low"}
+    assert g["visibilityM"] == 5000 and g["level"] == "medium"
+    assert ens["levels"]["wind"] == "low" and ens["gustKt"] is None
+    # AIFS：平均風 31 節 × 1.4 → 估算陣風 43.4 節 → 中；側風用估算陣風（風向 140°、跑道 050°）
+    assert (ai["gustKt"], ai["gustEstimated"], ai["crosswindKt"]) == (43.4, True, 43.4)
+    assert (ai["rain6hMm"], ai["ptype"], ai["visibilityM"]) == (3.1, "rain", None)
+    assert ai["levels"] == {"wind": "high", "rain": "low", "snow": "low", "fog": None}
+    assert ai["run"] == "2026-10-18T00:00:00Z"
+    # AIGFS：14 節、沒有型態 → 不投雪；run 是 null（這一報沒有時次）
+    assert (ag["gustKt"], ag["gustEstimated"], ag["ptype"]) == (14.0, True, None)
+    assert ag["levels"] == {"wind": "low", "rain": "low", "snow": None, "fog": None}
+    assert ag["run"] is None
+
+
+def test_aifs_estimated_gust_medium():
+    """AIFS 平均風 31 節 × 1.4＝43.4 → 中、`gustEstimated`；沒有跑道就只看陣風。"""
+    s = run(ec=flat_ec(40), gfs=flat_gfs(5), aifs=flat_aifs(31.0), aigfs=flat_aigfs(5.0))[0]
+    ai = s["model"]["models"][3]
+    assert (ai["gustKt"], ai["gustEstimated"], ai["crosswindKt"]) == (43.4, True, None)
+    assert ai["levels"]["wind"] == "medium"
+    # 風：IFS 中、GFS 低、系集低、AIFS 中、AIGFS 低 → 中（系集不算）2 × 2 ≥ 4
+    assert s["model"]["vote"] == {
+        "total": 5,
+        "high": 0,
+        "medium": 2,
+        "low": 3,
+        "level": "medium",
+        "thin": False,
+    }
+    assert (s["model"]["level"], s["level"], s["causes"]) == ("medium", "medium", ["wind"])
+
+
+def test_vote_level_is_model_level_and_gap():
+    """`model.level`＝投票結果；落差照舊用它比官方層。"""
+    s = run(ec=flat_ec(50), gfs=flat_gfs(5), aifs=flat_aifs(5.0), aigfs=flat_aigfs(5.0))[0]
+    # 只有 IFS 高：高 1／5 不成立；中（系集不算）1 × 2 < 4 → 低
+    assert s["model"]["vote"]["level"] == s["model"]["level"] == "low"
+    # model.ec／gfs／agreement 照舊
+    assert s["model"]["ec"]["hresGustKt"] == 50 and s["model"]["agreement"] == "disagree"
+    s = run(
+        ec=flat_ec(50),
+        gfs=flat_gfs(50),
+        aifs=flat_aifs(5.0),
+        aigfs=flat_aigfs(5.0),
+        taf_periods=[taf("main", 10, None, 0, 30)],
+    )[0]
+    assert (s["model"]["level"], s["official"]["level"], s["gap"]) == ("medium", "low", True)
+
+
+def test_causes_use_voted_levels():
+    """依據是模式層時 causes 用投票後的各類等級：雨只有 IFS 高（GFS、AIFS、AIGFS 低）→ 雨是低、
+    不列；風 IFS、GFS、AIFS 都中 → 中。"""
+    s = run(
+        ec=precip_ec(80, "rain", hres=40),
+        gfs=precip_gfs(0, "none", g=40),
+        aifs=flat_aifs(28.0),
+        aigfs=flat_aigfs(5.0),
+    )[0]
+    assert s["model"]["ec"]["rain"] == "high"  # 欄位值照舊
+    assert s["model"]["models"][0]["levels"]["rain"] == "high"
+    assert (s["model"]["level"], s["causes"]) == ("medium", ["wind"])
+
+
+def test_models_present_when_sources_missing():
+    s = run(ec=None, gfs=None)[0]
+    assert [e["id"] for e in s["model"]["models"]] == ["ifs", "gfs", "ifs-ens", "aifs", "aigfs"]
+    assert all(e["level"] is None for e in s["model"]["models"])
+    assert s["model"]["vote"]["level"] is None and s["model"]["vote"]["thin"] is True

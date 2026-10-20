@@ -10,6 +10,10 @@ HD8（新天氣種類）：每格多給 `causes`（主因在前）、官方層 `
 模式層的雨量（`rain6hMm`）、降水型態（`ptype`）、系集 24 小時雨量機率（`p24hRain50`）、GFS 能見度
 （`visibilityM`）；METAR 也給能見度、天氣現象、雲底。給模型看的標籤維持代號，短評裡要改成白話
 （系統提示「用字」那段）。單位：雨量毫米、能見度公尺、雲底呎。
+
+HD14（多模式投票）：模式層第一行給等級、投票句（「投票（強風）：5 個模式中 3 個認為高 → high」）、
+一致性與系集機率；接著 `models[]` 每個模式一行（白話名、陣風——估算的標「估」、側風、雨量、型態、
+等級）。模式名直接用白話（`MODEL_TEXT`），短評不能寫 AIFS、AIGFS（`ai/config.py` 擋）。
 """
 
 from __future__ import annotations
@@ -17,7 +21,8 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from ..config import Thresholds
+from ..assess import MODEL_CAUSE_ORDER, model_vote, tally
+from ..config import GUST_FACTOR, Thresholds
 from ..og import slot_text
 from ..timeutil import parse_time
 
@@ -48,8 +53,13 @@ SYSTEM = "\n".join(
         "用字：",
         "1. 短評裡不出現內部代號：p29Kt、p49Kt、EC、GFS、HRES、TAF、METAR、crosswindKt、gustKt、"
         "basis、agreement、slots、causes、wx、ptype、rain6hMm、p24hRain50、visibilityM、ceilingFt、"
-        "APCP、CSNOW、CFRZR 這些欄位名或縮寫都不要寫，改成白話——",
-        "   - EC → 「歐洲模式」（en: European model）；GFS → 「美國模式」（en: US model）",
+        "APCP、CSNOW、CFRZR、gustEstimated、AIFS、AIGFS 這些欄位名或縮寫都不要寫，改成白話——",
+        "   - EC → 「歐洲模式」（en: European model）；GFS → 「美國模式」（en: US model）；"
+        "其他模式照資料裡的白話名寫：歐洲系集（en: European ensemble）、歐洲 AI 模式"
+        "（en: European AI model）、美國 AI 模式（en: US AI model），不要寫 AIFS、AIGFS",
+        "   - 標「估」的陣風是用平均風估算的，要寫「估算陣風」（en: estimated gust），不能寫成陣風",
+        "   - 投票的結果可以寫進短評，例如「五個模式中三個認為高」"
+        "（en: three of five models say High）",
         "   - p49Kt 56% → 「陣風超過 49 節的機率 56%」（en: 56% chance of gusts over 49 kt）；"
         "p29Kt 同樣寫「陣風超過 29 節的機率 …」",
         "   - TAF → 「機場預報」，第一次出現時可以括號附原名「機場預報（TAF）」"
@@ -107,6 +117,15 @@ WARNING_KIND_TEXT = {
     "cwa_dense_fog": "濃霧特報",
 }
 CAUSE_TEXT = {"wind": "強風", "rain": "大雨", "snow": "大雪", "fog": "濃霧"}
+# 模式的白話名（HD14；短評裡也照這樣寫）
+MODEL_TEXT = {
+    "ifs": "歐洲模式",
+    "gfs": "美國模式",
+    "ifs-ens": "歐洲系集",
+    "aifs": "歐洲 AI 模式",
+    "aigfs": "美國 AI 模式",
+}
+LEVEL_WORD = {"high": "高", "medium": "中以上"}
 
 
 def _num(v: object, unit: str = "") -> str:
@@ -163,22 +182,63 @@ def _official(o: dict | None) -> str:
     )
 
 
+def _vote(m: dict, models: list[dict]) -> str:
+    """「投票（強風）：5 個模式中 3 個認為高 → high」（HD14）。"""
+    v = m.get("vote") if isinstance(m.get("vote"), dict) else {}
+    level = v.get("level")
+    if not models or level not in ("low", "medium", "high"):
+        return "投票：沒有模式資料"
+    thin = f"（風只有 {v.get('total')} 個模式有資料）" if v.get("thin") else ""
+    if level == "low":
+        return f"投票：每一類都沒有過半的模式認為中以上 → low{thin}"
+    cats, _ = model_vote(models)
+    cause = next(c for c in MODEL_CAUSE_ORDER if cats.get(c) == level)
+    votes, total = tally(models, cause, level)
+    return (
+        f"投票（{CAUSE_TEXT[cause]}）：{total} 個模式中 {votes} 個認為{LEVEL_WORD[level]}"
+        f" → {level}{thin}"
+    )
+
+
+def _model_entry(e: dict, ec: dict) -> str:
+    name = MODEL_TEXT.get(str(e.get("id")), str(e.get("id")))
+    lv = e.get("levels") if isinstance(e.get("levels"), dict) else {}
+    if e.get("id") == "ifs-ens":
+        if lv.get("wind") is None:
+            return f"  - {name}：無資料"
+        return f"  - {name}：p49Kt {_pct(ec.get('p49Kt'))} → 投 {lv['wind']}（只投高）"
+    if e.get("level") is None:
+        return f"  - {name}：無資料"
+    gust = _kt(e.get("gustKt")) + ("（估）" if e.get("gustEstimated") else "")
+    levels = "、".join(f"{c} {lv.get(c) or '—'}" for c in ("wind", "rain", "snow", "fog"))
+    return (
+        f"  - {name}：陣風 {gust}、側風 {_kt(e.get('crosswindKt'))}、"
+        f"rain6hMm {_num(e.get('rain6hMm'), ' mm')}、ptype {e.get('ptype') or '—'}、"
+        f"visibilityM {_num(e.get('visibilityM'), ' 公尺')}、等級 {e.get('level')}（{levels}）"
+    )
+
+
+def _models(m: object) -> list[dict]:
+    return [e for e in m.get("models") or [] if isinstance(e, dict)] if isinstance(m, dict) else []
+
+
 def _model(m: dict | None) -> str:
+    """模式層：等級、投票、一致性、系集機率（每個模式的明細在 `_model_lines`，HD14）。"""
     if not isinstance(m, dict):
         return "模式：無"
     ec = m.get("ec") if isinstance(m.get("ec"), dict) else {}
-    gfs = m.get("gfs") if isinstance(m.get("gfs"), dict) else {}
     agreement = AGREEMENT_TEXT.get(m.get("agreement"), "缺一個模式")  # type: ignore[arg-type]
     return (
-        f"模式：等級 {m.get('level') or '—'}、EC 陣風 {_kt(ec.get('hresGustKt'))}、"
-        f"GFS 陣風 {_kt(gfs.get('gustKt'))}、EC 側風 {_kt(ec.get('crosswindKt'))}、"
-        f"GFS 側風 {_kt(gfs.get('crosswindKt'))}、p29Kt {_pct(ec.get('p29Kt'))}、"
-        f"p49Kt {_pct(ec.get('p49Kt'))}、EC 與 GFS {agreement}（只看陣風）、"
-        f"EC rain6hMm {_num(ec.get('rain6hMm'), ' mm')}、EC ptype {ec.get('ptype') or '—'}、"
-        f"p24hRain50 {_pct(ec.get('p24hRain50'))}、"
-        f"GFS rain6hMm {_num(gfs.get('rain6hMm'), ' mm')}、GFS ptype {gfs.get('ptype') or '—'}、"
-        f"GFS visibilityM {_num(gfs.get('visibilityM'), ' 公尺')}"
+        f"模式：等級 {m.get('level') or '—'}、{_vote(m, _models(m))}、"
+        f"EC 與 GFS {agreement}（只看陣風）、p29Kt {_pct(ec.get('p29Kt'))}、"
+        f"p49Kt {_pct(ec.get('p49Kt'))}、p24hRain50 {_pct(ec.get('p24hRain50'))}"
     )
+
+
+def _model_lines(m: object) -> list[str]:
+    """`models[]` 每個模式一行（接在那一格後面）。"""
+    ec = m.get("ec") if isinstance(m, dict) and isinstance(m.get("ec"), dict) else {}
+    return [_model_entry(e, ec) for e in _models(m)]
 
 
 def _causes(slot: dict) -> str:
@@ -194,11 +254,12 @@ def slot_line(i: int, slot: dict, tz: str) -> str:
     except (KeyError, TypeError, ValueError, AttributeError):
         when = f"{slot.get('from')}–{slot.get('to')}（UTC）"
     gap = "是" if slot.get("gap") else "否"
-    return (
+    line = (
         f"{i}. {when}｜等級 {slot.get('level') or '—'}"
         f"（依據 {BASIS_TEXT.get(slot.get('basis'), '—')}）｜{_causes(slot)}｜"  # type: ignore[arg-type]
         f"{_official(slot.get('official'))}｜{_model(slot.get('model'))}｜官方與模式落差 {gap}"
     )
+    return "\n".join([line, *_model_lines(slot.get("model"))])
 
 
 def rules_text(th: Thresholds | None = None) -> str:
@@ -212,7 +273,14 @@ def rules_text(th: Thresholds | None = None) -> str:
             f"TAF 平均風 ≥ {th.taf_high_wind_kt:g} 節 → high",
             f"- 含陣風側風（所有跑道裡最小的）：≥ {th.crosswind_high_kt:g} 節 → high，"
             f"≥ {th.crosswind_medium_kt:g} 節 → medium",
-            f"- p49Kt ≥ {round(th.ec_p49_high * 100)}% → high；中級不用系集（p29Kt 只是參考）",
+            "- 模式層是投票（每格）：歐洲模式、美國模式、歐洲系集、歐洲 AI 模式、美國 AI 模式"
+            "各一票；某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，"
+            "取成立的最高級；強風、雨、雪、霧各自投，再取最高",
+            f"- 歐洲系集只投 high：p49Kt ≥ {round(th.ec_p49_high * 100)}% 投 high、否則投 low，"
+            "判 medium 時不算它（p29Kt 只是參考）",
+            "- 歐洲 AI 模式、美國 AI 模式沒有陣風：10 米平均風 × "
+            f"{GUST_FACTOR:g} 估算（標「估」），門檻同陣風；雪只有有降水型態的模式投"
+            "（美國 AI 模式不投），霧只有美國模式有能見度",
             "- 官方警報：颱風／熱帶氣旋信號（8 號以上、陸上警報、Warning）→ high，"
             "3 號、海上警報、Watch → medium；只套用到「現在 + 12 小時」內開始的格",
             "- 已確認停飛的格 → confirmed；官方與模式都沒資料 → unknown",

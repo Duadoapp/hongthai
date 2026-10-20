@@ -59,10 +59,12 @@ from __future__ import annotations
 import logging
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from .. import grib
 from ..budget import note
 from ..config import Airport
 from ..grib import read_points, wind_dir_from_uv
@@ -78,8 +80,9 @@ PROD_URL = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
 MIRRORS = ("aws", "nomads")
 BASE_URL = {"aws": S3_URL, "nomads": PROD_URL}
 # `.idx` 裡要抓的（變數, 層[, 時效]）。時效：沒寫＝第一筆、`inst`＝瞬時（`anl`／`<n> hour fcst`）、
-# `acc6`＝前 6 小時的累積（`<fh−6>-<fh> hour acc fcst`）。`IDX_FIELDS` 少了就是 `bad_idx`；
-# HD8 的降水與能見度（`IDX_OPTIONAL`）少了只 log、照抓其他的（不讓陣風跟著失敗）
+# `acc6`＝前 6 小時的累積（`<fh−6>-<fh> hour acc fcst`；見 `grib.idx_time_ok`）。
+# `IDX_FIELDS` 少了就是 `bad_idx`；HD8 的降水與能見度（`IDX_OPTIONAL`）少了只 log、照抓其他的
+# （不讓陣風跟著失敗）
 IDX_FIELDS: tuple[tuple[str, ...], ...] = (
     ("GUST", "surface"),
     ("UGRD", "10 m above ground"),
@@ -210,75 +213,60 @@ def fields_for(fh: int, fields=IDX_OPTIONAL) -> tuple[tuple[str, ...], ...]:
     return tuple(f for f in fields if not (fh == 0 and len(f) > 2 and f[2] == "acc6"))
 
 
-def _time_ok(kind: str | None, text: str, fh: int | None) -> bool:
-    if kind is None:
-        return True
-    if kind == "inst":
-        return "-" not in text and "ave" not in text and "acc" not in text
-    if kind == "acc6":
-        return fh is not None and text.strip() == f"{fh - 6}-{fh} hour acc fcst"
-    raise ValueError(f"不認得的時效種類 {kind!r}")
-
-
 def byte_ranges(
     idx_text: str, fields=IDX_FIELDS, fh: int | None = None, optional=()
 ) -> list[tuple[int, int | None]]:
-    """`.idx` 文字 → 要抓的 byte 範圍（頭尾都含；最後一筆到檔尾時尾是 None），相鄰的併成一段。
-
-    一筆的範圍是它的起點到下一個（起點更大的）紀錄的起點前一個 byte。`fields`／`optional` 每個是
-    （變數, 層）或（變數, 層, 時效），時效見 `IDX_FIELDS`（`acc6` 要給 `fh`）；同一個欄位只取第一筆
-    合的。`fields` 少了任何一筆就丟 `bad_idx`，`optional` 少了只 log。
-    """
-    recs: list[tuple[int, str, str, str]] = []
-    for line in idx_text.splitlines():
-        parts = line.split(":")
-        if len(parts) < 5 or not parts[1].strip().isdigit():
-            continue
-        recs.append((int(parts[1]), parts[3], parts[4], parts[5] if len(parts) > 5 else ""))
-    starts = sorted({r[0] for r in recs})
-    required = {tuple(f) for f in fields}
-    wanted = required | {tuple(f) for f in optional}
-    found: set[tuple[str, ...]] = set()
-    out: list[tuple[int, int | None]] = []
-    for start, var, lev, when in sorted(recs):
-        hit = next(
-            (
-                f
-                for f in wanted - found
-                if f[0] == var and f[1] == lev and _time_ok(f[2] if len(f) > 2 else None, when, fh)
-            ),
-            None,
-        )
-        if hit is None:
-            continue
-        found.add(hit)
-        later = [s for s in starts if s > start]
-        end = later[0] - 1 if later else None
-        if out and out[-1][1] is not None and out[-1][1] + 1 == start:
-            out[-1] = (out[-1][0], end)
-        else:
-            out.append((start, end))
-    if not required <= found:
-        missing = ", ".join(":".join(f) for f in fields if tuple(f) not in found)
-        raise GfsError(f".idx 裡沒有 {missing}", "bad_idx")
-    if found != wanted:
-        lost = ", ".join(":".join(f) for f in optional if tuple(f) not in found)
-        log.warning("GFS f%s 的 .idx 裡沒有 %s，這幾筆不抓", fh, lost)
-    return out
+    """`.idx` → 要抓的 byte 範圍（`grib.byte_ranges`，HD14 搬過去和 AIGFS 共用）；`fields` 少了丟
+    `GfsError("bad_idx")`。"""
+    return grib.byte_ranges(idx_text, fields, fh, optional, error=GfsError, label="GFS")
 
 
-def _find_run(mirror: str, now: datetime, slot0: datetime, tries: int) -> datetime:
+def latest_run(
+    idx_url: Callable[[datetime, int], str],
+    now: datetime,
+    slot0: datetime,
+    tries: int,
+    error: type[SourceError],
+    pause_s: float = 0,
+) -> datetime:
+    """從 `floor_6h(now)` 往回找 `tries` 報，第一個所需最後步長（`slot0` 起 `SPAN_H` 小時）的
+    `.idx` 存在的就是最新出齊的一報。`idx_url(時次, 步長)` 給 `.idx` 網址；請求之間停 `pause_s` 秒
+    （NOMADS 有速率限制）。GFS 與 AIGFS（HD14）共用。"""
     run = floor_6h(now)
     for _ in range(tries):
         last_fh = int(hours_between(run, slot0)) + SPAN_H
-        url = f"{BASE_URL[mirror]}{run_dir(run)}/{file_name(run, last_fh)}.idx"
-        r = http_get(url, ok_404=True, retries=2, error=GfsError)
+        r = http_get(idx_url(run, last_fh), ok_404=True, retries=2, error=error)
         if r.status_code == 200:
             return run
         run -= timedelta(hours=6)
-        if mirror == "nomads":
-            time.sleep(1)
-    raise GfsError(f"{mirror} 上找不到最近 24 小時內出齊的 GFS", "no_run")
+        if pause_s:
+            time.sleep(pause_s)
+    raise error(f"找不到最近 {tries * 6} 小時內出齊的一報（{idx_url(run, 0)}）", "no_run")
+
+
+def download_ranges(
+    url: str, ranges: list[tuple[int, int | None]], path: Path, error: type[SourceError]
+) -> int:
+    """一段一個 `Range` 請求（S3 不接受一次多段），接成一個 GRIB 檔；回傳大小。回應不是 206、或
+    內容不是 `GRIB`…`7777` 丟 `not_grib`。GFS 與 AIGFS（HD14）共用。"""
+    size = 0
+    with path.open("wb") as f:
+        for a, b in ranges:
+            rng = f"bytes={a}-{'' if b is None else b}"
+            r = http_get(url, headers={"Range": rng}, error=error)
+            body = r.content
+            if r.status_code != 206 or not (body.startswith(b"GRIB") and body.endswith(b"7777")):
+                raise error(f"{url} {rng}：HTTP {r.status_code}，不是 GRIB", "not_grib")
+            f.write(body)
+            size += len(body)
+    return size
+
+
+def _find_run(mirror: str, now: datetime, slot0: datetime, tries: int) -> datetime:
+    def idx_url(run: datetime, fh: int) -> str:
+        return f"{BASE_URL[mirror]}{run_dir(run)}/{file_name(run, fh)}.idx"
+
+    return latest_run(idx_url, now, slot0, tries, GfsError, 1 if mirror == "nomads" else 0)
 
 
 def find_latest_run(now: datetime, slot0: datetime, tries: int = 4) -> tuple[datetime, str]:
@@ -306,16 +294,7 @@ def _fetch_aws(
     idx = http_get(f"{url}.idx", error=GfsError).text
     ranges = byte_ranges(idx, IDX_FIELDS, fh, fields_for(fh))
     path = tmp / f"gfs-aws-f{fh:03d}.grib2"
-    size = 0
-    with path.open("wb") as f:
-        for a, b in ranges:
-            rng = f"bytes={a}-{'' if b is None else b}"
-            r = http_get(url, headers={"Range": rng}, error=GfsError)
-            body = r.content
-            if r.status_code != 206 or not (body.startswith(b"GRIB") and body.endswith(b"7777")):
-                raise GfsError(f"{url} {rng}：HTTP {r.status_code}，不是 GRIB", "not_grib")
-            f.write(body)
-            size += len(body)
+    size = download_ranges(url, ranges, path, GfsError)
     return parse_file(path, airports), size
 
 

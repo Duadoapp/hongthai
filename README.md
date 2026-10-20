@@ -51,17 +51,17 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
-| 模式（0–120 小時） | ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF HRES 10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風 | HRES 或 GFS 陣風 ≥ 48 節、或系集陣風 ≥ 49 節（25 m/s）機率 ≥ 30% → 高；HRES 或 GFS 陣風 ≥ 37 節 → 中（**中級不用系集**，見下面）；其他低 |
+| 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14） | **五個模式投票**（HD14，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS 用平均風 × 1.4 估算）≥ 48 節高、≥ 37 節中；系集只投高（陣風 ≥ 49 節機率 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
 | 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視 | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
-| 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS 的 10 米風向配各自的陣風 | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級** |
+| 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS 的 10 米風向配各自的陣風；AIFS、AIGFS 的 10 米風向配估算陣風 | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級**（模式層是每個模式各自取較高，再投票） |
 
 - 門檻依據：陣風（TAF 與模式同一套）是桃園機場空橋規則——最大瞬間風速 37 節（蒲福 8 級）啟動空橋防護、
   48 節（10 級）空橋停用、55 節以上全部綁死；側風是窄體客機常見作業限制——737-800 濕跑道起飛約 27 節、
   乾跑道約 33 節。所有機場先用同一套，之後找到個別機場的作業標準再在 `airports.json` 覆寫
 - NWS 的對等級（Shawn 2026-10-19 定案）：Warning 是確定會有（Tropical Storm Warning＝36 小時內持續
   34–63 節，等同天文台 8 號、也超過 TAF 平均風 ≥ 35 節＝高的規則），Watch 是可能會有
-- 系集：ECMWF 開放資料的機率產品只有 ≥ 10／15／25 m/s，沒有 37 節的，所以中級只看確定性陣風
-  （HRES／GFS／TAF ≥ 37 節）；高級是系集 `p49Kt` ≥ 30%，或確定性陣風 ≥ 48 節。`p29Kt` 只輸出、不進規則；
+- 系集：ECMWF 開放資料的機率產品只有 ≥ 10／15／25 m/s，沒有 37 節的，所以系集只投「高」那一輪
+  （`p49Kt` ≥ 30% 投高、否則投低；判中時不算分母，HD14）。`p29Kt` 只輸出、不進規則；
   `p37Kt` 一律 `null`（之後另一支 HD 用 GEFS 系集成員自己算）
 
 - 側風分量＝含陣風的風速（有陣風用陣風，沒有用平均風）× |sin(風向 − 跑道方位)|，每條跑道兩個方向取小的，
@@ -76,9 +76,33 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
   而且風、能見度、雲幕、天氣至少有一樣 → **第一格**的官方層由 METAR 組成（`kind: "metar"`；`windKt`／`gustKt`／
   `crosswindKt`／`wx` 都從 METAR 來，風照 TAF 的陣風規則），警報照舊疊上去；之後的格照舊。用到的是金門、
   馬祖（氣象署觀測）與宮古；有 TAF 的機場完全不受影響
-- `agreement`：HRES 與 GFS 的陣風落在同一級＝`agree`
+- `agreement`：HRES 與 GFS 的陣風落在同一級＝`agree`（HD14 起還是只看這兩個）
 - `confirmed.json` 人工填的已確認停飛時段 → 該格 `level: "confirmed"`
 - 門檻在 `airports.json`，細節（時間格怎麼對、警報套幾小時）寫在 `src/hongthai/assess.py` 開頭
+
+### 多模式投票（HD14）
+
+Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高）」改成**投票**，官方層（TAF、METAR、警報）
+照舊優先、`gap` 照舊（官方層等級和投票結果不同）：
+
+- 五票（`config.MODELS`，輸出順序）：`ifs`（ECMWF HRES）、`gfs`（NOAA GFS）、`ifs-ens`（ECMWF 系集）、
+  `aifs`（ECMWF AIFS Single，AI 模式）、`aigfs`（NOAA AIGFS，AI 模式）。每個模式一票、權重相同
+- 每一類（`wind`、`rain`、`snow`、`fog`）各自投：某等級 L 的票＝這一類等級 ≥ L 的模式數，**票數 × 2 ≥
+  分母就成立**，從高往低看，取成立的最高。分母＝這一格這一類**有資料**的模式；只有 1 個模式有資料就它決定
+  （2 票裡 1 票也成立，和 HD14 以前兩個模式取較高一致）。四類的結果再取最高＝`model.level`
+- **系集只投「高」**：`p49Kt` ≥ 30% 投高、否則投低；**判「中」時不算分母**（不然它永遠投低、把中的票拉下來）。
+  所以系集單獨撐不起高（IFS 低、GFS 低、系集高 → 1 × 2 < 3 → 低）
+- **沒有陣風的模式**（AIFS、AIGFS）：10 米平均風 × **1.4**（`config.GUST_FACTOR`）估算陣風，標
+  `gustEstimated: true`，門檻同陣風；側風用估算陣風算。網頁與 AI 短評寫「估算陣風」
+- 雨：IFS（6 小時雨量，或系集 24 小時雨量 ≥ 50 mm 機率 ≥ 30%，就是 `model.ec.rain`）、GFS、AIFS、AIGFS 投；
+  系集那筆不投雨
+- 雪：**只有有降水型態的模式投**——IFS（`ptype`）、GFS（類別降水）、AIFS（6 小時降雪 ≥ 6 小時總降水的一半
+  → `snow`，否則 `rain`，< 0.1 mm → `none`）；AIGFS 沒有型態、不投（雪的分母不算它）。不用 2 米溫度猜型態
+- 霧：只有 GFS 有能見度，**霧的分母永遠是 1**（GFS 說了算，最高到中，HD10）
+- `causes`：依據是模式層時用**投票後**各類的等級排（同級 `wind`、`snow`、`rain`、`fog`）
+- `model.vote`：`total`（風那一類的分母，含系集）、`high`（投高的數）、`medium`（等級 ≥ 中的數，不含系集，
+  同判中的規則）、`low`（投低的數）、`level`（四類投票結果取最高，全無資料 `null`）、`thin`（風的分母 < 2）
+- `model.ec`／`model.gfs`／`model.agreement` 欄位與值都不變（`ec.rain`、`gfs.fog` 等還是各自的等級）
 
 ### 新天氣種類（第五階段，HD8）
 
@@ -101,12 +125,13 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
 
 | 類 | 高 | 中 | 資料 |
 | --- | --- | --- | --- |
-| `rain` | HRES 或 GFS 6 小時雨量 ≥ 60 mm | HRES 或 GFS ≥ 30 mm；或 EC 系集「24 小時雨量 ≥ 50 mm」機率 ≥ 30%（`p24hRain50`，24 小時窗取包住這格的最小值，同 `p49Kt`） | ECMWF `tp`（6 小時差）、`tpg50`；GFS `APCP` 6 小時那桶 |
-| `snow` | 降水型態是雪（`snow`／`wet_snow`／`rain_snow`）且 6 小時水當量 ≥ 10 mm；凍雨類（`freezing_rain`／`freezing_drizzle`／`ice_pellets`）且 ≥ 1 mm | 雪且 ≥ 5 mm | ECMWF `ptype`、GFS 類別降水；EC、GFS 各自算、取較高（小雪不升級，和官方層一致） |
+| `rain` | 6 小時雨量 ≥ 60 mm | ≥ 30 mm；IFS 另外看 EC 系集「24 小時雨量 ≥ 50 mm」機率 ≥ 30%（`p24hRain50`，24 小時窗取包住這格的最小值，同 `p49Kt`） | ECMWF `tp`（6 小時差）、`tpg50`；GFS `APCP` 6 小時那桶；HD14 起 AIFS `tp`（6 小時差）、AIGFS `APCP` |
+| `snow` | 降水型態是雪（`snow`／`wet_snow`／`rain_snow`）且 6 小時水當量 ≥ 10 mm；凍雨類（`freezing_rain`／`freezing_drizzle`／`ice_pellets`）且 ≥ 1 mm | 雪且 ≥ 5 mm | ECMWF `ptype`、GFS 類別降水、AIFS 降雪比例（HD14）；各模式各自算（小雪不升級，和官方層一致） |
 | `fog` | **沒有**（模式層的霧只到中，HD10） | GFS 能見度 < 1000 公尺（< 400 公尺也只是中） | **只有 GFS**（ECMWF 開放資料沒有能見度）；到高要官方層（TAF／METAR）真的報霧或低雲幕 |
 
 - 一格的雨量、降水型態是「格結束時間」那個時間點的（EC 是 `tp` 的差、GFS 是前 6 小時那桶）；GFS 能見度
   取格頭尾兩個時間點的最小值。`model.agreement` **還是只看陣風**（值域不變）
+- HD14 起每個模式各自判出三類的等級，模式層的結果是投票（上面「多模式投票」）；表裡的門檻不變
 
 官方警報（新）：
 
@@ -149,7 +174,11 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
   `1600`、`0800`、`1500`、`8000` 換得回原值）
 
 - 陣風（模式與 TAF 同一套）：≥ 48 節高、≥ 37 節中；TAF 平均風 ≥ 35 節高
-- 系集：陣風 ≥ 25 m/s（≈ 48.6 節，`p49Kt`）機率 ≥ 30% 高；中級不用系集（沒有 37 節的機率）
+- **估算陣風係數 1.4**（HD14）：AIFS、AIGFS 沒有陣風，用 10 米平均風 × 1.4（`config.GUST_FACTOR`）；
+  **累積一個月紀錄後檢討**
+- **模式層投票 ≥ 一半就成立**（HD14）：2 票 1 票、3 票 2 票、4 票 2 票、5 票 3 票；系集只投高（判中時不算
+  分母），所以系集單獨撐不起高（HD14 以前 `p49Kt` ≥ 30% 就是高）；霧的分母永遠是 1（只有 GFS）
+- 系集：陣風 ≥ 25 m/s（≈ 48.6 節，`p49Kt`）機率 ≥ 30% 投高；中級不用系集（沒有 37 節的機率）
 - 側風：含陣風側風 ≥ 33 節高、≥ 27 節中；用陣風（不是平均風）算側風；沒有風向時側風＝風速本身
 - 跑道方位用真北；所有跑道取最小側風（假設最好的那條都能用，沒算跑道關閉、長度、機型限制）；
   HD3 補上石垣之後 51 個機場都有跑道方位（沒有跑道方位的機場側風是 `null`，只看陣風）
@@ -222,6 +251,8 @@ H10（2026-10-18）之後：
 | --- | --- | --- |
 | ecmwf（HRES＋系集，含鏡像切換） | 300 | 約 90–240（入口速度不穩；H10 前 HRES 約 112 MB，之後約 82 MB）＋10 |
 | gfs（AWS 鏡像，NOMADS 備援） | 180 | 約 110（NOMADS）|
+| aifs（ECMWF AIFS Single，HD14；鏡像同 ecmwf） | 180 | 55（2026-10-20，66 MB，從 ECMWF 入口；AWS 回 503） |
+| aigfs（NOAA AIGFS，HD14；只有 AWS） | 120 | 38（2026-10-20，51 MB） |
 | taf（含 METAR） | 45 | 幾秒 |
 | hko、smg | 各 30 | 幾秒 |
 | cwa | 45 | 幾秒 |
@@ -233,17 +264,19 @@ H10（2026-10-18）之後：
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和 1080 秒（18 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒），Actions「產生 latest.json」
-  那一步上限 18 分鐘、整個 job 28 分鐘（HD5 前是 15／25）
+- 總和 1380 秒（23 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
+  aifs 180＋aigfs 120 秒），Actions「產生 latest.json」那一步上限 25 分鐘、整個 job 35 分鐘（HD14 前是 20／30、
+  HD12 前 18／28、HD5 前 15／25）
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
   重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
   下載先試 AWS 鏡像，那一報還沒同步到或失敗再回 ECMWF 入口，再失敗試 Google；實際從哪裡下載記在
   `sources.ecmwf.mirror`。從 AWS 下載不重試：S3 不收多段 range、一報要一百多個請求，2026-10-18
   實測約三成回 `503 Slow Down`，重試會把預算耗光，所以第一個 503 就換 ECMWF 入口
-- `ecmwf` 或 `gfs` 失敗（逾時、429 用盡、403、格式錯……）時沿用「最近一份有該模式資料」的結果
-  同一機場、同一格的 `model.ec`／`model.gfs`，等級照常算。哪一份（H10 起往前找）：`--archive` 的
+- `ecmwf`、`gfs`、`aifs`、`aigfs`（HD14）失敗（逾時、429 用盡、403、格式錯……）時沿用「最近一份有該模式資料」
+  的結果同一機場、同一格的 `model.ec`／`model.gfs`（AIFS、AIGFS 是 `model.models[]` 同 `id` 那筆的數字），
+  等級與投票照常算。哪一份（H10 起往前找）：`--archive` 的
   `history/<時間>.json` 由新到舊，第一份 `sources.<名稱>.ok` 是 `true`（自己也在沿用的不算）而且
-  `runs.ecmwf`／`runs.gfs` 離現在 24 小時內的；archive 裡找不到才退回上一份 `latest.json`（先找
+  `runs.ecmwf`／`runs.gfs`／`runs.aifs`／`runs.aigfs` 離現在 24 小時內的；archive 裡找不到才退回上一份 `latest.json`（先找
   `--archive`，沒有就從 Pages 抓）。`sources.<名稱>.ok` 仍是 `false`，另加 `reusedFrom`（那一份的
   `generatedAt`），`runs` 是那一份的（舊預報的真實時次）。模式時次離現在超過 24 小時就不沿用
   （系集與 HRES 各自算），照缺資料處理。TAF、METAR、警報不沿用
@@ -286,6 +319,8 @@ H10（2026-10-18）之後：
 
 ### 輸出
 
+- `latest.json` 與 `history/<YYYYMMDDTHHMM>Z.json` 的 JSON 不縮排（HD14 起，檔案約 1.9 MB）；原始快照
+  `history/raw/` 照舊縮排
 - GitHub Pages（`public/`）：`latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（歷次結果，**只放最近 7 天**：
   H9 起一份約 515 KB、HD3 起約 642 KB（2026-10-18 實測），`publish()` 只複製檔名時間（＝`generatedAt`）在 7 天內的，Pages 上更舊的刪掉；
   `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，
@@ -364,7 +399,7 @@ H10（2026-10-18）之後：
 {
   "schema": 1,
   "generatedAt": "2026-10-18T08:10:00Z",
-  "runs": { "ecmwf": "2026-10-18T00:00:00Z", "ecmwfEns": "2026-10-18T00:00:00Z", "gfs": "2026-10-18T00:00:00Z" },
+  "runs": { "ecmwf": "2026-10-18T00:00:00Z", "ecmwfEns": "2026-10-18T00:00:00Z", "gfs": "2026-10-18T00:00:00Z", "aifs": "2026-10-18T00:00:00Z", "aigfs": "2026-10-17T18:00:00Z" },
   "sources": { "ecmwf": { "ok": true }, "gfs": { "ok": true }, "taf": { "ok": true }, "hko": { "ok": true }, "cwa": { "ok": false, "error": "no_api_key" }, "ai": { "ok": true, "seconds": 41.7, "calls": { "claude": 12, "gemini": 12 }, "errors": { "gemini": "bad_format" } } },
   "ai": {
     "disclaimer": { "zh-TW": "AI 評論僅供參考，以航空公司與機場公告為準", "zh-HK": "AI 評論僅供參考，以航空公司及機場公告為準", "zh-CN": "AI 评论仅供参考，以航空公司与机场公告为准", "en": "AI commentary is for reference only; follow airline and airport announcements." },
@@ -500,6 +535,37 @@ HD13（2026-10-19，金門、馬祖的霧；`schema` 維持 `1`，既有欄位�
   特报范围」／en「CWA dense fog advisory; Kinmen is in the advisory area」），算 `fog`
 - `sources.cwa.obsOk: false`＋`obsError`：局屬站觀測那個請求失敗時才有（颱風警報、特報照常）
 - 大小：兩個機場的 `metar` 從 `null` 變物件、第一格多一個官方層，`latest.json` 多約 1–2 KB
+
+HD14（2026-10-20，多模式投票；欄位定案，Shawn 轉給 Duado；`schema` 維持 `1`。**`model.ec`、`model.gfs`、
+`model.agreement` 不改名、不改型別、不拿掉，值也照舊算**；`model.level` 改由投票決定）：
+
+- 頂層 `models`：`[{"id": "ifs", "name": {四語}}, …]`，照 `config.MODELS` 的順序（`ifs`、`gfs`、`ifs-ens`、
+  `aifs`、`aigfs`；之後 `wn3`、`icon`、`jma`）。四語名：歐洲中期預報中心 IFS／ECMWF IFS、美國 GFS／NOAA GFS、
+  歐洲系集／ECMWF ensemble、歐洲 AI 模式 AIFS／ECMWF AIFS、美國 AI 模式 AIGFS／NOAA AIGFS（zh-HK 同 zh-TW、
+  zh-CN 簡體）。每格不放名稱，用 `id` 對
+- `slots[].model.models[]`：照頂層 `models` 的順序、每個模式一筆，**該模式這一報沒資料時也出現**（數字、
+  `levels`、`level` 全是 `null`）：
+  `{"id": "aifs", "run": "2026-10-19T12:00:00Z", "gustKt": 31.2, "gustEstimated": true, "crosswindKt": 18.4,
+  "rain6hMm": 3.1, "ptype": "rain", "visibilityM": null, "levels": {"wind": "low", "rain": "low", "snow": "low",
+  "fog": null}, "level": "low"}`
+  - `run`：那個模式的時次（ISO 或 `null`；`ifs` 同 `runs.ecmwf`、`ifs-ens` 同 `runs.ecmwfEns`）
+  - `gustKt`：陣風（節，一位小數）；`gustEstimated`：`true`＝用 10 米平均風 × 1.4 估算（AIFS、AIGFS），
+    `false`＝模式自己的陣風（IFS、GFS），`gustKt` 是 `null` 時也是 `null`。網頁要寫「估算陣風」
+  - `crosswindKt`（節，含陣風或估算陣風）、`rain6hMm`（mm）、`ptype`（值域同 `model.ec.ptype`；AIGFS 永遠
+    `null`）、`visibilityM`（只有 GFS）
+  - `levels`：這個模式四類各自的等級（`low`／`medium`／`high`／`null`＝這個模式這一類沒資料、不投）；
+    `level`：四類取最高
+  - `ifs-ens`（系集）那筆數字全是 `null`，只有 `levels.wind`（`p49Kt` ≥ 30% `high`、否則 `low`）
+- `slots[].model.vote`：`{"total": 5, "high": 2, "medium": 3, "low": 1, "level": "high", "thin": false}`。
+  票數都是「風」那一類的：`total` 分母（有風的資料的模式數，含系集）、`high` 投高的數、`medium` 等級 ≥ 中
+  的數（**不含系集**，同判中的規則）、`low` 投低的數；`level` 是四類投票結果取最高（全無資料 `null`，
+  ＝`model.level`）；`thin`：風的分母 < 2
+- 頂層 `runs.aifs`、`runs.aigfs`（ISO 或 `null`）；`sources.aifs`、`sources.aigfs`（`ok`、`seconds`、`bytes`、
+  `mirror`、失敗時 `error`、沿用時 `reusedFrom`，同 `ecmwf`／`gfs`）。`aifs.mirror` 是 `"aws"`／`"ecmwf"`／
+  `"google"`，`aigfs.mirror` 永遠是 `"aws"`
+- 大小：用 `data` 分支 `history/20261019T2349Z.json` 加 2026-10-20 01:1xZ 抓的 AIFS（18Z）、AIGFS（12Z）重算，
+  `latest.json` 從 1,091 KB 變 **3,276 KB**（多約 2.2 MB，`indent=1` 每個鍵一行、每格 5 筆 × 約 17 行）；
+  gzip 後 68 KB → 154 KB（Pages 回應是壓縮過的）。提示詞估的是多 400–500 KB，實際多很多
 
 規格以外加的欄位與值（網頁可以忽略）：
 
@@ -731,6 +797,8 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 | --- | --- | --- |
 | [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data)（經 AWS／Google 鏡像） | HRES 10 米陣風（`10fg`／`10fg3`）與 10 米風（`10u`／`10v`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`）；HD8 起 HRES 總降水 `tp`、降水型態 `ptype`、2 米溫度 `2t`，系集 24 小時雨量機率 `tpg25`／`tpg50` | CC BY 4.0，© ECMWF |
 | NOAA GFS（[AWS 開放資料鏡像 `noaa-gfs-bdp-pds`](https://registry.opendata.aws/noaa-gfs-bdp-pds/)，[NOMADS](https://nomads.ncep.noaa.gov/) 備援） | 地面陣風 `GUST`、10 米風 `UGRD`／`VGRD`；HD8 起 6 小時降水 `APCP`、類別降水 `CRAIN`／`CFRZR`／`CICEP`／`CSNOW`、地面能見度 `VIS` | 美國政府公有領域 |
+| [ECMWF AIFS Single](https://www.ecmwf.int/en/forecasts/datasets/open-data)（ECMWF 開放資料，經 AWS／Google 鏡像；HD14） | AI 模式的 10 米風 `10u`／`10v`、總降水 `tp`、降雪 `sf`、2 米溫度 `2t`（每 6 小時） | CC BY 4.0，© ECMWF |
+| NOAA AIGFS（[AWS 開放資料 `noaa-nws-graphcastgfs-pds`](https://registry.opendata.aws/noaa-nws-graphcastgfs-pds/)；HD14） | AI 模式的 10 米風 `UGRD`／`VGRD`、6 小時降水 `APCP`、2 米溫度 `TMP` | 美國政府公有領域 |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
 | [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 46 個機場（H9 的 36 個、HD3 的 10 個）的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
 | [OpenStreetMap](https://www.openstreetmap.org/way/114511749)（跑道 way 114511749 的兩端座標，HD3） | 石垣跑道真北方位（用座標算出的一個數字） | © OpenStreetMap contributors，[ODbL](https://www.openstreetmap.org/copyright) |
@@ -766,6 +834,17 @@ HD8 新參數（2026-10-19 查 ECMWF 18Z oper／12Z enfo ep 的 index 與 GFS 00
   [資料標準說明文件 V1.05](https://opendata.cwa.gov.tw/opendatadoc/Observation/O-A0003-001.pdf)（路徑
   `//Station/WeatherElement/...`、缺測 `-99`／`X`、風向不定 `990`、天氣描述附表 2）寫。沒有授權碼沒辦法實抓，
   原始回應存 `history/raw/<日期>/<時間>-cwa-obs.json`，合併後第一報要對一次
+
+HD14 新模式（2026-10-20 實測，細節在 `src/hongthai/sources/aifs.py`、`aigfs.py` 開頭）：
+- AIFS Single：`ecmwf-opendata` 的 `Client(model="aifs-single")`，`stream="oper"`、`type="fc"`、0.25°；
+  一天 4 報、每 6 小時一個步長；`tp`／`sf` 從起報累積、**單位是 mm（kg m⁻²），不是 HRES 的 m**。沒有陣風、
+  降水型態、能見度。AWS 鏡像 `ecmwf-forecasts` 有 `aifs-single/` 路徑，鏡像順序同 HRES。21 個步長加第一格
+  的開始步長 66 MB，從 ECMWF 入口 55 秒（AWS 當時連 `.index` 都回 503 Slow Down）
+- AIGFS：`aigfs.<YYYYMMDD>/<HH>/model/atmos/grib2/aigfs.t<HH>z.sfc.f<FFF>.grib2`（地面檔，約 8 MB；旁邊有
+  `.idx`，另有約 70 MB 的氣壓層檔 `pres` 不用）；一天 4 報、每 6 小時到 384 小時，起報後約 7.5 小時出齊。
+  用 `.idx` 的 byte 範圍只抓 `UGRD`／`VGRD:10 m`、`TMP:2 m`、`APCP` 一筆（有「前 6 小時」那桶就用它，沒有
+  就用從起報累積的那筆相減），每個步長 3 個 `Range` 請求、約 2.4 MB，21 個步長 51 MB、38 秒。NOMADS
+  `/pub/data/nccf/com/aigfs/prod/` 有同樣的檔，但沒有 `filter_aigfs` 裁區 CGI，**不做備援**（AWS 失敗就沿用）
 
 NWS（關島、帛琉，HD3，2026-10-18 查）：
 - 關島：`/zones?area=GU` 有 `GUZ001`（public／fire，名稱 Guam，`cwa` 是 GUM＝NWS 關島分處）；PGUM 的

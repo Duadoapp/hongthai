@@ -47,6 +47,73 @@ class Thresholds:
     model_freezing_rain_high_mm6h: float = 1
 
 
+# 多模式投票（HD14，Shawn 2026-10-19）：沒有陣風的模式用 10 米平均風 × 這個係數估算陣風
+# （標 `gustEstimated`）；累積一個月紀錄再檢討
+GUST_FACTOR = 1.4
+
+
+@dataclass(frozen=True)
+class Model:
+    """模式層投票的一個模式（HD14）。`id` 與 `name` 是 `latest.json` 的契約（頂層 `models`、
+    `slots[].model.models[]`），順序就是輸出順序。
+
+    `votes_only_high`：只參加「高」的投票（判中時不算分母），IFS 系集用；
+    `gust_estimated`：沒有陣風、用 `GUST_FACTOR` 估算。"""
+
+    id: str
+    name: dict[str, str]
+    votes_only_high: bool = False
+    gust_estimated: bool = False
+
+
+# 之後加模式只改這裡＋一個來源檔（HD15 `wn3`、HD16 `icon`、`jma`）
+MODELS: tuple[Model, ...] = (
+    Model(
+        "ifs",
+        {
+            "zh-TW": "歐洲中期預報中心 IFS",
+            "zh-HK": "歐洲中期預報中心 IFS",
+            "zh-CN": "欧洲中期预报中心 IFS",
+            "en": "ECMWF IFS",
+        },
+    ),
+    Model(
+        "gfs",
+        {"zh-TW": "美國 GFS", "zh-HK": "美國 GFS", "zh-CN": "美国 GFS", "en": "NOAA GFS"},
+    ),
+    Model(
+        "ifs-ens",
+        {
+            "zh-TW": "歐洲系集",
+            "zh-HK": "歐洲系集",
+            "zh-CN": "欧洲系集",
+            "en": "ECMWF ensemble",
+        },
+        votes_only_high=True,
+    ),
+    Model(
+        "aifs",
+        {
+            "zh-TW": "歐洲 AI 模式 AIFS",
+            "zh-HK": "歐洲 AI 模式 AIFS",
+            "zh-CN": "欧洲 AI 模式 AIFS",
+            "en": "ECMWF AIFS",
+        },
+        gust_estimated=True,
+    ),
+    Model(
+        "aigfs",
+        {
+            "zh-TW": "美國 AI 模式 AIGFS",
+            "zh-HK": "美國 AI 模式 AIGFS",
+            "zh-CN": "美国 AI 模式 AIGFS",
+            "en": "NOAA AIGFS",
+        },
+        gust_estimated=True,
+    ),
+)
+
+
 @dataclass(frozen=True)
 class Runway:
     """一條跑道（實體跑道，同方位的平行跑道記一組）；`headings` 是兩個方向的方位（度，真北）。"""

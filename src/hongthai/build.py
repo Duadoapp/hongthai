@@ -32,8 +32,9 @@ AI 失敗不影響 `latest.json` 其他內容：頂層 `ai`、每個機場的 `a
 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`、不等它，繼續下一個來源
 （被放棄的執行緒怎麼收尾見 `budget.py`）。
 
-模式沿用（H7；H10 改成往前找）：`ecmwf` 或 `gfs` 失敗時，從「最近一份有該模式資料」的結果把
-同一機場、同一 `from` 的 `model.ec`／`model.gfs` 抄過來，等級照常算（`reuse_models`）。哪一份由
+模式沿用（H7；H10 改成往前找）：`ecmwf`、`gfs`、`aifs`、`aigfs`（HD14）失敗時，從「最近一份有該模式
+資料」的結果把同一機場、同一 `from` 的 `model.ec`／`model.gfs`（AIFS、AIGFS 是 `model.models[]` 裡
+同 `id` 那筆）抄過來，等級與投票照常算（`reuse_models`）。哪一份由
 `find_reuse_source` 找：`--archive` 的 `history/<時間>.json` 由新到舊，第一份 `sources.<名稱>.ok` 是
 `true`（自己也在沿用的不算）而且 `runs.<鍵>` 離現在 `REUSE_MAX_AGE`（24 小時）內的；archive 裡找不到
 才退回上一份 `latest.json`（`previous_latest`，H7 的做法）。`sources.<名稱>.ok` 維持 `false`，另加
@@ -60,6 +61,7 @@ import requests
 from . import assess, budget, cancellations, og
 from .ai import run as ai
 from .config import (
+    MODELS,
     Airport,
     ConfirmedPeriod,
     Region,
@@ -68,22 +70,25 @@ from .config import (
     load_confirmed,
     load_regions,
 )
-from .sources import cwa, ecmwf, flights, gfs, hko, nws, smg, taf
+from .sources import aifs, aigfs, cwa, ecmwf, flights, gfs, hko, nws, smg, taf
 from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
 
 log = logging.getLogger("hongthai")
 
 SCHEMA = 1
 PAGES_URL = "https://duadoapp.github.io/hongthai/latest.json"
-SOURCE_NAMES = ("ecmwf", "gfs", "taf", "hko", "cwa", "smg", "nws")
+SOURCE_NAMES = ("ecmwf", "gfs", "aifs", "aigfs", "taf", "hko", "cwa", "smg", "nws")
 
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
-# 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。
-# 總和 1080 秒（18 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒），
-# `build.yml` 那一步的上限是 20 分鐘（HD12 前 18）。
+# 一報約 82 MB＋系集約 10 MB）、gfs 約 110（NOMADS）、flights 約 20、其他幾秒。HD14 的 aifs
+# 約 66 MB、55 秒，aigfs 約 51 MB、38 秒（2026-10-20 雲端開發機實測）。
+# 總和 1380 秒（23 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、
+# HD14 加 aifs 180＋aigfs 120 秒），`build.yml` 那一步的上限是 25 分鐘（HD14 前 20、HD12 前 18）。
 BUDGET_S: dict[str, float] = {
     "ecmwf": 300,  # HRES＋系集，含鏡像切換
     "gfs": 180,
+    "aifs": 180,  # HD14：ECMWF AIFS Single，鏡像切換同 ecmwf
+    "aigfs": 120,  # HD14：NOAA AIGFS，只有 AWS
     "taf": 45,  # TAF 與 METAR 同一個來源，各一個請求
     "hko": 30,
     "smg": 30,
@@ -99,7 +104,9 @@ REUSE_MAX_AGE = timedelta(hours=24)
 PAGES_HISTORY_DAYS = 7
 # 模式來源 → (`model` 裡的鍵, [(`runs` 的鍵, 那一報決定的欄位)])；系集與 HRES 的時次各自判斷期限。
 # 節的欄位（HD2）在 HD2 以前的結果裡沒有，抄完由 `_rescore` 用 m/s 欄位補（`assess.fill_kt`）。
-# HD8 的雨量、降水型態、能見度一起抄（`ptype` 是字串）；三類的等級不抄，由 `_rescore` 重算
+# HD8 的雨量、降水型態、能見度一起抄（`ptype` 是字串）；三類的等級不抄，由 `_rescore` 重算。
+# HD14：`aifs`／`aigfs` 的鍵是 `model.models[]` 的 `id`（不是 `model` 底下的鍵），抄那筆的數字；
+# `gustEstimated`、`levels`、`level` 與投票由 `_rescore` 重算
 REUSE_FIELDS: dict[str, tuple[str, tuple[tuple[str, tuple[str, ...]], ...]]] = {
     "ecmwf": (
         "ec",
@@ -115,12 +122,50 @@ REUSE_FIELDS: dict[str, tuple[str, tuple[tuple[str, tuple[str, ...]], ...]]] = {
         "gfs",
         (("gfs", ("gustMs", "gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")),),
     ),
+    "aifs": ("aifs", (("aifs", ("gustKt", "crosswindKt", "rain6hMm", "ptype")),)),
+    "aigfs": ("aigfs", (("aigfs", ("gustKt", "crosswindKt", "rain6hMm")),)),
+}
+# `models[].run` ← `runs` 的哪個鍵（HD14）
+MODEL_RUN_KEYS = {
+    "ifs": "ecmwf",
+    "gfs": "gfs",
+    "ifs-ens": "ecmwfEns",
+    "aifs": "aifs",
+    "aigfs": "aigfs",
 }
 
 
-def _dump(path: Path, obj: object) -> None:
+def model_runs(runs: dict) -> dict[str, str | None]:
+    """頂層 `runs` → 各模式（`config.MODELS` 的 id）的時次。"""
+    return {m.id: runs.get(MODEL_RUN_KEYS.get(m.id, m.id)) for m in MODELS}
+
+
+def model_part(model: dict, key: str) -> dict | None:
+    """`model.ec`／`model.gfs`，或 `model.models[]` 裡 `id` 是 `key` 的那筆（HD14）。"""
+    if key in ("ec", "gfs"):
+        part = model.get(key)
+        return part if isinstance(part, dict) else None
+    entries = model.get("models")
+    return (
+        next(
+            (e for e in entries if isinstance(e, dict) and e.get("id") == key),
+            None,
+        )
+        if isinstance(entries, list)
+        else None
+    )
+
+
+def _dump(path: Path, obj: object, compact: bool = False) -> None:
+    """`compact=True`：不縮排（`latest.json` 與 `history/<時間>.json`，HD14 起；每格多了 5 筆
+    `models[]`，`indent=1` 時約 3.3 MB、不縮排約 1.9 MB）。原始快照照舊 `indent=1`。"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    text = (
+        json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+        if compact
+        else json.dumps(obj, ensure_ascii=False, indent=1)
+    )
+    path.write_text(text + "\n", encoding="utf-8")
 
 
 class Timing:
@@ -129,7 +174,8 @@ class Timing:
     `build.yml` 的「推 data 分支」是 `if: always()`，所以「產生 latest.json」被 Actions 砍掉時，
     已經寫進去的行也會推上去；沒有 `done` 那行就表示那次被砍了。欄位名固定（主對話直接看這個檔）：
     - 開始：`{"run", "source": "start", "ok": true, "seconds": 0, "commit"}`
-    - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf 與 gfs 多 `mirror`
+    - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf、gfs、aifs、aigfs
+      （HD14）多 `mirror`
     - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
     - AI 對決（HD5）：`{"run", "source": "ai", "ok", "error", "seconds", "bytes": 0,
       "calls": {"claude": n, "gemini": n}}`（`calls` 是這一報的呼叫次數）
@@ -157,7 +203,7 @@ class Timing:
             "seconds": st["seconds"],
             "bytes": st.get("bytes", ctx.bytes),
         }
-        if name in ("ecmwf", "gfs"):
+        if name in ("ecmwf", "gfs", "aifs", "aigfs"):
             fields["mirror"] = st.get("mirror", ctx.notes.get("mirror"))
         if name == "ai":
             fields["bytes"] = 0
@@ -214,7 +260,8 @@ def _ecmwf_extra(ec: ecmwf.EcmwfData) -> dict:
     return d
 
 
-def _gfs_extra(g: gfs.GfsData) -> dict:
+def _download_extra(g: gfs.GfsData | aifs.AifsData | aigfs.AigfsData) -> dict:
+    """gfs、aifs、aigfs（HD14）的 `sources.<名稱>`：下載量與實際的鏡像。"""
     d: dict[str, object] = {"bytes": g.bytes_downloaded}
     if g.mirror:
         d["mirror"] = g.mirror
@@ -235,14 +282,21 @@ def _cwa_extra(c: cwa.CwaData) -> dict:
     return d
 
 
-def _rescore(slot: dict, th: Thresholds) -> None:
+def _rescore(slot: dict, th: Thresholds, runs: dict[str, str | None] | None = None) -> None:
     """模式值換掉之後重算模式層等級、一致性、落差與整格等級（和 `assess.assess_slots` 同一套規則；
     官方層與已確認不受模式影響，維持原樣）。抄來的是 HD2 以前的結果時，先用 m/s 欄位補節的欄位。
-    三類等級（HD8）照抄來的雨量重算；依據是模式層的格 `causes` 也重算（官方層的不動）。"""
+    三類等級（HD8）照抄來的雨量重算；依據是模式層的格 `causes` 也重算（官方層的不動）。
+    HD14：`models[]` 重組（IFS、GFS、IFS 系集從 `ec`／`gfs`，AIFS、AIGFS 從原本那筆的數字）、
+    重新投票（`vote`、`level`）；`runs`（`model_runs` 的結果）沒給時 `models[].run` 維持原值。"""
     m = slot["model"]
     assess.fill_kt(m["ec"], m["gfs"])
     assess.fill_model_wx(m["ec"], m["gfs"], th)
-    m["level"] = assess.model_level(m["ec"], m["gfs"], th)
+    old = {e.get("id"): e for e in m.get("models") or [] if isinstance(e, dict)}
+    if runs is None:
+        runs = {i: e.get("run") for i, e in old.items() if isinstance(i, str)}
+    m["models"] = assess.model_entries(m["ec"], m["gfs"], old, runs, th)
+    _, m["vote"] = assess.model_vote(m["models"])
+    m["level"] = m["vote"]["level"]
     m["agreement"] = assess.agreement(m["ec"], m["gfs"], th)
     if slot["basis"] in ("model", "none"):
         slot["level"], slot["basis"] = (m["level"], "model") if m["level"] else ("unknown", "none")
@@ -311,7 +365,8 @@ def reuse_models(
     now: datetime,
     airports: list[Airport],
 ) -> None:
-    """失敗的模式來源（`ecmwf`／`gfs`）從 `prev[來源名稱]` 那一份抄同一機場、同一 `from` 的值。
+    """失敗的模式來源（`ecmwf`／`gfs`／`aifs`／`aigfs`）從 `prev[來源名稱]` 那一份抄同一機場、
+    同一 `from` 的值。
 
     每個來源可以抄不同份（`find_reuse_source` 各自找）。`runs.<鍵>` 離 `now` 超過 `REUSE_MAX_AGE`
     的那一報不抄（系集與 HRES 各自判斷）；有抄到的才把 `runs` 換成那一份的、在 `sources.<名稱>` 加
@@ -346,8 +401,8 @@ def reuse_models(
             n = 0
             for a in latest["airports"]:
                 for s in a["slots"]:
-                    old = prev_slots.get((a["icao"], s["from"]), {}).get(key)
-                    if not isinstance(old, dict):
+                    old = model_part(prev_slots.get((a["icao"], s["from"]), {}), key)
+                    if old is None or model_part(s["model"], key) is None:
                         continue
                     for f in fields:
                         if _is_num(old.get(f)) or (f == "ptype" and isinstance(old.get(f), str)):
@@ -362,11 +417,14 @@ def reuse_models(
     th = {a.icao: a.thresholds for a in airports}
     touched: dict[int, tuple[dict, str]] = {}
     for icao, s, key, f, v in updates:
-        s["model"][key][f] = v
+        part = model_part(s["model"], key)
+        assert part is not None
+        part[f] = v
         touched[id(s)] = (s, icao)
-    for s, icao in touched.values():
-        _rescore(s, th[icao])
     latest["runs"].update(runs)
+    by_model = model_runs(latest["runs"])
+    for s, icao in touched.values():
+        _rescore(s, th[icao], by_model)
     for name, generated_at in reused_from.items():
         latest["sources"][name]["reusedFrom"] = generated_at
         log.info("%s 失敗，沿用 %s 那份的模式資料（runs：%s）", name, generated_at, runs)
@@ -508,10 +566,20 @@ def assemble(
     cw: cwa.CwaData | None,
     sm: smg.SmgData | None = None,
     nw: nws.NwsData | None = None,
+    af: aifs.AifsData | None = None,
+    ag: aigfs.AigfsData | None = None,
 ) -> dict:
     """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。"""
     slots = slot_bounds(now)
     window_start, window_end = slots[0][0], slots[-1][1]
+    runs = {
+        "ecmwf": iso(ec.run) if ec else None,
+        "ecmwfEns": iso(ec.ens_run) if ec else None,
+        "gfs": iso(gf.run) if gf else None,
+        "aifs": iso(af.run) if af else None,  # HD14
+        "aigfs": iso(ag.run) if ag else None,
+    }
+    by_model = model_runs(runs)
     out_airports = []
     for a in airports:
         warns = collect_warnings(a, hk, cw, sm, nw)
@@ -529,6 +597,9 @@ def assemble(
             confirmed=mine,
             runways=a.runways,
             metar=metar,
+            aifs=af.points.get(a.icao) if af else None,
+            aigfs=ag.points.get(a.icao) if ag else None,
+            runs=by_model,
         )
         out_airports.append(
             {
@@ -551,16 +622,14 @@ def assemble(
     return {
         "schema": SCHEMA,
         "generatedAt": iso(now),
-        "runs": {
-            "ecmwf": iso(ec.run) if ec else None,
-            "ecmwfEns": iso(ec.ens_run) if ec else None,
-            "gfs": iso(gf.run) if gf else None,
-        },
+        "runs": runs,
         "sources": {
             **{n: status.get(n, {"ok": False, "error": "skipped"}) for n in SOURCE_NAMES},
             **{k: v for k, v in status.items() if k not in SOURCE_NAMES},
         },
         "regions": [{"id": r.id, "name": r.name} for r in regions],
+        # 模式層投票的模式（HD14，`config.MODELS` 的順序；每格的 `model.models[]` 只放 id）
+        "models": [{"id": m.id, "name": m.name} for m in MODELS],
         "airports": out_airports,
     }
 
@@ -632,7 +701,21 @@ def run(
         lambda: gfs.fetch(airports, now, slot0, workdir / "gfs"),
         status,
         timing,
-        _gfs_extra,
+        _download_extra,
+    )
+    af = _call(
+        "aifs",
+        lambda: aifs.fetch(airports, slot0, workdir / "aifs"),
+        status,
+        timing,
+        _download_extra,
+    )
+    ag = _call(
+        "aigfs",
+        lambda: aigfs.fetch(airports, now, slot0, workdir / "aigfs"),
+        status,
+        timing,
+        _download_extra,
     )
     tf = _call("taf", lambda: taf.fetch(airports), status, timing)
     hk = _call("hko", hko.fetch, status, timing)
@@ -662,8 +745,10 @@ def run(
         cw=cw,
         sm=sm,
         nw=nw,
+        af=af,
+        ag=ag,
     )
-    failed = [n for n, d in (("ecmwf", ec), ("gfs", gf)) if d is None]
+    failed = [n for n, d in (("ecmwf", ec), ("gfs", gf), ("aifs", af), ("aigfs", ag)) if d is None]
     if failed:
         sources: dict[str, dict | None] = {n: find_reuse_source(archive, n, now) for n in failed}
         if any(d is None for d in sources.values()):
@@ -689,8 +774,8 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-smg.json", sm.raw)
     if nw is not None:
         _dump(raw_dir / f"{now:%H%M}Z-nws.json", nw.raw)
-    _dump(history / f"{stamp}.json", latest)
-    _dump(archive / "latest.json", latest)
+    _dump(history / f"{stamp}.json", latest, compact=True)
+    _dump(archive / "latest.json", latest, compact=True)
     return latest
 
 
@@ -728,7 +813,7 @@ def publish(out: Path, archive: Path, latest: dict | None, now: datetime) -> Non
     """
     out.mkdir(parents=True, exist_ok=True)
     if latest is not None:
-        _dump(out / "latest.json", latest)
+        _dump(out / "latest.json", latest, compact=True)
     hist_out = out / "history"
     hist_out.mkdir(parents=True, exist_ok=True)
     since = now - timedelta(days=PAGES_HISTORY_DAYS)

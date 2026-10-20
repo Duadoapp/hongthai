@@ -14,6 +14,10 @@
 - `taf.json`、`metar.json` 後面三筆（RCSS、RCKH、VMMC）是 2026-10-18 04:50Z 抓的
 - `taf.json` 再後面四筆（ZSPD、ROAH、RJTT、RKSI）與 `metar.json` 再後面五筆（同四站＋ROMY，宮古只有 METAR）
   是 H9 一次請求 41 站時（2026-10-18 17:1xZ）抓的；ZSPD 是 `MPS` 的 TAF
+- `aifs_pus_subregion.grib2`（HD14）：ECMWF AIFS Single 2026-10-19 18Z 步長 6／12／18 的 `10u`、`10v`、`2t`、
+  `tp`、`sf`；`aigfs_pus_f006.grib2`、`aigfs_pus_f012.grib2`：NOAA AIGFS 2026-10-19 12Z 地面檔的 `UGRD`／`VGRD`
+  （10 米）、`TMP`（2 米）與兩筆 `APCP`（f006 都是 `0-6 hour acc`；f012 是 `6-12` 與 `0-12`）。都是全球檔
+  用 eccodes 逐筆裁成 33.5–36.5°N、127.5–130.5°E（釜山附近，那時有雨）
 - `gfs_all_f120.grb2`：NOMADS 一個框（HD3 換成 51 個機場的框：6.37–43.77°N、102.99–145.80°E，2026-10-18 12Z
   f120，GUST＋10 米風，113 KB；H9 原本是 41 個機場的框、約 64 KB），51 個機場都在框內
 - `nws_alerts_active_guz001_none.json`：NWS `/alerts/active?zone=GUZ001`（2026-10-18 17:53Z，關島當時只有
