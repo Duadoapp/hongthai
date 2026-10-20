@@ -1099,7 +1099,7 @@ def test_duel_models_run_in_parallel(tmp_path):
 
 def test_duel_timeout_marks_unfinished(tmp_path):
     ev = {"claude": fake_model(delay=0.05), "gemini": fake_model(delay=5)}
-    duel = ai_run.Duel(duel_doc(2, 1), None, NOW, tmp_path, budget_s=30, evaluators=ev)
+    duel = ai_run.Duel(duel_doc(2, 1), None, NOW, tmp_path, budget_s=100, evaluators=ev)
     t = threading.Thread(target=duel.run, daemon=True)
     t.start()
     t.join(0.5)  # build 那邊的預算到了
@@ -1113,18 +1113,36 @@ def test_duel_timeout_marks_unfinished(tmp_path):
     assert calls == {"claude": 2, "gemini": 2}  # 送出去的也算
 
 
-def test_duel_request_timeout_capped_by_budget(tmp_path):
-    seen = []
+def test_duel_request_timeout_and_budget_guard(tmp_path):
+    """單次請求逾時每模型各自（HD23）；剩餘預算不到該模型逾時＋5 秒就不送、記 `timeout`（沒有
+    `seconds`、不算呼叫）。"""
+    seen: dict[str, list[float]] = {"claude": [], "gemini": []}
 
-    def evaluate(text, *, client=None, timeout=60):
-        seen.append(timeout)
-        return {"level": "low", "comment": dict(COMMENT)}
+    def model(key):
+        def evaluate(text, *, client=None, timeout=60):
+            seen[key].append(timeout)
+            return {"level": "low", "comment": dict(COMMENT)}
 
-    m = SimpleNamespace(make_client=object, evaluate=evaluate)
-    ai_run.evaluate_all(
-        duel_doc(1, 0), None, NOW, tmp_path, budget_s=10, evaluators={"claude": m, "gemini": m}
-    )
-    assert len(seen) == 2 and all(5 < t <= 10 for t in seen)
+        return SimpleNamespace(make_client=object, evaluate=evaluate)
+
+    ev = {k: model(k) for k in seen}
+    ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, budget_s=100, evaluators=ev)
+    assert seen == {"claude": [60], "gemini": [45]}
+    # 還剩 54 秒：Gemini（45＋5）照送、Claude（60＋5）不送
+    later = duel_doc(1, 0)
+    later["generatedAt"] = "2026-10-19T08:25:00Z"
+    res = ai_run.evaluate_all(later, None, NOW, tmp_path, budget_s=54, evaluators=ev)
+    assert seen == {"claude": [60], "gemini": [45, 45]}
+    assert res["airports"]["RC00"]["claude"]["error"] == "timeout"
+    assert res["source"]["calls"] == {"claude": 0, "gemini": 1}
+    rows = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))
+    assert rows[-1]["claude"] == {"status": "error", "level": None}  # 沒送：沒有 seconds
+    # 只剩 10 秒：兩個都不送（HD23 前是逾時縮成 10 秒照送）
+    later["generatedAt"] = "2026-10-19T14:25:00Z"
+    res = ai_run.evaluate_all(later, None, NOW, tmp_path, budget_s=10, evaluators=ev)
+    assert seen == {"claude": [60], "gemini": [45, 45]}
+    assert res["source"]["calls"] == {"claude": 0, "gemini": 0}
+    assert res["source"]["errors"] == {"claude": "timeout", "gemini": "timeout"}
 
 
 # ---- 對決戰績 ----
@@ -1350,8 +1368,9 @@ def test_good_wording_hd14():
     assert parse.parse_response(_resp(comment=comment))["comment"] == comment
 
 
-def seq_model(*outcomes: str | None, delay: float = 0.0):
-    """依序回 `outcomes`（錯誤代碼，`None` 是成功）；用完了就重複最後一個。記下每次的逾時。"""
+def seq_model(*outcomes: str | None, delay: float = 0.0, clock=None, took: float = 0.0):
+    """依序回 `outcomes`（錯誤代碼，`None` 是成功）；用完了就重複最後一個。記下每次的逾時。
+    `clock`（`FakeClock`）給了就每次往前撥 `took` 秒，不真的等（HD23 的快／慢失敗）。"""
     timeouts: list[float] = []
     lock = threading.Lock()
 
@@ -1359,6 +1378,8 @@ def seq_model(*outcomes: str | None, delay: float = 0.0):
         with lock:
             code = outcomes[min(len(timeouts), len(outcomes) - 1)]
             timeouts.append(timeout)
+        if clock:
+            clock.advance(took)
         if delay:
             time.sleep(delay)
         if code:
@@ -1380,7 +1401,8 @@ def _gemini_row(tmp_path, ge, **kwargs) -> dict:
 
 
 def test_retry_504_then_ok_hd17(tmp_path):
-    assert config.RETRY_CODES == ("http_503", "http_504") and config.RETRY_MIN_LEFT_S == 70
+    assert config.RETRY_CODES == ("http_503", "http_504")
+    assert config.RETRY_MIN_LEFT_S == {"claude": 70, "gemini": 55}  # 該模型逾時＋10（HD23）
     ge = seq_model("http_504", None, delay=0.1)
     g = _gemini_row(tmp_path, ge)
     assert len(ge.timeouts) == 2
@@ -1415,15 +1437,16 @@ def test_no_retry_other_errors_hd17(tmp_path, code):
 
 
 def test_no_retry_when_budget_short_hd17(tmp_path):
-    """剩餘預算不到 70 秒不重試，照舊記 `http_504`（沒有 `:retried`）。"""
+    """剩餘預算不到 Gemini 逾時＋10（55 秒，HD23；HD17 是 70 秒）不重試，照舊記 `http_504`
+    （沒有 `:retried`）。54 秒還夠送第一次（45＋5）。"""
     ge = seq_model("http_504", None)
-    g = _gemini_row(tmp_path, ge, budget_s=69)
+    g = _gemini_row(tmp_path, ge, budget_s=54)
     assert len(ge.timeouts) == 1
     assert g["light"]["error"] == "http_504" and g["detail"] == "http_504:-:-" and g["calls"] == 1
     # 預算夠：重試的逾時也取 `TIMEOUT_S` 與剩下時間的小者
     ge = seq_model("http_504", None)
     assert _gemini_row(tmp_path, ge, budget_s=100)["status"] == "ok"
-    assert len(ge.timeouts) == 2 and all(t == config.TIMEOUT_S for t in ge.timeouts)
+    assert ge.timeouts == [config.TIMEOUT_S["gemini"]] * 2 == [45, 45]
 
 
 def test_no_retry_past_daily_cap_hd17(tmp_path, monkeypatch):
@@ -1431,6 +1454,257 @@ def test_no_retry_past_daily_cap_hd17(tmp_path, monkeypatch):
     ge = seq_model("http_504", None)
     g = _gemini_row(tmp_path, ge)
     assert len(ge.timeouts) == 1 and g["detail"] == "http_504:-:-" and g["calls"] == 1
+
+
+# ---- HD23：只有快失敗才重試、Gemini 逾時 45 秒、連續 504 切備援區域、預算守門 ----
+
+
+class FakeClock:
+    """取代 `run.py` 的 `time`：`advance` 往前撥，不真的等。"""
+
+    def __init__(self):
+        self.now = 1000.0
+        self.lock = threading.Lock()
+
+    def monotonic(self) -> float:
+        with self.lock:
+            return self.now
+
+    def advance(self, s: float) -> None:
+        with self.lock:
+            self.now += s
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    c = FakeClock()
+    monkeypatch.setattr(ai_run, "time", SimpleNamespace(monotonic=c.monotonic))
+    return c
+
+
+def test_hd23_constants():
+    assert config.TIMEOUT_S == {"claude": 60, "gemini": 45}
+    assert config.RETRY_FAST_FAIL_S == 15
+    assert config.SEND_MIN_LEFT_S == {"claude": 65, "gemini": 50}
+    assert (config.FALLBACK_AFTER, config.FALLBACK_GIVE_UP) == (3, 2)
+    assert config.FALLBACK_CODES == ("http_503", "http_504", "timeout")
+
+
+@pytest.mark.parametrize("code", ["http_503", "http_504"])
+def test_retry_only_fast_fail_hd23(tmp_path, clock, code):
+    """2 秒就回的 504／503 → 重試（成功就是 ok、`seconds` 兩次合計）。"""
+    ge = seq_model(code, None, clock=clock, took=2)
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 2 and g["status"] == "ok" and "detail" not in g
+    assert g["seconds"] == 4.0 and g["calls"] == 2
+
+
+@pytest.mark.parametrize(("code", "took"), [("http_504", 20), ("http_503", 20), ("http_504", 15)])
+def test_no_retry_slow_fail_hd23(tmp_path, clock, code, took):
+    """等了 15 秒以上才回的（閘道逾時）不重試，`detail` 標 `:slow`。"""
+    ge = seq_model(code, None, clock=clock, took=took)
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 1 and g["calls"] == 1
+    assert g["light"]["error"] == code and g["detail"] == f"{code}:-:-:slow"
+    assert g["seconds"] == float(took)
+
+
+def test_retry_slow_second_still_retried_hd23(tmp_path, clock):
+    """重試那次慢回仍是 `:retried`（只看第一次快不快）；其他錯誤慢回也不標 `:slow`。"""
+    ge = seq_model("http_504", "http_504", clock=clock, took=10)
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 2 and g["detail"] == "http_504:-:-:retried"
+    ge = seq_model("http_429", clock=clock, took=30)
+    assert _gemini_row(tmp_path, ge)["detail"] == "http_429:-:-"
+
+
+def test_gemini_timeout_45(monkeypatch):
+    """Gemini 單次 45 秒（client 與請求都是）、Claude 60 秒。"""
+    assert gemini.TIMEOUT == 45 and claude.TIMEOUT == 60
+    fake = FakeGenai(_gresp(_resp()))
+    gemini.evaluate("文字", client=fake)
+    assert fake.calls[0]["config"].http_options.timeout == 45_000
+    fa = FakeAnthropic(_msg(_resp()))
+    claude.evaluate("文字", client=fa)
+    assert fa.options == [{"timeout": 60, "max_retries": 0}]
+    made = _fake_genai_client(monkeypatch)
+    gemini.make_client()
+    gemini.make_client("us")
+    assert [(m["location"], m["http_options"].timeout) for m in made] == [
+        ("global", 45_000),
+        ("us", 45_000),
+    ]
+    assert all(m["vertexai"] and m["project"] == "p" for m in made)
+
+
+def _fake_genai_client(monkeypatch) -> list[dict]:
+    """`make_client` 用的 SDK 換成假的，記下每次建 client 的參數（不讀真的金鑰）。"""
+    made: list[dict] = []
+    monkeypatch.setenv("GOOGLE_SERVICE_ACCOUNT_JSON", '{"type": "service_account"}')
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "p")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "global")
+    monkeypatch.setattr(
+        gemini.service_account.Credentials,
+        "from_service_account_info",
+        staticmethod(lambda info, scopes: "creds"),
+    )
+    monkeypatch.setattr(gemini.genai, "Client", lambda **kw: made.append(kw) or kw)
+    return made
+
+
+@pytest.mark.parametrize(
+    ("env", "want"),
+    [
+        (None, ("global", "us")),
+        ("eu", ("global", "eu")),
+        ("", ("global", None)),
+        ("global", ("global", None)),
+    ],
+)
+def test_gemini_locations_hd23(monkeypatch, env, want):
+    """`GOOGLE_CLOUD_LOCATION_FALLBACK` 沒設是 `us`、空字串＝關掉、和主要一樣也當關掉。"""
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "global")
+    if env is None:
+        monkeypatch.delenv("GOOGLE_CLOUD_LOCATION_FALLBACK", raising=False)
+    else:
+        monkeypatch.setenv("GOOGLE_CLOUD_LOCATION_FALLBACK", env)
+    assert gemini.locations() == want
+
+
+def region_model(primary, backup, *, clock=None, took=0.0, locs=("global", "us")):
+    """記 location 的假 Gemini：`primary`／`backup` 是各區依序的結果（錯誤代碼，`None` 是成功；
+    用完重複最後一個）。`made` 是建過的 client 的區域，`sent` 是每次送出的（機場, 區域）。"""
+    made: list[str] = []
+    sent: list[tuple[str, str]] = []
+    lock = threading.Lock()
+    seqs = {locs[0]: list(primary), locs[1]: list(backup)}
+    n = dict.fromkeys(seqs, 0)
+
+    def make_client(location=None):
+        loc = location or locs[0]
+        made.append(loc)
+        return SimpleNamespace(location=loc)
+
+    def evaluate(text, *, client=None, timeout=60):
+        loc = client.location
+        with lock:
+            sent.append((text.splitlines()[0], loc))
+            seq = seqs[loc]
+            code = seq[min(n[loc], len(seq) - 1)]
+            n[loc] += 1
+        if clock:
+            clock.advance(took)
+        if code:
+            raise AiError(code)
+        return {"level": "high", "comment": dict(COMMENT)}
+
+    return SimpleNamespace(
+        make_client=make_client, evaluate=evaluate, locations=lambda: locs, made=made, sent=sent
+    )
+
+
+def _region_run(tmp_path, monkeypatch, ge, n: int) -> tuple[dict, dict[str, dict]]:
+    """Gemini 1 條並行（依機場順序送，連續次數才固定），回傳 `result()` 與各機場的 Gemini 戰績。"""
+    monkeypatch.setattr(ai_run, "PARALLEL", {"claude": 4, "gemini": 1})
+    ev = {"claude": fake_model(), "gemini": ge}
+    res = ai_run.evaluate_all(duel_doc(n, 0), None, NOW, tmp_path, evaluators=ev)
+    rows = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))
+    return res, {r["airport"]: r["gemini"] for r in rows}
+
+
+def _where(ge) -> list[str]:
+    return [loc for _, loc in ge.sent]
+
+
+def test_fallback_after_three_504_hd23(tmp_path, monkeypatch, clock):
+    """主要區域連續 3 次（慢）504 → 之後用備援 client（lazy 建立）；`geminiLocation` 是最後用的。"""
+    ge = region_model(["http_504"], [None], clock=clock, took=20)
+    res, rows = _region_run(tmp_path, monkeypatch, ge, 5)
+    assert _where(ge) == ["global"] * 3 + ["us"] * 2
+    assert ge.made == ["global", "us"]  # 備援 client 只建一次
+    assert [rows[f"RC0{i}"].get("detail") for i in range(5)] == ["http_504:-:-:slow"] * 3 + [
+        None
+    ] * 2
+    assert rows["RC03"]["status"] == rows["RC04"]["status"] == "ok"
+    assert res["source"]["geminiLocation"] == "us"
+    assert res["source"]["calls"]["gemini"] == 5
+    assert "geminiLocation" not in res["airports"]["RC00"]["gemini"]  # 燈的欄位不動
+    assert "claudeLocation" not in res["source"]  # 沒有 `locations()` 的模型不寫
+
+
+def test_fallback_timeouts_and_reset_hd23(tmp_path, monkeypatch):
+    """`timeout` 也算；中間有成功（或其他錯誤）就歸零。"""
+    ge = region_model(
+        ["timeout", "timeout", None, "http_429", "timeout", "timeout", "timeout"], [None]
+    )
+    res, rows = _region_run(tmp_path, monkeypatch, ge, 8)
+    assert _where(ge) == ["global"] * 7 + ["us"]
+    assert res["source"]["geminiLocation"] == "us"
+
+
+def test_fallback_fast_504_retry_goes_to_backup_hd23(tmp_path, monkeypatch, clock):
+    """快 504 照樣重試，重試也算連續次數；切過去之後的重試就送備援。"""
+    ge = region_model(["http_504"], [None], clock=clock, took=1)
+    res, rows = _region_run(tmp_path, monkeypatch, ge, 3)
+    # RC00：504、重試 504（連續 2）；RC01：504（連續 3）→ 重試送備援、成功；RC02 直接備援
+    assert _where(ge) == ["global", "global", "global", "us", "us"]
+    assert rows["RC00"]["detail"] == "http_504:-:-:retried"
+    assert rows["RC01"]["status"] == "ok" and rows["RC02"]["status"] == "ok"
+    assert res["source"]["calls"]["gemini"] == 5
+
+
+def test_fallback_404_back_to_primary_hd23(tmp_path, monkeypatch, clock):
+    """備援回 `http_404`（模型不在該區）→ 不再用、退回主要；備援失敗的 `detail` 加 `:fallback`。"""
+    ge = region_model(
+        ["http_504", "http_504", "http_504", None], ["http_404"], clock=clock, took=20
+    )
+    res, rows = _region_run(tmp_path, monkeypatch, ge, 6)
+    assert _where(ge) == ["global"] * 3 + ["us"] + ["global"] * 2
+    assert rows["RC03"]["detail"] == "http_404:-:-:fallback"
+    assert rows["RC04"]["status"] == "ok" and rows["RC05"]["status"] == "ok"
+    assert res["source"]["geminiLocation"] == "global"
+
+
+def test_fallback_two_failures_back_to_primary_hd23(tmp_path, monkeypatch, clock):
+    """備援連續 2 次失敗 → 退回主要，這一報不再切（主要再連續 504 也一樣）。"""
+    ge = region_model(["http_504"], ["timeout"], clock=clock, took=20)
+    res, rows = _region_run(tmp_path, monkeypatch, ge, 9)
+    assert _where(ge) == ["global"] * 3 + ["us"] * 2 + ["global"] * 4
+    assert rows["RC03"]["detail"] == rows["RC04"]["detail"] == "timeout:-:-:fallback"
+    assert rows["RC05"]["detail"] == "http_504:-:-:slow"
+    assert res["source"]["geminiLocation"] == "global"
+
+
+def test_fallback_content_errors_keep_backup_hd23(tmp_path, monkeypatch):
+    """備援回 `bad_format` 之類是模型的回答不能用、不是區域壞了：不算失敗。"""
+    ge = region_model(["timeout"], ["timeout", "bad_format", "timeout", None])
+    res, _ = _region_run(tmp_path, monkeypatch, ge, 7)
+    assert _where(ge) == ["global"] * 3 + ["us"] * 4
+    assert res["source"]["geminiLocation"] == "us"
+
+
+def test_fallback_disabled_hd23(tmp_path, monkeypatch):
+    """`GOOGLE_CLOUD_LOCATION_FALLBACK` 是空字串（`locations()` 的備援是 `None`）→ 不切。"""
+    ge = region_model(["timeout"], [None], locs=("global", None))
+    res, _ = _region_run(tmp_path, monkeypatch, ge, 5)
+    assert _where(ge) == ["global"] * 5 and ge.made == ["global"]
+    assert res["source"]["geminiLocation"] == "global"
+
+
+def test_fallback_client_error_back_to_primary_hd23(tmp_path, monkeypatch):
+    """備援 client 建不了 → 不再用、照主要區域送。"""
+    ge = region_model(["timeout"], [None])
+    make = ge.make_client
+
+    def make_client(location=None):
+        if location == "us":
+            raise AiError("no_api_key")
+        return make(location)
+
+    ge.make_client = make_client
+    res, _ = _region_run(tmp_path, monkeypatch, ge, 5)
+    assert _where(ge) == ["global"] * 5
+    assert res["source"]["geminiLocation"] == "global"
 
 
 # ---- HD16：Open-Meteo 三票、旁觀模式 ----

@@ -20,12 +20,28 @@ TEMPERATURE = 0.3  # 只有 Gemini 用：Claude Opus 5.5 不接受 temperature�
 CLAUDE_EFFORT = "low"  # Opus 5.5 的思考關不掉、算在 max_tokens 裡；用 low 留空間給四語短評
 # Gemini 4 只接受 `thinking_level`（送 `thinking_budget` 回 400），不支援 MINIMAL；LOW 是最低
 GEMINI_THINKING_LEVEL = "LOW"
-TIMEOUT_S = 60  # 單次請求
-# 只重試一次的錯誤（HD17）：閘道沒回應（Vertex 504 卡 57 秒才回），不是模型回了壞東西、也不計費；
-# 同一個請求、不改內容，剩餘預算 ≥ `RETRY_MIN_LEFT_S` 才重試（一次請求逾時 60 秒）。
-# 429、400、`bad_format`、`bad_wording`、`refusal` 都不重試
+# 單次請求逾時，每個模型各自（HD23）：Gemini 成功的請求實測 7–30 秒，45 秒夠；
+# Vertex 閘道卡 57 秒才回的 504 會變成 45 秒的 `timeout`（一樣是失敗、省 12 秒）
+TIMEOUT_S = {"claude": 60, "gemini": 45}
+# 只重試一次的錯誤（HD17）：閘道沒回應，不是模型回了壞東西、也不計費；同一個請求、不改內容。
+# 429、400、`bad_format`、`bad_wording`、`refusal`、`timeout` 都不重試
 RETRY_CODES = ("http_503", "http_504")
-RETRY_MIN_LEFT_S = 70
+# 只有快失敗才重試（HD23）：第一次花不到這麼多秒就回 503／504 的多半是瞬間故障，重試便宜；
+# 等了 15 秒以上才失敗的是閘道逾時，重試只會再卡一次（2026-10-20T13:43Z 三個 504 重試後
+# 仍 504、各吃 114 秒），不重試、`detail` 標 `:slow`
+RETRY_FAST_FAIL_S = 15
+# 剩餘預算 ≥ 該模型逾時＋10 秒才重試（HD17 是固定 70 秒＝逾時 60＋10；HD23 改成每模型）
+RETRY_MIN_LEFT_S = {k: t + 10 for k, t in TIMEOUT_S.items()}
+# 剩餘預算 < 該模型逾時＋5 秒就不再送新請求、記 `timeout`（HD23；以前是不到 0.1 秒才不送）
+SEND_MIN_LEFT_S = {k: t + 5 for k, t in TIMEOUT_S.items()}
+# Gemini 備援區域（HD23，`gemini.locations`）：這一報在主要區域連續 `FALLBACK_AFTER` 次
+# `FALLBACK_CODES`，之後的請求改用備援區域；備援回 `http_404`（模型不在該區）或連續
+# `FALLBACK_GIVE_UP` 次失敗就不再用、退回主要區域
+FALLBACK_AFTER = 3
+FALLBACK_CODES = ("http_503", "http_504", "timeout")
+FALLBACK_GIVE_UP = 2
+# 這些錯代表區域有回應、只是模型的回答不能用：不算區域失敗，連續次數歸零
+CONTENT_ERRORS = ("bad_format", "bad_wording", "refusal")
 
 MAX_AIRPORTS = 20  # 每報最多評幾個機場
 # 每天（UTC）每個模型最多呼叫幾次；0 代表不限（開發期間，2026-10-19 定案；

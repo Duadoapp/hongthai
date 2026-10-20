@@ -5,11 +5,14 @@
   交給 `service_account.Credentials.from_service_account_info`，不寫到磁碟
 - `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`（`global`；Argon 只開 global、us、eu）
 少任一個或 JSON 讀不了 → `no_api_key`。
+- `GOOGLE_CLOUD_LOCATION_FALLBACK`（HD23，選填）：備援區域，沒設是 `us`、設成空字串＝關掉
+  （和主要區域一樣也當關掉）。什麼時候切過去由 `run.py` 決定（`config.FALLBACK_AFTER`），
+  用同一把服務帳號
 
 - `max_output_tokens` 3000、`temperature` 0.3、回應要求 JSON（`response_mime_type`）
 - 思考：`thinking_level` LOW（`config.GEMINI_THINKING_LEVEL`）、`include_thoughts=False`。
   Gemini 4 的思考關不掉、不接受 `thinking_budget`（送了回 400）、不支援 MINIMAL，LOW 是最低（HD6）
-- 單次請求逾時 60 秒；SDK 沒設 `retry_options` 就不重試
+- 單次請求逾時 45 秒（`config.TIMEOUT_S`，HD23 前 60 秒）；SDK 沒設 `retry_options` 就不重試
 - `finish_reason` 是 `MAX_TOKENS`（被截斷）→ `bad_format`；安全過濾之類擋下 → `refusal`
 - 拿到回應之後的失敗都附 `finish_reason` 與輸出 token 數（`candidates_token_count`，有思考時寫成
   `<回答>+<思考>`），給戰績的 `detail`
@@ -32,10 +35,22 @@ from .parse import AiError, parse_response, with_response
 from .prompt import SYSTEM
 
 SCOPES = ("https://www.googleapis.com/auth/cloud-platform",)
+TIMEOUT = TIMEOUT_S["gemini"]
+FALLBACK_ENV = "GOOGLE_CLOUD_LOCATION_FALLBACK"
+FALLBACK_DEFAULT = "us"
 
 
-def make_client() -> genai.Client:
-    raw, project, location = (os.environ.get(k) for k in ENV["gemini"])
+def locations() -> tuple[str | None, str | None]:
+    """（主要區域, 備援區域）；備援沒開（設成空字串、或和主要一樣）是 `None`。"""
+    primary = os.environ.get(ENV["gemini"][2]) or None
+    backup = os.environ.get(FALLBACK_ENV, FALLBACK_DEFAULT).strip() or None
+    return primary, None if backup == primary else backup
+
+
+def make_client(location: str | None = None) -> genai.Client:
+    """`location` 是 `None` 用 `GOOGLE_CLOUD_LOCATION`；備援區域由 `run.py` 傳進來。"""
+    raw, project, primary = (os.environ.get(k) for k in ENV["gemini"])
+    location = location or primary
     if not (raw and project and location):
         raise AiError("no_api_key")
     try:
@@ -48,13 +63,13 @@ def make_client() -> genai.Client:
         project=project,
         location=location,
         credentials=creds,
-        http_options=types.HttpOptions(timeout=TIMEOUT_S * 1000),
+        http_options=types.HttpOptions(timeout=TIMEOUT * 1000),
     )
 
 
-def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = TIMEOUT_S) -> dict:
+def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = TIMEOUT) -> dict:
     """一個機場的精簡文字 → `{"level", "comment"}`；失敗丟 `AiError`，這裡不重試
-    （`http_503`／`http_504` 由 `run.py` 重試一次，HD17）。"""
+    （快回的 `http_503`／`http_504` 由 `run.py` 重試一次、切備援區域也在 `run.py`，HD17、HD23）。"""
     client = client or make_client()
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM,

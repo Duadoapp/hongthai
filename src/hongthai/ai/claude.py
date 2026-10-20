@@ -18,19 +18,21 @@ from .config import CLAUDE_EFFORT, MAX_TOKENS, MODELS, TIMEOUT_S
 from .parse import AiError, parse_response, with_response
 from .prompt import SYSTEM
 
+TIMEOUT = TIMEOUT_S["claude"]
+
 
 def make_client() -> anthropic.Anthropic:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise AiError("no_api_key")
-    return anthropic.Anthropic(api_key=key, timeout=TIMEOUT_S, max_retries=0)
+    return anthropic.Anthropic(api_key=key, timeout=TIMEOUT, max_retries=0)
 
 
 def evaluate(
-    text: str, *, client: anthropic.Anthropic | None = None, timeout: float = TIMEOUT_S
+    text: str, *, client: anthropic.Anthropic | None = None, timeout: float = TIMEOUT
 ) -> dict:
     """一個機場的精簡文字 → `{"level", "comment"}`；失敗丟 `AiError`，這裡不重試
-    （`http_503`／`http_504` 由 `run.py` 重試一次，HD17）。"""
+    （快回的 `http_503`／`http_504` 由 `run.py` 重試一次，HD17、HD23）。"""
     client = client or make_client()
     try:
         msg = client.with_options(timeout=timeout, max_retries=0).messages.create(

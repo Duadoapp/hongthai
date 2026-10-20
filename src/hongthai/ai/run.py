@@ -9,17 +9,27 @@
 - 沒被選的機場：兩顆燈 `status: "skipped"`、`level: "low"`、`comment` 固定四語（`NO_RISK`）
 - 符合條件但排在 `MAX_AIRPORTS` 之後的機場：兩顆燈 `status: "error"`、`error: "run_cap"`
   （不能寫「沒看到明顯風險」，那些機場可能是中級）
-- 時間預算（`budget_s`，`build.BUDGET_S["ai"]`）：每次請求的逾時取 `TIMEOUT_S` 與剩下時間的小者；
-  `build` 那邊超過預算時呼叫 `result(timed_out=True)`，還沒評完的機場記 `error: "timeout"`，排隊中的
-  不再呼叫，已經送出的請求最晚在預算到時結束，回來的結果不再採用
+- 時間預算（`budget_s`，`build.BUDGET_S["ai"]`）：單次請求逾時每模型各自（`TIMEOUT_S`：
+  Claude 60、Gemini 45 秒，HD23），取它與剩下時間的小者；剩下時間不到該模型逾時＋5 秒
+  （`SEND_MIN_LEFT_S`）就不再送新請求、記 `error: "timeout"`（HD23；以前是不到 0.1 秒才不送）。
+  `build` 那邊超過預算時呼叫 `result(timed_out=True)`，還沒評完的機場記 `error: "timeout"`，
+  排隊中的不再呼叫，已經送出的請求最晚在預算到時結束，回來的結果不再採用
 - 對決戰績：`history/ai/<YYYY-MM-DD>.json`（UTC 日期，一天一檔），每機場每跑次一筆，同一跑次同一
   機場新的覆蓋舊的（同 `cancellations.store` 的寫法）；只存等級與格，不存短評全文。呼叫失敗的
   那顆多一個 `detail`：`<代碼>:<stop_reason>:<輸出 token 數>[:<標記>]`（`AiError.trace()`，
   不記內容；HD6）。真的送出的呼叫（成功或失敗）多一個 `seconds`：從送出到收到或出錯，一位小數
   （HD12）；`skipped`、`run_cap`、`daily_cap`、`no_api_key` 與預算到了沒送的 `timeout` 沒有
-- 重試（HD17）：`http_503`／`http_504`（`RETRY_CODES`，閘道沒回應）同一個請求重試一次，只在剩餘
-  預算 ≥ `RETRY_MIN_LEFT_S`（70 秒）、沒到每日上限時；重試也算一次呼叫（次數檔、`calls` 都加 1）。
-  重試仍失敗記第二次的錯誤、`detail` 後面加 `:retried`；`seconds` 是兩次合計。其他錯誤都不重試
+- 重試（HD17、HD23）：`http_503`／`http_504`（`RETRY_CODES`，閘道沒回應）同一個請求重試一次，
+  只在第一次**花不到 `RETRY_FAST_FAIL_S`（15 秒）就失敗**、剩餘預算 ≥ `RETRY_MIN_LEFT_S`
+  （該模型逾時＋10 秒）、沒到每日上限時；重試也算一次呼叫（次數檔、`calls` 都加 1）。重試仍失敗
+  記第二次的錯誤、`detail` 後面加 `:retried`；`seconds` 是兩次合計。等了 15 秒以上才回的
+  （閘道逾時）不重試，`detail` 後面加 `:slow`。其他錯誤都不重試
+- 備援區域（HD23，`Regions`）：模組有 `locations()` 的模型（Gemini）記這一報主要區域連續幾次
+  `FALLBACK_CODES`（`http_503`／`http_504`／`timeout`；成功或其他錯誤歸零），到
+  `FALLBACK_AFTER`（3）次之後的請求（含重試）改用備援區域的 client（第一次要用時才建立，
+  同一把服務帳號）；備援回 `http_404` 或連續 `FALLBACK_GIVE_UP`（2）次失敗（`CONTENT_ERRORS`
+  不算）就不再用、退回主要區域。用備援失敗的 `detail` 最後加 `:fallback`；`sources.ai` 多
+  `<模型>Location`（`geminiLocation`：這一報最後送出的請求用的區域）
 """
 
 from __future__ import annotations
@@ -36,15 +46,21 @@ from types import ModuleType
 
 from . import claude, gemini, prompt, select
 from .config import (
+    CONTENT_ERRORS,
     DAILY_CAP,
     DISCLAIMER,
+    FALLBACK_AFTER,
+    FALLBACK_CODES,
+    FALLBACK_GIVE_UP,
     KEYS,
     MAX_AIRPORTS,
     MODELS,
     NO_RISK,
     PARALLEL,
     RETRY_CODES,
+    RETRY_FAST_FAIL_S,
     RETRY_MIN_LEFT_S,
+    SEND_MIN_LEFT_S,
     TIMEOUT_S,
 )
 from .parse import AiError
@@ -162,6 +178,73 @@ def store_records(history: Path, now: datetime, rows: list[dict]) -> Path:
     return path
 
 
+# ---- 備援區域（HD23）----
+
+
+class Regions:
+    """一個模型這一報的主要／備援區域。模組有 `locations()`（→ `(主要, 備援或 None)`）且
+    `make_client(location)` 收區域的才有備援（Gemini）；沒有的只記不切。"""
+
+    def __init__(self, key: str, mod: ModuleType, client: object):
+        self.key, self.mod, self.client = key, mod, client
+        locs = getattr(mod, "locations", None)
+        self.primary, self.backup = locs() if locs else (None, None)
+        self.backup_client: object | None = None
+        self.on_backup = False
+        self.done = self.backup is None  # 備援不能用（沒開、已經放棄）
+        self.streak = 0  # 主要區域連續 `FALLBACK_CODES` 幾次
+        self.fails = 0  # 備援連續失敗幾次
+        self.last: str | None = None  # 這一報最後送出的請求用的區域
+        self.lock = threading.Lock()
+
+    def pick(self) -> tuple[object, bool]:
+        """要送一次請求：（client, 是不是備援）。"""
+        with self.lock:
+            if self.on_backup and self.backup_client is None:
+                try:  # 第一次要用才建立
+                    self.backup_client = self.mod.make_client(self.backup)
+                except Exception as e:  # 建不了就退回主要區域，不讓這一報停掉
+                    self._give_up(f"建不了 client：{e}")
+            use = self.on_backup
+            self.last = self.backup if use else self.primary
+            return (self.backup_client if use else self.client), use
+
+    def note(self, backup: bool, code: str | None) -> None:
+        """一次請求的結果（`code` 是錯誤代碼，成功是 `None`）。"""
+        with self.lock:
+            if self.done or backup != self.on_backup:  # 切換前後還在路上的不算
+                return
+            if backup:
+                if code is None or code in CONTENT_ERRORS:
+                    self.fails = 0
+                elif code == "http_404":  # 模型不在這一區
+                    self._give_up(code)
+                else:
+                    self.fails += 1
+                    if self.fails >= FALLBACK_GIVE_UP:
+                        self._give_up(f"連續 {self.fails} 次失敗（{code}）")
+            elif code in FALLBACK_CODES:
+                self.streak += 1
+                if self.streak >= FALLBACK_AFTER:
+                    log.warning(
+                        "AI %s %s 連續 %d 次 %s，之後改用備援區域 %s",
+                        self.key,
+                        self.primary,
+                        self.streak,
+                        code,
+                        self.backup,
+                    )
+                    self.on_backup = True
+            else:
+                self.streak = 0
+
+    def _give_up(self, why: str) -> None:
+        log.warning(
+            "AI %s 備援區域 %s 不再用（%s），退回 %s", self.key, self.backup, why, self.primary
+        )
+        self.on_backup, self.done = False, True
+
+
 # ---- 流程 ----
 
 
@@ -194,6 +277,7 @@ class Duel:
         self.details: dict[str, dict[str, str]] = {k: {} for k in KEYS}  # 呼叫失敗的 trace
         self.seconds: dict[str, dict[str, float]] = {k: {} for k in KEYS}  # 送出的呼叫花幾秒
         self.model_errors: dict[str, str] = {}  # 整個模型不能用（no_api_key）
+        self.regions: dict[str, Regions] = {}  # 有呼叫的模型（HD23）
         self.stop = threading.Event()
         self.lock = threading.Lock()
         self._result: dict | None = None
@@ -216,9 +300,10 @@ class Duel:
                 for icao in texts:
                     self.lights[key][icao] = error(key, e.code)
             return
+        self.regions[key] = Regions(key, mod, client)
         with ThreadPoolExecutor(PARALLEL[key], thread_name_prefix=f"ai-{key}") as ex:
             for icao, text in texts.items():
-                ex.submit(self._one, key, mod, client, icao, text)
+                ex.submit(self._one, key, mod, icao, text)
 
     def _set(
         self,
@@ -236,29 +321,42 @@ class Duel:
                 if seconds is not None:
                     self.seconds[key][icao] = round(seconds, 1)
 
-    def _one(self, key: str, mod: ModuleType, client: object, icao: str, text: str) -> None:
+    def _one(self, key: str, mod: ModuleType, icao: str, text: str) -> None:
         if self.stop.is_set():
             return
-        timeout: float = TIMEOUT_S
+        timeout: float = TIMEOUT_S[key]
         if self.deadline is not None:
-            timeout = min(timeout, self.deadline - time.monotonic())
-            if timeout < 0.1:  # 預算用完了，不送
+            left = self.deadline - time.monotonic()
+            if left < SEND_MIN_LEFT_S[key]:  # 剩不到一次請求＋5 秒，不送（HD23）
                 self._set(key, icao, error(key, "timeout"))
                 return
+            timeout = min(timeout, left)
         if not self._count(key):
             with self.lock:
                 self.lights[key][icao] = error(key, "daily_cap")
             return
         t0 = time.monotonic()
-        light, err = self._call(key, mod, client, icao, text, timeout)
-        detail = err.trace() if err else None
-        if err and err.code in RETRY_CODES:  # 閘道沒回應：同一個請求重試一次（HD17）
-            timeout = self._retry_timeout(key)
-            if timeout is not None:
+        light, err, backup = self._send(key, mod, icao, text, timeout)
+        tag = ""
+        if err and err.code in RETRY_CODES:  # 閘道沒回應（HD17）
+            if time.monotonic() - t0 >= RETRY_FAST_FAIL_S:  # 閘道逾時：重試只會再卡一次（HD23）
+                tag = ":slow"
+            elif (retry := self._retry_timeout(key)) is not None:  # 快失敗：同一個請求重試一次
                 log.info("AI %s %s %s，重試一次", key, icao, err.code)
-                light, err = self._call(key, mod, client, icao, text, timeout)
-                detail = f"{err.trace()}:retried" if err else None
+                light, err, backup = self._send(key, mod, icao, text, retry)
+                tag = ":retried"
+        detail = f"{err.trace()}{tag}{':fallback' if backup else ''}" if err else None
         self._set(key, icao, light, detail, time.monotonic() - t0)  # 重試時是兩次合計
+
+    def _send(
+        self, key: str, mod: ModuleType, icao: str, text: str, timeout: float
+    ) -> tuple[dict, AiError | None, bool]:
+        """選區域、送一次、記結果 →（燈, 失敗時的 `AiError`, 是不是用備援區域）。"""
+        regions = self.regions[key]
+        client, backup = regions.pick()
+        light, err = self._call(key, mod, client, icao, text, timeout, backup)
+        regions.note(backup, light.get("error"))
+        return light, err, backup
 
     def _count(self, key: str) -> bool:
         """要送一次請求：沒到每日上限就記一次、回 `True`。"""
@@ -270,30 +368,46 @@ class Duel:
             return True
 
     def _retry_timeout(self, key: str) -> float | None:
-        """重試這次的逾時；超時了、剩餘預算不到 `RETRY_MIN_LEFT_S` 或到每日上限 → `None`
-        （不重試）。"""
+        """重試這次的逾時；超時了、剩餘預算不到 `RETRY_MIN_LEFT_S`（該模型逾時＋10 秒）或到每日
+        上限 → `None`（不重試）。"""
         if self.stop.is_set():
             return None
-        timeout: float = TIMEOUT_S
+        timeout: float = TIMEOUT_S[key]
         if self.deadline is not None:
             left = self.deadline - time.monotonic()
-            if left < RETRY_MIN_LEFT_S:
+            if left < RETRY_MIN_LEFT_S[key]:
                 return None
             timeout = min(timeout, left)
         return timeout if self._count(key) else None
 
     def _call(
-        self, key: str, mod: ModuleType, client: object, icao: str, text: str, timeout: float
+        self,
+        key: str,
+        mod: ModuleType,
+        client: object,
+        icao: str,
+        text: str,
+        timeout: float,
+        backup: bool = False,
     ) -> tuple[dict, AiError | None]:
         """送一次請求 → (燈, 失敗時的 `AiError`)。"""
         t0 = time.monotonic()
+        where = f"（備援 {self.regions[key].backup}）" if backup else ""
         try:
             light = ok(key, mod.evaluate(text, client=client, timeout=timeout))
-            log.info("AI %s %s：%s（%.1f 秒）", key, icao, light["level"], time.monotonic() - t0)
+            log.info(
+                "AI %s %s%s：%s（%.1f 秒）", key, icao, where, light["level"], time.monotonic() - t0
+            )
             return light, None
         except AiError as e:
             log.warning(
-                "AI %s %s 失敗：%s［%s］（%.1f 秒）", key, icao, e, e.trace(), time.monotonic() - t0
+                "AI %s %s%s 失敗：%s［%s］（%.1f 秒）",
+                key,
+                icao,
+                where,
+                e,
+                e.trace(),
+                time.monotonic() - t0,
             )
             return error(key, e.code), e
         except Exception:  # SDK 內部沒預期的錯：記成 network，不讓其他機場停掉
@@ -347,6 +461,9 @@ class Duel:
         }
         if errors:
             src["errors"] = errors
+        for k, r in self.regions.items():  # HD23：`geminiLocation`
+            if r.last:
+                src[f"{k}Location"] = r.last
         if not src["ok"]:
             src["error"] = ",".join(f"{k}:{v}" for k, v in errors.items()) or "no_result"
         return src

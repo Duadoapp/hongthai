@@ -1392,6 +1392,8 @@ def test_build_ai_timeout(workspace, monkeypatch, airports):
         build.ai, "EVALUATORS", {"claude": fake_ai("low"), "gemini": fake_ai("high", delay=3)}
     )
     monkeypatch.setitem(build.BUDGET_S, "ai", 0.5)
+    # HD23 的預算守門（剩不到逾時＋5 秒不送）在 0.5 秒的預算下一個都不會送；這裡測的是送出後預算到
+    monkeypatch.setattr(build.ai, "SEND_MIN_LEFT_S", {"claude": 0.1, "gemini": 0.1})
     t0 = time.monotonic()
     assert build.main([]) == 0
     assert time.monotonic() - t0 < 2.5

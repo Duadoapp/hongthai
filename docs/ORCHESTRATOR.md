@@ -175,6 +175,19 @@
     剩餘預算 ≥ 70 秒才重試（`config.RETRY_CODES`／`RETRY_MIN_LEFT_S`，`run.py` 兩個模型共用），重試也算一次呼叫、
     仍失敗 `detail` 加 `:retried`、`seconds` 兩次合計；其他錯誤照舊不重試；③ Gemini 維持 3 條並行（降回 2 條約 235 秒、
     撞 240 秒預算）。`latest.json` 欄位與錯誤代碼不變。提示詞 `docs/prompts/2026-10-20-HD17-wording-false-positive-504.md`
+    **HD23（2026-10-20 定，Shawn 要先優化；29W 凍結前的 bug 等級止血，不動等級規則、投票、門檻）**：13:43Z 那報 Gemini
+    9/20 ok、`http_504` 10、`http_429` 1，三個 504 重試後仍 504、各吃 114 秒（57＋57），AI 步驟 239.3 秒頂到 240 預算；
+    另有幾個 504 是 0.3–3 秒就回（像 `global` 端點故障）→ ① **只有快失敗才重試**：第一次花不到 15 秒
+    （`config.RETRY_FAST_FAIL_S`）才重試，15 秒以上才回的不重試、`detail` 標 `:slow`；② **單次逾時每模型各自**
+    `config.TIMEOUT_S = {"claude": 60, "gemini": 45}`，`RETRY_MIN_LEFT_S` 跟著是逾時＋10（Claude 70、Gemini 55）；
+    ③ **同一報 Gemini 在主要區域連續 3 次 `http_503`／`http_504`／`timeout`（`FALLBACK_AFTER`）就切備援區域**
+    （`GOOGLE_CLOUD_LOCATION_FALLBACK`，沒設是 `us`、空字串＝關掉；`run.Regions`，備援 client 要用才建、同一把服務帳號）；
+    備援回 `http_404` 或連續 2 次失敗（`FALLBACK_GIVE_UP`；`bad_format`／`bad_wording`／`refusal` 不算）就退回主要、
+    這一報不再切；用備援失敗的 `detail` 加 `:fallback`，`sources.ai` 多 `geminiLocation`（最後送出的請求用的區域）；
+    ④ **預算守門**：剩不到該模型逾時＋5 秒（`SEND_MIN_LEFT_S`：Claude 65、Gemini 50）就不送新請求、記 `timeout`。
+    用 13:43Z 的秒數重算（3 條並行、依送出順序；原本重算 239.2 秒對得上實際）：改後約 163 秒；那報成功與失敗交錯，
+    連續 3 次只在最後的快 504 尾段才會到，備援幫不上多少，省下的 76 秒主要來自 ①②。提示詞
+    `docs/prompts/2026-10-20-HD23-gemini-504.md`
     **已實作（HD8 PR）**：規則在 `assess.py`（開頭 docstring「新天氣種類」）、門檻在 `config.Thresholds`（12 個
     camelCase 鍵，`airports.json` 可覆寫）、TAF／METAR 的 `vis_m`／`wx`／`ceiling_ft` 在 `sources/taf.py`、
     ECMWF `tp`／`ptype`／`2t`＋`tpg25`／`tpg50`、GFS `APCP`／類別降水／`VIS`、天文台 `WRAIN`／`WTS`、
@@ -423,6 +436,8 @@
     後交給 `service_account.Credentials.from_service_account_info`，不寫到磁碟（HD5）
   - `GOOGLE_CLOUD_PROJECT`：GCP 專案 ID（HD5）
   - `GOOGLE_CLOUD_LOCATION`：`global`（Gemini 4 Argon 只開 global、us、eu；HD5）
+  - `GOOGLE_CLOUD_LOCATION_FALLBACK`（HD23，選填、不是 secret）：Gemini 備援區域，沒設是 `us`；`build.yml` 沒帶這個
+    變數，要關掉或換區得在那一步的 `env` 加（設成空字串＝關掉）
 - AI 的金鑰 HongThai 專屬、各月上限 30 美元、不跟 Duado 共用；程式內另有每報 20 個機場的上限
   （`src/hongthai/ai/config.py`）。每日上限**開發期間不限**（`DAILY_CAP=0`，2026-10-19 定案，HD11），正式推廣前再評估；
   每報 20 個機場、不重試、180 秒預算不變；手動 Run workflow 也照常跑 AI
