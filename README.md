@@ -299,6 +299,7 @@ AI 對決（HD5，下面「AI 對決」）的金鑰也只從環境變數讀：
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | GCP 服務帳號金鑰 **JSON 整份原文**（不是 base64；程式 `json.loads` 後直接用，不寫到磁碟） |
 | `GOOGLE_CLOUD_PROJECT` | GCP 專案 ID |
 | `GOOGLE_CLOUD_LOCATION` | `global`（Gemini 4 Argon 只開 global、us、eu） |
+| `GOOGLE_CLOUD_LOCATION_FALLBACK` | 選填（HD23）：Gemini 備援區域，沒設是 `us`、空字串＝關掉；`build.yml` 目前沒帶，用預設 |
 
 少任一個時那個模型記 `error: "no_api_key"`、不呼叫，另一個照跑；本機沒設就是兩個都 `no_api_key`，
 其他照出。
@@ -621,15 +622,16 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
     - `status: "skipped"`（沒被選、不呼叫）：`level: "low"`，`comment` 固定四語「沒看到明顯風險」
       （zh-HK「未見明顯風險」、zh-CN「未见明显风险」、en「No notable risk seen」）
     - `status: "error"`：`level: null`、`comment: null`，`error` 是代碼：`no_api_key`（沒設金鑰）、`timeout`
-      （單次請求 60 秒或整個 AI 步驟 240 秒到了）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
+      （單次請求逾時——Claude 60、Gemini 45 秒，HD23——、整個 AI 步驟 240 秒到了，或剩下的預算不夠送一次）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
       超過字數上限、被 `max_tokens` 截斷）、`http_<碼>`（API 回錯誤，例如 `http_429`；`http_504` 是 Vertex
-      閘道逾時，`http_503`／`http_504` 重試一次仍失敗才記，其他碼不重試，HD17）、`network`、
+      閘道逾時；`http_503`／`http_504` 快回的重試一次仍失敗、或等了 15 秒以上才回的才記，其他碼不重試，HD17、HD23）、`network`、
       `daily_cap`（那個模型今天已經呼叫到每日上限；目前 `DAILY_CAP=0` 不限，不會出現）；**規格以外多三個**：`run_cap`（符合條件但排在這一報前 20 個
       之後，沒評；不寫「沒看到明顯風險」，因為可能是中級）、`refusal`（模型拒答或被安全過濾擋下）、
       `bad_wording`（HD6：格式對但短評用字違規，見「AI 對決」的「用字規則與檢查」）
 - `sources.ai`：`{ "ok": <兩個模型至少一個有成功>, "seconds", "calls": { "claude": n, "gemini": n },
-  "errors": { "<模型>": "<代碼>" } }`；`calls` 是這一報的呼叫次數，`errors` 只列有失敗的模型（那個模型
-  最多的代碼，`run_cap` 不算），沒有就不出現。這一報沒有要評的機場、金鑰也都在時 `ok: true`。
+  "errors": { "<模型>": "<代碼>" }, "geminiLocation" }`；`calls` 是這一報的呼叫次數，`errors` 只列有失敗的模型（那個模型
+  最多的代碼，`run_cap` 不算），沒有就不出現。`geminiLocation`（字串，HD23）是這一報 Gemini 最後送出的請求用的
+  Vertex 區域（`global`，切到備援時是 `us` 之類），Gemini 一次都沒送（沒金鑰、沒有要評的機場）時不出現；燈的欄位不動。這一報沒有要評的機場、金鑰也都在時 `ok: true`。
   `ok: false` 時照其他來源的慣例多一個 `error`（`"claude:no_api_key,gemini:no_api_key"` 這種）
 
 HD8（2026-10-19，第五階段新天氣種類；欄位名定案，Shawn 轉給 Duado 寫進 spec 第 16 節；`schema` 維持 `1`，
@@ -974,7 +976,9 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   （`DAILY_CAP=0`，2026-10-19 定案，HD11；手動 Run workflow 也照常跑 AI），正式推廣前再評估，恢復時改成 80 之類的
   數字即可，超過的記 `daily_cap`；`history/ai/calls-<日期>.json` 照常記每個模型今天呼叫幾次（成功失敗都算）；
   另有 Anthropic workspace 每月 30 美元硬上限、GCP 30 美元預算警示（在平台上設）；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
-  的自動重試都關掉；唯一例外是 `http_503`／`http_504` 重試一次，見下一條）；單次請求逾時 60 秒；整個 AI 步驟預算 240 秒（`BUDGET_S["ai"]`；HD12 前 180 秒，
+  的自動重試都關掉；唯一例外是快回的 `http_503`／`http_504` 重試一次，見下一條）；單次請求逾時 Claude 60、Gemini 45 秒
+  （`config.TIMEOUT_S`，HD23 前都是 60）；剩下的預算不到該模型逾時＋5 秒（`config.SEND_MIN_LEFT_S`：65／50 秒）就不再
+  送新請求、記 `timeout`（HD23；以前是不到 0.1 秒才不送）；整個 AI 步驟預算 240 秒（`BUDGET_S["ai"]`；HD12 前 180 秒，
   HD11 後第一報 178.2 秒頂到預算），兩個模型**平行**呼叫、每個模型的並行數 Claude 4 條、Gemini 3 條
   （`config.PARALLEL`；HD6 時 4 條撞過 429、降到 2；HD12 升回 3 再觀察，若 429 回來就降回 2），超過的機場記
   `timeout`。AI 失敗不影響 `latest.json` 其他內容
@@ -988,6 +992,23 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   ZSQZ），每個都卡 57 秒才回，依字母順序 3 條並行時 RCFG／RCKH、ROIG／ZSQZ 幾乎同時送，偏向是負載相關（前一報是
   2 個）。Gemini 20 筆共約 470 秒，3 條並行約 157 秒；降回 2 條會到 235 秒、撞 240 秒預算，所以**維持 3 條並行**，
   改成 504 重試一次
+- **只有快失敗才重試、連續 504 切備援區域**（HD23，2026-10-20 定，29W 凍結前的止血）：2026-10-20T13:43Z 那報
+  Gemini 9/20 ok、`http_504` 10 個、`http_429` 1 個（當天四報 Gemini 失敗 0 → 0 → 4 → 11）；三個 504 重試後仍 504、
+  各吃 114 秒（57＋57，Vertex 閘道自己的逾時），AI 步驟 239.3 秒頂到 240 秒預算；另有幾個 504 是 0.3–3 秒就回（像
+  `global` 端點故障、不是負載）。HD17 的重試在慢 504 上反而把預算吃光，所以改成：
+  - 第一次**花不到 15 秒**（`config.RETRY_FAST_FAIL_S`）就回 503／504 才重試（瞬間故障，重試便宜）；等了 15 秒以上
+    才失敗的（閘道逾時）**不重試**，直接記，戰績 `detail` 後面加 `:slow`（例如 `"http_504:-:-:slow"`）。重試的剩餘
+    預算門檻跟著逾時走：該模型逾時＋10 秒（`config.RETRY_MIN_LEFT_S`：Claude 70、Gemini 55）
+  - Gemini 單次逾時 45 秒：成功的請求實測 7–30 秒；57 秒才回的閘道 504 會變成 45 秒的 `timeout`（一樣是失敗、省 12 秒）
+  - **備援區域**：同一報 Gemini 在主要區域（`GOOGLE_CLOUD_LOCATION`）**連續** 3 次（`config.FALLBACK_AFTER`）
+    `http_503`／`http_504`／`timeout`（依結果回來的順序；成功或其他錯誤歸零，重試也算一次），之後的 Gemini 請求
+    （含重試）改送備援區域 `GOOGLE_CLOUD_LOCATION_FALLBACK`（沒設是 `us`；空字串或和主要一樣＝關掉），備援的 client
+    第一次要用才建、同一把服務帳號。備援回 `http_404`（模型不在那一區）、連續 2 次失敗（`config.FALLBACK_GIVE_UP`；
+    `bad_format`、`bad_wording`、`refusal` 是回答不能用、不算區域失敗）或 client 建不了，就不再用、退回主要區域，
+    這一報不再切。用備援那次失敗的 `detail` 最後加 `:fallback`（例如 `"timeout:-:-:fallback"`、
+    `"http_504:-:-:retried:fallback"`；成功的照舊沒有 `detail`）；`sources.ai.geminiLocation` 記最後用的區域
+  - 用 13:43Z 那報的 20 筆秒數重算（3 條並行、依送出順序；同樣方法重算原本是 239.2 秒，對得上實際）：慢 504 不重試、
+    逾時 45 秒後約 **163 秒**。那報成功與失敗交錯，連續 3 次要到最後幾個快 504 才會出現，備援在那報幫不上多少
 - **模型參數**：Claude 用官方 `anthropic` SDK（Messages API），`max_tokens` 3000（HD6；HD5 是 1200）、
   `effort: "low"`；**不送 `temperature`**——Opus 5.5 不接受取樣參數（送了回 400），思考也關不掉、思考的
   token 算在 `max_tokens` 裡，所以用 `low` 留空間給四語短評；沒開 server-side fallback（換別的模型回答，
@@ -1077,7 +1098,7 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
 - `claude`／`gemini` 真的送出的呼叫（成功、失敗都算）多一個 `seconds`（HD12，`latest.json` 不加）：從送出到
   收到回應或出錯花幾秒，一位小數，例如 `{ "status": "ok", "level": "high", "seconds": 23.4 }`、
   `{ "status": "error", "level": null, "detail": "http_504:-:-", "seconds": 57.2 }`；`http_503`／`http_504` 重試過的
-  是兩次合計（HD17）。`skipped`、`run_cap`、
+  是兩次合計（HD17）。`detail` 的標記之後可能接 `:retried` 或 `:slow`（HD17、HD23），最後可能再接 `:fallback`（HD23）。`skipped`、`run_cap`、
   `daily_cap`、`no_api_key`、`timeout`（預算到了沒送）沒送出，不寫 `seconds`；送出後預算先到、結果不採用的
   （記 `timeout`）也不寫
 
