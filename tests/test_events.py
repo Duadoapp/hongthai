@@ -36,7 +36,7 @@ def test_events_json(airports):
         "TC2636",
         "wp2926",
     )
-    assert len(e.airports) == len(set(e.airports)) == 25
+    assert len(e.airports) == len(set(e.airports)) == 26
     assert set(e.airports) <= {a.icao for a in airports}
     # 金門、馬祖要有局屬站才拿得到觀測
     by = {a.icao: a for a in airports}
