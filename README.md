@@ -113,6 +113,13 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
 - **旁觀模式**（HD16，`Model.voting=False`）：照樣抓、照樣寫進 `models[]`（含 `levels`、`level`）與路徑檔，
   但**不算進任何一類的分母、不投票**（`vote.total` 不含它）；頂層 `models[].voting` 讓網頁標「旁觀，不投票」。
   HD16 的三票都投票，這個開關給 HD15 的 WeatherNext 3 與之後的新模式（先旁觀、累積紀錄再改成投票）
+- **WeatherNext 3**（HD15，`wn3`，`src/hongthai/sources/wn3.py`）：**預設不在 `latest.json`**——Google 的即時
+  資料條款不准公開未修改的數字（下面「資料來源與授權」），所以 `WN3_MODE` 預設 `report-only`：只在事件期間
+  抓 5 天前那一報（已經是 CC BY 4.0 的資料）寫 `history/events/<id>/wn3/` 與路徑檔，給颱風過後的報告。
+  Google 書面同意公開顯示後才切 `observe`：每報抓最新一報，接在 `wn2-ens` 後面成為第 9 筆，**`voting` 預設
+  `false`（旁觀）**，29W 凍結解除後再設 `WN3_VOTING=1` 投票。數字是逐時的 64 成員**中位數（p50）**10 米風，
+  沒有陣風 → 同 JMA GSM 用平均風 × G 估算；雨量照投；沒有降水型態（不投雪）與能見度。兩個開關都是環境變數
+  （Actions 的 repo Variables `WN3_MODE`、`WN3_VOTING`），預設值在 `src/hongthai/config.py`
 - **Open-Meteo 失敗或逾時**：這一報沒有這三票（三筆全 `null`、不算分母，其他照 5 票算），`sources.openmeteo.ok:
   false`＋`error`，整報照出；**也不沿用舊資料**（和 `ecmwf`／`gfs`／`aifs`／`aigfs` 的沿用不同：不想把 24 小時前
   的 WeatherNext 2 當今天的票）
@@ -235,6 +242,16 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
   metadata API 的「最近一報」（`last_run_initialisation_time`）；剛好碰到換報的那幾分鐘可能和實際用到的資料差
   一報，問不到是 `null`（`sources.openmeteo.runError`）。ICON 06／18Z 那報只到 120 小時，最後幾格 Open-Meteo
   自動接前一報；JMA GSM 的逐時值是 Open-Meteo 從 3／6 小時內插的
+- **WeatherNext 3 核准前每報 `ok: false`**（HD15）：allowlist（2026-10-20 19:04 送出、5–7 個工作天）沒下來前，
+  BigQuery 與 GCS 都會拒絕（`sources.wn3.error` 是 `http_403`，沒設服務帳號是 `no_credentials`），這是預期的；
+  `report-only`（預設）只在 5 天前那一報落在事件期間時才跑，其他時候 `sources` 沒有 `wn3`
+- **WeatherNext 3 的 BigQuery 掃描量未知**（HD15）：文件只說表依 `init_time`「每日」分割、沒寫叢集欄位。一天
+  一個分割有 24 報（4 個主報 360 小時、20 個中間報 48 小時），**沒有叢集時一個 `forecast` 欄位一天約 124 GB**
+  （648 萬格 × 2,400 個時間 × 8 bytes），我們選 7 個欄位加 `hours` 就近 1 TB。所以每個查詢都設
+  `maximum_bytes_billed` 8 GB（超過 BigQuery 直接拒絕、不收錢，退到 GCS Zarr），並先 dry run 記
+  `sources.wn3.estimateBytes`。**核准後第一報要看這兩個數字**：若表依 `geography` 叢集，實際計費會小很多
+- **WeatherNext 3 用 p50 不用平均**（HD15）：每個時間點每個格點 64 個成員的中位數，比平均不會把颱風最強的
+  成員抹平得那麼厲害；平均與 p90 另存（`windKtP90`），報告可以比
 - **WeatherNext 2 一天只有兩報**（Open-Meteo 只處理 00／12Z，00Z 那報約 11Z 才上 API），所以 01:05Z、08:25Z
   兩報用的是前一天 12Z、13:05Z／20:25Z 用的是當天 00Z
 - 系集：陣風 ≥ 25 m/s（≈ 48.6 節，`p49Kt`）機率 ≥ 30% 投高；中級不用系集（沒有 37 節的機率）
@@ -326,6 +343,7 @@ H10（2026-10-18）之後：
 | aifs（ECMWF AIFS Single，HD14；鏡像同 ecmwf） | 180 | 55（2026-10-20，66 MB，從 ECMWF 入口；AWS 回 503） |
 | aigfs（NOAA AIGFS，HD14；只有 AWS） | 120 | 38（2026-10-20，51 MB） |
 | openmeteo（ICON、JMA GSM、WeatherNext 2 系集，HD16；兩個請求、各 60 秒逾時、不重試） | 90 | 約 2–3（2026-10-20 雲端開發機，預報 632 KB／1.0 秒、系集 3 個變數時 1.6 MB／1.2 秒；只抓風速約 560 KB） |
+| wn3（Google WeatherNext 3，HD15；BigQuery 一個查詢，失敗退 GCS Zarr；事件期間加讀海平面氣壓） | 120 | 還沒核准、沒實測（核准前幾秒就 `http_403`） |
 | taf（含 METAR） | 45 | 幾秒 |
 | hko、smg | 各 30 | 幾秒 |
 | cwa | 45 | 幾秒 |
@@ -339,10 +357,10 @@ H10（2026-10-18）之後：
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
-- 總和 1665 秒（27.75 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
-  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒），Actions「產生
-  latest.json」那一步上限 30 分鐘、整個 job 40 分鐘（HD16 前 28／38、HD21 前 25／35、HD14 前是 20／30、
-  HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
+- 總和 1785 秒（29.75 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
+  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒、HD15 加 wn3 120 秒），
+  Actions「產生 latest.json」那一步上限 32 分鐘、整個 job 42 分鐘（HD15 前 30／40、HD16 前 28／38、HD21 前
+  25／35、HD14 前是 20／30、HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
   多抓的海平面氣壓（每個步長約 1.0／1.0／0.5 MB，三個共約 52 MB）算在它們自己的預算裡
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒
   重試 500 次，2026-10-18 build #4 就是從頭 429 到被砍）。找最新一報先問 ECMWF 入口（失敗才問 AWS），
@@ -358,7 +376,8 @@ H10（2026-10-18）之後：
   `generatedAt`），`runs` 是那一份的（舊預報的真實時次）。模式時次離現在超過 24 小時就不沿用
   （系集與 HRES 各自算），照缺資料處理。TAF、METAR、警報不沿用。HD18：`models[]` 的 `windKt` 一起抄，
   AIFS／AIGFS 的估算陣風用抄來的 `windKt` × 這一報的係數重算。**Open-Meteo（HD16）不沿用**（上面「多模式
-  投票」）；別的模式沿用、重組 `models[]` 時，ICON、JMA GSM、WeatherNext 2 那三筆用這一報自己的數字
+  投票」）；別的模式沿用、重組 `models[]` 時，ICON、JMA GSM、WeatherNext 2 那三筆用這一報自己的數字。
+  WeatherNext 3（HD15）也不沿用
 
 ### 檔案
 
@@ -408,7 +427,8 @@ H10（2026-10-18）之後：
 - `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR 與颱風現報
   （`.github/workflows/events.yml`）；推 `data` 分支用 `tools/push_data.sh`（`build.yml` 也用）
 - `src/hongthai/tracks.py`：颱風路徑抽取（HD21）：ECMWF 路徑產品（BUFR）與從海平面氣壓找中心
-  （下面「事件保存」）
+  （下面「事件保存」）；HD15 起找中心吃任何規則經緯網格（`grid_field`）
+- `src/hongthai/wn3report.py`：WeatherNext 3 的事件檔與補報（HD15，下面「事件保存」）
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
   重做腳本 `tools/make_font_subset.py`
 - `src/hongthai/ai/`：AI 對決（HD5，下面「AI 對決」）；模型字串、免責四語、上限都在 `ai/config.py`
@@ -870,6 +890,27 @@ HD16（2026-10-20，Open-Meteo 三票、旁觀開關、暴風雪特別警報；`
     小時）。GFS、AIGFS 從 AWS 重抓海平面氣壓（留 30 天）、IFS、AIFS 從 ECMWF 開放資料抓（約 4 天，拿不到
     記 log）。2026-10-20 08:30Z 在雲端開發機對 `data` 分支實跑：21 份快照 → 22 份路徑（10-18 12Z 到 10-20
     00Z，IFS／系集各 6、GFS 6、AIGFS 2、AIFS 2），下載 190,933,455 bytes、175 秒
+  - **WeatherNext 3**（HD15，`wn3`）：同 GFS 那套找中心（`tracks.grid_field` 把任何規則經緯網格換成 `Field`，
+    GFS／AIGFS／AIFS 的 GRIB 也改經過它，結果不變），用統計 Zarr 的**平均**海平面氣壓
+    `mean_sea_level_pressure_mean`（0.1°，每 6 小時），存 `tracks/<起報>-wn3.json`（格式同 GFS）。
+    `report-only`（預設）時是 5 天前那一報（下一條），`observe` 時是這一報、由來源 `tracks` 一起抽
+- **WeatherNext 3 事件檔**（HD15，`src/hongthai/wn3report.py`）`wn3/<起報 YYYYMMDDTHHMM>Z.json`：51 個機場
+  從起報起算的 20 格（`leadHours` 6–120），每格的數字同 `models[]` 的 `wn3` 那筆（`windKt`、估算 `gustKt`、
+  `gustFactor`、`crosswindKt`、`rain6hMm`、`windKtP90`、`levels`、`level`）。`report-only`（預設）只寫
+  **起報 ≤ 現在 − 121 小時**的那一報（最後一個有效時間也在 1 小時以前，資料是 CC BY 4.0），所以事件期間每報
+  build 抓的是 5 天前那一報，期間最後 5 天的報要事後補：
+
+  ```json
+  {"model": "wn3", "run": "2026-10-20T00:00:00Z", "mode": "report-only", "via": "bigquery",
+   "license": "CC BY 4.0", "attribution": "Google WeatherNext 3, © 2026 Google LLC, CC BY 4.0",
+   "airports": {"RCTP": [{"from": "2026-10-20T00:00:00Z", "to": "2026-10-20T06:00:00Z", "leadHours": 6,
+                          "windKt": 21.4, "gustKt": 31.7, "gustEstimated": true, "gustFactor": 1.48, …,
+                          "windKtP90": 29.8, "levels": {…}, "level": "low"}, …], …}}
+  ```
+
+  `observe` 時 `license` 是條款網址、`attribution` 是條款要的那段固定標註。**補報**：`events` workflow 勾
+  `backfill-tracks` 時接著補 WN3（`--from` 以後、事件期間、起報 ≤ 現在 − 121 小時的主報，沒有事件檔或路徑檔
+  的才抓；用 Actions 的服務帳號，還沒核准時第一報 403 就停）。G 用 `history/gustfactor/latest.json` 的
 - **推 `data` 分支**：每小時和每天四次的主 build 可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
   `git pull --rebase origin data` 再推，失敗重試 3 次（間隔 20 秒）。兩邊寫的檔不重疊，不會衝突
 - 實際停飛照舊用 `history/cancellations/`（不用另外存）
@@ -1058,6 +1099,24 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 - **加了機場或改了機場名之後要重做子集**：`python tools/make_font_subset.py`（下載完整字型到暫存目錄、
   取子集寫回 `assets/fonts/`）。沒重做的話 `tests/test_og.py` 的涵蓋檢查會紅
 
+HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**；核准與條款確認前不用轉 Duado）：
+
+- **`WN3_MODE=report-only`（預設）**：`latest.json` 唯一的變化是事件期間、5 天前那一報落在期間內的報多
+  `sources.wn3`：`{"ok", "seconds", "mode": "report-only", "run", "via": "bigquery"|"zarr", "bytes",
+  "estimateBytes", "bytesProcessed", "bytesBilled"}`，BigQuery 失敗退到 Zarr 時多 `bqError`、氣壓讀不到時
+  多 `mslpError`；失敗時 `ok: false`、`error`（核准前 `http_403`）、`mode`。頂層 `models`、`runs`、每格
+  `models[]` 都**沒有** `wn3`
+- **`WN3_MODE=observe`**（Google 同意公開顯示後才切；欄位到時再經 Shawn 轉 Duado）：
+  - 頂層 `models[]` 多第 9 筆 `{"id": "wn3", "name": {四語都是 "Google WeatherNext 3"}, "voting": false}`
+    （`WN3_VOTING=1` 時 `true`）
+  - `slots[].model.models[]` 每格多 `wn3` 那筆：`windKt`（p50 平均風，格內最大）、`gustKt`（估算，
+    `gustEstimated: true`、`gustFactor`、`gustFactorBasis`）、`crosswindKt`、`rain6hMm`、`ptype`（一律 `null`）、
+    `visibilityM`（`null`）、`p49Kt`（`null`）、`levels`（`snow`、`fog` 永遠 `null`）、`level`，**另外多一個鍵
+    `windKtP90`**（節，一位小數；格內最大的 p90 平均風，不乘 G；只有這筆有這個鍵）
+  - 頂層 `runs.wn3`（ISO 或 `null`）；`sources.wn3` 同上（`mode: "observe"`）
+  - 旁觀時 `vote.total` 不含它；失敗那一報那筆全是 `null`（不沿用）
+- 大小：`observe` 時每格多一筆約 280 bytes × 1,020 格 ≈ 多 290 KB；`report-only` 不變
+
 ## 發布設定（產品負責人要做的）
 
 1. **Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**
@@ -1065,7 +1124,15 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
    值是中央氣象署開放資料平台的授權碼（<https://opendata.cwa.gov.tw> 免費註冊後在「取得授權碼」）
 3. AI 對決（HD5）：同一頁再新增四個 secret——`ANTHROPIC_API_KEY`、`GOOGLE_SERVICE_ACCOUNT_JSON`（服務帳號
    金鑰 JSON 整份原文）、`GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`（`global`）。2026-10-19 已放好
-4. **Actions → build → Run workflow** 手動跑一次，然後開
+4. WeatherNext 3（HD15）用同一把服務帳號，**不加新的 secret**。核准後：
+   - Google Cloud 主控台 → BigQuery → Analytics Hub 找 WeatherNext 3 的 listing、訂閱，在
+     `GOOGLE_CLOUD_PROJECT` 那個專案建連結資料集、**資料集取名 `weathernext_3`**（或在
+     **Settings → Secrets and variables → Actions → Variables** 設 `WN3_BQ_TABLE`＝完整的
+     `專案.資料集.weathernext_3_0_0_0p1deg`）
+   - 服務帳號在那個專案要有 BigQuery Job User（跑查詢）；讀 GCS 統計 Zarr 要 allowlist 有含這個服務帳號
+   - 開關（Variables，不是 secret）：`WN3_MODE`（`report-only`／`observe`，沒設＝`report-only`）、
+     `WN3_VOTING`（`1` 投票，沒設＝旁觀）
+5. **Actions → build → Run workflow** 手動跑一次，然後開
    <https://duadoapp.github.io/hongthai/latest.json> 確認
 
 之後每天 UTC 01:05、08:25、13:05、20:25（台北／香港 09:05、16:25、21:05、04:25）自動跑。
@@ -1079,6 +1146,7 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 | [ECMWF AIFS Single](https://www.ecmwf.int/en/forecasts/datasets/open-data)（ECMWF 開放資料，經 AWS／Google 鏡像；HD14） | AI 模式的 10 米風 `10u`／`10v`、總降水 `tp`、降雪 `sf`、2 米溫度 `2t`（每 6 小時） | CC BY 4.0，© ECMWF |
 | NOAA AIGFS（[AWS 開放資料 `noaa-nws-graphcastgfs-pds`](https://registry.opendata.aws/noaa-nws-graphcastgfs-pds/)；HD14） | AI 模式的 10 米風 `UGRD`／`VGRD`、6 小時降水 `APCP`、2 米溫度 `TMP` | 美國政府公有領域 |
 | [Open-Meteo](https://open-meteo.com/)（[預報 API](https://open-meteo.com/en/docs) `models=icon_global,jma_gsm`、[系集 API](https://open-meteo.com/en/docs/ensemble-api) `models=google_weathernext2_ensemble`；HD16） | DWD ICON global 與 JMA GSM 的逐時 10 米風、風向、陣風（ICON）、雨量、降雪、天氣碼；Google WeatherNext 2 系集 64 個成員的 10 米風（6 小時一點） | **CC BY 4.0**（Open-Meteo 的資料授權；原始模式 © DWD、JMA、Google）。**免費版只限非商業**、每日 10,000／每月 300,000 次（加權）：**一旦 HongThai 或 Duado 收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或拿掉這三個模式**。網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2」。Google 對即時 WeatherNext 資料另有實驗條款，Open-Meteo 的授權來源查不到（上面「已知的保守假設」） |
+| [Google WeatherNext 3](https://developers.google.com/weathernext)（BigQuery `weathernext_3_0_0_0p1deg`，備援 GCS `gs://weathernext3_statistics_spatial/`；HD15，要 allowlist） | 64 成員統計（p50、平均、p90）的逐時 10 米風、平均 u／v、1 小時雨量、2 米溫度；平均海平面氣壓（颱風路徑） | **有效時間在 1 小時以前：CC BY 4.0**（© Google LLC）；**1 小時內或未來：[GDM Real-Time Weather Forecasting Experimental Data Terms of Use](https://storage.googleapis.com/weathernext-public/terms-of-use.pdf)**——不能公開未修改的數字、日本是限制國家（下面「WeatherNext 3 的條款」）。所以預設 `report-only`：只存 CC BY 4.0 那部分 |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
 | [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 46 個機場（H9 的 36 個、HD3 的 10 個）的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
 | [OpenStreetMap](https://www.openstreetmap.org/way/114511749)（跑道 way 114511749 的兩端座標，HD3） | 石垣跑道真北方位（用座標算出的一個數字） | © OpenStreetMap contributors，[ODbL](https://www.openstreetmap.org/copyright) |
@@ -1175,6 +1243,79 @@ JMA（日本與沖繩，HD9，2026-10-20 實抓；細節在 `src/hongthai/source
 航班：澳門機場官網只有伺服器端產生的 HTML（不爬），改用 data.gov.mo 上民航局的開放 API；它要一個
 `Authorization: APPCODE …` 標頭，值是平台發給所有匿名使用者的公開共用碼，程式每次從資料集說明 API 取，
 不寫進程式也不存檔。細節在 `src/hongthai/sources/flights.py` 開頭。
+
+HD15 WeatherNext 3（2026-10-20 查，**還沒核准、沒有實抓**；細節在 `src/hongthai/sources/wn3.py` 開頭）：
+- 申請：WeatherNext Data Request Form（產品負責人的 Google 帳號＋Actions 服務帳號，勾 WN3 BigQuery、WN3 GCS
+  Zarr、WN2 GCS Zarr、WN2 Mean GCS Zarr，兩份條款同意），審核 5–7 個工作天；一次核准涵蓋 GCS、BigQuery、
+  Earth Engine；不用付費合約
+- 結構照公開的 Colab 範例（`gs://weathernext-public/colabs/WeatherNext_3_Starter_Guide_*.ipynb`，可以匿名
+  下載）：BigQuery 一列一個 0.1° 格點一報（`init_time`、`geography`、`geography_polygon`、REPEATED
+  `forecast{time, hours, <變數>_{mean,p10,p25,p50,p75,p90}}`），依 `init_time` 每日分割；統計 Zarr
+  `.../weathernext_3_0_0_statistics/zarr/2026_to_present/<YYYYMMDD_HHhr_XX_preds>/predictions.zarr/`，
+  `lead_time`（1–360 小時）× `lat_0p1` × `lon_0p1`（0–360），一個 chunk 是一個時間一整張全球（約 25.9 MB
+  未壓縮）；64 成員原始在 `gs://weathernext3_spatial/`（requester pays，一個 chunk 是一個成員 6 小時一張全球）
+- 發布時間（dissemination schedule）：主報 GCS 起報後 7:45、BigQuery 8:10（±15 分鐘）；中間的逐時起報到
+  48 小時、7:10／7:25
+- 查詢（`wn3.build_sql`，一報一個；`@init` 是起報、`@h0`／`@h1` 是要的提前小時）：
+
+  ```sql
+  SELECT ST_X(t.geography) AS lon, ST_Y(t.geography) AS lat,
+    ARRAY(SELECT AS STRUCT f.hours, f.wind_speed_10m_p50, f.wind_speed_10m_mean, f.wind_speed_10m_p90,
+                 f.u_component_of_wind_10m_mean, f.v_component_of_wind_10m_mean,
+                 f.total_precipitation_1hr_mean, f.temperature_2m_mean
+          FROM UNNEST(t.forecast) AS f
+          WHERE f.hours BETWEEN @h0 AND @h1 ORDER BY f.hours) AS forecast
+  FROM `<專案>.weathernext_3.weathernext_3_0_0_0p1deg` AS t
+  WHERE t.init_time = @init
+    AND ST_DWITHIN(t.geography, ST_GEOGFROMTEXT('MULTIPOINT((121.2328 25.0777), …51 個機場)'), 8000)
+  ```
+
+  回 51 個機場附近 1–4 格 × 121 小時（Python 取最近那格）。掃描量見上面「已知的保守假設」（分割一天約 1 TB
+  的上限、靠叢集才會小；`maximum_bytes_billed` 8 GB 保底不收錢）
+- Zarr 備援只讀每 6 小時的風（p50、平均、p90、平均 u／v），**沒有雨量**（逐時雨量要 120 張全球圖）。一報
+  21 個時間 × 5 個變數 × 一張全球 25.9 MB ≈ **2.7 GB 未壓縮**（壓縮後估 1 GB 上下）；路徑用的平均海平面氣壓
+  21 張 ≈ 545 MB 未壓縮。若 Google 的 Zarr 有分片（sharding）、內層 chunk 小，逐點索引只抓有機場的那幾塊，
+  會小很多——核准後第一報看 `sources.wn3.bytes`。成員路徑（`<報>-wn3-ens.json`）一報要讀 64 × 20 張全球、
+  上百 GB，不做
+- **匿名試讀（2026-10-20 12:2xZ，雲端開發機）**：`gs://weathernext3_spatial/` 與
+  `gs://weathernext3_statistics_spatial/` 列目錄、讀 `zarr.json` 都被拒——`curl
+  "https://storage.googleapis.com/storage/v1/b/weathernext3_spatial/o?maxResults=5"` 回 `401`「Anonymous
+  caller does not have storage.objects.list access」，`https://storage.googleapis.com/<bucket>/zarr.json` 回
+  `403`；`gsutil ls gs://weathernext3_spatial/` 回「ServiceException: 401 Anonymous caller does not have
+  storage.objects.list access」，`gcsfs`（`token="anon"`）也是 401。**歷史（CC BY 4.0）的資料也要核准才讀得到**，所以 `backfill-tracks` 補 WN3 要等核准、用服務帳號。
+  公開的只有 `gs://weathernext-public/`（條款 PDF、Colab 範例、WN3 資料出處 PDF）
+
+#### WeatherNext 3 的條款（HD15，2026-10-20 讀 `terms-of-use.pdf` 全文，Last modified 3 September 2026）
+
+- 適用範圍：「These … Terms of Use apply to any data that relates to a time less than 1 hour ago and the future」；
+  「Any data that relates to a time 1 hour ago or more is licensed under … CC BY 4.0」
+- 能做的（Section 2）：「any internal purpose」、「to create and share a Value Added Service in accordance with
+  Section 3」、分享給「clearly identified third parties via controlled distribution (which does not enable onward
+  sharing), solely for educational purposes」
+- **不算加值、等於原始資料的**（Section 3）：「material resulting from the colouring, formatting, compressing,
+  fixed or arbitrary percentage adjustment, geometric transformation, sub-setting of areas, or custom
+  combinations of time-steps, parameters or model runs … Such material is considered unmodified Real-Time
+  Experimental Data」，原始資料只能照 Section 2 分享——**所以 `latest.json`／網頁上每個機場的風、雨數字（取點、
+  挑時間、乘 G）都不能公開**
+- 看不出原始數字的加值（Non-Retrievable VAS，例如只有等級）可以公開（「You may share a Non-Retrievable VAS with
+  third parties, including by publication」），但要固定標註（Section 4(b)）：「© 2024-6 Google LLC, whose
+  machine learning models were used to create the experimental data made available under the following licence
+  terms https://storage.googleapis.com/weathernext-public/terms-of-use.pdf. This data is intended for
+  experimental modelling only and is not intended, validated, or approved for real world use.」，另外要註明用哪個
+  Google 產品取得（BigQuery／Cloud Storage）
+- 看得出原始數字的加值（Retrievable VAS）只能「via controlled transmission or supply to clearly identified and
+  known third parties」——不能公開
+- **限制國家**（Section 1(c)、Section 4(b)）：「a resident of Japan, South Korea, Indonesia, Cuba, Iran, North
+  Korea, Crimea …」、不能「by otherwise making these available in a Restricted Country」——HongThai 有 11 個日本
+  機場、網頁日本看得到，就算只公開等級也有問題
+- 能不能存：條款沒限制內部保存；被終止時要「delete and cease any use (including sharing)」（Section 5）。**公開的
+  `data` 分支等於公開分享**，所以即時資料不能存進去；1 小時以前的部分是 CC BY 4.0，可以存、標「Google
+  WeatherNext 3, © 2026 Google LLC, CC BY 4.0」
+- 結論：**預設 `report-only`**，只存 CC BY 4.0 的部分（起報 ≤ 現在 − 121 小時那一報）。要改 `observe`（公開即時
+  數字或等級）要先拿到 Google 的書面同意（weathernext@google.com；條款說 email 就算書面），同意的範圍要涵蓋
+  日本機場與公開網頁
+- 另外的免責（disclaimers 頁）：「not official weather forecasts, watches, or warnings」；Google Cloud 上的模型
+  另有「must not … develop a similar or competing product」（指模型與輸出，HongThai 只取用預報值）
 
 ### 跑道方位
 

@@ -6,6 +6,7 @@ import json
 import re
 import threading
 import time
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,8 +19,8 @@ from hongthai import budget, build, grib
 from hongthai.ai import config as ai_config
 from hongthai.ai.parse import AiError
 from hongthai.assess import DEFAULT_GUST_FACTOR
-from hongthai.config import ConfirmedPeriod, Thresholds, load_airports, load_regions
-from hongthai.sources import aifs, aigfs, cwa, ecmwf, gfs, hko, jma, nws, openmeteo, smg, taf
+from hongthai.config import WN3_MODEL, ConfirmedPeriod, Thresholds, load_airports, load_regions
+from hongthai.sources import aifs, aigfs, cwa, ecmwf, gfs, hko, jma, nws, openmeteo, smg, taf, wn3
 from hongthai.sources.gfs import GfsData, GustPoint
 
 # 地區與機場的顯示順序（H9；HD3 加越南、菲律賓、關島・帛琉；Duado spec 第 16 節）
@@ -691,8 +692,8 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(build.flights, "fetch", lambda now: build.flights.FlightsData({}, {}))
     monkeypatch.setattr(build.nws, "fetch", lambda zones: build.nws.NwsData([], {}))
     monkeypatch.setattr(build.jma, "fetch", lambda areas: build.jma.JmaData({}, {}))
-    # HD14 的兩個模式、HD16 的 Open-Meteo 預設失敗（測試不連網）
-    for mod in (build.aifs, build.aigfs, build.openmeteo):
+    # HD14 的兩個模式、HD16 的 Open-Meteo、HD15 的 WeatherNext 3 預設失敗（測試不連網）
+    for mod in (build.aifs, build.aigfs, build.openmeteo, build.wn3):
         monkeypatch.setattr(mod, "fetch", _boom)
 
     def no_network(*a, **k):  # 模式失敗時會去 Pages 抓上一份；測試不連網
@@ -2040,3 +2041,157 @@ def test_rescore_keeps_this_runs_openmeteo_entries(airports):
     after = s["model"]["models"]
     assert after[5:] == before[5:]
     assert s["model"]["vote"]["total"] == 4
+
+
+# ---- HD15：WeatherNext 3 ----
+
+
+def sample_wn3(airports, run, wind=30.0, p90=40.0):
+    """每個機場逐時一樣的 p50 平均風（節），起報後 1–130 小時。"""
+    return wn3.Wn3Data(
+        run,
+        {
+            a.icao: [
+                wn3.Wn3Hour(run + timedelta(hours=h), wind, wind - 1, p90, 90.0, 0.5, 25.0)
+                for h in range(1, 131)
+            ]
+            for a in airports
+        },
+        "bigquery",
+        0,
+        estimate_bytes=5_000_000_000,
+        bytes_processed=3_000_000_000,
+        bytes_billed=3_000_000_000,
+    )
+
+
+class _NoTfDownloads(build.tracks.Downloads):
+    def tf(self, stream, run):
+        raise build.tracks.TracksError("測試不連網", "tf_failed")
+
+
+def test_wn3_report_only_default_not_in_latest(workspace, monkeypatch, airports):
+    """預設 `report-only`：5 天前那一報（10/13 06Z，CC BY 4.0）的起報時間在事件期間 → 抓那一報、
+    寫事件檔；`latest.json` 沒有 WN3（頂層 `models`、`runs`、每格 `models[]` 都沒有），只有
+    `sources.wn3`。"""
+    asked = []
+    run = utc(2026, 10, 13, 6)
+
+    def fetch(aps, r, start, end, **k):
+        asked.append((r, start, end, k))
+        return sample_wn3(aps, r)
+
+    _fail_all_but(monkeypatch)
+    monkeypatch.setattr(build.wn3, "fetch", fetch)
+    monkeypatch.setattr(build.tracks, "build_tracks", lambda *a, **k: build.tracks.TracksResult())
+    monkeypatch.setattr(build.tracks, "Downloads", _NoTfDownloads)
+    _events_json(workspace, "2026-10-13", "2026-10-18")
+    assert build.main([]) == 0
+    assert asked == [
+        (run, run, run + timedelta(hours=120), {"mslp": True, "retry_previous": False})
+    ]
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert "wn3" not in [m["id"] for m in out["models"]] and "wn3" not in out["runs"]
+    assert all(
+        e["id"] != "wn3" for a in out["airports"] for s in a["slots"] for e in s["model"]["models"]
+    )
+    src = out["sources"]["wn3"]
+    assert isinstance(src.pop("seconds"), float)
+    assert src == {
+        "ok": True,
+        "run": "2026-10-13T06:00:00Z",
+        "via": "bigquery",
+        "bytes": 0,
+        "estimateBytes": 5_000_000_000,
+        "bytesProcessed": 3_000_000_000,
+        "bytesBilled": 3_000_000_000,
+        "mode": "report-only",
+    }
+    path = workspace / "data" / "history" / "events" / "29W" / "wn3" / "20261013T0600Z.json"
+    doc = json.loads(path.read_text("utf-8"))
+    assert doc["license"] == "CC BY 4.0" and len(doc["airports"]) == len(airports)
+    assert doc["airports"]["RCTP"][0]["windKt"] == 30.0
+    line = next(x for x in _timing_lines(workspace) if x["source"] == "wn3")
+    assert (line["ok"], line["mode"], line["via"], line["bytesBilled"]) == (
+        True,
+        "report-only",
+        "bigquery",
+        3_000_000_000,
+    )
+
+
+def test_wn3_report_only_outside_event_does_not_run(workspace, monkeypatch, airports):
+    _fail_all_but(monkeypatch)
+    monkeypatch.setattr(build.wn3, "fetch", _boom)
+    _events_json(workspace, "2026-10-19", "2026-10-28")  # 10/13 那一報不在期間
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert "wn3" not in out["sources"]
+    assert "wn3" not in {line["source"] for line in _timing_lines(workspace)}
+
+
+def _observe(monkeypatch, voting=False):
+    models = (*build.MODELS, replace(WN3_MODEL, voting=voting))
+    monkeypatch.setattr(build, "wn3_mode", lambda: "observe")
+    monkeypatch.setattr(build, "MODELS", models)
+    monkeypatch.setattr(build.assess, "MODELS", models)
+
+
+def test_wn3_observe_listed_not_voting(workspace, monkeypatch, airports):
+    """`observe`＋旁觀：最新一報（10/17 18Z，查不到再退一報）進 `models[]` 與 `runs`，頂層
+    `voting: false`，不算分母。"""
+    _observe(monkeypatch)
+    asked = []
+
+    def fetch(aps, r, start, end, **k):
+        asked.append((r, start, end, k))
+        return sample_wn3(aps, r, wind=40.0)
+
+    _fail_all_but(monkeypatch)
+    monkeypatch.setattr(build.wn3, "fetch", fetch)
+    assert build.main([]) == 0
+    slot0 = utc(2026, 10, 18, 6)
+    assert asked == [
+        (
+            utc(2026, 10, 17, 18),
+            slot0,
+            slot0 + timedelta(hours=120),
+            {"mslp": False, "retry_previous": True},
+        )
+    ]
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["models"][-1] == {"id": "wn3", "name": WN3_MODEL.name, "voting": False}
+    assert out["runs"]["wn3"] == "2026-10-17T18:00:00Z"
+    assert out["sources"]["wn3"]["mode"] == "observe"
+    s = _airport(out, "RCTP")["slots"][0]
+    e = s["model"]["models"][-1]
+    assert (e["id"], e["run"], e["windKt"], e["gustKt"], e["gustEstimated"]) == (
+        "wn3",
+        "2026-10-17T18:00:00Z",
+        40.0,
+        56.0,
+        True,
+    )
+    assert (e["windKtP90"], e["ptype"], e["level"]) == (40.0, None, "high")
+    assert s["model"]["vote"]["total"] == 0  # 其他模式都失敗、WN3 旁觀 → 沒有票
+    assert s["model"]["level"] is None
+
+
+def test_wn3_not_approved_is_ok_false(workspace, monkeypatch, airports):
+    """核准前每報 `http_403`：`sources.wn3.ok: false`、整報照出、那筆全 null。"""
+    _observe(monkeypatch)
+    _, gf, *_ = sample_inputs(airports)
+
+    def denied(*a, **k):
+        raise wn3.Wn3Error("Access Denied", "http_403")
+
+    _fail_all_but(monkeypatch, gfs=lambda *a, **k: gf)
+    monkeypatch.setattr(build.wn3, "fetch", denied)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    src = out["sources"]["wn3"]
+    assert (src["ok"], src["error"], src["mode"]) == (False, "http_403", "observe")
+    assert out["runs"]["wn3"] is None and out["sources"]["gfs"]["ok"] is True
+    e = _airport(out, "RCTP")["slots"][0]["model"]["models"][-1]
+    assert e["id"] == "wn3" and e["gustKt"] is None and e["level"] is None
+    assert e["windKtP90"] is None

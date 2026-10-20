@@ -24,6 +24,9 @@
 - `tracks/<起報 YYYYMMDDTHHMM>Z-<模式>.json`：各模式每一報的颱風路徑（HD21，`tracks.py`；build 每報
   寫，過去的報用 `python -m hongthai.events backfill-tracks --archive data --from <UTC 時間>` 補：
   讀 `from` 以後每份快照的 `runs`，每個模式每個時次只抽一次，已經有的跳過）
+- `wn3/<起報 YYYYMMDDTHHMM>Z.json`：WeatherNext 3 每格的數字（HD15，`wn3report.py`）；
+  `backfill-tracks` 也補 WN3（事件期間 `from` 以後、起報 ≤ 現在 − 121 小時的主報，事件檔＋
+  路徑檔），要 Google 憑證
 
 來源（2026-10-20 實抓）：
 - METAR：AviationWeather `metar?ids=<25 站>&format=json&hours=3`（`hours` 讓半小時一報的
@@ -440,12 +443,20 @@ def hourly(
     return out
 
 
-def _backfill_tracks(history: Path, events: list[Event], since: datetime) -> int:
-    """`backfill-tracks`（HD21）：要 eccodes，所以這裡才載入 `tracks`（`hourly` 只裝 requests）。"""
+def _backfill_tracks(
+    history: Path,
+    events: list[Event],
+    since: datetime,
+    airports: list[Airport] | None = None,
+    now: datetime | None = None,
+) -> int:
+    """`backfill-tracks`（HD21）：要 eccodes，所以這裡才載入 `tracks`（`hourly` 只裝 requests）。
+    HD15：接著補 WeatherNext 3（`wn3report.backfill`：起報 ≤ 現在 − 121 小時、CC BY 4.0 的那幾報，
+    事件檔＋路徑）；沒有 Google 憑證或還沒核准只印一行。"""
     import tempfile
     import time
 
-    from . import tracks
+    from . import tracks, wn3report
 
     logging.getLogger("multiurl").setLevel(logging.WARNING)
     logging.getLogger("ecmwf").setLevel(logging.WARNING)
@@ -459,6 +470,17 @@ def _backfill_tracks(history: Path, events: list[Event], since: datetime) -> int
             f"{time.monotonic() - t0:.0f} 秒"
         )
         for p in res.written:
+            print(f"  {p.name}")
+    if airports is None:
+        return 0
+    with tempfile.TemporaryDirectory(prefix="hongthai-wn3-") as tmp:
+        wn = wn3report.backfill(history, events, airports, since, now or utcnow(), Path(tmp))
+    for eid, r in wn.items():
+        print(
+            f"{eid} WeatherNext 3：寫了 {len(r.written)} 份、已經有 {r.skipped}、"
+            f"失敗 {len(r.failed)}（{'、'.join(r.failed) or '無'}）"
+        )
+        for p in r.written:
             print(f"  {p.name}")
     return 0
 
@@ -483,7 +505,9 @@ def main(argv: list[str] | None = None) -> int:
     events = load_events(args.events)
     history = args.archive / "history"
     if args.command == "backfill-tracks":
-        return _backfill_tracks(history, events, parse_time(args.since) or utcnow())
+        return _backfill_tracks(
+            history, events, parse_time(args.since) or utcnow(), load_airports(args.airports)
+        )
     if args.command == "backfill":
         for eid, n in backfill(history, events).items():
             total = len(list((history / "events" / eid).glob("*.json")))

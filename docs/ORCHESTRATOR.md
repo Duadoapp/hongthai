@@ -243,6 +243,26 @@
     - `latest.json` 多約 **790 KB**（2,214 → 3,023 KB；gzip 142 → 174 KB），原始快照一報約 1.2 MB（不縮排；
       zlib 後約 190 KB）——每天 `data` 分支多約 3 MB（history）＋5 MB（raw），要省再說
     - `models[].voting` 要經 Shawn 轉 Duado（網頁標「旁觀，不投票」）；其他要轉的欄位見 README「輸出」HD16 段
+    **HD15 已實作（HD15 PR，待 allowlist 核准）**：`sources/wn3.py`（BigQuery `weathernext_3_0_0_0p1deg` 一個查詢、
+    失敗退 GCS 統計 Zarr；服務帳號同 Gemini，不加 secret）、`wn3report.py`（事件檔＋補報）、`tracks.grid_field`
+    （找中心吃任何經緯網格，GRIB 三個模式也改經過它、結果不變）、`BUDGET_S["wn3"]` 120（總和 1785，`build.yml`
+    32／42 分鐘）。**讀完 GDM 即時資料條款的結論：不能公開即時數字**（取點、挑時間、乘 G 都算「未修改」；看得
+    出原始數字的加值只能給特定對象；日本是限制國家）→ **`WN3_MODE` 預設 `report-only`**：`latest.json` 沒有 WN3
+    （只有事件期間的 `sources.wn3`），build 在事件期間抓**起報 ≤ 現在 − 121 小時**那一報（最後一個有效時間也
+    過了 1 小時 → CC BY 4.0）寫 `history/events/<id>/wn3/<起報>.json` 與 `tracks/<起報>-wn3.json`；期間最後 5 天
+    靠 `events` 的 `backfill-tracks` 補（也補 WN3）。`observe`（Google 書面同意公開、而且涵蓋日本後才切）才進
+    `models[]`，`voting` 預設 False、`WN3_VOTING=1` 才投。兩個開關是環境變數（Actions repo Variables）。和提示詞
+    不一樣、或提示詞沒寫死的地方：
+    - **`report-only` 不是「每報抓即時資料、只存 history」**：`data` 分支是公開的，存即時資料就等於公開分享，
+      所以改成只抓已經過去的那一報（提示詞第 4 點本來就說「只用 1 小時前以前的資料」）
+    - **歷史資料匿名讀不到**（401／403），補報也要核准、用服務帳號
+    - 風用 **p50**（不是平均），平均與 p90 另存；`windKtP90` 是格內最大 p90 平均風、不乘 G
+    - 沒有降水型態 → `ptype` 一律 null（不投雪）；不用 2 米溫度猜
+    - 成員路徑 `<報>-wn3-ens.json` **不做**：原始 Zarr 一個 chunk 是一個成員一個 6 小時一張全球，一報上百 GB
+    - BigQuery 每個查詢 `maximum_bytes_billed` 8 GB（每月免費 1 TB ÷ 124 報），超過就退 Zarr；表依日分割、叢集
+      欄位文件沒寫，沒有叢集時一報可能近 1 TB——**核准後第一報看 `sources.wn3.estimateBytes`／`bytesBilled`**
+    - Zarr 備援只讀每 6 小時的風、沒有雨量（一報約 2.7 GB 未壓縮，若 Google 有分片會小很多）
+    - BigQuery 的資料集名要 Shawn 訂閱 Analytics Hub 時取 `weathernext_3`（或設 Variable `WN3_BQ_TABLE`）
     **HD18（2026-10-20 定案，Shawn 確認 12 條）：估算陣風的係數改成每個機場自己算**——G＝陣風÷10 米平均風，用 IFS（`10fg`÷
     √(u²+v²)）與 GFS（`GUST`÷10 米風速）各自的資料、同一模式同一機場同一格自己比自己（拿 AIFS／AIGFS 去比 HRES 陣風不公平：
     颱風路線不同時同一格本來就差很多，而且 GFS 自己的陣風也只有 IFS 的 0.76、IFS 陣風偏高不能當標準答案）；最近 30 天、
@@ -321,7 +341,9 @@
   不改等級規則、投票方式、門檻。估算陣風係數兩天後自動切 `airport30d` 是既定行為，照常，切換時間記日誌
 - 定版前（10/20–10/22 中午）排進去的：HD9（JMA 大雪警報，10/20 上線）、HD16（Open-Meteo ICON＋JMA＋WeatherNext 2 系集，8 票，
   10/21 上線）、暴風雪特別警報；網頁 HW6 10/21 同步。報告依版本分開算：10/22 12:00 前是 5 票版、之後是 8 票版；各模式自己照常
-- WeatherNext 3（HD15）趕不上，核准後先以「旁觀模式」（`voting: false`）進 `models[]` 與路徑檔、不投票，解凍後再投
+- WeatherNext 3（HD15）趕不上，核准後先以「旁觀模式」（`voting: false`）進 `models[]` 與路徑檔、不投票，解凍後再投。
+  **HD15 讀完條款後改成預設 `report-only`**（即時數字不能公開）：只存 5 天前那一報（CC BY 4.0）給報告比對，
+  要進 `models[]` 得先拿到 Google 書面同意（上面 HD15 已實作）
 - Google Maps Platform Weather API 查過（2026-10-20）：欄位齊、每月約 8 美元，但 Maps Service Terms B.21.1 禁止用在以提供天氣
   資訊為主要目的的產品、逐時預報值只能快取 1 小時——**不能當票、不能存 history，不接**
 - HD9（JMA 大雪警報）只加雪的警報，29W 期間不影響風的等級（10–11 月沒有大雪警報，上線不會改變任何現在的等級）
@@ -430,6 +452,7 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 | 澳門地球物理氣象局 SMG（`xml.smg.gov.mo`，data.gov.mo 資料集「熱帶氣旋信號」） | 熱帶氣旋信號（澳門） | 澳門政府數據開放平台使用條款（須註明平台與取得日期） |
 | 航班狀態（香港機管局、桃園機場、松山／高雄／澳門見 README） | 算每 6 小時格的取消／延誤統計（不存原始資料），之後回測 | 各自條款，見 README |
 | 芫荽 Iansui、Fraunces、Noto Sans TC（子集，`assets/fonts/`；HD1） | 分享預覽圖的字型 | SIL OFL 1.1（各附 `OFL-*.txt`） |
+| Google WeatherNext 3（BigQuery／GCS Zarr，要 allowlist；HD15） | 預設只存 5 天前那一報的機場數字與颱風路徑（報告比對） | 1 小時以前：CC BY 4.0（© Google LLC）；1 小時內或未來：GDM 即時資料實驗條款（不能公開未修改數字、日本是限制國家），細節 README「WeatherNext 3 的條款」 |
 
 NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權」與 `src/hongthai/sources/nws.py` 開頭）：
 - 關島：`/zones?area=GU` → `GUZ001`（PGUM 的 `/points` 的 `forecastZone`）；`/alerts?zone=GUZ001` 有超強颱風

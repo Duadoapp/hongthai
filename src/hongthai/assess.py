@@ -135,6 +135,11 @@ Open-Meteo 三票與旁觀模式（HD16，Shawn 2026-10-20 19:04 定案）——
   `vote`／`tally`／`model_vote` 一律跳過，不算任何一類的分母、不投票，`vote.total` 不含它。
   HD16 的三票都投票；這個開關給 HD15 的 WeatherNext 3 與之後的新模式
 - G 一律是 HD19 的（IFS 樣本）；新模式不進樣本（`gustfactor.py`）。這三個模式不沿用舊資料
+
+WeatherNext 3（HD15，`wn3`）：只有 `config.WN3_MODE` 是 `observe` 時才在 `MODELS` 裡（預設
+`report-only`，`latest.json` 沒有它）。數字是逐時的成員中位數（p50）10 米風，同 JMA GSM 估算陣風
+（`wn3_for_slot`），雨量照投；沒有降水型態（不投雪）、沒有能見度。那筆多 `windKtP90`（格內最大的
+p90 平均風，給報告看離散）。`voting` 預設 False（旁觀），環境變數 `WN3_VOTING=1` 才投
 """
 
 from __future__ import annotations
@@ -145,13 +150,14 @@ from datetime import datetime, timedelta
 from math import radians, sin
 from statistics import median
 
-from .config import GUST_FACTOR_DEFAULT, MODELS, ConfirmedPeriod, Runway, Thresholds
+from .config import GUST_FACTOR_DEFAULT, MODELS, ConfirmedPeriod, Model, Runway, Thresholds
 from .sources.aifs import AifsStep
 from .sources.aigfs import AigfsStep
 from .sources.ecmwf import EcmwfPoint, PrecipStep
 from .sources.gfs import GustPoint
 from .sources.openmeteo import EnsStep, OmHour, member_winds, rain_sum, slot_ptype
 from .sources.taf import Metar, TafPeriod
+from .sources.wn3 import Wn3Hour
 from .timeutil import iso
 from .units import kt_to_ms, ms_to_kt
 
@@ -176,6 +182,7 @@ SNOWY_PTYPES = frozenset({"snow", "wet_snow", "rain_snow"})
 MODEL_NUM_KEYS = ("gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")
 ONLY_HIGH = frozenset(m.id for m in MODELS if m.votes_only_high)
 ESTIMATED = frozenset(m.id for m in MODELS if m.gust_estimated)
+WN3_ID = "wn3"  # HD15：只有 `observe` 模式才在 `MODELS` 裡
 ENS_ID = "ifs-ens"  # IFS 系集：機率從 `model.ec` 來（其他只投高的模式從自己那筆的 `p49Kt`，HD16）
 FREEZING_PTYPES = frozenset({"freezing_rain", "freezing_drizzle", "ice_pellets"})
 
@@ -688,6 +695,30 @@ def ensemble_for_slot(
     }
 
 
+def wn3_for_slot(
+    hours: Sequence[Wn3Hour] | None,
+    start: datetime,
+    end: datetime,
+    runways: Sequence[Runway] = (),
+    factor: GustFactor = DEFAULT_GUST_FACTOR,
+) -> dict:
+    """WeatherNext 3（HD15）一格：逐時的 p50 平均風當平均風，同 JMA GSM（`hourly_for_slot` 估算
+    那條：[from, to] 小時裡最大的平均風 × G、雨量 (from, to] 加總）；**沒有降水型態**（`ptype`
+    一律 None，所以不投雪）；`windKtP90` 是 [from, to] 小時裡最大的 p90 平均風（不乘 G）。"""
+    hours = hours or []
+    out = hourly_for_slot(
+        [OmHour(h.valid, h.wind_kt, h.wdir, None, h.precip_mm, None, None, None) for h in hours],
+        start,
+        end,
+        runways,
+        factor,
+    )
+    out["ptype"] = None
+    p90 = _max(h.wind_p90_kt for h in hours if start <= h.valid <= end)
+    out["windKtP90"] = _round(p90, 1)
+    return out
+
+
 def refactor_estimated(entry: dict, factor: GustFactor) -> None:
     """沿用的 AIFS／AIGFS 那筆（HD18）：用抄來的 `windKt` × 這一報的 G 重算 `gustKt`，側風（和
     估算陣風成正比）照新舊 G 的比例換算。HD18 以前的那筆沒有 `windKt`／`gustFactor`：舊 G 當 1.4、
@@ -723,57 +754,63 @@ def model_entries(
     - 其他（AIFS、AIGFS、ICON、JMA GSM）：`gust_estimated` 的是估算陣風（`gustEstimated: true`）；
       有降水型態才投雪
     - `p49Kt`（HD16）：只有「IFS 系集以外、只投高」的那筆有值，其他 null
+    - `windKtP90`（HD15）：只有 WeatherNext 3 那筆有這個鍵（`wn3_for_slot`）
     """
-    out = []
-    for m in MODELS:
-        src = others.get(m.id) or {}
-        lv: dict[str, str | None] = dict.fromkeys(CAUSES)
-        if m.id == "ifs":
-            nums = {
-                "gustKt": ec.get("hresGustKt"),
-                "crosswindKt": ec.get("crosswindKt"),
-                "rain6hMm": ec.get("rain6hMm"),
-                "ptype": ec.get("ptype"),
-                "visibilityM": None,
-            }
-            lv.update(rain=ec.get("rain"), snow=ec.get("snow"))
-        elif m.id == "gfs":
-            nums = {k: gfs.get(k) for k in MODEL_NUM_KEYS}
-            lv.update(rain=gfs.get("rain"), snow=gfs.get("snow"), fog=gfs.get("fog"))
-        elif m.votes_only_high:
-            nums = dict.fromkeys(MODEL_NUM_KEYS)
-            if m.id != ENS_ID:
-                nums["gustKt"] = _num(src.get("gustKt"))
-            p49 = _num((ec if m.id == ENS_ID else src).get("p49Kt"))
-            lv["wind"] = None if p49 is None else "high" if p49 >= th.ec_p49_high else "low"
-        else:
-            nums = {k: src.get(k) for k in MODEL_NUM_KEYS}
-            lv["rain"] = rain_model_level(nums["rain6hMm"], th)
-            if nums["ptype"] is not None:
-                lv["snow"] = snow_model_level(nums["rain6hMm"], nums["ptype"], th)
-            lv["fog"] = fog_model_level(nums["visibilityM"], th)
-        if not m.votes_only_high:
-            lv["wind"] = _wind_level(nums["gustKt"], nums["crosswindKt"], th)
-        estimated = nums["gustKt"] is not None and m.gust_estimated
-        out.append(
-            {
-                "id": m.id,
-                "run": runs.get(m.id),
-                "windKt": None if m.id == ENS_ID else _num(src.get("windKt")),
-                "gustKt": nums["gustKt"],
-                "gustEstimated": None if nums["gustKt"] is None else m.gust_estimated,
-                "gustFactor": _num(src.get("gustFactor")) if estimated else None,
-                "gustFactorBasis": src.get("gustFactorBasis") if estimated else None,
-                "crosswindKt": nums["crosswindKt"],
-                "rain6hMm": nums["rain6hMm"],
-                "ptype": nums["ptype"],
-                "visibilityM": nums["visibilityM"],
-                "p49Kt": _num(src.get("p49Kt")) if m.votes_only_high and m.id != ENS_ID else None,
-                "levels": lv,
-                "level": max_level(lv.values()),
-            }
-        )
-    return out
+    return [model_entry(m, ec, gfs, others.get(m.id) or {}, runs, th) for m in MODELS]
+
+
+def model_entry(
+    m: Model, ec: dict, gfs: dict, src: dict, runs: dict[str, str | None], th: Thresholds
+) -> dict:
+    """`models[]` 的一筆（規則見 `model_entries`）；`src` 是這個模式自己的數字。HD15 的
+    `report-only` 也用這個算 WeatherNext 3 那筆（不經過 `MODELS`）。"""
+    lv: dict[str, str | None] = dict.fromkeys(CAUSES)
+    if m.id == "ifs":
+        nums = {
+            "gustKt": ec.get("hresGustKt"),
+            "crosswindKt": ec.get("crosswindKt"),
+            "rain6hMm": ec.get("rain6hMm"),
+            "ptype": ec.get("ptype"),
+            "visibilityM": None,
+        }
+        lv.update(rain=ec.get("rain"), snow=ec.get("snow"))
+    elif m.id == "gfs":
+        nums = {k: gfs.get(k) for k in MODEL_NUM_KEYS}
+        lv.update(rain=gfs.get("rain"), snow=gfs.get("snow"), fog=gfs.get("fog"))
+    elif m.votes_only_high:
+        nums = dict.fromkeys(MODEL_NUM_KEYS)
+        if m.id != ENS_ID:
+            nums["gustKt"] = _num(src.get("gustKt"))
+        p49 = _num((ec if m.id == ENS_ID else src).get("p49Kt"))
+        lv["wind"] = None if p49 is None else "high" if p49 >= th.ec_p49_high else "low"
+    else:
+        nums = {k: src.get(k) for k in MODEL_NUM_KEYS}
+        lv["rain"] = rain_model_level(nums["rain6hMm"], th)
+        if nums["ptype"] is not None:
+            lv["snow"] = snow_model_level(nums["rain6hMm"], nums["ptype"], th)
+        lv["fog"] = fog_model_level(nums["visibilityM"], th)
+    if not m.votes_only_high:
+        lv["wind"] = _wind_level(nums["gustKt"], nums["crosswindKt"], th)
+    estimated = nums["gustKt"] is not None and m.gust_estimated
+    entry = {
+        "id": m.id,
+        "run": runs.get(m.id),
+        "windKt": None if m.id == ENS_ID else _num(src.get("windKt")),
+        "gustKt": nums["gustKt"],
+        "gustEstimated": None if nums["gustKt"] is None else m.gust_estimated,
+        "gustFactor": _num(src.get("gustFactor")) if estimated else None,
+        "gustFactorBasis": src.get("gustFactorBasis") if estimated else None,
+        "crosswindKt": nums["crosswindKt"],
+        "rain6hMm": nums["rain6hMm"],
+        "ptype": nums["ptype"],
+        "visibilityM": nums["visibilityM"],
+        "p49Kt": _num(src.get("p49Kt")) if m.votes_only_high and m.id != ENS_ID else None,
+        "levels": lv,
+        "level": max_level(lv.values()),
+    }
+    if m.id == WN3_ID:
+        entry["windKtP90"] = _num(src.get("windKtP90"))
+    return entry
 
 
 def non_voting() -> frozenset[str]:
@@ -915,11 +952,13 @@ def assess_slots(
     icon: Sequence[OmHour] | None = None,
     jma: Sequence[OmHour] | None = None,
     wn2: Sequence[EnsStep] | None = None,
+    wn3: Sequence[Wn3Hour] | None = None,
 ) -> list[dict]:
     """單一機場的所有格。`taf_periods`／`ec`／`gfs`／`metar`／`aifs`／`aigfs`／`icon`／`jma`／`wn2`
     是 None 代表該來源失敗或沒資料。`runs` 是各模式（`config.MODELS` 的 id）的時次，寫進
     `models[].run`；`gust_factor` 是這個機場估算陣風的係數（HD18）。`icon`／`jma`／`wn2` 是
-    Open-Meteo 的 ICON、JMA GSM、WeatherNext 2 系集（HD16）。"""
+    Open-Meteo 的 ICON、JMA GSM、WeatherNext 2 系集（HD16）；`wn3` 是 WeatherNext 3（HD15，只在
+    `MODELS` 有 `wn3`、也就是 `observe` 模式時才會進 `models[]`）。"""
     official_until = now + timedelta(hours=OFFICIAL_HORIZON_H)
     warning_until = now + timedelta(hours=WARNING_HORIZON_H)
     metar_xw = metar_crosswind(metar, now, runways)
@@ -941,6 +980,7 @@ def assess_slots(
                 for mid, hours in (("icon", icon), ("jma", jma))
             },
             "wn2-ens": ensemble_for_slot(wn2, start, end, thresholds, gust_factor),
+            WN3_ID: wn3_for_slot(wn3, start, end, runways, gust_factor),  # HD15
         }
         entries = model_entries(ec_v, gfs_v, others, runs or {}, thresholds)
         _, vote_v = model_vote(entries)
