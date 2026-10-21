@@ -372,6 +372,8 @@
 - Google Maps Platform Weather API 查過（2026-10-20）：欄位齊、每月約 8 美元，但 Maps Service Terms B.21.1 禁止用在以提供天氣
   資訊為主要目的的產品、逐時預報值只能快取 1 小時——**不能當票、不能存 history，不接**
 - HD9（JMA 大雪警報）只加雪的警報，29W 期間不影響風的等級（10–11 月沒有大雪警報，上線不會改變任何現在的等級）
+- **HD27（JMA 暴風、大雨警報＋氣象署陸上強風特報）只列出、不改等級**：六種全部 `level: "low"`，低的警報不撐起
+  官方層，所以任何一格的 `level`、`causes` 都不變，只有 `warnings[]` 多列；不影響報告的版本切分。升級與否 29W 報告後談
 - 保存（HD20）：`events.json` 的 29W（台灣日期 10-19～10-28、25 個機場）期間每報快照、每小時 METAR 與
   JMA／JTWC 現報都在 `data` 分支 `history/events/29W/`（README「事件保存」）；之後的颱風在 `events.json` 加一筆
 - 排程（**HD25**）只動排程與資料保存，**不改規則**：Cloudflare 排程 Worker（`cloudflare/trigger/`）當主鬧鐘、GitHub

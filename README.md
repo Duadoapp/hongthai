@@ -32,7 +32,7 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 
 - 51 個都用全球資料：ECMWF、GFS、TAF／METAR（有的話）、跑道側風
 - 官方警報：台灣十個看中央氣象署、香港看天文台、澳門看 SMG、關島看美國國家氣象局（NWS，HD3）、日本 8 個
-  與沖繩 3 個看日本氣象廳（JMA，HD9，目前只接大雪警報）；其他 27 個還沒接（韓國之後另外的 HD 補；中國官方
+  與沖繩 3 個看日本氣象廳（JMA，HD9 大雪警報；HD27 起暴風、大雨警報只列出）；其他 27 個還沒接（韓國之後另外的 HD 補；中國官方
   颱風預警、越南、菲律賓先不接；帛琉 NWS 查不到，見下面「資料來源與授權」），`airports[].official.warnings`
   是 `false`、`warnings` 是 `[]`
 - **沒有 TAF 的機場**（2026-10-18 實測 AviationWeather）：花蓮 RCYU、金門 RCBS、馬祖 RCFG、溫州 ZSWZ、
@@ -53,7 +53,7 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
 | 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14）；Open-Meteo 的 DWD ICON（陣風）、JMA GSM（10 米風）、Google WeatherNext 2 系集 64 個成員的 10 米風（HD16） | **八個模式投票**（HD14、HD16，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS、JMA GSM、WeatherNext 2 用平均風 × 機場的係數估算）≥ 48 節高、≥ 37 節中；兩個系集只投高（IFS 系集陣風 ≥ 49 節機率 ≥ 30%、WeatherNext 2 估算陣風 ≥ 48 節的成員 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
-| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視、日本氣象廳（JMA）日本與沖繩的大雪警報（HD9） | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、暴風雪警報低（只列出），算 `snow`；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
+| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視、日本氣象廳（JMA）日本與沖繩的大雪警報（HD9）與暴風、大雨警報（HD27）、中央氣象署陸上強風特報（HD27） | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、暴風雪警報低（只列出），算 `snow`；日本氣象廳暴風、大雨警報與氣象署陸上強風特報只列出（low，HD27）；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
 | 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS、ICON 的 10 米風向配各自的陣風；AIFS、AIGFS、JMA GSM 的 10 米風向配估算陣風（WeatherNext 2 系集不算側風） | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級**（模式層是每個模式各自取較高，再投票） |
 
 - 門檻依據：陣風（TAF 與模式同一套）是桃園機場空橋規則——最大瞬間風速 37 節（蒲福 8 級）啟動空橋防護、
@@ -196,12 +196,18 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
 | 日本氣象廳 | 機場所在市町村的大雪警報 `jma_heavy_snow`（HD9，日本 8 個＋沖繩 3 個） | 中 |
 | 日本氣象廳 | 大雪特別警報 `jma_heavy_snow_emergency`、暴風雪特別警報 `jma_snowstorm_emergency`（HD16） | 高 |
 | 日本氣象廳 | 暴風雪警報 `jma_snowstorm` | 低：**只列出、不升級**（大雪注意報、風雪注意報不列） |
+| 日本氣象廳 | 暴風警報 `jma_storm`、暴風特別警報 `jma_storm_emergency`（HD27） | 低：**只列出、不升級**（強風注意報不列） |
+| 日本氣象廳 | 大雨警報 `jma_heavy_rain`、大雨危険警報 `jma_heavy_rain_danger`、大雨特別警報 `jma_heavy_rain_emergency`（HD27） | 低：**只列出、不升級**（大雨注意報不列） |
+| 中央氣象署 | 天氣特報「陸上強風」且機場的縣市在範圍 `cwa_strong_wind`（HD27，台灣十個機場都適用） | 低：**只列出、不升級** |
 
-- 前三列算 `rain`、濃霧特報算 `fog`、JMA 四種算 `snow`，其他（颱風、熱帶氣旋信號）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
+- 前三列與 JMA 大雨三種算 `rain`、濃霧特報算 `fog`、JMA 雪的四種算 `snow`，其他（颱風、熱帶氣旋信號、
+  JMA 暴風兩種、陸上強風特報）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
   TAF、只有低的警報時 `official` 是 `null`、退回模式；有 TAF 或有中以上的警報時照舊，
   `official.warnings[]` 列全部（含低的）。天文台 1 號信號也是低，HD8 起一樣照這條
-- JMA 只接雪（HD9）：大雨、暴風、波浪等其他警報不接（風的警報留給之後；29W 驗證期間不能動到風的等級）；
-  暴風雪特別警報（代碼 `32`）HD16 起接（Shawn 2026-10-20 19:04，和大雪特別警報同級）。澳門、韓國、越南、
+- JMA HD9 只接雪；暴風雪特別警報（代碼 `32`）HD16 起接（Shawn 2026-10-20 19:04，和大雪特別警報同級）。
+  **HD27（Shawn 2026-10-22，颱風 29W）起暴風（`05`、`35`）、大雨（`03`、危険警報 `43`、`33`）警報與氣象署
+  陸上強風特報只列出（low）**：29W 驗證期間不能動到等級，所以任何一格的 `level` 都不會因為這幾種改變；
+  升級與否 29W 報告後再談。注意報、波浪、高潮、洪水、土砂災害不接。澳門、韓國、越南、
   菲律賓這階段不加警報
 
 `causes`（每格，主因在前）：從決定 `level` 的那一層（`basis` 是 `official` 看官方層、`model` 看模式層；
@@ -695,6 +701,22 @@ HD9（2026-10-20，JMA 大雪警報；只加值，`schema` 維持 `1`，既有�
   暴風雪「暴風雪警報」／`snowstorm warning`；市町村名用 JMA 的日文漢字原樣、en 用 `enName` 去掉 City／Town），
   `issuedAt` 是那一報的 `reportDatetime`
 - `sources.jma`（`ok`、`seconds`；失敗時 `error`，其他來源不受影響）
+
+HD27（2026-10-22，JMA 暴風、大雨警報＋氣象署陸上強風特報；只加值，`schema` 維持 `1`，既有欄位不改名、
+不改型別、不加欄位）：
+
+- `airports[].warnings[]`／`slots[].official.warnings`：`kind` 多六種，**全部 `level: "low"`（只列出、不升級）**——
+  - `source: "jma"`：`jma_storm`（暴風警報，`code` `05`）、`jma_storm_emergency`（暴風特別警報，`35`），算 `wind`；
+    `jma_heavy_rain`（大雨警報，`03`）、`jma_heavy_rain_danger`（大雨危険警報，`43`）、`jma_heavy_rain_emergency`
+    （大雨特別警報，`33`），算 `rain`。四語照 HD9：「日本氣象廳暴風警報（那覇市）」／zh-CN「日本气象厅暴风警报
+    （那覇市）」／en「JMA storm warning (Naha)」（`storm emergency warning`、`heavy rain warning`、
+    `heavy rain danger warning`（中文「大雨危險警報」）、`heavy rain emergency warning`）
+  - `source: "cwa"`：`cwa_strong_wind`（陸上強風特報），`detail: "陸上強風"`，算 `wind`；四語「中央氣象署陸上強風特報
+    （高雄市）」／zh-CN「中央气象署陆上强风特报（高雄市）」／en「CWA land strong wind advisory (Kaohsiung)」，
+    括號裡是對到的縣市（桃園、松山是「桃園市、臺北市、新北市」／en `Taoyuan, Taipei, New Taipei`）；`issuedAt` 是
+    特報的 `startTime`
+- 低的警報不撐起官方層：只有這幾種的格 `official` 照舊是 `null`；有 TAF 或有中以上的警報時才出現在
+  `slots[].official.warnings`。`airports[].warnings[]` 照樣列出
 
 HD14（2026-10-20，多模式投票；欄位定案，Shawn 轉給 Duado；`schema` 維持 `1`。**`model.ec`、`model.gfs`、
 `model.agreement` 不改名、不改型別、不拿掉，值也照舊算**；`model.level` 改由投票決定）：

@@ -81,7 +81,9 @@
 - 警報：天文台黑雨 → 中，紅雨、雷暴警告低（只列出）；氣象署大豪雨、超大豪雨特報且機場在範圍
   → 中。這幾種算 `rain`（`RAIN_WARNING_KINDS`）；氣象署濃霧特報且機場在範圍 → 中，算 `fog`
   （`FOG_WARNING_KINDS`，HD13）；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、
-  暴風雪警報低（只列出），算 `snow`（`SNOW_WARNING_KINDS`，HD9）；其他警報算 `wind`。
+  暴風雪警報低（只列出），算 `snow`（`SNOW_WARNING_KINDS`，HD9）；JMA 大雨警報（含危険、特別警報）
+  低（只列出），算 `rain`；JMA 暴風警報、暴風特別警報與氣象署陸上強風特報低（只列出，HD27），
+  和其他警報一樣算 `wind`。
   **低的警報不會自己撐起官方層**：一格沒有 TAF、只有低的警報時 `official` 是 null、退回模式
   （天文台 1 號信號也是低，HD8 起一樣照這條）；有 TAF 或有中以上的警報時，`official.warnings`
   列全部（含低的）
@@ -170,7 +172,16 @@ CAUSE_ORDER = ("wind", "snow", "fog", "rain")  # 同級時的順序
 MODEL_CAUSE_ORDER = ("wind", "snow", "rain", "fog")  # 依據是模式層時（HD10）
 # 算 `rain` 的警報種類；其他（颱風、熱帶氣旋信號……）算 `wind`
 RAIN_WARNING_KINDS = frozenset(
-    {"rainstorm_black", "rainstorm_red", "thunderstorm", "cwa_heavy_rain"}
+    {
+        "rainstorm_black",
+        "rainstorm_red",
+        "thunderstorm",
+        "cwa_heavy_rain",
+        # HD27：JMA 大雨警報（只列出，low）
+        "jma_heavy_rain",
+        "jma_heavy_rain_danger",
+        "jma_heavy_rain_emergency",
+    }
 )
 FOG_WARNING_KINDS = frozenset({"cwa_dense_fog"})  # 算 `fog` 的警報種類（HD13）
 # 算 `snow` 的警報種類（HD9；HD16 加暴風雪特別警報）
@@ -207,6 +218,8 @@ class ActiveWarning:
     # tc_signal／typhoon_land／typhoon_sea／typhoon_warning／typhoon_watch／ts_warning／ts_watch；
     # HD8：rainstorm_black／rainstorm_red／thunderstorm／cwa_heavy_rain；HD13：cwa_dense_fog；
     # HD9：jma_heavy_snow／jma_heavy_snow_emergency／jma_snowstorm；HD16：jma_snowstorm_emergency
+    # HD27（只列出，low）：jma_storm／jma_storm_emergency／jma_heavy_rain／jma_heavy_rain_danger／
+    # jma_heavy_rain_emergency／cwa_strong_wind
     kind: str
     level: str
     text: dict[str, str]
