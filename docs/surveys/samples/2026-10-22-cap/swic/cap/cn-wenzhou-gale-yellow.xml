@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+	<identifier>33030041600000_20261021093638</identifier>
+	<sender>Wenzhou_Meteorological_Observatory</sender>
+	<sent>2026-10-21T09:35:00+08:00</sent>
+	<status>Actual</status>
+	<msgType>Alert</msgType>
+	<scope>Public</scope>
+	<note></note>
+	<info>
+		<language>en-US</language>
+		<category>Met</category>
+		<event>gale</event>
+		<urgency>Unknown</urgency>
+		<severity>Moderate</severity>
+		<certainty>Unknown</certainty>
+		<effective>2026-10-21T09:35:00+08:00</effective>
+		<expires>2026-10-24T09:35:00+08:00</expires>
+		<senderName>Wu Xiandu</senderName>
+		<headline>Wenzhou Meteorological Observatory issues a yellow warning for strong winds [Level III/Severe]</headline>
+		<description>The Wenzhou Meteorological Observatory issued a yellow warning signal for strong winds in the urban area of Wenzhou at 9:35 am on October 21, 2026: Due to the influence of cold air, it is expected that there will be 6-8 level winds on the coastal plain and 7-9 level winds on the coastal sea surface of Longwan District from today to tomorrow. Attention should be paid to coastal streets such as Haicheng, Haibin, Yongxing, and Xinghai, and all relevant parties should pay attention to prevention.</description>
+		<instruction>1. The government and relevant departments should pay timely attention to the dynamics of warning signals and carry out emergency measures to defend against strong winds in accordance with relevant regulations; 2. Safety precautions should be taken for construction sites, airports, ports, and other transportation facilities. Relevant water operations and passing ships should closely monitor the dynamics of strong winds and seek shelter in safe areas or take effective measures to resist them; 3. Personnel in dangerous areas should evacuate in a timely manner and stop high-altitude operations; 4. Personnel should try to minimize going out and properly place window sills, balconies, and outdoor storage items.</instruction>
+		<area>
+			<areaDesc>Longwan District</areaDesc>
+			<geocode>
+				<valueName>CPEAS Geographic Code</valueName>
+				<value>330303003000</value>
+			</geocode>
+		</area>
+	</info>
+	<info>
+		<language>zh-CN</language>
+		<category>Met</category>
+		<event>大风</event>
+		<urgency>Unknown</urgency>
+		<severity>Moderate</severity>
+		<certainty>Unknown</certainty>
+		<effective>2026-10-21T09:35:00+08:00</effective>
+		<expires>2026-10-24T09:35:00+08:00</expires>
+		<senderName>吴贤笃</senderName>
+		<headline>温州市气象台发布大风黄色预警[Ⅲ级/较重]</headline>
+		<description>温州市气象台2026年10月21日09时35分发布温州市区大风黄色预警信号：受冷空气影响，预计今天到明天龙湾区沿海平原和沿海海面将分别有6-8级和7-9级大风，重点关注海城、海滨、永兴、星海等沿海街道，希各有关方面注意防范。</description>
+		<instruction>1.政府及相关部门及时关注预警信号动态，根据相关规定做好防御大风应急工作； 2.建筑工地及机场、港口等交通设施等采取安全防范措施，相关水域水上作业和过往船舶应密切关注大风动态，到安全区域避风或采取有效措施进行防抗； 3.危险地带人员及时撤离，停止高空作业； 4.人员尽量减少外出，妥善安置窗台、阳台及室外搁置物。</instruction>
+		<area>
+			<areaDesc>海滨街道</areaDesc>
+			<geocode>
+				<valueName>CPEAS Geographic Code</valueName>
+				<value>330303003000</value>
+			</geocode>
+		</area>
+	</info>
+</alert>

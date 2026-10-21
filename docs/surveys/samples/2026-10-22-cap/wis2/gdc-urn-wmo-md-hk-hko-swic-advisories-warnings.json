@@ -1,0 +1,255 @@
+{
+    "id":"urn:wmo:md:hk-hko-swic:recommended.weather.advisories-warnings",
+    "type":"Feature",
+    "conformsTo":[
+        "http://wis.wmo.int/spec/wcmp/2/conf/core"
+    ],
+    "time":null,
+    "geometry":{
+        "type":"Polygon",
+        "coordinates":[
+            [
+                [
+                    -180,
+                    -90
+                ],
+                [
+                    -180,
+                    90
+                ],
+                [
+                    180,
+                    90
+                ],
+                [
+                    180,
+                    -90
+                ],
+                [
+                    -180,
+                    -90
+                ]
+            ]
+        ]
+    },
+    "properties":{
+        "type":"dataset",
+        "title":"Official weather warnings and advisories in Common Alerting Protocol format aggregated by the Severe Weather Information Centre",
+        "description":"The Severe Weather Information Centre (SWIC) provides a centralised source of authoritative warnings and advisories from the alerting authorities around the world. SWIC is a core component of the WMO Global Multi-hazard Alert System framework for increasing and enhancing the availability of authoritative warnings and information related to extreme and/or potentially high-impact weather, water and climate events in support of the United Nations' Early Warnings for All initiative.",
+        "version":"1.0",
+        "wmo:dataPolicy":"recommended",
+        "rights":"SWIC is the centralised platform aggregating the authoritative warnings and advisories in Common Alerting Protocol (CAP) format issued by the alerting authorities worldwide. The Register of Alerting Authorities provides the records of such authoritative sources. Users should refer to the respective alerting authorities about the copyright information of the CAP data.",
+        "keywords":[
+            "official weather warnings",
+            "Severe Weather Information Centre",
+            "Common Alerting Protocol",
+            "warnings and advisories",
+            "SWIC",
+            "CAP"
+        ],
+        "themes":[
+            {
+                "concepts":[
+                    {
+                        "id":"weather",
+                        "title":"Advisories and warnings",
+                        "url":"https://codes.wmo.int/wis/topic-hierarchy/earth-system-discipline/weather"
+                    }
+                ],
+                "scheme":"https://codes.wmo.int/wis/topic-hierarchy/earth-system-discipline"
+            }
+        ],
+        "contacts":[
+            {
+                "organization":"Hong Kong Observatory",
+                "links":[
+                    {
+                        "rel":"about",
+                        "type":"text/html",
+                        "href":"https://severeweather.wmo.int/about.html"
+                    },
+                    {
+                        "rel":"about",
+                        "type":"text/html",
+                        "href":"https://severeweather.wmo.int/contact.html"
+                    }
+                ],
+                "roles":[
+                    "host"
+                ]
+            }
+        ],
+        "created":"2025-06-30T00:00:00Z",
+        "centre-id":"hk-hko-swic"
+    },
+    "links":[
+        {
+            "rel":"items",
+            "type":"application/geo+json",
+            "title":"Notifications from China Meteorological Agency, Global Broker Service (cn-cma-global-broker)",
+            "href":"mqtts://everyone:everyone@gb.wis.cma.cn:8883",
+            "channel":"origin/a/wis2/hk-hko-swic/data/recommended/weather/advisories-warnings",
+            "distribution":{
+                "maxMSGsize":4096,
+                "unit":"bytes"
+            },
+            "properties":{
+                "cap_info":{
+                    "type":"object",
+                    "properties":{
+                        "severity":{
+                            "type":"string"
+                        },
+                        "urgency":{
+                            "type":"string"
+                        },
+                        "certainty":{
+                            "type":"string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "rel":"items",
+            "type":"application/geo+json",
+            "title":"Notifications from Météo-France, Global Broker Service (fr-meteofrance-global-broker)",
+            "href":"mqtts://everyone:everyone@globalbroker.meteo.fr:8883",
+            "channel":"origin/a/wis2/hk-hko-swic/data/recommended/weather/advisories-warnings",
+            "distribution":{
+                "maxMSGsize":4096,
+                "unit":"bytes"
+            },
+            "properties":{
+                "cap_info":{
+                    "type":"object",
+                    "properties":{
+                        "severity":{
+                            "type":"string"
+                        },
+                        "urgency":{
+                            "type":"string"
+                        },
+                        "certainty":{
+                            "type":"string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "rel":"items",
+            "type":"application/geo+json",
+            "title":"Notifications from Instituto Nacional de Meteorologia (Brazil), Global Broker Service (br-inmet-global-broker)",
+            "href":"mqtts://everyone:everyone@globalbroker.inmet.gov.br:8883",
+            "channel":"origin/a/wis2/hk-hko-swic/data/recommended/weather/advisories-warnings",
+            "distribution":{
+                "maxMSGsize":4096,
+                "unit":"bytes"
+            },
+            "properties":{
+                "cap_info":{
+                    "type":"object",
+                    "properties":{
+                        "severity":{
+                            "type":"string"
+                        },
+                        "urgency":{
+                            "type":"string"
+                        },
+                        "certainty":{
+                            "type":"string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "rel":"items",
+            "type":"application/geo+json",
+            "title":"Notifications from National Oceanic and Atmospheric Administration, National Weather Service, Global Broker Service (us-noaa-nws-global-broker)",
+            "href":"mqtts://everyone:everyone@wis2globalbroker.nws.noaa.gov:8883",
+            "channel":"origin/a/wis2/hk-hko-swic/data/recommended/weather/advisories-warnings",
+            "distribution":{
+                "maxMSGsize":4096,
+                "unit":"bytes"
+            },
+            "properties":{
+                "cap_info":{
+                    "type":"object",
+                    "properties":{
+                        "severity":{
+                            "type":"string"
+                        },
+                        "urgency":{
+                            "type":"string"
+                        },
+                        "certainty":{
+                            "type":"string"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "rel":"about",
+            "type":"text/html",
+            "title":"Common Alerting Protocol Version 1.2",
+            "href":"https://docs.oasis-open.org/emergency/cap/v1.2/CAP-v1.2-os.html"
+        },
+        {
+            "rel":"related",
+            "type":"text/html",
+            "title":"WMO Severe Weather Information Centre",
+            "href":"https://severeweather.wmo.int"
+        },
+        {
+            "rel":"related",
+            "type":"text/html",
+            "title":"WMO Register of Alerting Authorities",
+            "href":"https://alertingauthority.wmo.int/"
+        },
+        {
+            "rel":"license",
+            "type":"text/html",
+            "title":"Sources of the CAP Warnings in SWIC",
+            "href":"https://severeweather.wmo.int/sources.html"
+        },
+        {
+            "type":"application/json",
+            "rel":"root",
+            "title":"The landing page of this server as JSON",
+            "href":"https://wis2-gdc.weather.gc.ca?f=json"
+        },
+        {
+            "type":"text/html",
+            "rel":"root",
+            "title":"The landing page of this server as HTML",
+            "href":"https://wis2-gdc.weather.gc.ca?f=html"
+        },
+        {
+            "rel":"self",
+            "type":"application/geo+json",
+            "title":"This document as JSON",
+            "href":"https://wis2-gdc.weather.gc.ca/collections/wis2-discovery-metadata/items/urn:wmo:md:hk-hko-swic:recommended.weather.advisories-warnings?f=json"
+        },
+        {
+            "rel":"alternate",
+            "type":"application/ld+json",
+            "title":"This document as RDF (JSON-LD)",
+            "href":"https://wis2-gdc.weather.gc.ca/collections/wis2-discovery-metadata/items/urn:wmo:md:hk-hko-swic:recommended.weather.advisories-warnings?f=jsonld"
+        },
+        {
+            "rel":"alternate",
+            "type":"text/html",
+            "title":"This document as HTML",
+            "href":"https://wis2-gdc.weather.gc.ca/collections/wis2-discovery-metadata/items/urn:wmo:md:hk-hko-swic:recommended.weather.advisories-warnings?f=html"
+        },
+        {
+            "rel":"collection",
+            "type":"application/json",
+            "title":"WIS2 discovery metadata",
+            "href":"https://wis2-gdc.weather.gc.ca/collections/wis2-discovery-metadata"
+        }
+    ]
+}
