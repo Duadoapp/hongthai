@@ -1088,9 +1088,9 @@ def concurrent_model(delay: float):
 
 
 def test_duel_models_run_in_parallel(tmp_path):
-    """每個模型 5 個機場、每次 0.4 秒；第一個先單獨評（HD26），其他 4 個 Claude 4 條並行約 0.4 秒、
-    Gemini 3 條並行約 0.8 秒（HD6：Gemini 4 條時撞過 429、降到 2；HD12 升回 3）。兩個模型同時跑，
-    總時間約 1.2 秒（不是 2.0 秒；模型內也不平行的話是 4.0 秒）。"""
+    """每個模型 5 個機場、每次 0.4 秒；Claude 第一個先單獨評（HD26），其他 4 個 4 條並行，
+    約 0.8 秒；Gemini 直接 3 條並行，約 0.8 秒（HD6：Gemini 4 條時撞過 429、降到 2；HD12 升回 3）。
+    兩個模型同時跑，總時間約 0.8 秒（不是 1.6 秒；模型內也不平行的話是 4.0 秒）。"""
     assert config.PARALLEL == {"claude": 4, "gemini": 3}
     ev = {"claude": concurrent_model(0.4), "gemini": concurrent_model(0.4)}
     t0 = time.monotonic()
@@ -1098,7 +1098,7 @@ def test_duel_models_run_in_parallel(tmp_path):
     took = time.monotonic() - t0
     assert res["source"]["calls"] == {"claude": 5, "gemini": 5}
     assert ev["claude"].state["max"] == 4 and ev["gemini"].state["max"] == 3
-    assert took < 1.6, took
+    assert took < 1.2, took
 
 
 def test_duel_timeout_marks_unfinished(tmp_path):
@@ -1114,8 +1114,7 @@ def test_duel_timeout_marks_unfinished(tmp_path):
     assert res["source"]["errors"] == {"gemini": "timeout"}
     assert duel.result() is res  # 只算一次
     calls = json.loads((tmp_path / "ai" / "calls-2026-10-19.json").read_text("utf-8"))
-    # 送出去的也算；Gemini 第一個先單獨評（HD26），還沒回來，第二個還沒送
-    assert calls == {"claude": 2, "gemini": 1}
+    assert calls == {"claude": 2, "gemini": 2}  # 送出去的也算（Gemini 不先單獨評，HD26）
 
 
 def test_duel_request_timeout_and_budget_guard(tmp_path):

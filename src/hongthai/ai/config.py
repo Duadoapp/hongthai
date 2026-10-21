@@ -70,6 +70,9 @@ MAX_AIRPORTS = 20  # 每報最多評幾個機場
 DAILY_CAP = 0
 # 每個模型幾條並行。Gemini 4 條時撞過 429、降到 2（HD6）；HD12 升回 3 再觀察，429 回來就降回 2
 PARALLEL = {"claude": 4, "gemini": 3}
+# 每報第一個機場先單獨評完再開線（HD26，把系統提示寫進快取）。只開 Claude：Gemini 4 隱含快取最小
+# 4,096 token，SYSTEM 不到，先評一個沒有好處、504 時還拖慢備援
+WARMUP = {"claude": True, "gemini": False}
 
 LEVELS = ("low", "medium", "high")
 LANGS = ("zh-TW", "zh-HK", "zh-CN", "en")

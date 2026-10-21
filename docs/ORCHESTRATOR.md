@@ -395,7 +395,7 @@
 - **HD26（10/21 11:25）**：AI 提示快取與 token 紀錄，**只改送法與紀錄，不改提示與參數**（提示文字、順序、模型、
   `effort`／`thinking_level`、溫度、`max_tokens` 一個字都不動，AI 的答案不應該因此改變；`latest.json` 不加欄位），
   凍結前合併。Claude 的 `system` 加 `cache_control`（Opus 5.5 最小 512 token）；Gemini 靠隱含快取（Gemini 4 最小
-  4,096 token，`SYSTEM` 不到，大概不會命中，先記數字）；每報第一個機場先單獨評完再開線；戰績每次呼叫記 `usage`、
+  4,096 token，`SYSTEM` 不到，大概不會命中，先記數字）；Claude 每報第一個機場先單獨評完再開線（`config.WARMUP`；Gemini 照舊直接開線）；戰績每次呼叫記 `usage`、
   `timing/` 的 `ai` 那行記合計與 `costUsd`；`tools/ai_cost.py` 看命中率與費用（README「AI 對決」）。
   省錢的做法（沿用評論、每天 2 次、Gemini 上限、規則移進快取前綴）在 10/21 日誌「待決定」，颱風報告後談
 

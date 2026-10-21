@@ -30,8 +30,9 @@
   同一把服務帳號）；備援回 `http_404` 或連續 `FALLBACK_GIVE_UP`（2）次失敗（`CONTENT_ERRORS`
   不算）就不再用、退回主要區域。用備援失敗的 `detail` 最後加 `:fallback`；`sources.ai` 多
   `<模型>Location`（`geminiLocation`：這一報最後送出的請求用的區域）
-- 提示快取（HD26）：每個模型**第一個機場先單獨評完**（寫進快取），再開 `PARALLEL` 條線評其他的；
-  第一個失敗也照樣開線。只改送出的順序，每個機場送的內容不變
+- 提示快取（HD26）：`WARMUP` 是 `True` 的模型（Claude）**第一個機場先單獨評完**（寫進快取），
+  再開 `PARALLEL` 條線評其他的；第一個失敗也照樣開線。Gemini 照舊直接開線。只改送出的順序，
+  每個機場送的內容不變
 - token 紀錄（HD26，`ai/usage.py`）：戰績每筆真的送出的呼叫多 `usage`（有回應的那次的 token 數，
   沒拿到回應是 `null`；重試過的是第二次的）；`result()["usage"]` 是各模型這一報的合計（加
   `calls`：有回應的次數）、`result()["costUsd"]` 是估計費用，`build.run_ai` 寫進 `timing/` 的 `ai`
@@ -68,6 +69,7 @@ from .config import (
     RETRY_MIN_LEFT_S,
     SEND_MIN_LEFT_S,
     TIMEOUT_S,
+    WARMUP,
 )
 from .parse import AiError
 
@@ -320,10 +322,11 @@ class Duel:
             return
         self.regions[key] = Regions(key, mod, client)
         items = list(texts.items())
-        if items:  # 第一個先單獨評完，把系統提示寫進快取（HD26）；失敗也照樣開線
-            self._one(key, mod, *items[0])
+        # 第一個先單獨評完，把系統提示寫進快取（HD26，只有 Claude）；失敗也照樣開線
+        if items and WARMUP.get(key):
+            self._one(key, mod, *items.pop(0))
         with ThreadPoolExecutor(PARALLEL[key], thread_name_prefix=f"ai-{key}") as ex:
-            for icao, text in items[1:]:
+            for icao, text in items:
                 ex.submit(self._one, key, mod, icao, text)
 
     def _set(

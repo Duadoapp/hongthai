@@ -179,22 +179,38 @@ def timed_model(delay: float, fail_first: bool = False):
     return SimpleNamespace(make_client=object, evaluate=evaluate, log=log)
 
 
+def test_warmup_only_claude_hd26():
+    assert config.WARMUP == {"claude": True, "gemini": False}
+    assert set(config.WARMUP) == set(config.MODELS)
+
+
 @pytest.mark.parametrize("fail_first", [False, True])
-def test_first_airport_alone_then_parallel(tmp_path, fail_first):
-    """每個模型第一個機場（排序第一的 RC00）先單獨評完，其他的才開線並行；第一個失敗也照樣開線。"""
-    ev = {"claude": timed_model(0.2, fail_first), "gemini": timed_model(0.2, fail_first)}
+def test_claude_first_airport_alone_then_parallel(tmp_path, fail_first):
+    """Claude 第一個機場（排序第一的 RC00）先單獨評完，其他的才開線並行；第一個失敗也照樣開線。"""
+    ev = {"claude": timed_model(0.2, fail_first), "gemini": timed_model(0.2)}
     res = ai_run.evaluate_all(duel_doc(5, 0), None, NOW, tmp_path, evaluators=ev)
-    for key, m in ev.items():
-        calls = sorted(m.log, key=lambda r: r[1])  # 依開始時間
-        assert len(calls) == 5
-        first, rest = calls[0], calls[1:]
-        assert "RC00" in first[0], key
-        assert all(r[1] >= first[2] for r in rest), key  # 第一個結束後才開始
-        starts = [r[1] for r in rest]  # 其他的並行：前兩個幾乎同時開始
-        assert starts[1] - starts[0] < 0.1, key
-        assert res["source"]["calls"][key] == 5
-        lights = [res["airports"][f"RC0{i}"][key]["status"] for i in range(5)]
-        assert lights == ["error" if fail_first else "ok"] + ["ok"] * 4
+    calls = sorted(ev["claude"].log, key=lambda r: r[1])  # 依開始時間
+    assert len(calls) == 5
+    first, rest = calls[0], calls[1:]
+    assert "RC00" in first[0]
+    assert all(r[1] >= first[2] for r in rest)  # 第一個結束後才開始
+    starts = [r[1] for r in rest]  # 其他的並行：前兩個幾乎同時開始
+    assert starts[1] - starts[0] < 0.1
+    assert res["source"]["calls"]["claude"] == 5
+    lights = [res["airports"][f"RC0{i}"]["claude"]["status"] for i in range(5)]
+    assert lights == ["error" if fail_first else "ok"] + ["ok"] * 4
+
+
+def test_gemini_no_warmup(tmp_path):
+    """Gemini 不先單獨評：一開始就 3 條線同時送（隱含快取最小 4,096 token，SYSTEM 不到）。"""
+    ev = {"claude": timed_model(0.2), "gemini": timed_model(0.2)}
+    res = ai_run.evaluate_all(duel_doc(5, 0), None, NOW, tmp_path, evaluators=ev)
+    calls = sorted(ev["gemini"].log, key=lambda r: r[1])
+    assert len(calls) == 5 and res["source"]["calls"]["gemini"] == 5
+    # 前 3 個（含 RC00）同時開始，沒有等第一個結束
+    assert calls[2][1] - calls[0][1] < 0.1
+    assert calls[1][1] < calls[0][2]
+    assert any("RC00" in c[0] for c in calls[:3])
 
 
 # ---- 戰績、timing ----
