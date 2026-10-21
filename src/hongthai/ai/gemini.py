@@ -16,6 +16,11 @@
 - `finish_reason` 是 `MAX_TOKENS`（被截斷）→ `bad_format`；安全過濾之類擋下 → `refusal`
 - 拿到回應之後的失敗都附 `finish_reason` 與輸出 token 數（`candidates_token_count`，有思考時寫成
   `<回答>+<思考>`），給戰績的 `detail`
+- 快取（HD26）：靠 Vertex 的**隱含快取**（預設開、不用改送法；Gemini 4 最小 4,096 token，同樣前綴
+  命中時 `cached_content_token_count` > 0），`system_instruction` 每次一樣就是前綴。不做顯式
+  context caching（`CachedContent` 要多一次呼叫、按小時收儲存費）
+- 每次有回應（成功或失敗）都取 `usage_metadata` 的四個數（`usage_of`）：成功時放在回傳的 `usage`、
+  失敗時在 `AiError.usage`，給戰績與 `timing/`（`ai/usage.py`）
 """
 
 from __future__ import annotations
@@ -33,6 +38,7 @@ from google.oauth2 import service_account
 from .config import ENV, GEMINI_THINKING_LEVEL, MAX_TOKENS, MODELS, TEMPERATURE, TIMEOUT_S
 from .parse import AiError, parse_response, with_response
 from .prompt import SYSTEM
+from .usage import as_count
 
 SCOPES = ("https://www.googleapis.com/auth/cloud-platform",)
 TIMEOUT = TIMEOUT_S["gemini"]
@@ -68,7 +74,7 @@ def make_client(location: str | None = None) -> genai.Client:
 
 
 def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = TIMEOUT) -> dict:
-    """一個機場的精簡文字 → `{"level", "comment"}`；失敗丟 `AiError`，這裡不重試
+    """一個機場的精簡文字 → `{"level", "comment", "usage"}`；失敗丟 `AiError`，這裡不重試
     （快回的 `http_503`／`http_504` 由 `run.py` 重試一次、切備援區域也在 `run.py`，HD17、HD23）。"""
     client = client or make_client()
     config = types.GenerateContentConfig(
@@ -100,10 +106,25 @@ def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = 
             raise AiError("refusal", str(reason or (resp.prompt_feedback or "沒有 candidates")))
         parts = (cands[0].content.parts if cands[0].content else None) or []
         text = "".join(p.text for p in parts if isinstance(p.text, str) and not p.thought)
-        return parse_response(text)
+        result = parse_response(text)
     except AiError as e:
-        with_response(e, getattr(reason, "name", reason), output_tokens(resp))
+        with_response(e, getattr(reason, "name", reason), output_tokens(resp), usage_of(resp))
         raise
+    return {**result, "usage": usage_of(resp)}
+
+
+def usage_of(resp: types.GenerateContentResponse) -> dict | None:
+    """回應的 token 數（`ai/usage.py`）；沒有 `usage_metadata` 是 `None`，缺的欄位是 `None`
+    （不寫 0）。"""
+    u = resp.usage_metadata
+    if u is None:
+        return None
+    return {
+        "input": as_count(u.prompt_token_count),
+        "output": as_count(u.candidates_token_count),
+        "thinking": as_count(u.thoughts_token_count),
+        "cacheRead": as_count(u.cached_content_token_count),
+    }
 
 
 def output_tokens(resp: types.GenerateContentResponse) -> str | None:

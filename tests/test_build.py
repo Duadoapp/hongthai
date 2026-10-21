@@ -1329,8 +1329,23 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     assert set(om_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert (om_line["ok"], om_line["calls"]) == (False, None)
     ai_line = lines[13]
-    assert set(ai_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
+    assert set(ai_line) == {
+        *("run", "source", "ok", "error", "seconds", "bytes", "calls"),
+        *("usage", "costUsd"),  # HD26
+    }
     assert ai_line["bytes"] == 0 and ai_line["calls"] == {"claude": 0, "gemini": 0}
+    # 兩個都沒金鑰：沒有回應，合計全是 null、calls 0、費用 null
+    assert ai_line["usage"] == {
+        "claude": {
+            "input": None,
+            "output": None,
+            "cacheRead": None,
+            "cacheWrite": None,
+            "calls": 0,
+        },
+        "gemini": {"input": None, "output": None, "thinking": None, "cacheRead": None, "calls": 0},
+    }
+    assert ai_line["costUsd"] == {"claude": None, "gemini": None}
     assert lines[-1]["ok"] is True and isinstance(lines[-1]["seconds"], float)
 
 

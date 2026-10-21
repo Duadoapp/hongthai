@@ -31,7 +31,8 @@ class AiError(Exception):
     `run.py` 判斷）。
 
     `tag` 是不含短評內容的短標記（例如 `en_too_long`、`zh-HK/喺`）；`stop_reason`、`output_tokens`
-    由 `claude.py`／`gemini.py` 在拿到回應後補上，`trace()` 給 log 與對決戰績的 `detail` 用。"""
+    由 `claude.py`／`gemini.py` 在拿到回應後補上，`trace()` 給 log 與對決戰績的 `detail` 用；
+    `usage` 是那次回應的 token 數（HD26，`ai/usage.py`），沒拿到回應是 `None`。"""
 
     def __init__(self, code: str, detail: str = "", *, tag: str = ""):
         super().__init__(f"{code}: {detail}" if detail else code)
@@ -39,6 +40,7 @@ class AiError(Exception):
         self.tag = tag
         self.stop_reason: str | None = None
         self.output_tokens: str | None = None
+        self.usage: dict | None = None
 
     def trace(self) -> str:
         """`<代碼>:<stop_reason>:<輸出 token 數>`，有 `tag` 時再加 `:<tag>`；沒有的欄位寫 `-`。"""
@@ -46,10 +48,14 @@ class AiError(Exception):
         return ":".join([*parts, self.tag] if self.tag else parts)
 
 
-def with_response(e: AiError, stop_reason: object, output_tokens: object) -> None:
-    """拿到回應之後的失敗：補上 `stop_reason`／`finish_reason` 與輸出 token 數（不記內容）。"""
+def with_response(
+    e: AiError, stop_reason: object, output_tokens: object, usage: dict | None = None
+) -> None:
+    """拿到回應之後的失敗：補上 `stop_reason`／`finish_reason`、輸出 token 數與 `usage`
+    （不記內容）。"""
     e.stop_reason = None if stop_reason is None else str(stop_reason)
     e.output_tokens = None if output_tokens is None else str(output_tokens)
+    e.usage = usage
 
 
 _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)

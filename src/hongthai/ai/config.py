@@ -43,6 +43,27 @@ FALLBACK_GIVE_UP = 2
 # 這些錯代表區域有回應、只是模型的回答不能用：不算區域失敗，連續次數歸零
 CONTENT_ERRORS = ("bad_format", "bad_wording", "refusal")
 
+# ---- token 單價（HD26，`ai/usage.py` 算估計費用）----
+# 美元／百萬 token。每個模型一串 `(最後一天, 單價)`：依呼叫的 UTC 日期取第一個「最後一天」≥ 那天的，
+# `None` 是之後一直用。單價查不到的寫 `None`，費用就是 `null`、不要猜。
+# Claude 的 `input_tokens` 不含快取讀寫（另外三個數各自計價）、`output_tokens` 含思考；
+# Gemini 的 `prompt_token_count` 含快取命中的部分（`cacheRead` 那段改用 `cacheRead` 單價）、
+# 思考（`thoughts_token_count`）照 output 計價
+PRICES: dict[str, list[tuple[str | None, dict[str, float | None]]]] = {
+    # Claude Opus 5.5（Claude API；cacheWrite 是 5 分鐘 TTL，1 小時是 8）：
+    # https://platform.claude.com/docs/en/build-with-claude/prompt-caching（2026-10-21 查）
+    "claude": [(None, {"input": 4.0, "output": 20.0, "cacheWrite": 5.0, "cacheRead": 0.20})],
+    # Gemini 4 Argon（Vertex AI Standard、global 端點；output 是 "response and reasoning"，
+    # 思考算 output。非 global（備援的 `us`）貴 10%：促銷 2.2／11／0.11、之後 4.4／22／0.22，
+    # 這裡一律用 global 估）：https://cloud.google.com/vertex-ai/generative-ai/pricing
+    # （2026-10-21 查）。到 2026-11-30 是促銷價（"Promotional pricing provided through 50%
+    # credits back on net spend"），12/1 起回原價。隱含快取沒有寫入費與儲存費
+    "gemini": [
+        ("2026-11-30", {"input": 2.0, "output": 10.0, "cacheRead": 0.10}),
+        (None, {"input": 4.0, "output": 20.0, "cacheRead": 0.20}),
+    ],
+}
+
 MAX_AIRPORTS = 20  # 每報最多評幾個機場
 # 每天（UTC）每個模型最多呼叫幾次；0 代表不限（開發期間，2026-10-19 定案；
 # 正式推廣前再評估，恢復時改成 80 之類的數字即可）

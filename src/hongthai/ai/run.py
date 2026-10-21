@@ -30,6 +30,12 @@
   同一把服務帳號）；備援回 `http_404` 或連續 `FALLBACK_GIVE_UP`（2）次失敗（`CONTENT_ERRORS`
   不算）就不再用、退回主要區域。用備援失敗的 `detail` 最後加 `:fallback`；`sources.ai` 多
   `<模型>Location`（`geminiLocation`：這一報最後送出的請求用的區域）
+- 提示快取（HD26）：每個模型**第一個機場先單獨評完**（寫進快取），再開 `PARALLEL` 條線評其他的；
+  第一個失敗也照樣開線。只改送出的順序，每個機場送的內容不變
+- token 紀錄（HD26，`ai/usage.py`）：戰績每筆真的送出的呼叫多 `usage`（有回應的那次的 token 數，
+  沒拿到回應是 `null`；重試過的是第二次的）；`result()["usage"]` 是各模型這一報的合計（加
+  `calls`：有回應的次數）、`result()["costUsd"]` 是估計費用，`build.run_ai` 寫進 `timing/` 的 `ai`
+  那行，`latest.json` 不加
 """
 
 from __future__ import annotations
@@ -44,7 +50,7 @@ from datetime import datetime
 from pathlib import Path
 from types import ModuleType
 
-from . import claude, gemini, prompt, select
+from . import claude, gemini, prompt, select, usage
 from .config import (
     CONTENT_ERRORS,
     DAILY_CAP,
@@ -120,12 +126,17 @@ def load_calls(history: Path, now: datetime) -> dict[str, int]:
 # ---- 對決戰績 ----
 
 
-def _outcome(light: dict, detail: str | None, seconds: float | None) -> dict:
+_UNSENT = object()  # 沒送出的呼叫：戰績不寫 `usage`（送出但沒回應是 `None`、寫 `null`）
+
+
+def _outcome(light: dict, detail: str | None, seconds: float | None, used: object) -> dict:
     out = {"status": light["status"], "level": light["level"]}
     if detail:
         out["detail"] = detail
     if seconds is not None:
         out["seconds"] = seconds
+    if used is not _UNSENT:
+        out["usage"] = used
     return out
 
 
@@ -136,11 +147,14 @@ def record(
     lights: dict[str, dict],
     details: dict[str, str | None] | None = None,
     seconds: dict[str, float | None] | None = None,
+    usages: dict[str, dict | None] | None = None,
 ) -> dict:
     """戰績一筆；`details` 是各模型呼叫失敗的 `AiError.trace()`（沒有就不出現 `detail`），
-    `seconds` 是各模型那次呼叫花的秒數（沒送出就不出現 `seconds`，HD12）。"""
+    `seconds` 是各模型那次呼叫花的秒數（沒送出就不出現 `seconds`，HD12），`usages` 是那次的
+    token 數（沒送出的模型不在裡面、不出現 `usage`；送出但沒回應是 `None`，HD26）。"""
     details = details or {}
     seconds = seconds or {}
+    usages = usages or {}
     best, first = select.max_level(airport)
     slots = [s for s in airport.get("slots") or [] if isinstance(s, dict)]
     return {
@@ -148,7 +162,10 @@ def record(
         "airport": airport.get("icao"),
         "selected": selected,
         "rule": {"maxLevel": best, "firstFrom": first},
-        **{k: _outcome(lights[k], details.get(k), seconds.get(k)) for k in KEYS},
+        **{
+            k: _outcome(lights[k], details.get(k), seconds.get(k), usages.get(k, _UNSENT))
+            for k in KEYS
+        },
         "slots": [{"from": s.get("from"), "level": s.get("level")} for s in slots],
     }
 
@@ -276,6 +293,7 @@ class Duel:
         self.lights: dict[str, dict[str, dict]] = {k: {} for k in KEYS}
         self.details: dict[str, dict[str, str]] = {k: {} for k in KEYS}  # 呼叫失敗的 trace
         self.seconds: dict[str, dict[str, float]] = {k: {} for k in KEYS}  # 送出的呼叫花幾秒
+        self.usage: dict[str, dict[str, dict | None]] = {k: {} for k in KEYS}  # 送出的呼叫（HD26）
         self.model_errors: dict[str, str] = {}  # 整個模型不能用（no_api_key）
         self.regions: dict[str, Regions] = {}  # 有呼叫的模型（HD23）
         self.stop = threading.Event()
@@ -301,8 +319,11 @@ class Duel:
                     self.lights[key][icao] = error(key, e.code)
             return
         self.regions[key] = Regions(key, mod, client)
+        items = list(texts.items())
+        if items:  # 第一個先單獨評完，把系統提示寫進快取（HD26）；失敗也照樣開線
+            self._one(key, mod, *items[0])
         with ThreadPoolExecutor(PARALLEL[key], thread_name_prefix=f"ai-{key}") as ex:
-            for icao, text in texts.items():
+            for icao, text in items[1:]:
                 ex.submit(self._one, key, mod, icao, text)
 
     def _set(
@@ -312,14 +333,16 @@ class Duel:
         light: dict,
         detail: str | None = None,
         seconds: float | None = None,
+        used: dict | None = None,
     ) -> None:
         with self.lock:
             if not self.stop.is_set():  # 超時之後回來的不採用
                 self.lights[key][icao] = light
                 if detail:
                     self.details[key][icao] = detail
-                if seconds is not None:
+                if seconds is not None:  # 真的送出的才有 `seconds` 與 `usage`
                     self.seconds[key][icao] = round(seconds, 1)
+                    self.usage[key][icao] = used
 
     def _one(self, key: str, mod: ModuleType, icao: str, text: str) -> None:
         if self.stop.is_set():
@@ -336,27 +359,27 @@ class Duel:
                 self.lights[key][icao] = error(key, "daily_cap")
             return
         t0 = time.monotonic()
-        light, err, backup = self._send(key, mod, icao, text, timeout)
+        light, err, backup, used = self._send(key, mod, icao, text, timeout)
         tag = ""
         if err and err.code in RETRY_CODES:  # 閘道沒回應（HD17）
             if time.monotonic() - t0 >= RETRY_FAST_FAIL_S:  # 閘道逾時：重試只會再卡一次（HD23）
                 tag = ":slow"
             elif (retry := self._retry_timeout(key)) is not None:  # 快失敗：同一個請求重試一次
                 log.info("AI %s %s %s，重試一次", key, icao, err.code)
-                light, err, backup = self._send(key, mod, icao, text, retry)
+                light, err, backup, used = self._send(key, mod, icao, text, retry)
                 tag = ":retried"
         detail = f"{err.trace()}{tag}{':fallback' if backup else ''}" if err else None
-        self._set(key, icao, light, detail, time.monotonic() - t0)  # 重試時是兩次合計
+        self._set(key, icao, light, detail, time.monotonic() - t0, used)  # 重試時是兩次合計
 
     def _send(
         self, key: str, mod: ModuleType, icao: str, text: str, timeout: float
-    ) -> tuple[dict, AiError | None, bool]:
-        """選區域、送一次、記結果 →（燈, 失敗時的 `AiError`, 是不是用備援區域）。"""
+    ) -> tuple[dict, AiError | None, bool, dict | None]:
+        """選區域、送一次、記結果 →（燈, 失敗時的 `AiError`, 是不是用備援區域, `usage`）。"""
         regions = self.regions[key]
         client, backup = regions.pick()
-        light, err = self._call(key, mod, client, icao, text, timeout, backup)
+        light, err, used = self._call(key, mod, client, icao, text, timeout, backup)
         regions.note(backup, light.get("error"))
-        return light, err, backup
+        return light, err, backup, used
 
     def _count(self, key: str) -> bool:
         """要送一次請求：沒到每日上限就記一次、回 `True`。"""
@@ -389,16 +412,17 @@ class Duel:
         text: str,
         timeout: float,
         backup: bool = False,
-    ) -> tuple[dict, AiError | None]:
-        """送一次請求 → (燈, 失敗時的 `AiError`)。"""
+    ) -> tuple[dict, AiError | None, dict | None]:
+        """送一次請求 → (燈, 失敗時的 `AiError`, `usage`：沒拿到回應是 `None`)。"""
         t0 = time.monotonic()
         where = f"（備援 {self.regions[key].backup}）" if backup else ""
         try:
-            light = ok(key, mod.evaluate(text, client=client, timeout=timeout))
+            res = mod.evaluate(text, client=client, timeout=timeout)
+            light = ok(key, res)
             log.info(
                 "AI %s %s%s：%s（%.1f 秒）", key, icao, where, light["level"], time.monotonic() - t0
             )
-            return light, None
+            return light, None, res.get("usage")
         except AiError as e:
             log.warning(
                 "AI %s %s%s 失敗：%s［%s］（%.1f 秒）",
@@ -409,14 +433,15 @@ class Duel:
                 e.trace(),
                 time.monotonic() - t0,
             )
-            return error(key, e.code), e
+            return error(key, e.code), e, e.usage
         except Exception:  # SDK 內部沒預期的錯：記成 network，不讓其他機場停掉
             log.exception("AI %s %s 失敗（沒預期的例外）", key, icao)
-            return error(key, "network"), None
+            return error(key, "network"), None, None
 
     def result(self, timed_out: bool = False) -> dict:
-        """`{"ai": 頂層, "airports": {icao: airports[].ai}, "source": sources.ai}`
-        （`source` 不含 `seconds`，由 `build.run_ai` 補）。"""
+        """`{"ai": 頂層, "airports": {icao: airports[].ai}, "source": sources.ai, "usage",
+        "costUsd"}`（`source` 不含 `seconds`，由 `build.run_ai` 補；`usage`、`costUsd` 只進
+        `timing/`，HD26）。"""
         with self.lock:
             if self._result is not None:
                 return self._result
@@ -436,9 +461,20 @@ class Duel:
                 airports[icao] = airport_ai(lights, self.run_at)
                 details = {k: self.details[k].get(icao) for k in KEYS}
                 seconds = {k: self.seconds[k].get(icao) for k in KEYS}
-                rows.append(record(a, self.run_at, reasons.get(icao), lights, details, seconds))
+                used = {k: self.usage[k][icao] for k in KEYS if icao in self.usage[k]}
+                rows.append(
+                    record(a, self.run_at, reasons.get(icao), lights, details, seconds, used)
+                )
             source = self._source(airports)
-            self._result = {"ai": top_level(), "airports": airports, "source": source}
+            totals = {k: usage.total(k, self.usage[k].values()) for k in KEYS}
+            day = f"{self.now:%Y-%m-%d}"
+            self._result = {
+                "ai": top_level(),
+                "airports": airports,
+                "source": source,
+                "usage": totals,
+                "costUsd": {k: usage.cost_usd(k, totals[k], day) for k in KEYS},
+            }
             calls = dict(self.calls)
         self._write(calls, rows)
         return self._result
