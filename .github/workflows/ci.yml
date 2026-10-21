@@ -30,3 +30,50 @@ jobs:
 
       - name: pytest
         run: pytest -q
+
+  # HD25：Cloudflare 排程 Worker（cloudflare/trigger/，自己一份 package.json 與 lock）。
+  # 只在 cloudflare/ 有變動時跑：cron → workflow 的對照測試、wrangler 打包（--dry-run，不用帳號）
+  trigger-worker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: cloudflare/trigger
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: 有沒有動到 cloudflare/
+        id: changed
+        working-directory: .
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # 新分支的第一次 push（before 全是 0）或找不到 base 時照跑
+          if ! git cat-file -e "${BASE}^{commit}" 2> /dev/null \
+            || git diff --name-only "$BASE" HEAD | grep -q '^cloudflare/'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "cloudflare/ 沒有變動，跳過"
+          fi
+
+      - uses: actions/setup-node@v6
+        if: steps.changed.outputs.run == 'true'
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: cloudflare/trigger/package-lock.json
+
+      - name: npm ci
+        if: steps.changed.outputs.run == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: 測試
+        if: steps.changed.outputs.run == 'true'
+        run: npm test
+
+      - name: wrangler 打包（--dry-run）
+        if: steps.changed.outputs.run == 'true'
+        run: npm run check

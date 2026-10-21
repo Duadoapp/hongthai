@@ -6,18 +6,31 @@ name: events
 # 勾 backfill-tracks（HD21）：從 2026-10-19T00:00Z 起的快照補抽各模式的颱風路徑到
 # history/events/<id>/tracks/（已存在的跳過；GFS、AIGFS 從 AWS 重抓海平面氣壓、IFS／AIFS 從 ECMWF
 # 開放資料抓，拿不到的記 log）；接著補 WeatherNext 3（HD15：起報 ≤ 現在 − 121 小時、CC BY 4.0 的報，事件檔
-# history/events/<id>/wn3/ 與路徑；要 Google 服務帳號，還沒核准時第一報 403 就停）。
+# history/events/<id>/wn3/ 與路徑；要 Google 服務帳號，還沒核准時第一報 403 就停）；
+# 勾 backfill-metar（HD25）：從 2026-10-19T00:00Z 起把 AviationWeather 還有的 METAR 補進
+# history/events/<id>/metar/（已有的不覆蓋，補進來的行多 "backfill"；金門、馬祖是氣象署觀測，補不到只記 log）。
+# HD25：整點的排程由 Cloudflare 排程 Worker（cloudflare/trigger/）用 workflow_dispatch 觸發
+# （trigger: cloudflare），下面的 cron 留著當備援；不做跳過檢查（多跑一次只是去重）。
 on:
   schedule:
     - cron: "7 * * * *"
   workflow_dispatch:
     inputs:
+      trigger:
+        description: "誰觸發的：手動按的維持 manual；cloudflare 是排程 Worker 帶的（只記在 log，不跳過）"
+        type: choice
+        options: [manual, cloudflare]
+        default: manual
       backfill:
         description: "把期間內已經過去的報搬進 history/events/<id>/"
         type: boolean
         default: false
       backfill-tracks:
         description: "補抽 2026-10-19T00:00Z 以後各報的颱風路徑（history/events/<id>/tracks/）"
+        type: boolean
+        default: false
+      backfill-metar:
+        description: "補 2026-10-19T00:00Z 以後缺的 METAR（AviationWeather 最多往回 30 天；history/events/<id>/metar/）"
         type: boolean
         default: false
 
@@ -72,11 +85,20 @@ jobs:
           WN3_BQ_TABLE: ${{ vars.WN3_BQ_TABLE }}
         run: python -m hongthai.events backfill-tracks --archive data --from 2026-10-19T00:00Z
 
+      - name: 補 METAR 缺口（手動、backfill-metar）
+        if: github.event_name == 'workflow_dispatch' && inputs.backfill-metar
+        env:
+          PYTHONPATH: src
+        run: python -m hongthai.events backfill-metar --archive data --from 2026-10-19T00:00Z
+
       - name: 每小時 METAR 與颱風現報
         env:
           PYTHONPATH: src
           CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
-        run: python -m hongthai.events hourly --archive data
+          TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
+        run: |
+          echo "觸發：$TRIGGER"
+          python -m hongthai.events hourly --archive data
 
       - name: 推 data 分支
         working-directory: data

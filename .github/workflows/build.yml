@@ -7,11 +7,20 @@ on:
     # - ECMWF 系集機率（10fgg*，只有 00／12Z）：00Z ≈ 08:00、12Z ≈ 20:00
     # - GFS 到 f120（AWS 鏡像／NOMADS）：00Z ≈ 03:40、06Z ≈ 09:40、12Z ≈ 15:40、18Z ≈ 21:40
     # GitHub 排程常延遲 5–30 分鐘，所以抓在出爐後約 20–30 分鐘、避開整點。
+    # HD25：2026-10-20～21 實測 GitHub 排程晚到 2–5 小時，改由 Cloudflare 排程 Worker（cloudflare/trigger/，
+    # 同樣四個時間）用 workflow_dispatch 觸發（trigger: cloudflare）；這裡的 cron 留著當備援。
+    # 兩邊都觸發時，後到的那個在 build.py 開頭發現這個時段已經出過就跳過（docs/cloudflare-trigger.md）。
     - cron: "25 8 * * *" # EC 00Z（HRES＋系集）、GFS 00Z
     - cron: "5 13 * * *" # EC 06Z HRES＋00Z 系集、GFS 06Z
     - cron: "25 20 * * *" # EC 12Z（HRES＋系集）、GFS 12Z
     - cron: "5 1 * * *" # EC 18Z HRES＋12Z 系集、GFS 18Z
   workflow_dispatch:
+    inputs:
+      trigger:
+        description: "誰觸發的：手動按的維持 manual（一律照跑）；cloudflare 是排程 Worker 帶的（這個時段出過就跳過）"
+        type: choice
+        options: [manual, cloudflare]
+        default: manual
 
 permissions:
   contents: write # 把歷史紀錄推到 data 分支
@@ -30,6 +39,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
+      # HD25：job 開始的時間（含排隊等 concurrency），timing/ 的 startedAt、delayMinutes 用
+      - name: 記開始時間
+        run: echo "JOB_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v6
@@ -75,7 +88,10 @@ jobs:
           WN3_MODE: ${{ vars.WN3_MODE }}
           WN3_VOTING: ${{ vars.WN3_VOTING }}
           WN3_BQ_TABLE: ${{ vars.WN3_BQ_TABLE }}
-        run: python -m hongthai.build --out public --archive data
+          # HD25：GitHub 排程是 schedule、Worker 帶 cloudflare、手動按的是 manual。前兩個這個時段已經出過就
+          # 跳過（不產生 public/latest.json，下面兩步 Pages 自動不跑；推 data 分支只推 timing/ 那一行 skip）
+          TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
+        run: python -m hongthai.build --out public --archive data --trigger "$TRIGGER"
 
       - name: 推 data 分支
         if: always()
