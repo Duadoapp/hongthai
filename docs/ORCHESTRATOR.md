@@ -401,6 +401,8 @@
   `timing/` 的 `ai` 那行記合計與 `costUsd`；`tools/ai_cost.py` 看命中率與費用（README「AI 對決」）。
   省錢的做法（沿用評論、每天 2 次、Gemini 上限、規則移進快取前綴）在 10/21 日誌「待決定」，颱風報告後談
 
+- **HD27（10/22 01:36）**：日本氣象廳暴風、大雨警報只列出（low），不改任何等級，凍結前合併；升級與否 29W 報告後談
+
 ## 和 Duado 的分工
 
 - 這個 repo 的改動由 HongThai 專用對話負責；duado.app/hongthai/ 網頁與 JSON 契約由 Duado 的主對話負責
