@@ -21070,5 +21070,5334 @@
         "level": "low"
       }
     ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "PGUM",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "PTRO",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCBS",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "medium",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 8.2,
+      "usage": {
+        "input": 15631,
+        "output": 836,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 11.0,
+      "usage": {
+        "input": 13571,
+        "output": 714,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCFG",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "medium",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 9.7,
+      "usage": {
+        "input": 15849,
+        "output": 1118,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 11.2,
+      "usage": {
+        "input": 13694,
+        "output": 684,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCFN",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-23T06:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 11.1,
+      "usage": {
+        "input": 16007,
+        "output": 1035,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 10.6,
+      "usage": {
+        "input": 13888,
+        "output": 661,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCKH",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-23T00:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 10.4,
+      "usage": {
+        "input": 16063,
+        "output": 1054,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 10.6,
+      "usage": {
+        "input": 13959,
+        "output": 634,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCMQ",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-22T06:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 6.2,
+      "usage": {
+        "input": 16129,
+        "output": 742,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 14.6,
+      "usage": {
+        "input": 14146,
+        "output": 942,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCNN",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-23T00:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 7.0,
+      "usage": {
+        "input": 16022,
+        "output": 826,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 11.4,
+      "usage": {
+        "input": 13941,
+        "output": 651,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCQC",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-21T18:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 7.8,
+      "usage": {
+        "input": 16000,
+        "output": 742,
+        "cacheRead": 0,
+        "cacheWrite": 2519
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 17.4,
+      "usage": {
+        "input": 14012,
+        "output": 710,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCSS",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-23T00:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 10.9,
+      "usage": {
+        "input": 16254,
+        "output": 1099,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 11.6,
+      "usage": {
+        "input": 14140,
+        "output": 704,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCTP",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-23T00:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 7.4,
+      "usage": {
+        "input": 16357,
+        "output": 758,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 10.8,
+      "usage": {
+        "input": 14223,
+        "output": 644,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RCYU",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-23T06:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 6.4,
+      "usage": {
+        "input": 15721,
+        "output": 723,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 13.3,
+      "usage": {
+        "input": 13502,
+        "output": 777,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RJAA",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RJBB",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RJCC",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RJFF",
+    "selected": "changed",
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "low",
+      "seconds": 8.8,
+      "usage": {
+        "input": 15914,
+        "output": 855,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "low",
+      "seconds": 11.8,
+      "usage": {
+        "input": 13756,
+        "output": 666,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RJFK",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RJGG",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RJSS",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RJTT",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RKPC",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "medium",
+      "firstFrom": "2026-10-23T12:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 9.5,
+      "usage": {
+        "input": 16129,
+        "output": 895,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 11.0,
+      "usage": {
+        "input": 14043,
+        "output": 676,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "medium"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RKPK",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RKSI",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RKSS",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ROAH",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-22T06:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 11.0,
+      "usage": {
+        "input": 16253,
+        "output": 998,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 11.5,
+      "usage": {
+        "input": 14251,
+        "output": 695,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ROIG",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-22T00:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 8.3,
+      "usage": {
+        "input": 16362,
+        "output": 737,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 12.5,
+      "usage": {
+        "input": 14361,
+        "output": 749,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ROMY",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "high",
+      "firstFrom": "2026-10-22T00:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 11.2,
+      "usage": {
+        "input": 15743,
+        "output": 1009,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "high",
+      "seconds": 15.7,
+      "usage": {
+        "input": 13790,
+        "output": 789,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "high"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RPLC",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RPLL",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "RPVM",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "VHHH",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "VMMC",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "VVCR",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "VVDN",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "VVNB",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "VVPQ",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "VVTS",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZGGG",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZGOW",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZGSD",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZGSZ",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZJHK",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZJSY",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZSAM",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZSFZ",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "medium",
+      "firstFrom": "2026-10-22T00:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 10.9,
+      "usage": {
+        "input": 15987,
+        "output": 1074,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 11.5,
+      "usage": {
+        "input": 13889,
+        "output": 777,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZSHC",
+    "selected": "changed",
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "low",
+      "seconds": 9.7,
+      "usage": {
+        "input": 15818,
+        "output": 1011,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "low",
+      "seconds": 11.8,
+      "usage": {
+        "input": 13750,
+        "output": 800,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZSNB",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZSPD",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "medium",
+      "firstFrom": "2026-10-24T00:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 7.0,
+      "usage": {
+        "input": 15998,
+        "output": 743,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 9.7,
+      "usage": {
+        "input": 13952,
+        "output": 648,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZSQZ",
+    "selected": null,
+    "rule": {
+      "maxLevel": "low",
+      "firstFrom": "2026-10-21T12:00:00Z"
+    },
+    "claude": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "gemini": {
+      "status": "skipped",
+      "level": "low"
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZSSS",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "medium",
+      "firstFrom": "2026-10-25T06:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "low",
+      "seconds": 13.6,
+      "usage": {
+        "input": 15927,
+        "output": 1252,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 11.5,
+      "usage": {
+        "input": 13854,
+        "output": 688,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
+  },
+  {
+    "run": "2026-10-21T17:22:00Z",
+    "airport": "ZSWZ",
+    "selected": "level",
+    "rule": {
+      "maxLevel": "medium",
+      "firstFrom": "2026-10-25T06:00:00Z"
+    },
+    "claude": {
+      "status": "ok",
+      "level": "low",
+      "seconds": 11.8,
+      "usage": {
+        "input": 15332,
+        "output": 1184,
+        "cacheRead": 2519,
+        "cacheWrite": 0
+      }
+    },
+    "gemini": {
+      "status": "ok",
+      "level": "medium",
+      "seconds": 28.7,
+      "usage": {
+        "input": 13290,
+        "output": 747,
+        "thinking": null,
+        "cacheRead": null
+      }
+    },
+    "slots": [
+      {
+        "from": "2026-10-21T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-21T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-22T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-23T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T06:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T12:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-24T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-25T06:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-25T12:00:00Z",
+        "level": "medium"
+      },
+      {
+        "from": "2026-10-25T18:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T00:00:00Z",
+        "level": "low"
+      },
+      {
+        "from": "2026-10-26T06:00:00Z",
+        "level": "low"
+      }
+    ]
   }
 ]
