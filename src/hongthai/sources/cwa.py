@@ -37,6 +37,14 @@
 含「濃霧」、縣市名含機場任一個 `cwaAreas` 關鍵字 → `cwa_dense_fog`（中，`detail` 是「濃霧」），
 台灣十個機場都適用。同一報同一機場只出一則
 
+陸上強風特報（HD27，Shawn 2026-10-22 01:39）：同一個 `W-C0033-001` 回應，**只列出（low）、
+不升級**。2026-10-21 17:22Z 那報（`history/raw/2026-10-21/1722Z-cwa-hazards.json`）實抓核對：
+`phenomena` 是「陸上強風」、`significance`「特報」，時間格式和豪雨特報一樣。`phenomena` 含
+「陸上強風」、縣市名含機場任一個 `cwaAreas` 關鍵字 → `cwa_strong_wind`（低，`detail` 是
+「陸上強風」），四語括號裡是那些縣市（照 `cwaAreas` 關鍵字的順序；桃園、松山的關鍵字含臺北、
+新北，所以會列三個縣市）；`endTime` 已過的不算（`parse_hazards`），`issuedAt` 是最早的
+`startTime`。同一報同一機場只出一則
+
 局屬站觀測當 METAR 用（HD13，只有金門 467110、馬祖 467990，`airports.json` 的 `cwaStation`）：
 AviationWeather 沒有這兩站的 TAF／METAR。資料集 **`O-A0003-001`「氣象觀測站-10分鐘綜觀氣象資料」**
 （舊名「現在天氣觀測報告」；`OBS_URL`，同一把授權碼，每報多一個請求），照平台 API 文件
@@ -86,6 +94,32 @@ HAZARD_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0033-001"
 HEAVY_RAIN = ("大豪雨", "超大豪雨")  # 「超大豪雨」也含「大豪雨」，比對用 `in`
 HEAVY_RAIN_EN = {"大豪雨": "torrential rain", "超大豪雨": "extremely torrential rain"}
 DENSE_FOG = "濃霧"
+STRONG_WIND = "陸上強風"  # HD27
+# 縣市名 → (zh-CN, en)；陸上強風特報的四語文字用（HD27），沒列到的照原文
+COUNTY_NAMES = {
+    "基隆市": ("基隆市", "Keelung"),
+    "臺北市": ("台北市", "Taipei"),
+    "新北市": ("新北市", "New Taipei"),
+    "桃園市": ("桃园市", "Taoyuan"),
+    "新竹市": ("新竹市", "Hsinchu City"),
+    "新竹縣": ("新竹县", "Hsinchu County"),
+    "苗栗縣": ("苗栗县", "Miaoli"),
+    "臺中市": ("台中市", "Taichung"),
+    "彰化縣": ("彰化县", "Changhua"),
+    "南投縣": ("南投县", "Nantou"),
+    "雲林縣": ("云林县", "Yunlin"),
+    "嘉義市": ("嘉义市", "Chiayi City"),
+    "嘉義縣": ("嘉义县", "Chiayi County"),
+    "臺南市": ("台南市", "Tainan"),
+    "高雄市": ("高雄市", "Kaohsiung"),
+    "屏東縣": ("屏东县", "Pingtung"),
+    "宜蘭縣": ("宜兰县", "Yilan"),
+    "花蓮縣": ("花莲县", "Hualien"),
+    "臺東縣": ("台东县", "Taitung"),
+    "澎湖縣": ("澎湖县", "Penghu"),
+    "金門縣": ("金门县", "Kinmen"),
+    "連江縣": ("连江县", "Lienchiang"),
+}
 OBS_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001"
 GUST_MAX_AGE = timedelta(hours=1)
 VRB_DIR = 990  # 風向不定
@@ -141,7 +175,7 @@ class CwaBulletin:
 class CwaWarning:
     """對到某個機場的警報。"""
 
-    kind: str  # typhoon_land／typhoon_sea／cwa_heavy_rain／cwa_dense_fog
+    kind: str  # typhoon_land／typhoon_sea／cwa_heavy_rain／cwa_dense_fog／cwa_strong_wind（HD27）
     level: str
     in_zone: bool  # 機場在（陸上）警戒區
     text: dict[str, str]
@@ -387,6 +421,43 @@ def dense_fog_for_airport(
                 )
             ]
     return []
+
+
+def strong_wind_for_airport(
+    hazards: list[CwaHazard], keywords: tuple[str, ...]
+) -> list[CwaWarning]:
+    """陸上強風特報、縣市名含機場的關鍵字 → `cwa_strong_wind`（低，只列出，HD27）。
+    同一個機場只出一則，括號裡列出所有對到的縣市。"""
+    matched: dict[str, CwaHazard] = {}
+    for h in hazards:
+        if STRONG_WIND in h.phenomena and any(k in h.location for k in keywords):
+            matched.setdefault(h.location, h)
+    if not matched:
+        return []
+
+    def order(loc: str) -> int:
+        return next(i for i, k in enumerate(keywords) if k in loc)
+
+    locs = sorted(matched, key=order)
+    cn = "、".join(COUNTY_NAMES.get(loc, (loc, loc))[0] for loc in locs)
+    en = ", ".join(COUNTY_NAMES.get(loc, (loc, loc))[1] for loc in locs)
+    tw = "、".join(locs)
+    starts = [matched[loc].start for loc in locs if matched[loc].start]
+    return [
+        CwaWarning(
+            kind="cwa_strong_wind",
+            level="low",
+            in_zone=True,
+            text={
+                "zh-TW": f"中央氣象署陸上強風特報（{tw}）",
+                "zh-HK": f"中央氣象署陸上強風特報（{tw}）",
+                "zh-CN": f"中央气象署陆上强风特报（{cn}）",
+                "en": f"CWA land strong wind advisory ({en})",
+            },
+            detail=STRONG_WIND,
+            issued_at=min(starts) if starts else None,
+        )
+    ]
 
 
 # ---- 局屬站觀測（HD13）----

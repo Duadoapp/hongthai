@@ -882,6 +882,59 @@ def test_jma_snowstorm_alone_does_not_make_official_layer():
     assert warning_cause("jma_snowstorm") == "snow"
 
 
+# ---- HD27：JMA 暴風、大雨警報與氣象署陸上強風特報只列出 ----
+
+
+HD27_LOW = (
+    ("jma_storm", "jma"),
+    ("jma_storm_emergency", "jma"),
+    ("jma_heavy_rain", "jma"),
+    ("jma_heavy_rain_danger", "jma"),
+    ("jma_heavy_rain_emergency", "jma"),
+    ("cwa_strong_wind", "cwa"),
+)
+
+
+def _without_warnings(slot: dict) -> dict:
+    s = {k: v for k, v in slot.items() if k != "official"}
+    if slot["official"] is not None:
+        s["official"] = {k: v for k, v in slot["official"].items() if k != "warnings"}
+    return s
+
+
+@pytest.mark.parametrize(("kind", "source"), HD27_LOW)
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {},  # 沒有官方資料：退回模式（低）
+        {"ec": flat_ec(40)},  # 模式中
+        {"ec": flat_ec(50), "gfs": flat_gfs(50)},  # 模式高
+        {"taf_periods": [wxp(gust=40)]},  # 有 TAF（中）
+        {"taf_periods": [wxp(("+RA",), 3000)]},  # 有 TAF（雨中）
+    ],
+)
+def test_hd27_low_warning_changes_no_level(kind, source, kw):
+    """只有暴風警報、大雨特別警報、陸上強風特報這類低的警報時，每一格除了 `warnings` 以外
+    都和沒有警報時一樣。"""
+    base = run(**kw)
+    got = run(warnings=[warn("low", kind, source)], **kw)
+    assert [_without_warnings(s) for s in got] == [_without_warnings(s) for s in base]
+    # 有官方層（TAF）的格照樣列出
+    assert all(s["official"]["warnings"] == [kind] for s in got[:2] if s["official"] is not None)
+
+
+def test_hd27_low_warning_listed_with_medium():
+    # 和中的警報一起時列出、不升級，也不多主因
+    ws = [warn("medium", "cwa_dense_fog", "cwa"), warn("low", "cwa_strong_wind", "cwa")]
+    s = run(warnings=ws)[0]
+    assert s["official"]["warnings"] == ["cwa_dense_fog", "cwa_strong_wind"]
+    assert (s["official"]["level"], s["causes"]) == ("medium", ["fog"])
+    ws = [warn("low", "jma_heavy_rain_emergency", "jma"), warn("low", "jma_storm", "jma")]
+    s = run(ec=flat_ec(40), warnings=ws)[0]
+    assert s["official"] is None
+    assert (s["level"], s["basis"], s["causes"]) == ("medium", "model", ["wind"])
+
+
 def precip_ec(mm=0.0, ptype="none", p50=None, hres=5.0) -> EcmwfPoint:
     """整段一樣的 EC：每 6 小時一筆雨量與型態；`p50` 是系集 24 小時 ≥ 50 mm 的機率。"""
     pt = flat_ec(hres)

@@ -621,6 +621,7 @@ def collect_warnings(
         for w in [
             *cwa.heavy_rain_for_airport(cwa_data.hazards, airport.cwa_areas, airport.name),
             *cwa.dense_fog_for_airport(cwa_data.hazards, airport.cwa_areas, airport.name),
+            *cwa.strong_wind_for_airport(cwa_data.hazards, airport.cwa_areas),  # HD27
         ]:
             out.append(
                 assess.ActiveWarning("cwa", w.kind, w.level, w.text, w.issued_at, detail=w.detail)
