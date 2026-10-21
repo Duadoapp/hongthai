@@ -703,6 +703,7 @@ def workspace(tmp_path, monkeypatch):
         raise build.requests.ConnectionError("測試不連網")
 
     monkeypatch.setattr(build.requests, "get", no_network)
+    monkeypatch.delenv("JOB_STARTED_AT", raising=False)  # HD25：build.yml 才有
     for k in (k for keys in ai_config.ENV.values() for k in keys):  # AI 對決（HD5）不呼叫
         monkeypatch.delenv(k, raising=False)
     # 預覽圖（HD1）在 test_og.py 測；這裡不畫，build 的測試才不會每個多幾秒
@@ -1308,6 +1309,11 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "ok": True,
         "seconds": 0,
         "commit": "0123456",
+        # HD25：手動（預設）沒有排定時間
+        "trigger": "manual",
+        "slot": None,
+        "startedAt": "2026-10-18T08:10:00Z",
+        "delayMinutes": None,
     }
     ec_line = lines[1]
     assert set(ec_line) == {"run", "source", "ok", "error", "seconds", "bytes", "mirror"}
@@ -2206,3 +2212,127 @@ def test_wn3_not_approved_is_ok_false(workspace, monkeypatch, airports):
     e = _airport(out, "RCTP")["slots"][0]["model"]["models"][-1]
     assert e["id"] == "wn3" and e["gustKt"] is None and e["level"] is None
     assert e["windKtP90"] is None
+
+
+# ---- 排程與跳過（HD25） ----
+
+
+@pytest.mark.parametrize(
+    "t, slot",
+    [
+        (utc(2026, 10, 21, 0, 30), utc(2026, 10, 20, 20, 25)),  # 01:05 之前是前一天的最後一個
+        (utc(2026, 10, 21, 1, 5), utc(2026, 10, 21, 1, 5)),  # 正好排定時間
+        (utc(2026, 10, 21, 13, 4), utc(2026, 10, 21, 8, 25)),
+        (utc(2026, 10, 20, 17, 53), utc(2026, 10, 20, 13, 5)),  # 實測：13:05 那報 17:53 才觸發
+        (utc(2026, 10, 20, 23, 59), utc(2026, 10, 20, 20, 25)),
+        (utc(2026, 11, 1, 0, 0), utc(2026, 10, 31, 20, 25)),  # 跨月
+    ],
+)
+def test_slot_of(t, slot):
+    assert build.slot_of(t) == slot
+
+
+def _archive_latest(workspace, generated_at):
+    (workspace / "data").mkdir(exist_ok=True)
+    doc = {"schema": 1, "generatedAt": generated_at, "airports": []}
+    (workspace / "data" / "latest.json").write_text(json.dumps(doc), "utf-8")
+
+
+def test_already_built(tmp_path):
+    slot = utc(2026, 10, 20, 13, 5)
+    assert build.already_built(tmp_path, slot) is None  # 沒有上一份 → 照跑
+    (tmp_path / "latest.json").write_text("{壞掉", "utf-8")
+    assert build.already_built(tmp_path, slot) is None
+    (tmp_path / "latest.json").write_text('{"generatedAt": null}', "utf-8")
+    assert build.already_built(tmp_path, slot) is None
+    for t, want in (
+        ("2026-10-20T13:04:00Z", None),
+        ("2026-10-20T13:05:00Z", "2026-10-20T13:05:00Z"),
+        ("2026-10-20T13:40:00Z", "2026-10-20T13:40:00Z"),
+    ):
+        (tmp_path / "latest.json").write_text(json.dumps({"generatedAt": t}), "utf-8")
+        assert build.already_built(tmp_path, slot) == want
+
+
+@pytest.mark.parametrize("trigger", ["schedule", "cloudflare"])
+def test_skip_when_slot_already_built(workspace, monkeypatch, capsys, trigger):
+    """Cloudflare 13:05 那報 13:06 出過，GitHub 的排程 17:53 才到 → 跳過：不產生、不發布，
+    timing 只有一行 skip。"""
+    _archive_latest(workspace, "2026-10-20T13:06:00Z")
+    monkeypatch.setattr(build, "utcnow", lambda: utc(2026, 10, 20, 17, 53, 40))
+    monkeypatch.setenv("JOB_STARTED_AT", "2026-10-20T17:52:30Z")
+    monkeypatch.setattr(build, "run", lambda **kw: pytest.fail("不該跑"))
+    assert build.main(["--trigger", trigger]) == 0
+    assert "這個時段 13:05Z 已經在 2026-10-20T13:06:00Z 出過，跳過" in capsys.readouterr().out
+    assert not (workspace / "public").exists()
+    assert _timing_lines(workspace) == [
+        {
+            "run": "2026-10-20T17:53:00Z",
+            "source": "skip",
+            "ok": True,
+            "seconds": 0,
+            "trigger": trigger,
+            "slot": "2026-10-20T13:05:00Z",
+            "startedAt": "2026-10-20T17:52:30Z",
+            "delayMinutes": 287.5,
+            "generatedAt": "2026-10-20T13:06:00Z",
+        }
+    ]
+
+
+def _crash(calls):
+    def run(**kw):
+        calls.append(kw["now"])
+        raise RuntimeError("測試只看有沒有跑")
+
+    return run
+
+
+def test_cloudflare_runs_when_slot_not_built(workspace, monkeypatch):
+    _archive_latest(workspace, "2026-10-20T08:26:00Z")  # 上一個時段的
+    monkeypatch.setattr(build, "utcnow", lambda: utc(2026, 10, 20, 13, 6, 20))
+    monkeypatch.setenv("JOB_STARTED_AT", "2026-10-20T13:05:41Z")
+    calls = []
+    monkeypatch.setattr(build, "run", _crash(calls))
+    assert build.main(["--trigger", "cloudflare"]) == 1  # 跑了（假的 run 失敗、改發布上一份）
+    assert calls == [utc(2026, 10, 20, 13, 6)]
+    start = _timing_lines(workspace)[0]
+    assert {k: start[k] for k in ("source", "trigger", "slot", "startedAt", "delayMinutes")} == {
+        "source": "start",
+        "trigger": "cloudflare",
+        "slot": "2026-10-20T13:05:00Z",
+        "startedAt": "2026-10-20T13:05:41Z",
+        "delayMinutes": 0.7,
+    }
+
+
+def test_manual_always_runs(workspace, monkeypatch):
+    _archive_latest(workspace, "2026-10-20T13:06:00Z")
+    monkeypatch.setattr(build, "utcnow", lambda: utc(2026, 10, 20, 13, 30))
+    calls = []
+    monkeypatch.setattr(build, "run", _crash(calls))
+    assert build.main([]) == 1
+    assert build.main(["--trigger", "manual"]) == 1
+    assert len(calls) == 2
+    lines = [r for r in _timing_lines(workspace) if r["source"] == "start"]
+    assert [(r["trigger"], r["slot"], r["delayMinutes"]) for r in lines] == [
+        ("manual", None, None)
+    ] * 2
+
+
+def test_schedule_runs_without_previous(workspace, monkeypatch):
+    """讀不到上一份 latest.json → 照跑（寧可多跑）。"""
+    monkeypatch.setattr(build, "utcnow", lambda: utc(2026, 10, 20, 13, 30))
+    calls = []
+    monkeypatch.setattr(build, "run", _crash(calls))
+    monkeypatch.setattr(build, "previous_latest", lambda archive, url: None)
+    assert build.main(["--trigger", "schedule"]) == 2
+    assert len(calls) == 1
+
+
+def test_build_yml_trigger_and_slots():
+    """build.yml 的 cron 和 `SLOTS` 一致；`--trigger` 由 workflow 傳進來。"""
+    yml = (ROOT / ".github" / "workflows" / "build.yml").read_text("utf-8")
+    crons = re.findall(r'- cron: "(\d+) (\d+) \* \* \*"', yml)
+    assert sorted((int(h), int(m)) for m, h in crons) == sorted(build.SLOTS)
+    assert '--trigger "$TRIGGER"' in yml

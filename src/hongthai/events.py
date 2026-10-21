@@ -12,7 +12,11 @@
   一站一筆觀測一行 `{"t", "icao", "observedAt", "windDirDeg", "windKt", "gustKt",
   "visibilityM", "wx", "raw", "source", "type"}`；`t` 是抓的時間、`source` 是
   `"aviationweather"` 或 `"cwa"`（金門、馬祖用氣象署局屬站觀測，HD13）、`type` 是
-  `METAR`／`SPECI`（氣象署的是 null）。同一站同一 `observedAt` 已經有就不寫
+  `METAR`／`SPECI`（氣象署的是 null）。同一站同一 `observedAt` 已經有就不寫。
+  `python -m hongthai.events backfill-metar --archive data --from <UTC 時間>`（HD25，
+  `backfill_metar`）把 AviationWeather 還有的觀測補進來（同一個去重鍵、已有的不覆蓋），補進來
+  的行多 `"backfill": "aviationweather"`；金門、馬祖（氣象署 `O-A0003-001` 只有現在）補不到，
+  只記 log
 - `position/jma-<YYYY-MM-DD>.jsonl`、`position/jtwc-<YYYY-MM-DD>.jsonl`（日期是
   **發布時間**的 UTC 日期）：颱風現報與各預報點，一行一點 `{"t", "issuedAt",
   "kind": "analysis"|"forecast", "leadHours", "validAt", "lat", "lon", "pressureHpa",
@@ -29,8 +33,12 @@
   路徑檔），要 Google 憑證
 
 來源（2026-10-20 實抓）：
-- METAR：AviationWeather `metar?ids=<25 站>&format=json&hours=3`（`hours` 讓半小時一報的
-  機場兩筆都拿到、排程晚了也補得回來）；欄位解碼同 `sources/taf.py`。金門、馬祖用氣象署
+- METAR：AviationWeather `metar?ids=<25 站>&format=json&hours=6`（`hours` 讓半小時一報的
+  機場兩筆都拿到、排程晚了也補得回來；HD25 從 3 改 6：GitHub 排程曾經 18 小時只跑 4 次）；
+  欄位解碼同 `sources/taf.py`。AviationWeather 的限制（2026-10-21 文件＋實測）：資料庫保留
+  30 天；`hours` 本身沒有上限（720 也收），但**每次最多回 400 筆**（超過只給最新的 400 筆），
+  所以補缺口每站分開、每次 72 小時，用 `date`（結束時間）＋`hours` 指定區間
+  （`[date − hours, date]`，含兩端）。金門、馬祖用氣象署
   `O-A0003-001`（`CWA_API_KEY`）
 - JMA：`https://www.jma.go.jp/bosai/typhoon/data/targetTc.json`（目前的颱風：
   `tropicalCyclone` 是代號 `TC2636`、`typhoonNumber` 是號數 `2630`）→
@@ -56,6 +64,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -68,7 +77,11 @@ from .timeutil import iso, parse_time, utcnow
 log = logging.getLogger("hongthai")
 
 TAIPEI = ZoneInfo("Asia/Taipei")
-METAR_HOURS = 3
+METAR_HOURS = 6
+# 補缺口（HD25）：AviationWeather 每次最多回 400 筆；一站半小時一報＋SPECI，72 小時約 150 筆
+AW_MAX_ENTRIES = 400
+BACKFILL_WINDOW_H = 72
+BACKFILL_PAUSE_S = 1.0  # 請求之間停一下（AviationWeather 每分鐘最多 100 次）
 JMA_TARGET_URL = "https://www.jma.go.jp/bosai/typhoon/data/targetTc.json"
 JMA_SPEC_URL = "https://www.jma.go.jp/bosai/typhoon/data/{tc}/specifications.json"
 JTWC_URL = "https://www.metoc.navy.mil/jtwc/products/{id}.tcw"
@@ -212,6 +225,15 @@ def store_metars(d: Path, rows: list[dict], fetched: datetime) -> int:
     )
 
 
+def _aw_metars(params: dict) -> list:
+    """AviationWeather `metar`（`format=json`）的回應；204 或空的回 []。"""
+    r = http_get(taf.METAR_URL, params={**params, "format": "json"}, error=taf.TafError)
+    aw = [] if r.status_code == 204 or not r.content.strip() else r.json()
+    if not isinstance(aw, list):
+        raise taf.TafError("AviationWeather 回傳格式不對", "bad_format")
+    return aw
+
+
 def fetch_metars(
     e: Event, airports: list[Airport], api_key: str | None, fetched: datetime
 ) -> list[dict]:
@@ -219,14 +241,7 @@ def fetch_metars(
     兩邊分開 try，一邊失敗另一邊照寫。"""
     aw: list = []
     try:
-        r = http_get(
-            taf.METAR_URL,
-            params={"ids": ",".join(e.airports), "format": "json", "hours": METAR_HOURS},
-            error=taf.TafError,
-        )
-        aw = [] if r.status_code == 204 or not r.content.strip() else r.json()
-        if not isinstance(aw, list):
-            raise taf.TafError("AviationWeather 回傳格式不對", "bad_format")
+        aw = _aw_metars({"ids": ",".join(e.airports), "hours": METAR_HOURS})
     except (SourceError, ValueError) as ex:
         log.warning("事件 %s：AviationWeather METAR 失敗：%s", e.id, ex)
         aw = []
@@ -242,6 +257,92 @@ def fetch_metars(
         except (SourceError, ValueError, AttributeError) as ex:
             log.warning("事件 %s：氣象署觀測失敗：%s", e.id, ex)
     return metar_rows(aw, obs, e.airports, fetched)
+
+
+def metar_coverage(d: Path) -> dict[str, dict[str, int]]:
+    """`metar/*.jsonl` 每站每天（UTC）有觀測的小時數（同一小時幾筆都算 1）。"""
+    hours: dict[str, dict[str, set[int]]] = {}
+    for p in sorted((d / "metar").glob("*.jsonl")):
+        for line in p.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+                t = parse_time(row["observedAt"])
+                icao = row["icao"]
+            except (ValueError, KeyError, TypeError, AttributeError):
+                continue
+            if t is not None and isinstance(icao, str):
+                hours.setdefault(icao, {}).setdefault(f"{t:%Y-%m-%d}", set()).add(t.hour)
+    return {i: {day: len(h) for day, h in sorted(days.items())} for i, days in hours.items()}
+
+
+def backfill_metar(
+    history: Path,
+    events: list[Event],
+    airports: list[Airport],
+    since: datetime,
+    now: datetime,
+    pause: Callable[[float], None] = time.sleep,
+) -> dict[str, dict[str, int | None]]:
+    """`backfill-metar`（HD25）：期間和 `since`～`now` 重疊的每個事件，AviationWeather 的站
+    一站一站、每次 `BACKFILL_WINDOW_H` 小時往回抓，期間內的觀測補進 `metar/<日期>.jsonl`
+    （`store_metars`，已有的不覆蓋），每行多 `"backfill": "aviationweather"`。回傳每個事件
+    每站補了幾行（失敗是 None）；有 `cwaStation` 的（金門、馬祖）跳過、記 log。"""
+    cwa_only = {a.icao for a in airports if a.cwa_station}
+    out: dict[str, dict[str, int | None]] = {}
+    first = True
+    for e in events:
+        start = max(since, datetime.combine(e.start, datetime.min.time(), TAIPEI).astimezone(UTC))
+        end = min(now, datetime.combine(e.end + timedelta(days=1), datetime.min.time(), TAIPEI))
+        if start >= end:
+            continue
+        d = event_dir(history, e)
+        res: dict[str, int | None] = {}
+        for icao in e.airports:
+            if icao in cwa_only:
+                log.warning(
+                    "事件 %s：%s 是氣象署局屬站觀測（O-A0003-001 只有現在），補不到", e.id, icao
+                )
+                continue
+            n = 0
+            hi = end
+            try:
+                while hi > start:
+                    hours = min(BACKFILL_WINDOW_H, -(-int((hi - start).total_seconds()) // 3600))
+                    if not first:
+                        pause(BACKFILL_PAUSE_S)
+                    first = False
+                    aw = _aw_metars({"ids": icao, "date": iso(hi), "hours": hours})
+                    if len(aw) >= AW_MAX_ENTRIES:
+                        log.warning(
+                            "事件 %s：%s 到 %s 回了 %d 筆，可能被截掉", e.id, icao, iso(hi), len(aw)
+                        )
+                    rows = []
+                    for r in metar_rows(aw, {}, [icao], now):
+                        t = parse_time(r["observedAt"])
+                        if t is not None and start <= t <= end:
+                            rows.append({**r, "backfill": "aviationweather"})
+                    n += store_metars(d, rows, now)
+                    hi -= timedelta(hours=hours)
+                res[icao] = n
+            except (SourceError, ValueError) as ex:
+                log.warning("事件 %s：%s 補 METAR 失敗（已補 %d 行）：%s", e.id, icao, n, ex)
+                res[icao] = None
+        out[e.id] = res
+    return out
+
+
+def _print_coverage(
+    icaos: Iterable[str], before: dict[str, dict[str, int]], after: dict[str, dict[str, int]]
+) -> None:
+    days = sorted({day for c in (before, after) for v in c.values() for day in v})
+    print("每站每天（UTC）有觀測的小時數，補之前→之後：")
+    print("站    " + "  ".join(f"{day[5:]:>9}" for day in days))
+    for icao in icaos:
+        cells = (
+            f"{before.get(icao, {}).get(day, 0):>4}→{after.get(icao, {}).get(day, 0):<4}"
+            for day in days
+        )
+        print(f"{icao}  " + "  ".join(cells))
 
 
 # ---- 颱風現報 ----
@@ -487,13 +588,13 @@ def _backfill_tracks(
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m hongthai.events", description=__doc__)
-    ap.add_argument("command", choices=("hourly", "backfill", "backfill-tracks"))
+    ap.add_argument("command", choices=("hourly", "backfill", "backfill-tracks", "backfill-metar"))
     ap.add_argument("--archive", type=Path, default=Path("data"))
     ap.add_argument(
         "--from",
         dest="since",
         default="2026-10-19T00:00Z",
-        help="backfill-tracks：這個時間（UTC）以後的快照",
+        help="backfill-tracks：這個時間（UTC）以後的快照；backfill-metar：這個時間以後的觀測",
     )
     ap.add_argument("--events", type=Path, default=Path("events.json"))
     ap.add_argument("--airports", type=Path, default=Path("airports.json"))
@@ -508,6 +609,20 @@ def main(argv: list[str] | None = None) -> int:
         return _backfill_tracks(
             history, events, parse_time(args.since) or utcnow(), load_airports(args.airports)
         )
+    if args.command == "backfill-metar":
+        since = parse_time(args.since) or utcnow()
+        dirs = {e.id: event_dir(history, e) for e in events}
+        before = {eid: metar_coverage(d) for eid, d in dirs.items()}
+        result = backfill_metar(history, events, load_airports(args.airports), since, utcnow())
+        for e in events:
+            if (res := result.get(e.id)) is None:
+                continue
+            print(
+                f"{e.id}：補了 {sum(v or 0 for v in res.values())} 行；失敗 "
+                + ("、".join(k for k, v in res.items() if v is None) or "無")
+            )
+            _print_coverage(e.airports, before[e.id], metar_coverage(dirs[e.id]))
+        return 0
     if args.command == "backfill":
         for eid, n in backfill(history, events).items():
             total = len(list((history / "events" / eid).glob("*.json")))

@@ -428,6 +428,8 @@ H10（2026-10-18）之後：
 - `src/hongthai/build.py`：組 JSON、寫檔、失敗處理
 - `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR 與颱風現報
   （`.github/workflows/events.yml`）；推 `data` 分支用 `tools/push_data.sh`（`build.yml` 也用）
+- `cloudflare/trigger/`：Cloudflare 排程 Worker（HD25，上面「排程」），自己一份 `package.json` 與 lock，
+  不動 repo 根目錄；`npm test` 測 cron → workflow 的對照（CI 只在 `cloudflare/` 有變動時跑）
 - `src/hongthai/tracks.py`：颱風路徑抽取（HD21）：ECMWF 路徑產品（BUFR）與從海平面氣壓找中心
   （下面「事件保存」）；HD15 起找中心吃任何規則經緯網格（`grid_field`）
 - `src/hongthai/wn3report.py`：WeatherNext 3 的事件檔與補報（HD15，下面「事件保存」）
@@ -829,8 +831,8 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
 - **每小時**（`.github/workflows/events.yml`，每小時 07 分；期間外 `python -m hongthai.events hourly`
   印一行就結束）：三件事分開 try，失敗只記 log
   1. 機場觀測 `metar/<YYYY-MM-DD>.jsonl`（觀測時間的 UTC 日期）：AviationWeather 一次請求全部站、
-     `hours=3`（半小時一報的機場兩筆都拿到、排程晚了也補得回來）；金門、馬祖用氣象署 `O-A0003-001`
-     （HD13，`CWA_API_KEY`）。一站一筆觀測一行，同一站同一 `observedAt` 已經有就不寫：
+     `hours=6`（半小時一報的機場兩筆都拿到、排程晚了也補得回來；HD25 從 3 改 6）；金門、馬祖用氣象署
+     `O-A0003-001`（HD13，`CWA_API_KEY`）。一站一筆觀測一行，同一站同一 `observedAt` 已經有就不寫：
 
      ```json
      {"t": "2026-10-20T06:07:00Z", "icao": "RJFF", "observedAt": "2026-10-20T05:00:00Z",
@@ -839,6 +841,13 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
      ```
 
      `t` 是抓的時間；`source` 是 `aviationweather` 或 `cwa`；`type` 是 `METAR`／`SPECI`（氣象署的是 `null`）
+
+     **補缺口**（HD25）：Actions 手動跑 `events` workflow、勾 `backfill-metar`（本機
+     `python -m hongthai.events backfill-metar --archive data --from 2026-10-19T00:00Z`）：AviationWeather 的站
+     一站一站、每次 72 小時（`date`＋`hours`）往回抓，期間內缺的觀測補進同一個檔（同一個去重鍵、已有的不覆蓋），
+     補進來的行多 `"backfill": "aviationweather"`，最後印每站每天（UTC）有觀測的小時數「補之前→之後」。
+     AviationWeather 保留 30 天、`hours` 沒有上限但每次最多回 400 筆（2026-10-21 文件＋實測），所以要分站分段。
+     金門、馬祖是氣象署局屬站觀測（`O-A0003-001` 只有現在），補不到，只記 log
   2. JMA 現報 `position/jma-<YYYY-MM-DD>.jsonl`：`https://www.jma.go.jp/bosai/typhoon/data/targetTc.json`
      確認颱風還在，再讀 `…/data/<tcId>/specifications.json`（實況＋各預報點；非正式介面）
   3. JTWC 現報 `position/jtwc-<YYYY-MM-DD>.jsonl`：`https://www.metoc.navy.mil/jtwc/products/<id>.tcw`
@@ -1198,7 +1207,29 @@ HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**�
 5. **Actions → build → Run workflow** 手動跑一次，然後開
    <https://duadoapp.github.io/hongthai/latest.json> 確認
 
-之後每天 UTC 01:05、08:25、13:05、20:25（台北／香港 09:05、16:25、21:05、04:25）自動跑。
+之後每天 UTC 01:05、08:25、13:05、20:25（台北／香港 09:05、16:25、21:05、04:25）自動跑（下面「排程」）。
+
+### 排程（HD25）
+
+GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z 那報 17:53Z 才觸發、20:25Z 那報 23:14Z；`events`
+的整點 cron 18 小時只自動跑了 4 次），所以改成：
+
+- **主鬧鐘：Cloudflare 排程 Worker**（`cloudflare/trigger/`，`hongthai-trigger`）。三條 Cron Triggers（UTC）：
+  `5 1,13 * * *`、`25 8,20 * * *` → `build.yml`；`7 * * * *` → `events.yml`。用 GitHub REST API
+  `POST /repos/Duadoapp/hongthai/actions/workflows/<檔名>/dispatches`（`ref: main`、`inputs: {trigger: "cloudflare"}`）
+  觸發；失敗（非 204）在 Worker 日誌記狀態碼與回應前 300 字、隔 30 秒重試一次。token 是只授權這個 repo、只有
+  Actions: Read and write 的 fine-grained PAT，放 Worker 的 secret，不進 repo。部署、換 token、看日誌、暫停見
+  [`docs/cloudflare-trigger.md`](docs/cloudflare-trigger.md)
+- **備援：GitHub 自己的 cron**（`build.yml`、`events.yml` 的 `schedule` 照舊，不刪）
+- **跳過規則**（只有 build）：`--trigger` 是 `schedule`（GitHub 排程）或 `cloudflare` 時，`build.py` 開頭（下載
+  任何模式之前）算出這個時段的排定時間（四個時間裡 ≤ 開始時間的最近一個），`data` 分支的 `latest.json` 的
+  `generatedAt` ≥ 排定時間就跳過：印一行「這個時段 HH:MMZ 已經在 <generatedAt> 出過，跳過」，不產生、不發布
+  Pages，`history/timing/` 只記一行 `source: "skip"`（推 `data` 分支的只有這一行），workflow 成功結束。
+  `concurrency: build` 不取消，兩邊同時觸發時第二個排隊，進來時第一個已經推上 `data` → 跳過。
+  **手動按的（`manual`，Run workflow 的預設）一律照跑**；讀不到上一份 `latest.json` 時也照跑
+- `events` 不跳過（多跑一次只是去重）；`trigger` 只印在 log
+- `history/timing/` 每報第一行（`start`）多 `trigger`、`slot`（排定時間，手動是 null）、`startedAt`（job 開始，
+  含排隊時間）、`delayMinutes`，看 Worker 準不準；`latest.json` 沒有這些欄位
 
 ## 資料來源與授權
 

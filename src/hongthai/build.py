@@ -66,6 +66,13 @@ WeatherNext 3（HD15，`sources/wn3.py`、`wn3report.py`）：模式由 `config.
 （`voting` 看 `WN3_VOTING`），事件期間也寫事件檔、路徑由來源 `tracks` 一起抽。不沿用舊資料。
 核准前 `sources.wn3` 是 `ok: false`（`http_403` 之類），是預期的。
 
+排程與跳過（HD25）：`build.yml` 由 Cloudflare 排程 Worker（`cloudflare/trigger/`，主）與
+GitHub 自己的 cron（備援）各觸發一次。`--trigger` 是 `cloudflare`／`schedule` 時，開頭（下載任何
+模式之前）算出這個時段的排定時間（`SLOTS` 裡 ≤ 開始時間的最近一個，`slot_of`）；`--archive` 的
+`latest.json`（`data` 分支最新快照；`concurrency: build` 排隊的第二個進來時，第一個已經推上去了）
+的 `generatedAt` ≥ 排定時間就跳過（`already_built`）：不產生、不發布，`timing/` 只記一行
+`source: "skip"`，回傳 0。`manual`（手動按的）一律照跑；讀不到上一份時照跑。
+
 估算陣風的係數（HD18）：模式都抓完、組 `latest.json` 之前，用這一報的 IFS、GFS 算樣本、寫進
 `history/gustfactor/`、讀 30 天窗算每個機場的 G（`gust_factors`），交給 `assess`。沿用 AIFS／AIGFS
 舊數字時，`_rescore` 用抄來的 `windKt` × 這一報的 G 重算估算陣風（`assess.refactor_estimated`）。
@@ -122,6 +129,9 @@ from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
 log = logging.getLogger("hongthai")
 
 SCHEMA = 1
+# build.yml 的四個排定時間（UTC，時、分）；Cloudflare Worker 的 cron 同這四個（HD25）
+SLOTS = ((1, 5), (8, 25), (13, 5), (20, 25))
+TRIGGERS = ("manual", "schedule", "cloudflare")
 PAGES_URL = "https://duadoapp.github.io/hongthai/latest.json"
 SOURCE_NAMES = (
     "ecmwf",
@@ -259,7 +269,14 @@ class Timing:
 
     `build.yml` 的「推 data 分支」是 `if: always()`，所以「產生 latest.json」被 Actions 砍掉時，
     已經寫進去的行也會推上去；沒有 `done` 那行就表示那次被砍了。欄位名固定（主對話直接看這個檔）：
-    - 開始：`{"run", "source": "start", "ok": true, "seconds": 0, "commit"}`
+    - 開始：`{"run", "source": "start", "ok": true, "seconds": 0, "commit", "trigger", "slot",
+      "startedAt", "delayMinutes"}`（HD25）：`trigger` 是 `manual`／`schedule`／`cloudflare`；
+      `slot` 是這個時段的排定時間（`manual` 是 null）；`startedAt` 是 job 開始的時間（`build.yml`
+      的 `JOB_STARTED_AT`，沒有就是程式開始的時間；含排隊等 `concurrency` 的時間）；
+      `delayMinutes` 是 `startedAt − slot`
+    - 跳過（HD25）：`{"run", "source": "skip", "ok": true, "seconds": 0, "trigger", "slot",
+      "startedAt", "delayMinutes", "generatedAt": <已經出過的那份>}`，只有這一行（沒有
+      `start`／`done`）
     - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf、gfs、aifs、aigfs
       （HD14）多 `mirror`；openmeteo（HD16）多 `calls`（Open-Meteo 的加權呼叫次數，失敗是 null）；
       wn3（HD15）多 `mode`、`via`（`bigquery`／`zarr`）、`estimateBytes`（BigQuery dry run）、
@@ -1189,6 +1206,36 @@ def previous_latest(archive: Path, pages_url: str) -> dict | None:
         return None
 
 
+def slot_of(t: datetime) -> datetime:
+    """`t` 之前（含）最近的排定時間（`SLOTS`；01:05Z 之前是前一天的 20:25Z）。"""
+    day = t.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(
+        c
+        for c in (day + timedelta(days=d, hours=h, minutes=m) for d in (-1, 0) for h, m in SLOTS)
+        if c <= t
+    )
+
+
+def already_built(archive: Path, slot: datetime) -> str | None:
+    """`--archive` 的 `latest.json` 的 `generatedAt` ≥ `slot` 時回傳那個 `generatedAt`；
+    沒有檔、壞掉、比較早都回 None（照跑，寧可多跑）。不從 Pages 抓：`data` 分支是 job 開始時
+    才取出的，比 Pages 新。"""
+    try:
+        doc = json.loads((archive / "latest.json").read_text(encoding="utf-8"))
+        generated = parse_time(doc["generatedAt"])
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+    return iso(generated) if generated is not None and generated >= slot else None
+
+
+def _started_at(fallback: datetime) -> datetime:
+    """job 開始的時間（`build.yml` 第一步寫的 `JOB_STARTED_AT`）；沒有或看不懂就用 `fallback`。"""
+    try:
+        return parse_time(os.environ.get("JOB_STARTED_AT")) or fallback
+    except ValueError:
+        return fallback
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m hongthai.build", description=__doc__)
     ap.add_argument("--out", type=Path, default=Path("public"))
@@ -1197,6 +1244,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--confirmed", type=Path, default=Path("confirmed.json"))
     ap.add_argument("--events", type=Path, default=Path("events.json"))
     ap.add_argument("--pages-url", default=PAGES_URL)
+    ap.add_argument(
+        "--trigger",
+        choices=TRIGGERS,
+        default="manual",
+        help="誰觸發的（HD25）：schedule／cloudflare 這個時段已經出過就跳過，manual 一律照跑",
+    )
     args = ap.parse_args(argv)
 
     logging.basicConfig(
@@ -1206,10 +1259,23 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     t0 = time.monotonic()
-    now = utcnow().replace(second=0, microsecond=0)
+    started = utcnow()
+    now = started.replace(second=0, microsecond=0)
     timing = Timing(args.archive, now)
+    started = _started_at(started)
+    slot = None if args.trigger == "manual" else slot_of(started)
+    when = {
+        "trigger": args.trigger,
+        "slot": iso(slot),
+        "startedAt": iso(started),
+        "delayMinutes": None if slot is None else round((started - slot).total_seconds() / 60, 1),
+    }
+    if slot is not None and (done := already_built(args.archive, slot)) is not None:
+        print(f"這個時段 {slot:%H:%M}Z 已經在 {done} 出過，跳過")
+        timing.write(source="skip", ok=True, seconds=0, **when, generatedAt=done)
+        return 0
     commit = (os.environ.get("GITHUB_SHA") or "")[:7] or None
-    timing.write(source="start", ok=True, seconds=0, commit=commit)
+    timing.write(source="start", ok=True, seconds=0, commit=commit, **when)
     produced = False
     try:
         # 超時被放棄的來源執行緒可能還在往暫存目錄寫檔，清不乾淨就算了

@@ -338,3 +338,74 @@ def test_hourly_writes_all_three(tmp_path, monkeypatch, airports):
         "jma-2026-10-20.jsonl",
         "jtwc-2026-10-20.jsonl",
     ]
+
+
+# ---- 補 METAR 缺口（HD25） ----
+
+
+def test_metar_hours_six():
+    assert events.METAR_HOURS == 6
+
+
+def test_backfill_metar(tmp_path, monkeypatch, airports):
+    """一站一站、每次最多 72 小時往回抓；期間外的不收、已有的不覆蓋、補進來的多 `backfill`；
+    金門、馬祖（氣象署觀測）不抓。"""
+    aw = load_json("events_metar_hours2.json")  # 2026-10-20 05:00～06:00Z
+    asked = []
+
+    def get(url, params=None, **k):
+        asked.append(params)
+        return _Resp(json.dumps(aw).encode())
+
+    monkeypatch.setattr(events, "http_get", get)
+    history = tmp_path / "history"
+    d = history / "events" / "29W"
+    # 已經有的那筆（每小時抓的）不覆蓋
+    have = events.metar_rows(aw, {}, ("RCTP",), FETCHED)
+    events.store_metars(d, [r for r in have if r["observedAt"] == "2026-10-20T06:00:00Z"], FETCHED)
+    pauses = []
+    since, now = utc(2026, 10, 20, 5, 15), utc(2026, 10, 23, 7, 0)  # 3 天 1 小時 45 分 → 兩段
+    res = events.backfill_metar(history, [EV], airports, since, now, pauses.append)
+    assert res == {"29W": {"RCTP": 1, "RJFF": 2, "ROMY": 1, "VHHH": 2, "ZSPD": 2}}
+    stations = [p["ids"] for p in asked]
+    assert stations == [s for s in ("RCTP", "RJFF", "ROMY", "VHHH", "ZSPD") for _ in (1, 2)]
+    assert asked[:2] == [
+        {"ids": "RCTP", "date": "2026-10-23T07:00:00Z", "hours": 72, "format": "json"},
+        {"ids": "RCTP", "date": "2026-10-20T07:00:00Z", "hours": 2, "format": "json"},
+    ]
+    assert len(pauses) == len(asked) - 1
+    lines = [json.loads(x) for x in (d / "metar" / "2026-10-20.jsonl").read_text().splitlines()]
+    rctp = [r for r in lines if r["icao"] == "RCTP"]
+    assert [(r["observedAt"], r.get("backfill")) for r in rctp] == [
+        ("2026-10-20T06:00:00Z", None),  # 原本的
+        ("2026-10-20T05:30:00Z", "aviationweather"),
+    ]
+    # RJFF 05:00 在 since 之前，不收
+    assert {r["observedAt"] for r in lines if r["icao"] == "RJFF"} == {
+        "2026-10-20T06:00:00Z",
+        "2026-10-20T05:30:00Z",
+    }
+    assert events.metar_coverage(d)["RCTP"] == {"2026-10-20": 2}
+    # 再跑一次全部已經有
+    assert events.backfill_metar(history, [EV], airports, since, now, pauses.append) == {
+        "29W": dict.fromkeys(("RCTP", "RJFF", "ROMY", "VHHH", "ZSPD"), 0)
+    }
+
+
+def test_backfill_metar_failure_and_out_of_period(tmp_path, monkeypatch, airports):
+    def down(url, **k):
+        raise SourceError(f"{url}: down", "network")
+
+    monkeypatch.setattr(events, "http_get", down)
+    history = tmp_path / "history"
+    res = events.backfill_metar(
+        history, [EV], airports, utc(2026, 10, 20), utc(2026, 10, 21), lambda s: None
+    )
+    assert res == {"29W": dict.fromkeys(("RCTP", "RJFF", "ROMY", "VHHH", "ZSPD"))}
+    # 事件期間（台灣 10-19～10-28）外不抓
+    assert (
+        events.backfill_metar(
+            history, [EV], airports, utc(2026, 10, 29), utc(2026, 10, 30), lambda s: None
+        )
+        == {}
+    )
