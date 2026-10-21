@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>KR.W2610129_202610220000_SWG_129_EN</identifier>
+  <sender>webmasterkma@korea.kr</sender>
+  <sent>2026-10-22T00:00:00+09:00</sent>
+  <status>Actual</status>
+  <msgType>Update</msgType>
+  <source>Korea Meteorological Administration KMA</source>
+  <scope>Public</scope>
+  <references>webmasterkma@korea.kr,KR.W2610121_202610211010_SWN_121_EN,2026-10-21T10:10:00+09:00</references>
+  <info>
+    <language>en-US</language>
+    <category>Met</category>
+    <event>StrongWind Advisory Change</event>
+    <urgency>Immediate</urgency>
+    <severity>Moderate</severity>
+    <certainty>Observed</certainty>
+    <effective>2026-10-22T00:00:00+09:00</effective>
+    <onset>2026-10-22T00:00:00+09:00</onset>
+    <expires>2026-10-22T06:00:00+09:00</expires>
+    <senderName>KMA</senderName>
+    <headline>StrongWind Advisory Change</headline>
+    <description>(1) StrongWind Advisory Change : 2026-10-22T00:00:00+09:00
+"Wind speed exceeding 14m/s or wind speed of moment exceeding 20m/s are expected on land. But, wind speed exceeding 17m/s or wind speed of moment exceeding 25m/s are expected in mountain areas."</description>
+    <web>https://www.kma.go.kr/neng/forecast/warning.do</web>
+    <parameter>
+      <valueName>tmFc</valueName>
+      <value>202610220000</value>
+    </parameter>
+    <parameter>
+      <valueName>stnId</valueName>
+      <value>108</value>
+    </parameter>
+    <parameter>
+      <valueName>tmSeq</valueName>
+      <value>W2610129</value>
+    </parameter>
+    <parameter>
+      <valueName>t1</valueName>
+      <value>StrongWind Advisory Change </value>
+    </parameter>
+    <parameter>
+      <valueName>t2</valueName>
+      <value>(1) StrongWind Advisory Change : Jeollanam-do(Heuksando and Hongdo</value>
+    </parameter>
+    <parameter>
+      <valueName>t3</valueName>
+      <value>(1) StrongWind Advisory Change : 2026-10-22T00:00:00+09:00</value>
+    </parameter>
+    <parameter>
+      <valueName>t5</valueName>
+      <value>202610220200</value>
+    </parameter>
+    <parameter>
+      <valueName>t6</valueName>
+      <value>o StrongWind Advisory : Jeollanam-do(Heuksando and Hongdo, Geomundo and Chodo, WandoYeoseodo), Ulleungdo and Dokdo
+o Wind Wave Advisory : Inner offshore waters of the northern part of the southern East Sea, Outer offshore waters of the northern part of the southern East Sea, Inner offshore waters of the mid-East Sea, Outer offshore waters of the mid-East Sea, Southern West Sea, Outer offshore waters of the eastern South Sea, Offshore waters of the western part of the western South Sea, Offshore waters of the eastern part of the western South Sea, Nearshore waters of Jeju-do(Nearshore waters of northern Jeju-do, Nearshore waters of eastern Jeju-do, Nearshore waters of western Jeju-do), Outer offshore waters of the southern sea of Jeju-do, Inner offshore waters of the south-eastern sea of Jeju-do, Inner offshore waters of the south-western sea of Jeju-do
+o ColdWave Advisory : Gyeonggi-do(Siheung, Gimpo, Dongducheon, Yeoncheon, Pocheon, Gapyeong, Goyang, Yangju, Uijeongbu, Namyangju, Icheon, Anseong, Northeast Paju, Northwest Paju, South Paju, Northeast Yongin, South Yongin, Southeast Yeoju, West Yeoju, East Yangpyeong, West Yangpyeong), Gangwon-do(Taebaek, Yeongwol, Hoengseong, Wonju, Cheorwon, Hwacheon, Chuncheon, Mountainous areas of Goseong, Flatland of Pyeongchang, Mountainous areas of Pyeongchang, Flatland of Jeongseon, Mountainous areas of Jeongseon, Flatland of Hongcheon, Mountainous areas of Hongcheon, Flatland of Yanggu, Mountainous areas of Yanggu, Flatland of Inje, Mountainous areas of Inje), Chungcheongnam-do(Cheonan, Gongju, Nonsan, Geumsan, Buyeo, Cheongyang, Gyeryong), Chungcheongbuk-do, Jeonbuk-do(Jinan, Muju, Jangsu, Imsil), Gyeongsangbuk-do(Cheongdo, Goryeong, Sangju, Mungyeong, Yecheon, Yeongju, Uiseong, Cheongsong, North Gimcheon, Northeast Andong, Southeast Andong, West Andong, Flatland of Yeongyang, Mountainous areas of Yeongyang, Flatland of Bonghwa, Mountainous areas of Bonghwa, Mountainous areas of Uljin, West Gyeongju), Gyeongsangnam-do(Central Hamyang, Northwest Hamyang, North Geochang, South Geochang, Northwest Hapcheon, Central Hapcheon, South Hapcheon), Incheon(Ganghwa, North Incheon), Daejeon, Daegu(Gunwi), Sejong
+</value>
+    </parameter>
+    <area>
+      <areaDesc>Heuksando and Hongdo</areaDesc>
+      <polygon>34.687685,125.388555 34.68222,125.385768 34.680419,125.378685 34.675899,125.378238 34.666216,125.368832 34.669927,125.363051 34.675803,125.361107 34.680621,125.36914 34.680814,125.37977 34.685186,125.380833 34.691302,125.392039 34.697091,125.388798 34.691703,125.396122 34.687685,125.388555</polygon>
+    </area>
+  </info>
+</alert>

@@ -1,0 +1,90 @@
+[
+ {
+  "id": "206",
+  "url": "https://api.weather.gov/alerts/active.atom?region_type=marine",
+  "format": "NWS_US",
+  "status": "Active",
+  "pollingInterval": "I_10m",
+  "country": {
+   "name": "United States",
+   "iso3": "USA"
+  }
+ },
+ {
+  "id": "205",
+  "url": "https://api.weather.gov/alerts/active.atom?region_type=land",
+  "format": "NWS_US",
+  "status": "Active",
+  "pollingInterval": "I_10m",
+  "country": {
+   "name": "United States",
+   "iso3": "USA"
+  }
+ },
+ {
+  "id": "204",
+  "url": "https://severeweather.wmo.int/v2/cap-alerts/cn-cma-xx/rss.xml",
+  "format": "RSS",
+  "status": "Active",
+  "pollingInterval": "I_10m",
+  "country": {
+   "name": "China",
+   "iso3": "CHN"
+  }
+ },
+ {
+  "id": "196",
+  "url": "https://www.weather.go.kr/w/rss/cap/warning.do",
+  "format": "RSS",
+  "status": "Active",
+  "pollingInterval": "I_10m",
+  "country": {
+   "name": "Republic of Korea",
+   "iso3": "KOR"
+  }
+ },
+ {
+  "id": "195",
+  "url": "https://www.weather.go.kr/w/rss/cap/eqk.do",
+  "format": "RSS",
+  "status": "Active",
+  "pollingInterval": "I_10m",
+  "country": {
+   "name": "Republic of Korea",
+   "iso3": "KOR"
+  }
+ },
+ {
+  "id": "166",
+  "url": "https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/feed",
+  "format": "ATOM",
+  "status": "Active",
+  "pollingInterval": "I_10m",
+  "country": {
+   "name": "United States",
+   "iso3": "USA"
+  }
+ },
+ {
+  "id": "160",
+  "url": "https://smartalert.nchmf.gov.vn/smartalert/capfeed.php",
+  "format": "ATOM",
+  "status": "Active",
+  "pollingInterval": "I_10m",
+  "country": {
+   "name": "Viet Nam",
+   "iso3": "VNM"
+  }
+ },
+ {
+  "id": "122",
+  "url": "https://publicalert.pagasa.dost.gov.ph/feeds/",
+  "format": "NWS_US",
+  "status": "Active",
+  "pollingInterval": "I_10m",
+  "country": {
+   "name": "Philippines",
+   "iso3": "PHL"
+  }
+ }
+]

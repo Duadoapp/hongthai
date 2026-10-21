@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+	<identifier>34188241600000_20261022013734</identifier>
+	<sender>Guangde_Meteorological_Observatory</sender>
+	<sent>2026-10-22T01:37:34+08:00</sent>
+	<status>Actual</status>
+	<msgType>Alert</msgType>
+	<scope>Public</scope>
+	<note></note>
+	<info>
+		<language>en-US</language>
+		<category>Met</category>
+		<event>Dense fog</event>
+		<urgency>Unknown</urgency>
+		<severity>Moderate</severity>
+		<certainty>Unknown</certainty>
+		<effective>2026-10-22T01:36:00+08:00</effective>
+		<onset>2026-10-22T01:36:00+08:00</onset>
+		<expires>2026-10-23T01:36:00+08:00</expires>
+		<senderName></senderName>
+		<headline>Guangde Meteorological Observatory issues yellow warning for heavy fog [Level III/Heavy]</headline>
+		<description>The Guangde Meteorological Observatory issued a yellow warning signal for heavy fog at 01:36 on October 22, 2026. Yangtan Town and Shijie Town in Guangde City may experience fog with visibility less than 500 meters within 12 hours. Please take precautions!</description>
+		<instruction>1. The government and relevant departments shall prepare for the prevention of heavy fog in accordance with their responsibilities. 2. Due to low visibility, drivers should control their speed to ensure safety. 3. Take measures at airports, highways, and ferry terminals to ensure traffic safety. 4. Ships engaged in navigation and operations should strengthen lookout, control speed, maintain navigation distance, drive cautiously, and ensure navigation safety. 5. The public should take self-protection measures for outdoor activities.</instruction>
+		<area>
+			<areaDesc>Shijie Town</areaDesc>
+			<geocode>
+				<valueName>CPEAS Geographic Code</valueName>
+				<value>341882102000</value>
+			</geocode>
+		</area>
+	</info>
+	<info>
+		<language>zh-CN</language>
+		<category>Met</category>
+		<event>大雾</event>
+		<urgency>Unknown</urgency>
+		<severity>Moderate</severity>
+		<certainty>Unknown</certainty>
+		<effective>2026-10-22T01:36:00+08:00</effective>
+		<onset>2026-10-22T01:36:00+08:00</onset>
+		<expires>2026-10-23T01:36:00+08:00</expires>
+		<senderName/>
+		<headline>广德市气象台发布大雾黄色预警[III级/较重]</headline>
+		<description>广德市气象台2026年10月22日01时36分发布大雾黄色预警信号。广德市杨滩镇、誓节镇，12小时内可能出现能见度小于500米的雾，请注意防范！</description>
+		<instruction>1.政府及相关部门按照职责做好防大雾准备工作。 2.能见度较低，驾驶人员应控制速度，确保安全。 3.机场、高速公路、轮渡码头采取措施，保障交通安全。 4.航行、作业的船舶应加强瞭望，控制航速，保持航行距离，谨慎驾驶，确保航行安全。 5.公众做好户外活动自身安全防范。</instruction>
+		<area>
+			<areaDesc>誓节镇</areaDesc>
+			<geocode>
+				<valueName>CPEAS Geographic Code</valueName>
+				<value>341882102000</value>
+			</geocode>
+		</area>
+	</info>
+</alert>
