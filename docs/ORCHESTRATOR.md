@@ -385,6 +385,9 @@
 - **HD24（10/20 23:27，Shawn 看 HW6 上線頁後）**：只加 `vote.mediumTotal`（判中的分母，不含只投高的系集）與頂層 `models[].votesOnlyHigh`，
   不改票數與規則，凍結前合併；網頁 HW7 用它寫「6 個模式中 3 個認為中以上」
 
+- **HD25（10/21 10:02）**：GitHub 排程延遲 3–5 小時、整點 cron 常被跳過 → Cloudflare 排程 Worker 當主鬧鐘、GitHub cron 當備援、
+  build 同時段已出過就跳過；METAR 往回 6 小時並補缺口。只動排程與資料保存，不改規則與 `latest.json`，凍結前合併
+
 ## 和 Duado 的分工
 
 - 這個 repo 的改動由 HongThai 專用對話負責；duado.app/hongthai/ 網頁與 JSON 契約由 Duado 的主對話負責
