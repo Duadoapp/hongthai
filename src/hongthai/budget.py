@@ -86,3 +86,13 @@ def run(name: str, fn: Callable[[], object], seconds: float) -> Outcome:
         out.context.cancelled.set()
         out.timed_out = True  # 之後執行緒還可能寫 result／error，呼叫端看到 timed_out 就不理它們
     return out
+
+
+def context() -> Context | None:
+    """目前執行緒的預算 context；來源自己開的工作執行緒要用 `attach()` 接上（HD29）。"""
+    return _current()
+
+
+def attach(ctx: Context | None) -> None:
+    """讓這條執行緒共用 `ctx`：`check_cancelled`、`add_bytes` 照這個來源算（HD29 平行抓 CAP）。"""
+    _local.context = ctx

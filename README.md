@@ -32,9 +32,9 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 
 - 51 個都用全球資料：ECMWF、GFS、TAF／METAR（有的話）、跑道側風
 - 官方警報：台灣十個看中央氣象署、香港看天文台、澳門看 SMG、關島看美國國家氣象局（NWS，HD3）、日本 8 個
-  與沖繩 3 個看日本氣象廳（JMA，HD9 大雪警報；HD27 起暴風、大雨警報只列出）；其他 27 個還沒接（韓國之後另外的 HD 補；中國官方
-  颱風預警、越南、菲律賓先不接；帛琉 NWS 查不到，見下面「資料來源與授權」），`airports[].official.warnings`
-  是 `false`、`warnings` 是 `[]`
+  與沖繩 3 個看日本氣象廳（JMA，HD9 大雪警報；HD27 起暴風、大雨警報只列出）；HD29 起中國大陸 14 個、韓國 4 個、
+  菲律賓 3 個經 WMO SWIC 看中國氣象局、韓國氣象廳、PAGASA（**只列出、不升級**）；越南 5 個、帛琉還沒接（越南 SWIC
+  沒有、帛琉 NWS 查不到，見下面「資料來源與授權」），`airports[].official.warnings` 是 `false`、`warnings` 是 `[]`
 - **沒有 TAF 的機場**（2026-10-18 實測 AviationWeather）：花蓮 RCYU、金門 RCBS、馬祖 RCFG、溫州 ZSWZ、
   泉州 ZSQZ、珠海 ZGSD、宮古 ROMY。這幾個 `taf: null`，官方層只剩 METAR 與警報：METAR 在 3 小時內時
   **第一格由 METAR 單獨撐起**（HD13，`official.kind: "metar"`），之後 0–30 小時沒有警報的格以模式為準。
@@ -53,7 +53,7 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
 | 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14）；Open-Meteo 的 DWD ICON（陣風）、JMA GSM（10 米風）、Google WeatherNext 2 系集 64 個成員的 10 米風（HD16） | **八個模式投票**（HD14、HD16，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS、JMA GSM、WeatherNext 2 用平均風 × 機場的係數估算）≥ 48 節高、≥ 37 節中；兩個系集只投高（IFS 系集陣風 ≥ 49 節機率 ≥ 30%、WeatherNext 2 估算陣風 ≥ 48 節的成員 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
-| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視、日本氣象廳（JMA）日本與沖繩的大雪警報（HD9）與暴風、大雨警報（HD27）、中央氣象署陸上強風特報（HD27） | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、暴風雪警報低（只列出），算 `snow`；日本氣象廳暴風、大雨警報與氣象署陸上強風特報只列出（low，HD27）；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
+| 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視、日本氣象廳（JMA）日本與沖繩的大雪警報（HD9）與暴風、大雨警報（HD27）、中央氣象署陸上強風特報（HD27）、經 WMO SWIC 的中國氣象局、韓國氣象廳、PAGASA 警報（HD29） | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、暴風雪警報低（只列出），算 `snow`；日本氣象廳暴風、大雨警報與氣象署陸上強風特報只列出（low，HD27）；中國氣象局、韓國氣象廳、PAGASA 的警報只列出（low，HD29）；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
 | 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS、ICON 的 10 米風向配各自的陣風；AIFS、AIGFS、JMA GSM 的 10 米風向配估算陣風（WeatherNext 2 系集不算側風） | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級**（模式層是每個模式各自取較高，再投票） |
 
 - 門檻依據：陣風（TAF 與模式同一套）是桃園機場空橋規則——最大瞬間風速 37 節（蒲福 8 級）啟動空橋防護、
@@ -199,16 +199,23 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
 | 日本氣象廳 | 暴風警報 `jma_storm`、暴風特別警報 `jma_storm_emergency`（HD27） | 低：**只列出、不升級**（強風注意報不列） |
 | 日本氣象廳 | 大雨警報 `jma_heavy_rain`、大雨危険警報 `jma_heavy_rain_danger`、大雨特別警報 `jma_heavy_rain_emergency`（HD27） | 低：**只列出、不升級**（大雨注意報不列） |
 | 中央氣象署 | 天氣特報「陸上強風」且機場的縣市在範圍 `cwa_strong_wind`（HD27，台灣十個機場都適用） | 低：**只列出、不升級** |
+| 中國氣象局（經 WMO SWIC） | 颱風 紅／橙／黃／藍 `cma_typhoon_<顏色>`、大風 紅／橙／黃 `cma_gale_<顏色>`、暴雨 紅／橙 `cma_rainstorm_<顏色>`、大霧 紅／橙 `cma_fog_<顏色>`（HD29，中國大陸 14 個機場，機場所在的縣、地市、省在範圍） | 低：**只列出、不升級**（大風藍色、暴雨與大霧的黃藍色不列） |
+| 韓國氣象廳（經 WMO SWIC） | 颱風警報／注意報 `kma_typhoon_warning`／`_advisory`、強風警報／注意報 `kma_strong_wind_warning`／`_advisory`、豪雨警報 `kma_heavy_rain_warning`、大雪警報 `kma_heavy_snow_warning`（HD29，韓國 4 個機場，CAP 多邊形加 5 公里） | 低：**只列出、不升級**（豪雨、大雪注意報與風浪等不列） |
+| PAGASA（經 WMO SWIC） | 熱帶氣旋風球 1–5 號 `pagasa_tcws_<n>`、豪雨紅色警報 `pagasa_rainfall_red`（HD29，菲律賓 3 個機場，機場所在的省碼） | 低：**只列出、不升級** |
 
 - 前三列與 JMA 大雨三種算 `rain`、濃霧特報算 `fog`、JMA 雪的四種算 `snow`，其他（颱風、熱帶氣旋信號、
-  JMA 暴風兩種、陸上強風特報）算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
+  JMA 暴風兩種、陸上強風特報）算 `wind`；HD29 的中國暴雨、韓國豪雨、PAGASA 豪雨紅色算 `rain`，中國大霧算
+  `fog`，韓國大雪算 `snow`，颱風、大風、強風、風球算 `wind`。**低的警報不會自己撐起官方層**：一格沒有
   TAF、只有低的警報時 `official` 是 `null`、退回模式；有 TAF 或有中以上的警報時照舊，
   `official.warnings[]` 列全部（含低的）。天文台 1 號信號也是低，HD8 起一樣照這條
 - JMA HD9 只接雪；暴風雪特別警報（代碼 `32`）HD16 起接（Shawn 2026-10-20 19:04，和大雪特別警報同級）。
   **HD27（Shawn 2026-10-22，颱風 29W）起暴風（`05`、`35`）、大雨（`03`、危険警報 `43`、`33`）警報與氣象署
   陸上強風特報只列出（low）**：29W 驗證期間不能動到等級，所以任何一格的 `level` 都不會因為這幾種改變；
-  升級與否 29W 報告後再談。注意報、波浪、高潮、洪水、土砂災害不接。澳門、韓國、越南、
-  菲律賓這階段不加警報
+  升級與否 29W 報告後再談。注意報、波浪、高潮、洪水、土砂災害不接。澳門、越南這階段不加警報
+- **HD29（Shawn 2026-10-22 02:21，颱風 29W）起中國氣象局、韓國氣象廳、PAGASA 的警報經 WMO SWIC 接入，
+  全部只列出（low）**，理由和 HD27 一樣（29W 驗證期凍結）；等級 29W 報告後再定。細節（篩選、對機場、同一類取
+  最新那則、解除與降級怎麼處理）在 `src/hongthai/sources/swic.py` 開頭。**SWIC 沒有警報不代表官方沒發**
+  （SWIC 使用須知：可能是警報沒有 CAP 格式或 feed 抓不到），網頁文字要寫清楚
 
 `causes`（每格，主因在前）：從決定 `level` 的那一層（`basis` 是 `official` 看官方層、`model` 看模式層；
 `confirmed` 看被它蓋掉的那一層——有官方層就是官方層）把等級 ≥ 中的種類列出：`wind`（陣風、側風或風的
@@ -402,7 +409,18 @@ H10（2026-10-18）之後：
   - `runwaySource`：跑道方位從哪裡來，`"aip"`（現有五個）、`"ourairports"`（其他 45 個）或 `"computed"`
     （石垣，用跑道兩端跑道頭座標算，HD3）；只在這裡，不進 `latest.json`
   - `warningSources`：`cwa`（台灣十個機場）、`hko`（香港）、`smg`（澳門）、`nws`（關島，HD3）、`jma`（日本 8 個
-    與沖繩 3 個，HD9）；其他機場是 `[]`
+    與沖繩 3 個，HD9）、`cma`（中國大陸 14 個，HD29）、`kma`（韓國 4 個，HD29）、`pagasa`（菲律賓 3 個，HD29）；
+    越南 5 個與帛琉是 `[]`。HD29 起照抄進 `latest.json` 的 `airports[].warningSources`
+  - `cmaAreas`：看中國氣象局預警的機場要有（HD29），機場所在的縣級代碼（GB/T 2260 前 6 碼；CAP 的 CPEAS 12 碼
+    前 6 碼相同，或是它的地市 `xxxx00`、省 `xx0000` 就算涵蓋）。照 HD28 調查報告第 2.3 節：浦東 `310115`、
+    虹橋 `310105`＋`310112`（長寧、閔行）、杭州 蕭山 `330109`、寧波 海曙 `330203`、溫州 龍灣 `330303`、
+    福州 長樂 `350112`、廈門 湖里 `350206`、泉州 晉江 `350582`、潮汕 `445203`＋`445202`（揭東、榕城；機場在
+    揭陽空港經濟區，兩區都列）、深圳 寶安 `440306`、廣州 `440111`＋`440114`（白雲、花都）、珠海 金灣 `440404`、
+    海口 美蘭 `460108`、三亞 天涯 `460204`。代碼要是 6 碼數字，不對讀的時候會報錯
+  - `psgcAreas`：看 PAGASA 警報的機場要有（HD29），PSGC 9 碼（CAP 的 `SAME` 相同才算，所以省、區域、市都列）：
+    馬尼拉 `137600000`（馬尼拉大都會第 4 區）＋`137604000`（帕拉納克）＋`137605000`（帕賽）＋`130000000`（NCR）、
+    宿霧 `072226000`（拉普拉普市）＋`072200000`（宿霧省）＋`070000000`（中米沙鄢）、克拉克 `035409000`
+    （馬巴拉卡特市）＋`035400000`（邦板牙省）＋`030000000`（中呂宋）。韓國看 CAP 的多邊形，用機場座標，不用另外設
   - `nwsZone`：看 NWS 警報的機場要有（HD3），NWS 的 zone 代碼，關島 `GUZ001`（`/points/13.485,144.7973`
     的 `forecastZone`）。`warningSources` 有 `nws` 但沒有 `nwsZone`（或格式不是 `GUZ001` 這種）讀的時候會報錯
   - `jmaArea`：看 JMA 警報的機場要有（HD9），`{"office", "class20", "name", "enName"}`：機場所在市町村在 JMA
@@ -454,8 +472,9 @@ H10（2026-10-18）之後：
   `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，
   每報重畫、不進 `data` 分支）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
-  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws,jma,openmeteo}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
-  `/alerts/active` 的原始回應，HD3 起；JMA 是 `{office 代碼: 警報 JSON}`，HD9 起；Open-Meteo 是
+  `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws,jma,swic,openmeteo}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
+  `/alerts/active` 的原始回應，HD3 起；JMA 是 `{office 代碼: 警報 JSON}`，HD9 起；SWIC 是
+  `{"wmoAll": 中韓菲三國的清單摘錄, "caps": {url: CAP 原文}, "capErrors": {url: 原因}}`，HD29 起；Open-Meteo 是
   `{"forecast": 預報回應, "ensemble": 系集回應}`，HD16 起，**不縮排**、一份約 1.2 MB（zlib 後約 190 KB）；氣象署天氣特報 `W-C0033-001` 是另一個檔 `<HHMM>Z-cwa-hazards.json`，
   HD8 起，`-cwa.json` 照舊是颱風警報；金門、馬祖的局屬站觀測 `O-A0003-001` 是 `<HHMM>Z-cwa-obs.json`，HD13 起）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
@@ -717,6 +736,36 @@ HD27（2026-10-22，JMA 暴風、大雨警報＋氣象署陸上強風特報；�
     特報的 `startTime`
 - 低的警報不撐起官方層：只有這幾種的格 `official` 照舊是 `null`；有 TAF 或有中以上的警報時才出現在
   `slots[].official.warnings`。`airports[].warnings[]` 照樣列出
+
+HD29（2026-10-22，中國氣象局、韓國氣象廳、PAGASA 經 WMO SWIC；`schema` 維持 `1`，只加值與一個新欄位
+`airports[].warningSources`，既有欄位不改名、不改型別）：
+
+- `airports[].warningSources`（新）：字串陣列，這個機場接了哪些官方警報來源，照 `airports.json` 的
+  `warningSources`：`cwa`、`hko`、`smg`、`nws`、`jma`、`cma`、`kma`、`pagasa`；沒接是 `[]`（越南 5 個、帛琉）。
+  網頁（Duado HW12）原本用 ICAO 前兩碼推，之後改讀這個欄位（Duado HW13）
+- 中國大陸 14 個、韓國 4 個、菲律賓 3 個機場的 `official.warnings` 從 `false` 變 `true`
+- `airports[].warnings[]`／`slots[].official.warnings`：`source` 多三個值，**`level` 全部 `"low"`（只列出、
+  不升級）**，任何一格的 `level`、`causes` 都不會因為這幾種改變：
+  - `source: "cma"`（中國氣象局）：`kind` `cma_typhoon_<red|orange|yellow|blue>`、`cma_gale_<red|orange|yellow>`、
+    `cma_rainstorm_<red|orange>`、`cma_fog_<red|orange>`；`code` 是 CAP 英文的 `event`（`gale`、`Rainstorm`、
+    `Dense fog`…），`detail` 是簡中原文 headline（「温州市气象台发布大风黄色预警[Ⅲ级/较重]」）；`text` 的 zh-CN
+    是原文、zh-TW 是 OpenCC `s2twp` 轉的（「釋出」改回「發布」）、zh-HK 是 `s2hk` 轉的，結尾「（中國氣象局，
+    經 WMO SWIC）」，en 是 CAP 的英文 headline 加 `(CMA via WMO SWIC)`
+  - `source: "kma"`（韓國氣象廳）：`kind` `kma_typhoon_warning`、`kma_typhoon_advisory`、`kma_strong_wind_warning`、
+    `kma_strong_wind_advisory`、`kma_heavy_rain_warning`、`kma_heavy_snow_warning`；`code` 是 CAP 的 `event`
+    （例如 `StrongWind Advisory Change`），`detail` 是英文 headline；中文三語「韓國氣象廳強風注意報（濟州，經
+    WMO SWIC）」（zh-CN「韩国气象厅强风注意报（济州，经 WMO SWIC）」，括號裡是機場名稱），en 是英文 headline 加
+    `(KMA via WMO SWIC)`
+  - `source: "pagasa"`（菲律賓 PAGASA）：`kind` `pagasa_tcws_1`…`pagasa_tcws_5`（熱帶氣旋風球號數）、
+    `pagasa_rainfall_red`（豪雨紅色警報）；`code` 是 CAP 的 `event`（`Tropical Cyclone Warning`），`detail` 是
+    英文 headline；中文三語「菲律賓 PAGASA 熱帶氣旋 2 號風球（馬尼拉，經 WMO SWIC）」（zh-CN「菲律宾 PAGASA 热带
+    气旋 2 号风球（马尼拉，经 WMO SWIC）」、豪雨紅色「豪雨紅色警報」／zh-HK「暴雨紅色警告」／zh-CN「暴雨红色警报」），
+    en 是英文 headline 加 `(PAGASA via WMO SWIC)`
+  - `issuedAt` 是 CAP 的 `sent`。中國暴雨、韓國豪雨、PAGASA 豪雨紅色算 `rain`，中國大霧算 `fog`，韓國大雪算
+    `snow`，其他算 `wind`
+- `sources.swic`：`ok`、`seconds`、`caps`（這一報抓了幾則 CAP 原文）；有幾則 CAP 抓不到時多 `capErrors`
+  （則數，那幾則跳過、其他照列）。失敗時 `ok: false`＋`error`，其他來源與整報照出
+- 網頁的「依據」要寫「中國氣象局（經 WMO SWIC）」這類，並註明 **SWIC 沒有警報不代表官方沒發**
 
 HD14（2026-10-20，多模式投票；欄位定案，Shawn 轉給 Duado；`schema` 維持 `1`。**`model.ec`、`model.gfs`、
 `model.agreement` 不改名、不改型別、不拿掉，值也照舊算**；`model.level` 改由投票決定）：
@@ -1320,6 +1369,7 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | [OpenStreetMap](https://www.openstreetmap.org/way/114511749)（跑道 way 114511749 的兩端座標，HD3） | 石垣跑道真北方位（用座標算出的一個數字） | © OpenStreetMap contributors，[ODbL](https://www.openstreetmap.org/copyright) |
 | [美國國家氣象局 api.weather.gov](https://www.weather.gov/documentation/services-web-api)（`/alerts/active?zone=GUZ001`，HD3） | 關島的颱風／熱帶風暴警報與守視（NWS 關島分處 Tiyan 發布） | 美國政府公有領域 |
 | [日本氣象廳防災資訊](https://www.jma.go.jp/bosai/warning/)（JMA 網頁用的 JSON `bosai/warning/data/r8/<office>.json`、`bosai/common/const/area.json`，**非正式介面**；HD9） | 日本與沖繩 11 個機場所在市町村的大雪警報、大雪特別警報、暴風雪警報 | [氣象廳網站利用規約](https://www.jma.go.jp/jma/kishou/info/coment.html)：公共データ利用規約（第 1.0 版，PDL 1.0），註明出處「出典：気象庁ホームページ」即可使用與再發布 |
+| [WMO 惡劣天氣資訊中心 SWIC](https://severeweather.wmo.int/)（香港天文台代 WMO 經營；網頁用的 `json/wmo_all.json` 與 `v2/cap-alerts/<url>` 的 CAP 原文，**非正式介面**；HD29） | 中國氣象局（各級氣象台）、韓國氣象廳、菲律賓 PAGASA 的 CAP 警報（中國大陸 14 個、韓國 4 個、菲律賓 3 個機場） | [SWIC 使用須知](https://severeweather.wmo.int/note.html)：「The information is free for re-use by media or other websites. When doing so, it should be indicated that they are issued by the respective Tropical Cyclone RSMCs, TCWCs or NMHSs.」——可再使用，要註明由相應機關發布：**中國氣象局**（China Meteorological Administration，CAP 的發布台，例如溫州市氣象台）、**韓國氣象廳**（Korea Meteorological Administration）、**菲律賓大氣地球物理天文管理局 PAGASA**（Philippine Atmospheric, Geophysical and Astronomical Services Administration）；`warnings[].text` 結尾都標「經 WMO SWIC」。同一頁也寫：「If no warning is found on land on the SWIC map, it may be due to other reasons apart from no warning is in effect for that area.」——**SWIC 沒有不代表官方沒發**（警報沒有 CAP 格式或 feed 抓不到），網頁要寫清楚 |
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號；HD8 起加暴雨警告信號 `WRAIN`、雷暴警告 `WTS`，同一個請求） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
 | [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報；HD8 起加 `W-C0033-001` 天氣特報；HD13 起加 `O-A0003-001` 氣象觀測站-10分鐘綜觀氣象資料） | 海上／陸上颱風警報與警戒區（台灣十個機場）；各縣市目前的天氣特報（只用大豪雨、超大豪雨、濃霧）；金門 467110、馬祖 467990 局屬站的能見度、天氣、風（當這兩個機場的 METAR） | [政府資料開放授權條款](https://data.gov.tw/license) |
 | [澳門地球物理氣象局 XML](https://xml.smg.gov.mo/)（`c_typhoon.xml`／`e_typhoon.xml`；data.gov.mo 資料集[「熱帶氣旋信號」](https://data.gov.mo/Detail?id=15044781-1752-4f98-b87e-508208d70408)） | 熱帶氣旋信號 | [澳門政府數據開放平台使用條款](https://data.gov.mo/)：免費使用與再發布，須註明「澳門特別行政區政府數據開放平台」與取得日期 |

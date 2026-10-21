@@ -83,7 +83,8 @@
   （`FOG_WARNING_KINDS`，HD13）；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、
   暴風雪警報低（只列出），算 `snow`（`SNOW_WARNING_KINDS`，HD9）；JMA 大雨警報（含危険、特別警報）
   低（只列出），算 `rain`；JMA 暴風警報、暴風特別警報與氣象署陸上強風特報低（只列出，HD27），
-  和其他警報一樣算 `wind`。
+  和其他警報一樣算 `wind`。HD29 經 WMO SWIC 的中國氣象局、韓國氣象廳、PAGASA 警報全部低（只列出）：
+  暴雨、豪雨算 `rain`，大霧算 `fog`，大雪算 `snow`，颱風、大風、強風、風球算 `wind`。
   **低的警報不會自己撐起官方層**：一格沒有 TAF、只有低的警報時 `official` 是 null、退回模式
   （天文台 1 號信號也是低，HD8 起一樣照這條）；有 TAF 或有中以上的警報時，`official.warnings`
   列全部（含低的）
@@ -181,12 +182,24 @@ RAIN_WARNING_KINDS = frozenset(
         "jma_heavy_rain",
         "jma_heavy_rain_danger",
         "jma_heavy_rain_emergency",
+        # HD29：中國氣象局暴雨、韓國氣象廳豪雨、PAGASA 豪雨紅色（經 SWIC，只列出，low）
+        "cma_rainstorm_red",
+        "cma_rainstorm_orange",
+        "kma_heavy_rain_warning",
+        "pagasa_rainfall_red",
     }
 )
-FOG_WARNING_KINDS = frozenset({"cwa_dense_fog"})  # 算 `fog` 的警報種類（HD13）
-# 算 `snow` 的警報種類（HD9；HD16 加暴風雪特別警報）
+# 算 `fog` 的警報種類（HD13；HD29 加中國氣象局大霧，只列出）
+FOG_WARNING_KINDS = frozenset({"cwa_dense_fog", "cma_fog_red", "cma_fog_orange"})
+# 算 `snow` 的警報種類（HD9；HD16 加暴風雪特別警報；HD29 加韓國氣象廳大雪警報，只列出）
 SNOW_WARNING_KINDS = frozenset(
-    {"jma_heavy_snow", "jma_heavy_snow_emergency", "jma_snowstorm", "jma_snowstorm_emergency"}
+    {
+        "jma_heavy_snow",
+        "jma_heavy_snow_emergency",
+        "jma_snowstorm",
+        "jma_snowstorm_emergency",
+        "kma_heavy_snow_warning",
+    }
 )
 SNOWY_PTYPES = frozenset({"snow", "wet_snow", "rain_snow"})
 # `slots[].model.models[]` 每筆的數字欄位（HD14）
@@ -212,14 +225,19 @@ DEFAULT_GUST_FACTOR = GustFactor(GUST_FACTOR_DEFAULT, "default")
 
 @dataclass(frozen=True)
 class ActiveWarning:
-    """目前生效的官方警報（天文台／SMG 信號、氣象署颱風警報、NWS 與 JMA 警報），給判讀與輸出用。"""
+    """目前生效的官方警報（天文台／SMG 信號、氣象署颱風警報、NWS 與 JMA 警報、HD29 經 SWIC 的
+    中國氣象局、韓國氣象廳、PAGASA 警報），給判讀與輸出用。"""
 
-    source: str  # hko／cwa／smg／nws／jma
+    source: str  # hko／cwa／smg／nws／jma；HD29：cma／kma／pagasa
     # tc_signal／typhoon_land／typhoon_sea／typhoon_warning／typhoon_watch／ts_warning／ts_watch；
     # HD8：rainstorm_black／rainstorm_red／thunderstorm／cwa_heavy_rain；HD13：cwa_dense_fog；
     # HD9：jma_heavy_snow／jma_heavy_snow_emergency／jma_snowstorm；HD16：jma_snowstorm_emergency
     # HD27（只列出，low）：jma_storm／jma_storm_emergency／jma_heavy_rain／jma_heavy_rain_danger／
     # jma_heavy_rain_emergency／cwa_strong_wind
+    # HD29（只列出，low，`sources/swic.py` 的 `KINDS`）：cma_typhoon_<顏色>／cma_gale_<顏色>／
+    # cma_rainstorm_<顏色>／cma_fog_<顏色>／kma_typhoon_warning／kma_typhoon_advisory／
+    # kma_strong_wind_warning／kma_strong_wind_advisory／kma_heavy_rain_warning／
+    # kma_heavy_snow_warning／pagasa_tcws_<1–5>／pagasa_rainfall_red
     kind: str
     level: str
     text: dict[str, str]
