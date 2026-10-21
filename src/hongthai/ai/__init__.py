@@ -6,4 +6,5 @@
 - `parse.py`：模型回應的 JSON 檢查
 - `claude.py`、`gemini.py`：各一個 `evaluate(text)`
 - `run.py`：整個流程（平行呼叫、每日上限、`latest.json` 的 `ai` 欄位、對決戰績）
+- `usage.py`：每次呼叫的 token 數合計、快取命中率、估計費用（HD26；單價在 `config.PRICES`）
 """

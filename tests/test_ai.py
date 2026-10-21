@@ -676,7 +676,11 @@ def test_claude_request_and_parse():
     assert claude.evaluate("文字", client=fake, timeout=42)["comment"] == COMMENT
     kw = fake.calls[0]
     assert kw["model"] == "claude-opus-5-5" and kw["max_tokens"] == config.MAX_TOKENS == 3000
-    assert kw["system"] == prompt.SYSTEM
+    # HD26：一個 text block 加 cache_control，文字和 SYSTEM 完全相同
+    assert kw["system"] == [
+        {"type": "text", "text": prompt.SYSTEM, "cache_control": {"type": "ephemeral"}}
+    ]
+    assert kw["system"][0]["text"] is prompt.SYSTEM
     assert kw["messages"] == [{"role": "user", "content": "文字"}]
     assert "temperature" not in kw  # Opus 5.5 不接受取樣參數
     assert kw["output_config"] == {"effort": "low"}
@@ -1084,17 +1088,17 @@ def concurrent_model(delay: float):
 
 
 def test_duel_models_run_in_parallel(tmp_path):
-    """每個模型 4 個機場、每次 0.4 秒；Claude 4 條並行約 0.4 秒、Gemini 3 條並行約 0.8 秒
-    （HD6：Gemini 4 條時撞過 429、降到 2；HD12 升回 3）。兩個模型同時跑，總時間約 0.8 秒
-    （不是 1.2 秒；模型內也不平行的話是 3.2 秒）。"""
+    """每個模型 5 個機場、每次 0.4 秒；Claude 第一個先單獨評（HD26），其他 4 個 4 條並行，
+    約 0.8 秒；Gemini 直接 3 條並行，約 0.8 秒（HD6：Gemini 4 條時撞過 429、降到 2；HD12 升回 3）。
+    兩個模型同時跑，總時間約 0.8 秒（不是 1.6 秒；模型內也不平行的話是 4.0 秒）。"""
     assert config.PARALLEL == {"claude": 4, "gemini": 3}
     ev = {"claude": concurrent_model(0.4), "gemini": concurrent_model(0.4)}
     t0 = time.monotonic()
-    res = ai_run.evaluate_all(duel_doc(4, 0), None, NOW, tmp_path, evaluators=ev)
+    res = ai_run.evaluate_all(duel_doc(5, 0), None, NOW, tmp_path, evaluators=ev)
     took = time.monotonic() - t0
-    assert res["source"]["calls"] == {"claude": 4, "gemini": 4}
+    assert res["source"]["calls"] == {"claude": 5, "gemini": 5}
     assert ev["claude"].state["max"] == 4 and ev["gemini"].state["max"] == 3
-    assert took < 1.1, took
+    assert took < 1.2, took
 
 
 def test_duel_timeout_marks_unfinished(tmp_path):
@@ -1110,7 +1114,7 @@ def test_duel_timeout_marks_unfinished(tmp_path):
     assert res["source"]["errors"] == {"gemini": "timeout"}
     assert duel.result() is res  # 只算一次
     calls = json.loads((tmp_path / "ai" / "calls-2026-10-19.json").read_text("utf-8"))
-    assert calls == {"claude": 2, "gemini": 2}  # 送出去的也算
+    assert calls == {"claude": 2, "gemini": 2}  # 送出去的也算（Gemini 不先單獨評，HD26）
 
 
 def test_duel_request_timeout_and_budget_guard(tmp_path):
@@ -1168,12 +1172,14 @@ def test_duel_records_written_and_merged(tmp_path):
         "airport": "RC00",
         "selected": "level",
         "rule": {"maxLevel": "high", "firstFrom": "2026-10-19T00:00:00Z"},
-        "claude": {"status": "ok", "level": "high"},
+        # 假模型沒有 usage：送出的呼叫寫 `usage: null`（HD26，數字另外測）
+        "claude": {"status": "ok", "level": "high", "usage": None},
         # 呼叫失敗的那顆有 detail（HD6）：<代碼>:<stop_reason>:<輸出 token 數>[:<標記>]，不記內容
         "gemini": {
             "status": "error",
             "level": None,
             "detail": "bad_format:MAX_TOKENS:2400+600:not_json",
+            "usage": None,
         },
         "slots": [{"from": s["from"], "level": s["level"]} for s in cur["airports"][0]["slots"]],
     }
@@ -1227,8 +1233,13 @@ def test_duel_detail_only_for_call_failures(tmp_path, monkeypatch):
     res = ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, evaluators=ev)
     row = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))[0]
     assert isinstance(row["claude"].pop("seconds"), float)
-    assert row["claude"] == {"status": "error", "level": None, "detail": "http_429:-:-"}
-    assert row["gemini"] == {"status": "error", "level": None}  # daily_cap
+    assert row["claude"] == {
+        "status": "error",
+        "level": None,
+        "detail": "http_429:-:-",
+        "usage": None,  # 沒有回應（HD26）
+    }
+    assert row["gemini"] == {"status": "error", "level": None}  # daily_cap：沒送、沒有 usage
     assert "detail" not in res["airports"]["RC00"]["claude"]
 
 

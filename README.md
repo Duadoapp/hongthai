@@ -434,6 +434,7 @@ H10（2026-10-18）之後：
   （下面「事件保存」）；HD15 起找中心吃任何規則經緯網格（`grid_field`）
 - `src/hongthai/wn3report.py`：WeatherNext 3 的事件檔與補報（HD15，下面「事件保存」）
 - `tools/report_29w.py`：颱風 29W 的驗證報告（HD22，下面「事件保存」）
+- `tools/ai_cost.py`：AI 對決的 token 用量、快取命中率與估計費用（HD26，下面「AI 對決」）
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
   重做腳本 `tools/make_font_subset.py`
 - `src/hongthai/ai/`：AI 對決（HD5，下面「AI 對決」）；模型字串、免責四語、上限都在 `ai/config.py`
@@ -492,7 +493,9 @@ H10（2026-10-18）之後：
 ```
 
 - `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`nws`（HD3 起）、`jma`（HD9 起）、`flights`、`ai`（HD5 起，
-  AI 對決；`bytes` 是 0、`calls` 是這一報每個模型呼叫了幾次）、`og`（HD1 起，分享預覽圖；改發布上一份時
+  AI 對決；`bytes` 是 0、`calls` 是這一報每個模型呼叫了幾次；HD26 起多 `usage`——兩家這一報的 token 合計，鍵同
+  戰績的 `usage` 再加 `calls`（有回應的次數），都沒數字的鍵是 `null`——與估計費用 `costUsd`
+  `{"claude": 美元, "gemini": 美元}`，算不出來是 `null`；見「AI 對決」）、`og`（HD1 起，分享預覽圖；改發布上一份時
   也有）、`done`（照執行順序）
 - `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`（`og` 有幾張畫不出來時是
   `"<IATA>:<例外類別>"`，多個用 `,` 接）；`bytes`：下載量（逾時的是到那時為止，
@@ -996,7 +999,7 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
 - **保險**（`ai/config.py`）：每報最多評 20 個機場；每天（UTC）每個模型的呼叫上限 `DAILY_CAP` **開發期間不限**
   （`DAILY_CAP=0`，2026-10-19 定案，HD11；手動 Run workflow 也照常跑 AI），正式推廣前再評估，恢復時改成 80 之類的
   數字即可，超過的記 `daily_cap`；`history/ai/calls-<日期>.json` 照常記每個模型今天呼叫幾次（成功失敗都算）；
-  另有 Anthropic workspace 每月 30 美元硬上限、GCP 30 美元預算警示（在平台上設）；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
+  另有 Anthropic workspace 每月硬上限（原 30 美元，2026-10-21 為了撐過颱風調到 100）、GCP 30 美元預算警示（在平台上設）；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
   的自動重試都關掉；唯一例外是快回的 `http_503`／`http_504` 重試一次，見下一條）；單次請求逾時 Claude 60、Gemini 45 秒
   （`config.TIMEOUT_S`，HD23 前都是 60）；剩下的預算不到該模型逾時＋5 秒（`config.SEND_MIN_LEFT_S`：65／50 秒）就不再
   送新請求、記 `timeout`（HD23；以前是不到 0.1 秒才不送）；整個 AI 步驟預算 240 秒（`BUDGET_S["ai"]`；HD12 前 180 秒，
@@ -1030,6 +1033,41 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
     `"http_504:-:-:retried:fallback"`；成功的照舊沒有 `detail`）；`sources.ai.geminiLocation` 記最後用的區域
   - 用 13:43Z 那報的 20 筆秒數重算（3 條並行、依送出順序；同樣方法重算原本是 239.2 秒，對得上實際）：慢 504 不重試、
     逾時 45 秒後約 **163 秒**。那報成功與失敗交錯，連續 3 次要到最後幾個快 504 才會出現，備援在那報幫不上多少
+- **提示快取與 token 紀錄**（HD26，2026-10-21 Shawn 看了帳單：Claude 10/19 US$8.72、10/20 US$11.83，GCP 10/18–10/20
+  約 US$12.9）：**只改送法與紀錄**，提示文字、順序、模型、`effort`／`thinking_level`、溫度、`max_tokens` 都沒動，
+  `latest.json` 沒加欄位
+  - **Claude**：`system` 改成一個 text block（內容就是 `SYSTEM`）加 `cache_control: {"type": "ephemeral"}`
+    （預設 5 分鐘 TTL；一報 AI 約 1.5–2 分鐘，夠）。Opus 5.5 最小可快取長度 512 token（低於的話 API 不報錯、只是不快取，
+    `cacheRead` 一直是 0）。第一次寫入 1.25 倍 input 單價、之後讀取 0.05 倍
+  - **Gemini**：靠 Vertex 的**隱含快取**（所有專案預設開、自動、不用改送法；`system_instruction` 每次一樣就是前綴），
+    命中時 `cached_content_token_count` > 0、那段打 1 折。**Gemini 4 的最小長度是 4,096 token**，`SYSTEM` 比這短、
+    每個機場的訊息從第一行（機場名）就不一樣，所以現在大概**不會命中**——這支對 Gemini 主要是記數字。
+    不做顯式 context caching（`CachedContent` 要多一次 API 呼叫、按小時收儲存費，Argon 504 時還多一個會失敗的步驟）
+  - **Claude 每報第一個機場先單獨評完，再開 4 條線**（`ai/run.py`，`config.WARMUP`）：同時起跑的話每條線各寫一次
+    快取。只改送出順序，每個機場送的內容不變；第一個失敗也照樣開線，預算守門照舊。代價是 Claude 多等一輪
+    （約一次呼叫的時間）。**Gemini 不先單獨評**、照舊直接開 3 條線：隱含快取最小 4,096 token，`SYSTEM` 不到，
+    先評一個沒有好處、504 時還拖慢備援
+  - **`usage`**：每次有回應的呼叫（成功或失敗）在戰績那筆記 token 數（下面「對決戰績」）；`timing/` 的 `ai` 那行
+    多兩家的合計 `usage` 與估計費用 `costUsd`（上面「耗時紀錄」）
+  - **單價**（`ai/config.py` 的 `PRICES`，美元／百萬 token，2026-10-21 查）：Claude Opus 5.5 input 4、output 20、
+    cache write（5 分鐘）5、cache read 0.20（[prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)）；
+    Gemini 4 Argon（Vertex、global）到 11/30 促銷價 input 2、output 10（含思考，"response and reasoning"）、cached input
+    0.10，12/1 起 4／20／0.20；非 global（備援 `us`）貴 10%，估計一律用 global
+    （[Vertex AI pricing](https://cloud.google.com/vertex-ai/generative-ai/pricing)、
+    [context caching](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/context-cache/context-cache-overview)）。
+    單價查不到的寫 `None`、費用就是 `null`
+  - **`tools/ai_cost.py`**：讀戰績的 `usage`，印每天、每報、每家的呼叫數、每次平均 input／output／思考／快取讀寫
+    token、快取命中率、估計費用：
+
+    ```sh
+    python -m tools.ai_cost --archive ../hongthai-data --from 2026-10-21          # 印表
+    python -m tools.ai_cost --archive ../hongthai-data --from 2026-10-21 --json   # JSON（給之後畫圖）
+    ```
+
+    命中率兩家公式不同：Claude 的 `input_tokens` **不含**快取讀寫，用 `cacheRead ÷ (input + cacheRead + cacheWrite)`；
+    Gemini 的 `prompt_token_count` **含**快取命中的部分，用 `cacheRead ÷ input`。Gemini 沒命中、沒思考時回應不帶那兩個數
+    （記 `null`），算命中率與費用時當 0。HD26 之前的戰績沒有 `usage`，不算
+  - 省錢的做法（沿用評論、每天 2 次、Gemini 上限、規則移進快取前綴）在 10/21 日誌「待決定」，颱風報告後再談
 - **模型參數**：Claude 用官方 `anthropic` SDK（Messages API），`max_tokens` 3000（HD6；HD5 是 1200）、
   `effort: "low"`；**不送 `temperature`**——Opus 5.5 不接受取樣參數（送了回 400），思考也關不掉、思考的
   token 算在 `max_tokens` 裡，所以用 `low` 留空間給四語短評；沒開 server-side fallback（換別的模型回答，
@@ -1122,6 +1160,20 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   是兩次合計（HD17）。`detail` 的標記之後可能接 `:retried` 或 `:slow`（HD17、HD23），最後可能再接 `:fallback`（HD23）。`skipped`、`run_cap`、
   `daily_cap`、`no_api_key`、`timeout`（預算到了沒送）沒送出，不寫 `seconds`；送出後預算先到、結果不採用的
   （記 `timeout`）也不寫
+- `claude`／`gemini` 真的送出的呼叫多一個 `usage`（HD26，`latest.json` 不加；和 `seconds` 同時出現）：
+  - Claude：`{"input": input_tokens, "output": output_tokens, "cacheRead": cache_read_input_tokens,
+    "cacheWrite": cache_creation_input_tokens}`（`output` 含思考、`input` 不含快取讀寫）
+  - Gemini：`{"input": prompt_token_count, "output": candidates_token_count, "thinking": thoughts_token_count,
+    "cacheRead": cached_content_token_count}`（`input` 含快取命中的部分）
+  - 失敗但有回應的（`bad_format`、`bad_wording`、`refusal`）也記；沒有回應（`timeout`、`http_504` 之類）是 `null`；
+    回應裡缺的欄位寫 `null`、不寫 0。重試過的是第二次那次的
+
+  ```json
+  "claude": { "status": "ok", "level": "high", "seconds": 21.7,
+              "usage": { "input": 9120, "output": 1840, "cacheRead": 2400, "cacheWrite": 0 } },
+  "gemini": { "status": "ok", "level": "medium", "seconds": 18.3,
+              "usage": { "input": 11800, "output": 880, "thinking": 1100, "cacheRead": null } }
+  ```
 
 ## 分享預覽圖
 
