@@ -1,6 +1,6 @@
-# HD27：日本氣象廳暴風、大雨警報——只列出、不升級（凍結前上線）
+# HD27：日本氣象廳暴風、大雨警報＋氣象署陸上強風特報——只列出、不升級（凍結前上線）
 
-模型：Sonnet，強度中。**10/22 12:00（台灣）凍結前合併**。只改 `src/hongthai/sources/jma.py`（代碼對照）、`assess.py`（種類集合）、測試、README、
+模型：Sonnet，強度中。**10/22 12:00（台灣）凍結前合併**。只改 `src/hongthai/sources/jma.py`（代碼對照）、`sources/cwa.py`（陸上強風特報）、`assess.py`（種類集合）、測試、README、
 `docs/ORCHESTRATOR.md`。**等級規則、投票、門檻都不動**：新加的警報一律 `level: "low"`（只列出），和香港紅雨、雷暴警告、日本暴風雪警報
 同一個做法，所以任何一格的燈號都不會因為這支改變。`latest.json` 只多值（`warnings[].kind` 的新種類），不加欄位。
 
@@ -22,6 +22,12 @@
 - 四語 `text` 照現有寫法：「日本氣象廳暴風警報（那霸市）」／"JMA storm warning (Naha)"；特別警報、大雨同理（zh-CN 簡體）
 - 注意報、波浪、高潮、洪水、土砂災害**不接**
 
+## 1b. 氣象署陸上強風特報（`cwa.py`，Shawn 2026-10-22 01:39 加）
+
+- 同一個 `W-C0033-001` 回應（豪雨、濃霧特報已經在用）裡的「陸上強風特報」：機場所在縣市（`cwaAreas`）有生效中的 → `cwa_strong_wind`，**low**
+  （只列出），四語「中央氣象署陸上強風特報（桃園市）」／"CWA land strong wind advisory (Taoyuan)"，`issuedAt`、`endTime` 照豪雨特報的寫法
+- 不加請求；`hazard` 的種類名稱以實際回應為準（第一次實抓核對，寫進註解）
+
 ## 2. 種類集合（`assess.py`）
 
 - 大雨類加進 `RAIN_WARNING_KINDS`（`warning_cause` 回 `rain`）；暴風類照現有「其他警報算 `wind`」
@@ -32,8 +38,9 @@
 - `tests/test_sources_hd9.py`（或新檔）：手造含暴風、暴風特別、大雨、大雨特別（＋新制危険警報若有）、注意報、解除的 office JSON：只出接的幾種、
   都是 low、四語文字、`class20` 對到正確的列
 - `tests/test_assess.py`：只有暴風警報或大雨特別警報（low）的格，`level` 和沒有警報時**完全一樣**；`warnings[]` 照樣列出
-- 用 `data` 分支今天（10/22）最近一份 `history/raw/<日期>/*-jma.json` 跑一次，回報沖繩三個機場會列出哪些警報
-- README「怎麼算」警報那列補「日本氣象廳暴風、大雨警報只列出（low）」；ORCHESTRATOR 凍結段補「HD27 只列出、不改等級」
+- 陸上強風特報：手造一個縣市有、一個沒有，只出 low、四語、縣市對得上
+- 用 `data` 分支今天（10/22）最近一份 `history/raw/<日期>/*-jma.json`、`*-cwa*.json` 跑一次，回報沖繩三個機場與台灣機場會列出哪些警報
+- README「怎麼算」警報那列補「日本氣象廳暴風、大雨警報與氣象署陸上強風特報只列出（low）」；ORCHESTRATOR 凍結段補「HD27 只列出、不改等級」
 
 ## 回報時要附
 
