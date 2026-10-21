@@ -392,6 +392,9 @@
 - **HD25（10/21 10:02）**：GitHub 排程延遲 3–5 小時、整點 cron 常被跳過 → Cloudflare 排程 Worker 當主鬧鐘、GitHub cron 當備援、
   build 同時段已出過就跳過；METAR 往回 6 小時並補缺口。只動排程與資料保存，不改規則與 `latest.json`，凍結前合併
 
+- **HD26（10/21 11:25）**：AI 提示快取與 token 紀錄，只改送法與紀錄（提示文字、順序、模型、參數不動），凍結前合併；
+  省錢的做法（沿用評論、每天 2 次、Gemini 上限、規則移進快取前綴）在 10/21 日誌「待決定」，颱風報告後談
+
 ## 和 Duado 的分工
 
 - 這個 repo 的改動由 HongThai 專用對話負責；duado.app/hongthai/ 網頁與 JSON 契約由 Duado 的主對話負責
