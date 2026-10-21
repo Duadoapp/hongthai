@@ -261,6 +261,10 @@
     - `latest.json` 多約 **790 KB**（2,214 → 3,023 KB；gzip 142 → 174 KB），原始快照一報約 1.2 MB（不縮排；
       zlib 後約 190 KB）——每天 `data` 分支多約 3 MB（history）＋5 MB（raw），要省再說
     - `models[].voting` 要經 Shawn 轉 Duado（網頁標「旁觀，不投票」）；其他要轉的欄位見 README「輸出」HD16 段
+    **HD24 已實作（HD24 PR，只加欄位）**：`slots[].model.vote.mediumTotal`（判中的分母＝`_pool(..., "medium")` 的長度，
+    不含只投高的 `ifs-ens`、`wn2-ens` 與旁觀模式；接在 `medium` 後面）、頂層 `models[].votesOnlyHigh`
+    （`Model.votes_only_high`）。票數、規則、其他欄位一個字都不改；`slots[].model.models[]` 不加。`latest.json`
+    多約 16 KB（15:04Z 那報重算 3,178 → 3,195 KB）
     **HD15 已實作（HD15 PR，待 allowlist 核准）**：`sources/wn3.py`（BigQuery `weathernext_3_0_0_0p1deg` 一個查詢、
     失敗退 GCS 統計 Zarr；服務帳號同 Gemini，不加 secret）、`wn3report.py`（事件檔＋補報）、`tracks.grid_field`
     （找中心吃任何經緯網格，GRIB 三個模式也改經過它、結果不變）、`BUDGET_S["wn3"]` 120（總和 1785，`build.yml`
@@ -358,7 +362,8 @@
 - **10/22 12:00 系統定版**，之後只修 bug，直到 29W 離開所有範圍機場（或轉溫帶氣旋）後 24 小時、初版報告出來為止；
   不改等級規則、投票方式、門檻。估算陣風係數兩天後自動切 `airport30d` 是既定行為，照常，切換時間記日誌
 - 定版前（10/20–10/22 中午）排進去的：HD9（JMA 大雪警報，10/20 上線）、HD16（Open-Meteo ICON＋JMA＋WeatherNext 2 系集，8 票，
-  10/21 上線）、暴風雪特別警報；網頁 HW6 10/21 同步。報告依版本分開算：10/22 12:00 前是 5 票版、之後是 8 票版；各模式自己照常
+  10/21 上線）、暴風雪特別警報；網頁 HW6 10/21 同步。報告依版本分開算：10/22 12:00 前是 5 票版、之後是 8 票版；各模式自己照常。
+  HD24（`vote.mediumTotal`、`models[].votesOnlyHigh`）只加欄位、不改票數，不影響報告的版本切分
 - WeatherNext 3（HD15）趕不上，核准後先以「旁觀模式」（`voting: false`）進 `models[]` 與路徑檔、不投票，解凍後再投。
   **HD15 讀完條款後改成預設 `report-only`**（即時數字不能公開）：只存 5 天前那一報（CC BY 4.0）給報告比對，
   要進 `models[]` 得先拿到 Google 書面同意（上面 HD15 已實作）

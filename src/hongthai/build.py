@@ -789,7 +789,10 @@ def assemble(
         "regions": [{"id": r.id, "name": r.name} for r in regions],
         # 模式層投票的模式（HD14，`config.MODELS` 的順序；每格的 `model.models[]` 只放 id）；
         # `voting: false` 是旁觀模式，網頁標「旁觀，不投票」（HD16）
-        "models": [{"id": m.id, "name": m.name, "voting": m.voting} for m in MODELS],
+        "models": [
+            {"id": m.id, "name": m.name, "voting": m.voting, "votesOnlyHigh": m.votes_only_high}
+            for m in MODELS
+        ],
         "airports": out_airports,
     }
 
