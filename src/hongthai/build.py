@@ -7,7 +7,8 @@
     原始回應；SMG 是 XML，存成 `{語言: XML 原文}` 的 JSON；氣象署天氣特報 `W-C0033-001` 是另一個檔
     `-cwa-hazards.json`，HD8，`-cwa.json` 維持颱風警報原文；金門、馬祖的局屬站觀測 `O-A0003-001` 是
     `-cwa-obs.json`，HD13；JMA 是 `{office 代碼: 回應}`，HD9；Open-Meteo 是
-    `{"forecast": 回應, "ensemble": 回應}`、不縮排（約 1.2 MB），HD16）
+    `{"forecast": 回應, "ensemble": 回應}`、不縮排（約 1.2 MB），HD16；SWIC 是
+    `{"wmoAll": 中韓菲三國的清單摘錄, "caps": {url: CAP 原文}, "capErrors": {url: 原因}}`，HD29）
   - `history/cancellations/<YYYY-MM-DD>.json`（每機場每 6 小時格的航班取消／延誤統計，日期是格的
     UTC 日期；合併規則見 `cancellations.py`。原始航班資料不存）
   - `history/timing/<YYYY-MM>.jsonl`（每次 build 每個來源的耗時，一行一筆，見 `Timing`）
@@ -121,6 +122,7 @@ from .sources import (
     nws,
     openmeteo,
     smg,
+    swic,
     taf,
     wn3,
 )
@@ -145,6 +147,7 @@ SOURCE_NAMES = (
     "smg",
     "nws",
     "jma",
+    "swic",
 )
 
 # 每個來源的時間預算（秒）。2026-10-18 實測：ecmwf 約 90–240（入口 0.5–1.4 MB/s；H10 起 HRES
@@ -152,8 +155,9 @@ SOURCE_NAMES = (
 # 約 66 MB、55 秒，aigfs 約 51 MB、38 秒（2026-10-20 雲端開發機實測）。
 # 總和 1785 秒（29.75 分鐘，HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加
 # 60 秒、HD14 加 aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加
-# openmeteo 90 秒、HD15 加 wn3 120 秒），`build.yml` 那一步的上限是 32 分鐘（HD15 前 30、HD16 前
-# 28、HD21 前 25、HD14 前 20、HD12 前 18）。HD16 的 openmeteo 兩個請求約 1.2 MB、2 秒
+# openmeteo 90 秒、HD15 加 wn3 120 秒）；HD29 加 swic 45 秒，總和 1830 秒（30.5 分鐘），還在
+# `build.yml` 那一步的 32 分鐘內，workflow 不用改。`build.yml` 那一步的上限是 32 分鐘（HD15 前
+# 30、HD16 前 28、HD21 前 25、HD14 前 20、HD12 前 18）。HD16 的 openmeteo 兩個請求約 1.2 MB、2 秒
 # （2026-10-20 雲端開發機實測）。
 # HD21 的海平面氣壓算在 gfs／aifs／aigfs 自己的預算裡（每個步長約 1.0／0.5／1.0 MB，21 個步長
 # 共約 52 MB；2026-10-20 雲端開發機實測）。
@@ -173,6 +177,9 @@ BUDGET_S: dict[str, float] = {
     "cwa": 45,  # 颱風警報、天氣特報、局屬站觀測（HD13）各一個請求；實測 1–5 秒
     "nws": 30,  # HD3：關島的颱風警報，一個請求
     "jma": 45,  # HD9：日本與沖繩的大雪警報，一個 office 一個請求（11 個）；實測每個 0.5–1 秒
+    # HD29：WMO SWIC（中國氣象局、韓國氣象廳、PAGASA）：清單一個請求（約 0.9 MB、0.6–3 秒）＋要的
+    # CAP 原文每則 0.6–1 秒、4 條平行；平時幾則、颱風期間估 10–40 則
+    "swic": 45,
     "flights": 120,  # 抓＋統計＋寫檔
     "ai": 240,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒；HD12 180 → 240
     "og": 60,  # HD1：51 張分享預覽圖，publish() 之後畫（本機約 3 秒）
@@ -416,6 +423,15 @@ def _is_num(v: object) -> bool:
     return isinstance(v, int | float) and not isinstance(v, bool)
 
 
+def _swic_extra(s: swic.SwicData) -> dict:
+    """HD29：這報抓了幾則 CAP（`caps`）；有幾則抓不到時 `capErrors`（則數；那幾則跳過、
+    其他照列）。"""
+    d: dict[str, object] = {"caps": s.caps}
+    if s.cap_errors:
+        d["capErrors"] = len(s.cap_errors)
+    return d
+
+
 def _cwa_extra(c: cwa.CwaData) -> dict:
     """氣象署天氣特報（HD8）或局屬站觀測（HD13）那個請求失敗時才有；颱風警報照常算 `ok`。"""
     d: dict[str, object] = {}
@@ -596,6 +612,7 @@ def collect_warnings(
     smg_data: smg.SmgData | None = None,
     nws_data: nws.NwsData | None = None,
     jma_data: jma.JmaData | None = None,
+    swic_data: swic.SwicData | None = None,
 ) -> list[assess.ActiveWarning]:
     out: list[assess.ActiveWarning] = []
     if "hko" in airport.warning_sources and hko_data and hko_data.signal:
@@ -636,6 +653,13 @@ def collect_warnings(
     if "jma" in airport.warning_sources and jma_data and airport.jma_area:
         for j in jma_data.warnings.get(airport.jma_area.class20, []):
             out.append(assess.ActiveWarning("jma", j.kind, j.level, j.text, j.issued_at, j.code))
+    if swic_data is not None:  # HD29：cma／kma／pagasa，`for_airport` 只看這個機場有的
+        for w in swic.for_airport(swic_data.alerts, airport):
+            out.append(
+                assess.ActiveWarning(
+                    w.source, w.kind, w.level, w.text, w.issued_at, w.code, w.detail
+                )
+            )
     return out
 
 
@@ -736,6 +760,7 @@ def assemble(
     jm: jma.JmaData | None = None,
     om: openmeteo.OpenMeteoData | None = None,
     wn: wn3.Wn3Data | None = None,
+    sw: swic.SwicData | None = None,
 ) -> dict:
     """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。`factors` 是每個機場估算陣風的
     係數（HD18；沒有的機場用 1.4、`default`）。`om` 是 Open-Meteo 的三個模式（HD16）。`wn` 是
@@ -758,7 +783,7 @@ def assemble(
     by_model = model_runs(runs)
     out_airports = []
     for a in airports:
-        warns = collect_warnings(a, hk, cw, sm, nw, jm)
+        warns = collect_warnings(a, hk, cw, sm, nw, jm, sw)
         mine = [c for c in confirmed if c.airport == a.icao]
         taf_info = tf.tafs.get(a.icao) if tf else None
         metar = station_metar(a, tf, cw)
@@ -791,6 +816,8 @@ def assemble(
                 "region": a.region,
                 # 有沒有接官方警報來源（H9）；false 的機場網頁顯示「官方警報：尚未提供」
                 "official": {"warnings": bool(a.warning_sources)},
+                # 接了哪些官方警報來源（HD29）：cwa／hko／smg／nws／jma／cma／kma／pagasa，沒接是 []
+                "warningSources": list(a.warning_sources),
                 "warnings": [warning_json(w) for w in warns],
                 "metar": metar_json(metar),
                 "taf": taf_json(taf_info, now),
@@ -948,6 +975,8 @@ def run(
     nw = _call("nws", lambda: nws.fetch(nws_zones), status, timing)
     jma_areas = [a.jma_area for a in airports if "jma" in a.warning_sources and a.jma_area]
     jm = _call("jma", lambda: jma.fetch(jma_areas), status, timing)
+    swic_airports = [a for a in airports if swic.SOURCES & set(a.warning_sources)]
+    sw = _call("swic", lambda: swic.fetch(swic_airports, now), status, timing, _swic_extra)
     _call(
         "flights",
         lambda: flight_stats(flights.fetch(now), airports, now, history),
@@ -976,6 +1005,7 @@ def run(
         jm=jm,
         om=om,
         wn=wn,
+        sw=sw,
     )
     if wn is not None and wn_events:
         wn3_files(history, wn_events, wn, airports, factors, wn_mode, workdir / "wn3")
@@ -1007,6 +1037,8 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-nws.json", nw.raw)
     if jm is not None:
         _dump(raw_dir / f"{now:%H%M}Z-jma.json", jm.raw)
+    if sw is not None:
+        _dump(raw_dir / f"{now:%H%M}Z-swic.json", sw.raw)
     if om is not None:  # HD16：兩個回應約 1.2 MB，縮排會變好幾倍，不縮排
         _dump(raw_dir / f"{now:%H%M}Z-openmeteo.json", om.raw, compact=True)
     _dump(history / f"{stamp}.json", latest, compact=True)

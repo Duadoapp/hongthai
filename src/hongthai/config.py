@@ -234,6 +234,10 @@ class Airport:
     # 用這站的觀測（金門 467110、馬祖 467990）
     cwa_station: str | None = None
     jma_area: JmaArea | None = None  # HD9：JMA 警報的區域（`airports.json` 的 `jmaArea`）
+    # HD29（SWIC）：中國氣象局預警對機場用的縣級代碼（GB/T 2260 前 6 碼，`cmaAreas`）、
+    # PAGASA 警報用的 PSGC 9 碼（`psgcAreas`）；韓國用機場座標對 CAP 的多邊形，不用另外設
+    cma_areas: tuple[str, ...] = ()
+    psgc_areas: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -276,6 +280,8 @@ _ICAO = re.compile(r"^[A-Z]{4}$")
 _NWS_ZONE = re.compile(r"^[A-Z]{2}Z\d{3}$")
 _JMA_OFFICE = re.compile(r"^\d{6}$")
 _JMA_CLASS20 = re.compile(r"^\d{7}$")
+_CMA_AREA = re.compile(r"^\d{6}$")
+_PSGC_AREA = re.compile(r"^\d{9}$")
 
 _THRESHOLD_KEYS = {
     "modelMediumGustKt": "model_medium_gust_kt",
@@ -358,6 +364,8 @@ def load_airports(path: str | Path) -> list[Airport]:
                 nws_zone=a.get("nwsZone", ""),
                 cwa_station=a.get("cwaStation") or None,
                 jma_area=_jma_area(a.get("jmaArea")),
+                cma_areas=tuple(str(c) for c in a.get("cmaAreas", [])),
+                psgc_areas=tuple(str(c) for c in a.get("psgcAreas", [])),
             )
         )
     _check(_regions(raw), airports)
@@ -401,6 +409,20 @@ def _check(regions: list[Region], airports: list[Airport]) -> None:
                     f"airports.json {a.icao} 看 JMA 警報但 jmaArea {j!r} 不對"
                     '（例如 {"office": "016000", "class20": "0122400", "name": "千歳市"}）'
                 )
+        if "cma" in a.warning_sources and (
+            not a.cma_areas or not all(_CMA_AREA.match(c) for c in a.cma_areas)
+        ):
+            raise ValueError(
+                f"airports.json {a.icao} 看中國氣象局預警但 cmaAreas {list(a.cma_areas)} 不對"
+                '（縣級 6 碼，例如 ["330303"]）'
+            )
+        if "pagasa" in a.warning_sources and (
+            not a.psgc_areas or not all(_PSGC_AREA.match(c) for c in a.psgc_areas)
+        ):
+            raise ValueError(
+                f"airports.json {a.icao} 看 PAGASA 警報但 psgcAreas {list(a.psgc_areas)} 不對"
+                '（PSGC 9 碼，例如 ["137600000"]）'
+            )
     # 照地區順序分段：機場的地區順序不能往回跳
     order = [ids.index(a.region) for a in airports]
     if order != sorted(order):

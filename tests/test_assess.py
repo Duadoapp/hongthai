@@ -26,6 +26,7 @@ from hongthai.assess import (
 )
 from hongthai.config import ConfirmedPeriod, Runway, Thresholds
 from hongthai.grib import wind_dir_from_uv
+from hongthai.sources import swic
 from hongthai.sources.aifs import AifsStep
 from hongthai.sources.aigfs import AigfsStep
 from hongthai.sources.ecmwf import EcmwfPoint, GustInterval, PrecipStep, ProbWindow
@@ -933,6 +934,40 @@ def test_hd27_low_warning_listed_with_medium():
     s = run(ec=flat_ec(40), warnings=ws)[0]
     assert s["official"] is None
     assert (s["level"], s["basis"], s["causes"]) == ("medium", "model", ["wind"])
+
+
+# ---- HD29：經 WMO SWIC 的中國氣象局、韓國氣象廳、PAGASA 警報只列出 ----
+
+
+HD29_LOW = tuple((kind, kind.split("_", 1)[0]) for kind in swic.KINDS)
+
+
+@pytest.mark.parametrize(("kind", "source"), HD29_LOW)
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {},  # 沒有官方資料：退回模式（低）
+        {"ec": flat_ec(40)},  # 模式中
+        {"ec": flat_ec(50), "gfs": flat_gfs(50)},  # 模式高
+        {"taf_periods": [wxp(gust=40)]},  # 有 TAF（中）
+        {"taf_periods": [wxp(("+RA",), 3000)]},  # 有 TAF（雨中）
+    ],
+)
+def test_hd29_low_warning_changes_no_level(kind, source, kw):
+    """中國大風黃色、韓國颱風警報、PAGASA 風球這些（HD29 全部 low）：每一格除了 `warnings`
+    以外都和沒有警報時一樣（同 HD27 的鎖）。"""
+    assert source in ("cma", "kma", "pagasa")
+    base = run(**kw)
+    got = run(warnings=[warn("low", kind, source)], **kw)
+    assert [_without_warnings(s) for s in got] == [_without_warnings(s) for s in base]
+    assert all(s["official"]["warnings"] == [kind] for s in got[:2] if s["official"] is not None)
+
+
+def test_hd29_all_together_still_no_change():
+    ws = [warn("low", k, s) for k, s in HD29_LOW]
+    for kw in ({}, {"ec": flat_ec(40)}, {"taf_periods": [wxp(gust=40)]}):
+        base, got = run(**kw), run(warnings=ws, **kw)
+        assert [_without_warnings(s) for s in got] == [_without_warnings(s) for s in base]
 
 
 def precip_ec(mm=0.0, ptype="none", p50=None, hres=5.0) -> EcmwfPoint:

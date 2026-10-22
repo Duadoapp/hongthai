@@ -24,6 +24,7 @@ dependencies = [
     "google-cloud-bigquery>=3.46",  # WeatherNext 3（HD15）：BigQuery
     "gcsfs>=2026.9",  # WeatherNext 3（HD15）：GCS Zarr 備援與海平面氣壓
     "zarr>=3.1",  # WeatherNext 3 的 Zarr v3
+    "opencc>=1.1.9",  # HD29：中國氣象局預警簡轉繁（s2twp、s2hk）；PyPI 有 manylinux wheel
 ]
 
 [project.optional-dependencies]

@@ -171,7 +171,8 @@
       "name": {"zh-TW": "上海浦東", "zh-HK": "上海浦東", "zh-CN": "上海浦东", "en": "Shanghai Pudong"},
       "lat": 31.1434,
       "lon": 121.805,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["310115"],
       "runways": [
         {"id": "16L/34R、16R/34L、17L/35R、17R/35L", "headings": [162, 342]}
       ],
@@ -185,7 +186,8 @@
       "name": {"zh-TW": "上海虹橋", "zh-HK": "上海虹橋", "zh-CN": "上海虹桥", "en": "Shanghai Hongqiao"},
       "lat": 31.1981,
       "lon": 121.3343,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["310105", "310112"],
       "runways": [
         {"id": "18L/36R、18R/36L", "headings": [176, 356]}
       ],
@@ -199,7 +201,8 @@
       "name": {"zh-TW": "杭州", "zh-HK": "杭州", "zh-CN": "杭州", "en": "Hangzhou"},
       "lat": 30.2361,
       "lon": 120.4289,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["330109"],
       "runways": [
         {"id": "06/24、07/25", "headings": [63, 243]}
       ],
@@ -213,7 +216,8 @@
       "name": {"zh-TW": "寧波", "zh-HK": "寧波", "zh-CN": "宁波", "en": "Ningbo"},
       "lat": 29.8267,
       "lon": 121.462,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["330203"],
       "runways": [
         {"id": "13/31", "headings": [123, 303]}
       ],
@@ -227,7 +231,8 @@
       "name": {"zh-TW": "溫州", "zh-HK": "溫州", "zh-CN": "温州", "en": "Wenzhou"},
       "lat": 27.9106,
       "lon": 120.8535,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["330303"],
       "runways": [
         {"id": "03/21", "headings": [28.1, 208.1]}
       ],
@@ -241,7 +246,8 @@
       "name": {"zh-TW": "福州", "zh-HK": "福州", "zh-CN": "福州", "en": "Fuzhou"},
       "lat": 25.9293,
       "lon": 119.6725,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["350112"],
       "runways": [
         {"id": "03/21、04/22", "headings": [27, 207]}
       ],
@@ -255,7 +261,8 @@
       "name": {"zh-TW": "廈門", "zh-HK": "廈門", "zh-CN": "厦门", "en": "Xiamen"},
       "lat": 24.5439,
       "lon": 118.1275,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["350206"],
       "runways": [
         {"id": "05/23", "headings": [53, 233]}
       ],
@@ -269,7 +276,8 @@
       "name": {"zh-TW": "泉州", "zh-HK": "泉州", "zh-CN": "泉州", "en": "Quanzhou"},
       "lat": 24.7959,
       "lon": 118.5886,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["350582"],
       "runways": [
         {"id": "03/21", "headings": [34, 214]}
       ],
@@ -283,7 +291,8 @@
       "name": {"zh-TW": "潮汕", "zh-HK": "潮汕", "zh-CN": "潮汕", "en": "Chaoshan"},
       "lat": 23.552,
       "lon": 116.5033,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["445203", "445202"],
       "runways": [
         {"id": "04/22", "headings": [40, 220]}
       ],
@@ -297,7 +306,8 @@
       "name": {"zh-TW": "深圳", "zh-HK": "深圳", "zh-CN": "深圳", "en": "Shenzhen"},
       "lat": 22.6395,
       "lon": 113.8033,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["440306"],
       "runways": [
         {"id": "15/33、16L/34R", "headings": [155, 335]},
         {"id": "16R/34L", "headings": [153, 333]}
@@ -312,7 +322,8 @@
       "name": {"zh-TW": "廣州", "zh-HK": "廣州", "zh-CN": "广州", "en": "Guangzhou"},
       "lat": 23.3924,
       "lon": 113.299,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["440111", "440114"],
       "runways": [
         {"id": "01L/19R、01R/19L、02L/20R、02R/20L、03/21", "headings": [13.9, 193.9]}
       ],
@@ -354,7 +365,8 @@
       "name": {"zh-TW": "珠海", "zh-HK": "珠海", "zh-CN": "珠海", "en": "Zhuhai"},
       "lat": 22.0064,
       "lon": 113.376,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["440404"],
       "runways": [
         {"id": "05/23", "headings": [44.6, 224.6]}
       ],
@@ -368,7 +380,8 @@
       "name": {"zh-TW": "海口", "zh-HK": "海口", "zh-CN": "海口", "en": "Haikou"},
       "lat": 19.9349,
       "lon": 110.459,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["460108"],
       "runways": [
         {"id": "09/27、10/28", "headings": [90, 270]}
       ],
@@ -382,7 +395,8 @@
       "name": {"zh-TW": "三亞", "zh-HK": "三亞", "zh-CN": "三亚", "en": "Sanya"},
       "lat": 18.3029,
       "lon": 109.412,
-      "warningSources": [],
+      "warningSources": ["cma"],
+      "cmaAreas": ["460204"],
       "runways": [
         {"id": "08/26", "headings": [82.2, 262.2]}
       ],
@@ -563,7 +577,7 @@
       "name": {"zh-TW": "濟州", "zh-HK": "濟州", "zh-CN": "济州", "en": "Jeju"},
       "lat": 33.5121,
       "lon": 126.4925,
-      "warningSources": [],
+      "warningSources": ["kma"],
       "runways": [
         {"id": "07/25", "headings": [58.5, 238.5]},
         {"id": "13/31", "headings": [125.6, 305.6]}
@@ -578,7 +592,7 @@
       "name": {"zh-TW": "釜山", "zh-HK": "釜山", "zh-CN": "釜山", "en": "Busan"},
       "lat": 35.1795,
       "lon": 128.938,
-      "warningSources": [],
+      "warningSources": ["kma"],
       "runways": [
         {"id": "18L/36R、18R/36L", "headings": [174, 354]}
       ],
@@ -592,7 +606,7 @@
       "name": {"zh-TW": "仁川", "zh-HK": "仁川", "zh-CN": "仁川", "en": "Seoul Incheon"},
       "lat": 37.4691,
       "lon": 126.451,
-      "warningSources": [],
+      "warningSources": ["kma"],
       "runways": [
         {"id": "15L/33R、15R/33L、16L/34R、16R/34L", "headings": [145, 325]}
       ],
@@ -606,7 +620,7 @@
       "name": {"zh-TW": "金浦", "zh-HK": "金浦", "zh-CN": "金浦", "en": "Seoul Gimpo"},
       "lat": 37.5583,
       "lon": 126.791,
-      "warningSources": [],
+      "warningSources": ["kma"],
       "runways": [
         {"id": "14L/32R、14R/32L", "headings": [135, 315]}
       ],
@@ -690,7 +704,8 @@
       "name": {"zh-TW": "馬尼拉", "zh-HK": "馬尼拉", "zh-CN": "马尼拉", "en": "Manila"},
       "lat": 14.5086,
       "lon": 121.02,
-      "warningSources": [],
+      "warningSources": ["pagasa"],
+      "psgcAreas": ["137600000", "137604000", "137605000", "130000000"],
       "runways": [
         {"id": "06/24", "headings": [60.3, 240.3]},
         {"id": "13/31", "headings": [134.8, 314.8]}
@@ -705,7 +720,8 @@
       "name": {"zh-TW": "宿霧", "zh-HK": "宿霧", "zh-CN": "宿雾", "en": "Cebu"},
       "lat": 10.3093,
       "lon": 123.9797,
-      "warningSources": [],
+      "warningSources": ["pagasa"],
+      "psgcAreas": ["072226000", "072200000", "070000000"],
       "runways": [
         {"id": "04L/22R、04R/22L", "headings": [45, 225]}
       ],
@@ -719,7 +735,8 @@
       "name": {"zh-TW": "克拉克", "zh-HK": "克拉克", "zh-CN": "克拉克", "en": "Clark"},
       "lat": 15.186,
       "lon": 120.56,
-      "warningSources": [],
+      "warningSources": ["pagasa"],
+      "psgcAreas": ["035409000", "035400000", "030000000"],
       "runways": [
         {"id": "02R/20L", "headings": [21.1, 201.1]}
       ],

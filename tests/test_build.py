@@ -20,7 +20,21 @@ from hongthai.ai import config as ai_config
 from hongthai.ai.parse import AiError
 from hongthai.assess import DEFAULT_GUST_FACTOR
 from hongthai.config import WN3_MODEL, ConfirmedPeriod, Thresholds, load_airports, load_regions
-from hongthai.sources import aifs, aigfs, cwa, ecmwf, gfs, hko, jma, nws, openmeteo, smg, taf, wn3
+from hongthai.sources import (
+    aifs,
+    aigfs,
+    cwa,
+    ecmwf,
+    gfs,
+    hko,
+    jma,
+    nws,
+    openmeteo,
+    smg,
+    swic,
+    taf,
+    wn3,
+)
 from hongthai.sources.gfs import GfsData, GustPoint
 
 # 地區與機場的顯示順序（H9；HD3 加越南、菲律賓、關島・帛琉；Duado spec 第 16 節）
@@ -134,6 +148,22 @@ def sample_jma(airports):
     )
 
 
+# HD29：經 WMO SWIC 的 21 個機場（中國大陸 14、韓國 4、菲律賓 3）
+SWIC_ICAOS = (
+    {i for i in REGIONS["east-china"] + REGIONS["south-china-hkmo"] if i[:2] in ("ZS", "ZG", "ZJ")}
+    | set(REGIONS["korea"])
+    | set(REGIONS["philippines"])
+)
+SWIC_SAMPLES = ROOT / "docs" / "surveys" / "samples" / "2026-10-22-cap" / "swic"
+
+
+def sample_swic():
+    """HD29：HD28 實抓的溫州市氣象台大風黃色預警（龍灣區，WNZ 會中）。"""
+    xml = (SWIC_SAMPLES / "cap" / "cn-wenzhou-gale-yellow.xml").read_text("utf-8")
+    alert = swic.parse_cap(xml, "cma", NOW, "wenzhou.xml")
+    return swic.SwicData([alert], {"wmoAll": {"items": []}, "caps": {"wenzhou.xml": xml}}, 1)
+
+
 def sample_ai_models(airports):
     """HD14 的 AIFS、AIGFS：每個機場整段一樣的 10 米平均風（節）。"""
     steps = range(0, 121, 6)
@@ -231,6 +261,7 @@ def latest(airports, tmp_path):
         af=af,
         ag=ag,
         jm=sample_jma(airports),
+        sw=sample_swic(),
     )
     # AI 對決（HD5）：Claude 成功、Gemini 格式不對
     evaluators = {"claude": fake_ai("high"), "gemini": fake_ai(None, "bad_format")}
@@ -300,16 +331,20 @@ def test_top_level(latest):
     assert {"aifs", "aigfs"} <= set(latest["sources"])
 
 
-def test_airport_shape(latest):
+def test_airport_shape(latest, airports):
+    by_icao = {a.icao: a for a in airports}
     assert [a["icao"] for a in latest["airports"]] == ICAOS
     for a in latest["airports"]:
         assert isinstance(a["iata"], str) and isinstance(a["tz"], str)
         assert set(a["name"]) == LANGS
         assert a["icao"] in REGIONS[a["region"]]
         assert set(a["official"]) == {"warnings"} and isinstance(a["official"]["warnings"], bool)
+        # HD29：接了哪些官方警報來源，照 airports.json
+        assert a["warningSources"] == list(by_icao[a["icao"]].warning_sources)
+        assert a["official"]["warnings"] is bool(a["warningSources"])
         assert "runwaySource" not in a
         for w in a["warnings"]:
-            assert w["source"] in ("hko", "cwa", "smg", "nws", "jma")
+            assert w["source"] in ("hko", "cwa", "smg", "nws", "jma", "cma", "kma", "pagasa")
             assert isinstance(w["kind"], str)
             assert w["level"] in ("low", "medium", "high")
             assert set(w["text"]) == LANGS
@@ -502,7 +537,7 @@ def test_content_from_samples(latest):
         assert [w["kind"] for w in by[icao]["warnings"]] == ["typhoon_land"]
     assert "松山在警戒區" in by["RCSS"]["warnings"][0]["text"]["zh-TW"]
     # 沒有官方警報來源的機場：warnings 是空的、official.warnings 是 false（網頁顯示「尚未提供」）
-    with_sources = set(TAIWAN) | {"VHHH", "VMMC", "PGUM"} | JMA_ICAOS
+    with_sources = set(TAIWAN) | {"VHHH", "VMMC", "PGUM"} | JMA_ICAOS | SWIC_ICAOS
     for a in latest["airports"]:
         assert a["official"]["warnings"] is (a["icao"] in with_sources)
         if a["icao"] not in with_sources:
@@ -604,15 +639,24 @@ def test_airports_json_structure():
             assert len(r["headings"]) == 2 and all(0 <= h <= 360 for h in r["headings"])
             assert abs((r["headings"][1] - r["headings"][0]) % 360 - 180) < 0.05
         # 官方警報：台灣看氣象署（每個機場一組警戒區關鍵字）、香港天文台、澳門 SMG、
-        # 關島 NWS（HD3）、日本與沖繩 JMA（HD9），其他還沒有（越南、菲律賓先不接；帛琉 NWS 查不到）
+        # 關島 NWS（HD3）、日本與沖繩 JMA（HD9）、中國大陸、韓國、菲律賓經 WMO SWIC（HD29），
+        # 越南、帛琉還沒有
         want = (
             ["cwa"]
             if a["region"] == "taiwan"
             else ["jma"]
             if a["region"] in ("okinawa", "japan")
+            else ["cma"]
+            if a["icao"].startswith(("ZS", "ZG", "ZJ"))
+            else ["kma"]
+            if a["region"] == "korea"
+            else ["pagasa"]
+            if a["region"] == "philippines"
             else {"VHHH": ["hko"], "VMMC": ["smg"], "PGUM": ["nws"]}.get(a["icao"], [])
         )
         assert a["warningSources"] == want
+        assert bool(a.get("cmaAreas")) == (want == ["cma"])
+        assert bool(a.get("psgcAreas")) == (want == ["pagasa"])
         assert bool(a.get("cwaAreas")) == (a["region"] == "taiwan")
         assert a.get("nwsZone") == ("GUZ001" if a["icao"] == "PGUM" else None)
         assert bool(a.get("jmaArea")) == (a["icao"] in JMA_ICAOS)
@@ -631,6 +675,28 @@ def test_airports_json_structure():
         "RJCC": ("016000", "0122400", "千歳市"),
         "RJSS": ("040000", "0420700", "名取市"),
     }
+    # HD29：中國氣象局預警對機場的縣級代碼、PAGASA 的 PSGC（調查報告第 2.3、2.5 節，待主對話核對）
+    assert {a["icao"]: a["cmaAreas"] for a in aps if a.get("cmaAreas")} == {
+        "ZSPD": ["310115"],
+        "ZSSS": ["310105", "310112"],
+        "ZSHC": ["330109"],
+        "ZSNB": ["330203"],
+        "ZSWZ": ["330303"],
+        "ZSFZ": ["350112"],
+        "ZSAM": ["350206"],
+        "ZSQZ": ["350582"],
+        "ZGOW": ["445203", "445202"],
+        "ZGSZ": ["440306"],
+        "ZGGG": ["440111", "440114"],
+        "ZGSD": ["440404"],
+        "ZJHK": ["460108"],
+        "ZJSY": ["460204"],
+    }
+    assert {a["icao"]: a["psgcAreas"] for a in aps if a.get("psgcAreas")} == {
+        "RPLL": ["137600000", "137604000", "137605000", "130000000"],
+        "RPVM": ["072226000", "072200000", "070000000"],
+        "RPLC": ["035409000", "035400000", "030000000"],
+    }
     aip = [a["icao"] for a in aps if a["runwaySource"] == "aip"]
     assert sorted(aip) == ["RCKH", "RCSS", "RCTP", "VHHH", "VMMC"]
     assert [a["icao"] for a in aps if a["runwaySource"] == "computed"] == ["ROIG"]
@@ -646,6 +712,10 @@ def _write_airports(tmp_path, raw):
 
 def _pgum(raw):
     return next(a for a in raw["airports"] if a["icao"] == "PGUM")
+
+
+def _icao(raw, icao):
+    return next(a for a in raw["airports"] if a["icao"] == icao)
 
 
 def _rjcc(raw):
@@ -667,6 +737,11 @@ def _rjcc(raw):
         (lambda raw: _rjcc(raw)["jmaArea"].update(office="16000"), "jmaArea"),
         (lambda raw: _rjcc(raw)["jmaArea"].update(class20="122400"), "jmaArea"),
         (lambda raw: _rjcc(raw)["jmaArea"].pop("name"), "jmaArea"),
+        # HD29
+        (lambda raw: _icao(raw, "ZSWZ").pop("cmaAreas"), "cmaAreas"),
+        (lambda raw: _icao(raw, "ZSWZ").update(cmaAreas=["3303"]), "cmaAreas"),
+        (lambda raw: _icao(raw, "RPLL").pop("psgcAreas"), "psgcAreas"),
+        (lambda raw: _icao(raw, "RPLL").update(psgcAreas=["1376"]), "psgcAreas"),
     ],
 )
 def test_airports_json_rejected(tmp_path, change, message):
@@ -684,6 +759,37 @@ def test_regions_order_matches_airports(latest):
     assert seen == [r["id"] for r in latest["regions"]]
 
 
+def test_swic_warnings_in_output(latest):
+    """HD29：經 SWIC 的警報只列出（low）；三國 21 個機場 `official.warnings` 是 true。"""
+    by = {a["icao"]: a for a in latest["airports"]}
+    for icao in SWIC_ICAOS:
+        assert by[icao]["official"]["warnings"] is True
+    want = {"ZS": ["cma"], "ZG": ["cma"], "ZJ": ["cma"], "RK": ["kma"], "RP": ["pagasa"]}
+    assert all(by[i]["warningSources"] == want[i[:2]] for i in SWIC_ICAOS)
+    assert all(by[i]["warningSources"] == [] for i in REGIONS["vietnam"] + ["PTRO"])
+    wnz = by["ZSWZ"]
+    assert wnz["warnings"] == [
+        {
+            "source": "cma",
+            "kind": "cma_gale_yellow",
+            "level": "low",
+            "text": {
+                "zh-TW": "溫州市氣象臺發布大風黃色預警[Ⅲ級/較重]（中國氣象局，經 WMO SWIC）",
+                "zh-HK": "温州市氣象台發佈大風黃色預警[Ⅲ級/較重]（中國氣象局，經 WMO SWIC）",
+                "zh-CN": "温州市气象台发布大风黄色预警[Ⅲ级/较重]（中国气象局，经 WMO SWIC）",
+                "en": "Wenzhou Meteorological Observatory issues a yellow warning for strong "
+                "winds [Level III/Severe] (CMA via WMO SWIC)",
+            },
+            "issuedAt": "2026-10-21T01:35:00Z",
+            "code": "gale",
+            "detail": "温州市气象台发布大风黄色预警[Ⅲ级/较重]",
+        }
+    ]
+    # 低的警報撐不起官方層（WNZ 沒有 TAF）：每格照模式算
+    assert all(s["official"] is None and s["basis"] != "official" for s in wnz["slots"])
+    assert all(by[i]["warnings"] == [] for i in SWIC_ICAOS - {"ZSWZ"})
+
+
 # ---- 執行與失敗處理 ----
 
 
@@ -695,6 +801,7 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(build.flights, "fetch", lambda now: build.flights.FlightsData({}, {}))
     monkeypatch.setattr(build.nws, "fetch", lambda zones: build.nws.NwsData([], {}))
     monkeypatch.setattr(build.jma, "fetch", lambda areas: build.jma.JmaData({}, {}))
+    monkeypatch.setattr(build.swic, "fetch", lambda airports, now: build.swic.SwicData([], {}, 0))
     # HD14 的兩個模式、HD16 的 Open-Meteo、HD15 的 WeatherNext 3 預設失敗（測試不連網）
     for mod in (build.aifs, build.aigfs, build.openmeteo, build.wn3):
         monkeypatch.setattr(mod, "fetch", _boom)
@@ -722,7 +829,8 @@ def _boom(*a, **k):
 
 
 def test_all_sources_fail_still_outputs(workspace, monkeypatch):
-    for mod in (build.ecmwf, build.gfs, build.taf, build.hko, build.smg, build.nws, build.jma):
+    mods = (build.ecmwf, build.gfs, build.taf, build.hko, build.smg, build.nws, build.jma)
+    for mod in (*mods, build.swic):
         monkeypatch.setattr(mod, "fetch", _boom)
     monkeypatch.delenv("CWA_API_KEY", raising=False)
     assert build.main([]) == 0
@@ -772,12 +880,16 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     jm = sample_jma(airports)
     areas_asked = []
     monkeypatch.setattr(build.jma, "fetch", lambda areas: areas_asked.extend(areas) or jm)
+    sw = sample_swic()
+    swic_asked = []
+    monkeypatch.setattr(build.swic, "fetch", lambda aps, now: swic_asked.extend(aps) or sw)
     om = sample_openmeteo(airports)
     monkeypatch.setattr(build.openmeteo, "fetch", lambda *a, **k: om)
     monkeypatch.setattr(build, "utcnow", lambda: NOW)
     monkeypatch.setattr(build.ai, "EVALUATORS", {"claude": fake_ai("high"), "gemini": fake_ai()})
     assert build.main([]) == 0
     assert zones_asked == ["GUZ001"]
+    assert {a.icao for a in swic_asked} == SWIC_ICAOS  # HD29：只給看 cma／kma／pagasa 的機場
     assert sorted(a.class20 for a in areas_asked) == sorted(
         a.jma_area.class20 for a in airports if a.icao in JMA_ICAOS
     )
@@ -790,7 +902,14 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     assert [r["id"] for r in out["regions"]] == list(REGIONS)
     raw = workspace / "data" / "history" / "raw" / "2026-10-18"
     assert sorted(p.name for p in raw.iterdir()) == [
-        f"0810Z-{n}.json" for n in ("cwa", "hko", "jma", "metar", "nws", "openmeteo", "smg", "taf")
+        f"0810Z-{n}.json"
+        for n in ("cwa", "hko", "jma", "metar", "nws", "openmeteo", "smg", "swic", "taf")
+    ]
+    assert json.loads((raw / "0810Z-swic.json").read_text("utf-8")) == sw.raw
+    assert out["sources"]["swic"]["caps"] == 1 and "capErrors" not in out["sources"]["swic"]
+    wnz = _airport(out, "ZSWZ")
+    assert [(w["source"], w["kind"], w["level"]) for w in wnz["warnings"]] == [
+        ("cma", "cma_gale_yellow", "low")
     ]
     # HD16：Open-Meteo 原文不縮排（約 1.2 MB）
     assert json.loads((raw / "0810Z-openmeteo.json").read_text("utf-8")) == om.raw
@@ -891,7 +1010,19 @@ def test_flight_fetch_error_reported(workspace, monkeypatch):
 
 
 def _fail_all_but(monkeypatch, **fetches):
-    names = ("ecmwf", "gfs", "aifs", "aigfs", "openmeteo", "taf", "hko", "smg", "nws", "jma")
+    names = (
+        "ecmwf",
+        "gfs",
+        "aifs",
+        "aigfs",
+        "openmeteo",
+        "taf",
+        "hko",
+        "smg",
+        "nws",
+        "jma",
+        "swic",
+    )
     for name in names:
         monkeypatch.setattr(getattr(build, name), "fetch", fetches.get(name, _boom))
     monkeypatch.delenv("CWA_API_KEY", raising=False)
@@ -1297,6 +1428,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "smg",
         "nws",
         "jma",
+        "swic",  # HD29
         "flights",
         "ai",
         "og",
@@ -1328,7 +1460,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     om_line = lines[5]  # HD16：openmeteo 記加權呼叫次數（失敗是 null）
     assert set(om_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert (om_line["ok"], om_line["calls"]) == (False, None)
-    ai_line = lines[13]
+    ai_line = lines[14]
     assert set(ai_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "calls"),
         *("usage", "costUsd"),  # HD26
