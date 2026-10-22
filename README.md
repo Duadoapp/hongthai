@@ -450,8 +450,9 @@ H10（2026-10-18）之後：
 - `src/hongthai/gustfactor.py`：估算陣風的係數（HD18，上面「估算陣風的係數」）；30 天後的驗證報表
   `tools/gust_factor_report.py`
 - `src/hongthai/build.py`：組 JSON、寫檔、失敗處理
-- `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR 與颱風現報
-  （`.github/workflows/events.yml`）；推 `data` 分支用 `tools/push_data.sh`（`build.yml` 也用）
+- `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR、颱風現報與逐班航班紀錄
+  （HD31，逐班轉換在 `src/hongthai/flights_log.py`）（`.github/workflows/events.yml`）；推 `data` 分支用
+  `tools/push_data.sh`（`build.yml` 也用）
 - `cloudflare/trigger/`：Cloudflare 排程 Worker（HD25，上面「排程」），自己一份 `package.json` 與 lock，
   不動 repo 根目錄；`npm test` 測 cron → workflow 的對照（CI 只在 `cloudflare/` 有變動時跑）
 - `src/hongthai/tracks.py`：颱風路徑抽取（HD21）：ECMWF 路徑產品（BUFR）與從海平面氣壓找中心
@@ -484,7 +485,8 @@ H10（2026-10-18）之後：
   次數照常記，之後評估看實際用量；下面
   「AI 對決」），估算陣風係數的樣本 `history/gustfactor/<YYYY-MM>.jsonl` 與這一報的係數
   `history/gustfactor/latest.json`（HD18，格式在下面），事件保存 `history/events/<id>/`（HD20，每報快照、
-  每小時 METAR、颱風現報；HD21 起多各模式每一報的颱風路徑 `history/events/<id>/tracks/`；下面「事件保存」）。這些都不進 GitHub Pages、不進 `latest.json`
+  每小時 METAR、颱風現報；HD21 起多各模式每一報的颱風路徑 `history/events/<id>/tracks/`；HD31 起多每小時逐班
+  航班紀錄 `history/events/<id>/flights/`；下面「事件保存」）。這些都不進 GitHub Pages、不進 `latest.json`
 
 `history/gustfactor/<YYYY-MM>.jsonl`（HD18）：一行一報一機場，IFS、GFS 分開記，只存合格（平均風 ≥ 10 節）
 的比例、兩位小數、照格的順序，沒有的寫 `[]`（模式失敗、沿用舊資料的那一報也是 `[]`）；月份是 `run`
@@ -903,7 +905,7 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
   期間開始時已經過去的報，在 Actions 手動跑 `events` workflow、勾 `backfill` 搬一次（已存在的跳過；
   本機是 `python -m hongthai.events backfill --archive data`）
 - **每小時**（`.github/workflows/events.yml`，每小時 07 分；期間外 `python -m hongthai.events hourly`
-  印一行就結束）：三件事分開 try，失敗只記 log
+  印一行就結束）：四件事分開 try，失敗只記 log
   1. 機場觀測 `metar/<YYYY-MM-DD>.jsonl`（觀測時間的 UTC 日期）：AviationWeather 一次請求全部站、
      `hours=6`（半小時一報的機場兩筆都拿到、排程晚了也補得回來；HD25 從 3 改 6）；金門、馬祖用氣象署
      `O-A0003-001`（HD13，`CWA_API_KEY`）。一站一筆觀測一行，同一站同一 `observedAt` 已經有就不寫：
@@ -927,6 +929,35 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
   3. JTWC 現報 `position/jtwc-<YYYY-MM-DD>.jsonl`：`https://www.metoc.navy.mil/jtwc/products/<id>.tcw`
      （文字警報，`T000 159N 1356E 130` 這種行＋本文的陣風與中心氣壓）；原文另存
      `position/raw/jtwc-<YYYYMMDDTHHMM>Z.txt`（有新的一報或解析不出來時才存）
+  4. 逐班航班紀錄 `flights/<YYYY-MM-DD>.jsonl`（HD31，10/23 起；日期是**表定時間**的 UTC 日期）：抓桃園、
+     松山、高雄、香港、澳門五個航班來源（`sources/flights.py`，和 build 的取消統計同樣的請求；事件的
+     `airports` 有的機場才寫），逐班一行。解析、共掛合成一班、分類、沒有日期的時間、高雄換日全部沿用
+     `cancellations.py`（`src/hongthai/flights_log.py`）。原始回應不存；看不出方向或表定時間的筆數記 log：
+
+     ```json
+     {"t": "2026-10-23T00:07:00Z", "airport": "RCTP", "dir": "dep", "flight": "CI162",
+      "codeshares": ["KE5694", "DL7719"], "peer": "ICN", "schedUtc": "2026-10-23T07:30:00Z",
+      "estUtc": "2026-10-23T08:25:00Z", "actUtc": null, "status": "時間更改SCHEDULE CHANGE",
+      "class": "normal", "source": "taoyuan-airport"}
+     ```
+
+     - `flight` 是營運班號、`codeshares` 是掛名班號（桃園、松山的共掛是分開的列，掛名列併進同方向、同表定
+       時間、同航點裡前面最近的營運列；香港是 `flight` 陣列的第二個以後；高雄、澳門沒有）；`peer` 是對方機場
+       （台灣三個、香港是 IATA，香港多個用 `/` 接；澳門是英文地名原文）
+     - `estUtc`／`actUtc`：取消統計算延誤用的那個時間；狀態表示已起飛／已降落（桃園「出發」「已到」、松山
+       「已飛」「已到」、高雄「離站」「抵達」、香港 `Dep`／`At gate`／`Landed`、澳門 `TOOK OFF AT`／`LANDED AT`／
+       「著陸」「起飛」）放 `actUtc`，其他放 `estUtc`；沒有就是 `null`
+     - `class`：`cancelled`／`delayed`（狀態延誤，或預計／實際比表定晚 60 分鐘以上）／`other`（對照表沒列的
+       狀態）／`normal`，和 `history/cancellations/` 的統計同一套
+     - `source`：`taoyuan-airport`／`tsa`／`kia`／`hongkongairport`／`aacm`
+     - **只在有變化時寫**：同一個 `airport`＋`dir`＋`flight`＋`schedUtc`，`status`、`class`、`estUtc`、`actUtc`
+       任一個和檔裡最後一行不同才寫，第一次看到也寫（`t` 不同不算）
+
+     **補香港**：Actions 手動跑 `events` workflow、勾 `backfill-flights`（本機
+     `python -m hongthai.events backfill-flights --archive data --from 2026-10-19`）：香港 `past?date=` 從
+     `--from` 到今天（香港日期，和事件期間重疊的部分）每天查出發、抵達各一次，照同樣的格式補進來（`t` 是實際
+     抓的時間，多 `"backfill": true`；同一班同狀態不重寫），最後印每天幾班、寫了幾行。桃園、松山、高雄、澳門
+     只有當天，補不到，只記 log
 
   颱風位置一行一點（日期是**發布時間**的 UTC 日期；同一來源同一 `issuedAt`＋`validAt` 已經有就不寫）：
 

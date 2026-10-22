@@ -31,6 +31,13 @@
 - `wn3/<起報 YYYYMMDDTHHMM>Z.json`：WeatherNext 3 每格的數字（HD15，`wn3report.py`）；
   `backfill-tracks` 也補 WN3（事件期間 `from` 以後、起報 ≤ 現在 − 121 小時的主報，事件檔＋
   路徑檔），要 Google 憑證
+- `flights/<YYYY-MM-DD>.jsonl`（HD31，日期是**表定時間**的 UTC 日期）：每小時抓桃園、松山、
+  高雄、香港、澳門五個航班來源（`sources/flights.py`，事件的 `airports` 有的才寫），逐班一行
+  （格式與規則見 `flights_log.py`；解析、共掛、分類沿用 `cancellations.py`）；同一班的狀態、分類、
+  預計／實際時間和最後一行一樣就不寫。原始回應不存。
+  `python -m hongthai.events backfill-flights --archive data --from <日期>`（`backfill_flights`）：
+  香港 `past?date=` 從 `--from` 到今天（香港日期）每天查一次補進來（行多 `"backfill": true`，同一班
+  同狀態不重寫）；其他四個來源只有當天，補不到，只記 log
 
 來源（2026-10-20 實抓）：
 - METAR：AviationWeather `metar?ids=<25 站>&format=json&hours=6`（`hours` 讓半小時一報的
@@ -52,7 +59,8 @@
   `200000Z --- NEAR 15.9N 135.6E` 下面的 `MAX SUSTAINED WINDS - 130 KT, GUSTS 160 KT`
   （陣風）與 `MINIMUM CENTRAL PRESSURE AT 200000Z IS 929 MB`（只有實況）
 
-每小時三件事（METAR、JMA、JTWC）分開 try，失敗只記 log、不算整個失敗（`hourly` 一律回 0）。
+每小時四件事（METAR、JMA、JTWC、航班〔HD31〕）分開 try，失敗只記 log、不算整個失敗
+（`hourly` 一律回 0）。
 """
 
 from __future__ import annotations
@@ -65,13 +73,15 @@ import re
 import shutil
 import sys
 import time
+from collections import defaultdict
 from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from . import flights_log
 from .config import Airport, Event, load_airports, load_events
-from .sources import SourceError, cwa, http_get, taf
+from .sources import SourceError, cwa, flights, http_get, taf
 from .timeutil import iso, parse_time, utcnow
 
 log = logging.getLogger("hongthai")
@@ -510,6 +520,108 @@ def fetch_jtwc(e: Event, d: Path, fetched: datetime) -> int:
     return n
 
 
+# ---- 航班（HD31） ----
+
+FLIGHT_FETCHERS = ("VHHH", "RCTP", "RCSS", "RCKH", "VMMC")  # `flights.fetch` 的五個機場
+HKG = "VHHH"
+
+
+def store_flights(d: Path, rows: list[dict]) -> int:
+    """依表定時間的 UTC 日期分檔，只追加和同一班最後一行不同的（`flights_log.changed`）。"""
+    by_day: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        by_day[flights_log.day_of(r)].append(r)
+    n = 0
+    for day, day_rows in sorted(by_day.items()):
+        p = d / "flights" / f"{day}.jsonl"
+        old = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+        new = flights_log.changed(old, day_rows)
+        if not new:
+            continue
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as f:
+            f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in new)
+        n += len(new)
+    return n
+
+
+def _tz(airports: list[Airport]) -> dict[str, str]:
+    return {a.icao: a.tz for a in airports}
+
+
+def fetch_flights(
+    e: Event, airports: list[Airport], fetched: datetime, d: Path
+) -> dict[str, int | None]:
+    """抓五個來源（`flights.fetch`，各自 try）、逐班寫進 `flights/`；回傳每個機場寫了幾行
+    （抓不到或解析失敗是 None）。事件的 `airports` 沒有的機場不寫。"""
+    want = [a for a in FLIGHT_FETCHERS if a in e.airports]
+    if not want:
+        return {}
+    data = flights.fetch(fetched)
+    tz = _tz(airports)
+    out: dict[str, int | None] = {}
+    for icao in want:
+        if icao not in data.snapshots:
+            log.warning("事件 %s：航班 %s 抓不到（%s）", e.id, icao, data.errors.get(icao))
+            out[icao] = None
+            continue
+        try:
+            rows = flights_log.rows_of(icao, data.snapshots[icao], tz[icao], fetched)
+            out[icao] = store_flights(d, rows)
+        except Exception:  # 一個機場的格式變了不擋其他機場
+            log.exception("事件 %s：航班 %s 解析或寫檔失敗", e.id, icao)
+            out[icao] = None
+    log.info(
+        "事件 %s：航班 " + "、".join(f"{k} {'失敗' if v is None else v}" for k, v in out.items()),
+        e.id,
+    )
+    return out
+
+
+def backfill_flights(
+    history: Path,
+    events: list[Event],
+    airports: list[Airport],
+    since: date,
+    now: datetime,
+    pause: Callable[[float], None] = time.sleep,
+) -> dict[str, dict[str, tuple[int, int] | None]]:
+    """`backfill-flights`（HD31）：期間和 `since`～今天（香港日期）重疊的每個事件，香港
+    `past?date=` 每天查出發、抵達各一次，逐班補進 `flights/`（行多 `"backfill": true`；同一班同
+    狀態不重寫）。回傳每個事件每天（班數, 寫了幾行）；那天失敗是 None。其他四個來源只有當天，
+    補不到，只記 log。"""
+    tz = _tz(airports)[HKG]
+    today = now.astimezone(ZoneInfo(tz)).date()
+    out: dict[str, dict[str, tuple[int, int] | None]] = {}
+    first = True
+    for e in events:
+        start, end = max(since, e.start), min(today, e.end)
+        if HKG not in e.airports or start > end:
+            continue
+        others = [a for a in FLIGHT_FETCHERS if a != HKG and a in e.airports]
+        if others:
+            log.warning("事件 %s：%s 的航班資料只有當天，補不到", e.id, "、".join(others))
+        d = event_dir(history, e)
+        res: dict[str, tuple[int, int] | None] = {}
+        day = start
+        while day <= end:
+            try:
+                payload: dict[str, list] = {}
+                for name, arrival in (("departure", False), ("arrival", True)):
+                    if not first:
+                        pause(BACKFILL_PAUSE_S)
+                    first = False
+                    payload[name] = flights.fetch_hkg_groups(day, arrival)
+                rows = [{**r, "backfill": True} for r in flights_log.rows_of(HKG, payload, tz, now)]
+                res[f"{day}"] = (len(rows), store_flights(d, rows))
+            except (SourceError, ValueError) as ex:
+                log.warning("事件 %s：香港 %s 的航班補不到：%s", e.id, day, ex)
+                res[f"{day}"] = None
+            day += timedelta(days=1)
+        out[e.id] = res
+    return out
+
+
 # ---- 每小時 ----
 
 
@@ -520,7 +632,8 @@ def hourly(
     api_key: str | None,
     now: datetime,
 ) -> dict[str, dict[str, int | None]]:
-    """期間內的每個事件做三件事，各自 try；回傳每件寫了幾行（失敗是 None）。"""
+    """期間內的每個事件做四件事，各自 try；回傳每件寫了幾行（失敗是 None；航班是五個機場的
+    合計，個別機場失敗只 log）。"""
     out: dict[str, dict[str, int | None]] = {}
     for e in active(events, now):
         d = event_dir(history, e)
@@ -540,6 +653,11 @@ def hourly(
         except Exception:
             log.exception("事件 %s：JTWC 現報失敗（Actions 可能被擋）", e.id)
             res["jtwc"] = None
+        try:
+            res["flights"] = sum(v or 0 for v in fetch_flights(e, airports, now, d).values())
+        except Exception:
+            log.exception("事件 %s：航班失敗", e.id)
+            res["flights"] = None
         out[e.id] = res
     return out
 
@@ -588,13 +706,17 @@ def _backfill_tracks(
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m hongthai.events", description=__doc__)
-    ap.add_argument("command", choices=("hourly", "backfill", "backfill-tracks", "backfill-metar"))
+    ap.add_argument(
+        "command",
+        choices=("hourly", "backfill", "backfill-tracks", "backfill-metar", "backfill-flights"),
+    )
     ap.add_argument("--archive", type=Path, default=Path("data"))
     ap.add_argument(
         "--from",
         dest="since",
         default="2026-10-19T00:00Z",
-        help="backfill-tracks：這個時間（UTC）以後的快照；backfill-metar：這個時間以後的觀測",
+        help="backfill-tracks：這個時間（UTC）以後的快照；backfill-metar：這個時間以後的觀測；"
+        "backfill-flights：這一天（香港日期，只看前 10 個字）起",
     )
     ap.add_argument("--events", type=Path, default=Path("events.json"))
     ap.add_argument("--airports", type=Path, default=Path("airports.json"))
@@ -622,6 +744,20 @@ def main(argv: list[str] | None = None) -> int:
                 + ("、".join(k for k, v in res.items() if v is None) or "無")
             )
             _print_coverage(e.airports, before[e.id], metar_coverage(dirs[e.id]))
+        return 0
+    if args.command == "backfill-flights":
+        since_day = date.fromisoformat(args.since[:10])
+        airports = load_airports(args.airports)
+        result = backfill_flights(history, events, airports, since_day, utcnow())
+        for eid, res in result.items():
+            ok = {day: v for day, v in res.items() if v is not None}
+            print(
+                f"{eid}：香港補了 {len(ok)} 天、{sum(v[0] for v in ok.values())} 班、寫了 "
+                f"{sum(v[1] for v in ok.values())} 行；失敗 "
+                + ("、".join(day for day, v in res.items() if v is None) or "無")
+            )
+            for day, v in res.items():
+                print(f"  {day}：" + ("失敗" if v is None else f"{v[0]} 班、寫了 {v[1]} 行"))
         return 0
     if args.command == "backfill":
         for eid, n in backfill(history, events).items():

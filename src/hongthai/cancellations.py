@@ -102,6 +102,12 @@ class Flight:
     scheduled: datetime  # 表定時間（帶時區）
     category: str  # OK／OTHER／DELAYED／CANCELLED
     status: str  # 原始狀態字串
+    # 以下是 HD31 逐班紀錄（`flights_log.py`）用的，統計不看
+    flight: str = ""  # 營運班號
+    codeshares: tuple[str, ...] = ()  # 掛名班號（共掛合成一班時被略過的那些列）
+    peer: str | None = None  # 對方機場（IATA 或來源的原文）
+    when: datetime | None = None  # 預計或實際時間（算延誤用的那個）
+    done: bool = False  # 已起飛／已降落：`when` 是實際時間，不是預計
 
 
 # ---- 狀態對照表 ----
@@ -120,6 +126,7 @@ TPE_STATUS = {
     "時間更改SCHEDULECHANGE": OK,
     "": OK,
 }
+TPE_DONE = {"出發DEPARTED", "已到ARRIVED"}  # 預計／實際時間是實際的（HD31）
 TSA_STATUS = {
     "取消CANCELLED": CANCELLED,
     "延誤DELAYED": DELAYED,
@@ -131,6 +138,7 @@ TSA_STATUS = {
     "提早EARLY": OK,
     "": OK,
 }
+TSA_DONE = {"已飛DEPARTED", "已到ARRIVED"}
 KHH_STATUS = {
     "取消": CANCELLED,
     "延遲": DELAYED,
@@ -152,6 +160,7 @@ HKG_STATUS = [
     (rf"(?:DEP|EST AT|AT GATE|LANDED) {_T}{_D}", OK),
     (r"BOARDING SOON|BOARDING|FINAL CALL|GATE CLOSED", OK),
 ]
+HKG_DONE = r"(?:DEP|AT GATE|LANDED) "  # 狀態裡的時間是實際的（`EST AT` 是預計）
 MFM_STATUS = [
     (r"0?", OK),
     (r"CANCELL?ED", CANCELLED),
@@ -168,6 +177,7 @@ MFM_KEYWORDS = [
     ("著陸", OK),
     ("起飛", OK),
 ]
+MFM_DONE = r"(?:TOOK OFF|LANDED) AT "
 
 
 def _lookup(table: dict[str, str], status: object) -> str:
@@ -239,6 +249,30 @@ def _category(status_cat: str, sched: datetime, actual: datetime | None) -> str:
     return status_cat
 
 
+def _codeshares(groups: list[tuple], operated: list[bool], nos: list[str]) -> dict[int, list]:
+    """共掛是分開的列時（桃園、松山），掛名列歸給同一組（同方向、同表定時間、同航點）裡
+    **前面最近的**營運列（來源是營運列後面接它的掛名列；同組有兩班營運時才分得開），前面沒有就給
+    同組第一個營運列。回傳 營運列索引 → 掛名班號。"""
+    ops: dict[tuple, list[int]] = defaultdict(list)
+    for i, (g, op) in enumerate(zip(groups, operated, strict=True)):
+        if op:
+            ops[g].append(i)
+    out: dict[int, list] = defaultdict(list)
+    for i, (g, op) in enumerate(zip(groups, operated, strict=True)):
+        if op or g not in ops:
+            continue
+        before = [j for j in ops[g] if j < i]
+        out[before[-1] if before else ops[g][0]].append(nos[i])
+    return out
+
+
+def _peer(v: object) -> str | None:
+    """對方機場：字串或（香港）IATA 陣列，多個用 `/` 接；空的回 None。"""
+    if isinstance(v, list):
+        v = "/".join(str(x).strip() for x in v if str(x).strip())
+    return str(v or "").strip() or None
+
+
 # ---- 各來源 ----
 
 
@@ -252,20 +286,20 @@ def _tpe(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
             return None
         return _at(d, _clock(r.get("scheduledTime")), tz)
 
-    operated = {
-        (r.get("kind"), sched_of(r), r.get("airportCode"))
-        for r in rows
-        if str(r.get("aircraft") or "").strip()
-    }
-    for r in rows:
+    def no_of(r: dict) -> str:
+        return f"{r.get('airlineCode', '')}{str(r.get('flightNo', '')).strip()}"
+
+    has_aircraft = [bool(str(r.get("aircraft") or "").strip()) for r in rows]
+    groups = [(r.get("kind"), sched_of(r), r.get("airportCode")) for r in rows]
+    operated = {g for g, op in zip(groups, has_aircraft, strict=True) if op}
+    shares = _codeshares(groups, has_aircraft, [no_of(r) for r in rows])
+    for i, r in enumerate(rows):
         direction = {"D": "dep", "A": "arr"}.get(str(r.get("kind", "")).strip())
         sched = sched_of(r)
         if direction is None or sched is None:
             yield None
             continue
-        if not str(r.get("aircraft") or "").strip() and (
-            (r.get("kind"), sched, r.get("airportCode")) in operated
-        ):
+        if not has_aircraft[i] and groups[i] in operated:
             continue  # 共掛的掛名列
         actual = None
         try:
@@ -275,8 +309,19 @@ def _tpe(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
             pass
         status = str(r.get("status") or "")
         cat = _category(_lookup(TPE_STATUS, status), sched, actual)
-        flight_no = f"{r.get('airlineCode', '')}{str(r.get('flightNo', '')).strip()}"
-        yield Flight(direction, (direction, flight_no, sched), sched, cat, status)
+        flight_no = no_of(r)
+        yield Flight(
+            direction,
+            (direction, flight_no, sched),
+            sched,
+            cat,
+            status,
+            flight_no,
+            tuple(shares.get(i, ())),
+            _peer(r.get("airportCode")),
+            actual,
+            _norm(status) in TPE_DONE,
+        )
 
 
 def _tsa(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
@@ -287,8 +332,19 @@ def _tsa(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
         direction = "dep" if feed.endswith("Departure") else "arr"
         field = "Departure" if direction == "dep" else "Arrival"
         kind_field = "AirDrType" if direction == "dep" else "AirArType"
-        for r in rows:
-            if str(r.get("Master") or "1").strip() not in ("", "1"):
+        peer_field = "GoalAirportCode" if direction == "dep" else "UpAirportCode"
+        rows = [r for r in rows if isinstance(r, dict)]
+
+        def no_of(r: dict) -> str:
+            return f"{r.get('AirLineIATA') or r.get('AirLineCode') or ''}{r.get('AirLineNum', '')}"
+
+        master = [str(r.get("Master") or "1").strip() in ("", "1") for r in rows]
+        groups = [
+            (r.get("AirFlyDate"), r.get(f"Expect{field}Time"), r.get(peer_field)) for r in rows
+        ]
+        shares = _codeshares(groups, master, [no_of(r) for r in rows])
+        for i, r in enumerate(rows):
+            if not master[i]:
                 continue  # 共掛的掛名班號
             if str(r.get(kind_field) or "").strip().upper() in CARGO_TYPES:
                 continue
@@ -308,9 +364,19 @@ def _tsa(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
             actual = _near(sched, _clock(r.get(f"Real{field}Time")))
             status = str(r.get("AirFlyStatus") or "")
             cat = _category(_lookup(TSA_STATUS, status), sched, actual)
-            airline = r.get("AirLineIATA") or r.get("AirLineCode") or ""
-            flight_no = f"{airline}{r.get('AirLineNum', '')}"
-            yield Flight(direction, (direction, flight_no, sched), sched, cat, status)
+            flight_no = no_of(r)
+            yield Flight(
+                direction,
+                (direction, flight_no, sched),
+                sched,
+                cat,
+                status,
+                flight_no,
+                tuple(shares.get(i, ())),
+                _peer(r.get(peer_field)),
+                actual,
+                _norm(status) in TSA_DONE,
+            )
 
 
 def khh_list_date(payload: dict, now_local: datetime) -> date:
@@ -331,6 +397,7 @@ def _khh(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
         if not isinstance(rows, list):
             continue
         direction = "dep" if feed.endswith("Departure") else "arr"
+        peer_field = "goalAirportCode" if direction == "dep" else "upAirportCode"
         for r in rows:
             sched = _at(day, _clock(r.get("expectTime")), tz)
             if sched is None:
@@ -339,7 +406,19 @@ def _khh(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
             actual = _near(sched, _clock(r.get("realTime")))
             status = str(r.get("airFlyStatus") or "")
             cat = _category(_lookup(KHH_STATUS, status), sched, actual)
-            yield Flight(direction, (direction, r.get("airLineNum"), sched), sched, cat, status)
+            flight_no = str(r.get("airLineNum") or "").strip()
+            yield Flight(
+                direction,
+                (direction, r.get("airLineNum"), sched),
+                sched,
+                cat,
+                status,
+                flight_no,
+                (),
+                _peer(r.get(peer_field)),
+                actual,
+                _norm(status) in KHH_FINAL,
+            )
 
 
 def _hkg(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
@@ -363,7 +442,19 @@ def _hkg(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
                 actual = _at(on, clock, tz) if on else _near(sched, clock)
                 nos = [str(f.get("no", "")).replace(" ", "") for f in item.get("flight") or []]
                 key = (direction, nos[0] if nos else "", sched)
-                yield Flight(direction, key, sched, _category(cat, sched, actual), status)
+                peer = item.get("destination" if direction == "dep" else "origin") or []
+                yield Flight(
+                    direction,
+                    key,
+                    sched,
+                    _category(cat, sched, actual),
+                    status,
+                    nos[0] if nos else "",
+                    tuple(nos[1:]),
+                    _peer(peer),
+                    actual,
+                    bool(re.match(HKG_DONE, status.strip().upper())),
+                )
 
 
 def _mfm_part(part: str) -> tuple[str, str | None]:
@@ -376,12 +467,25 @@ def _mfm_part(part: str) -> tuple[str, str | None]:
     return cat, hhmm
 
 
+def _mfm_parts(status: str) -> list[str]:
+    return [p for p in re.split(r"\s{2,}", status.strip()) if p] or [""]
+
+
 def _mfm_status(status: str) -> tuple[str, str | None]:
-    parts = [p for p in re.split(r"\s{2,}", status.strip()) if p] or [""]
-    results = [_mfm_part(p) for p in parts]
+    results = [_mfm_part(p) for p in _mfm_parts(status)]
     cat = max((c for c, _ in results), key=SEVERITY.__getitem__)
     hhmm = next((t for _, t in results if t), None)
     return cat, hhmm
+
+
+def _mfm_done(status: str) -> bool:
+    """已起飛／已降落（`TOOK OFF AT`、`LANDED AT`、中文的「著陸」「起飛」且是正常的那類）。"""
+    for p in _mfm_parts(status):
+        if re.match(MFM_DONE, re.sub(r"\s+", " ", p).upper()):
+            return True
+        if ("著陸" in p or "起飛" in p) and _mfm_part(p)[0] == OK:
+            return True
+    return False
 
 
 def _mfm(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
@@ -411,7 +515,19 @@ def _mfm(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
             cat, hhmm = _mfm_status(status)
             actual = _near(sched, _clock(hhmm))
             key = (direction, r.get("flightNo"), sched)
-            yield Flight(direction, key, sched, _category(cat, sched, actual), status)
+            peer = r.get("destination" if direction == "dep" else "origin")
+            yield Flight(
+                direction,
+                key,
+                sched,
+                _category(cat, sched, actual),
+                status,
+                str(r.get("flightNo") or "").strip(),
+                (),
+                _peer(peer),
+                actual,
+                _mfm_done(status),
+            )
 
 
 PARSERS: dict[str, Callable[[dict, ZoneInfo, datetime], Iterable[Flight | None]]] = {
