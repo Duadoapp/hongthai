@@ -16,6 +16,12 @@
 `estUtc`、`actUtc` 任一個和檔裡最後一行不同才寫（`changed`），第一次看到也寫。`source` 算在鍵裡
 （HD32）：桃園、松山、高雄 TDX 和原本的來源都存，兩邊各自比、不合併、不去重。
 
+香港（HD31 修正，2026-10-24 上線後看到）：`past?date=` 每一天的回應都帶前後一天還沒結束的幾班，
+同一班會在兩個回應裡各出現一次，而兩個回應的更新時間（組的 `lastUpdatedTime`）不同，舊的那份狀態
+落後（例如一份已經 `Dep 23:20`、另一份還是 `Gate Closed`）。不處理的話每小時挑到哪一份不一定，
+同一班的狀態來回跳、每次都多寫一行。所以逐班紀錄先用 `hkg_freshest` 只留 `lastUpdatedTime` 最新
+那組的那份（同一組裡重複的照舊交給 `cancellations`）；取消統計不變。
+
 HD32：TDX 的 `/v2/Air/FIDS/Airport`（`sources/tdx.py`）一個機場那筆 → 同樣的一行（`tdx_rows`，
 `source: "tdx"`）。TDX 每班有表定、預計、實際三個帶日期的時間（當地時間），所以不用猜日期：
 `actUtc` 是實際時間（沒有實際、但狀態已起飛／已降落時放預計），其他放預計；延誤看實際，沒有實際
@@ -32,7 +38,7 @@ import json
 import logging
 import re
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from . import cancellations
@@ -98,9 +104,45 @@ TDX_DONE = (
 )
 
 
+def _updated(group: dict) -> datetime:
+    try:
+        t = datetime.fromisoformat(str(group.get("lastUpdatedTime") or ""))
+    except ValueError:
+        return datetime.min.replace(tzinfo=UTC)
+    return t if t.tzinfo else t.replace(tzinfo=UTC)
+
+
+def hkg_freshest(payload: dict) -> dict:
+    """香港：同一班（同方向、同日期的組、同表定時間、同第一個班號）出現在多個組時，只留
+    `lastUpdatedTime` 最新那組的那份（見檔頭）；沒有 `lastUpdatedTime` 的組當最舊。"""
+    out: dict = dict(payload)
+    for feed in ("departure", "arrival"):
+        groups = list(payload.get(feed) or [])
+        dicts = [i for i, g in enumerate(groups) if isinstance(g, dict)]
+        order = sorted(dicts, key=lambda i: _updated(groups[i]), reverse=True)
+        seen: set[tuple] = set()
+        kept: dict[int, list] = {}
+        for i in order:
+            g, items = groups[i], []
+            for item in g.get("list") or []:
+                nos = item.get("flight") if isinstance(item, dict) else None
+                no = str((nos or [{}])[0].get("no", "")).replace(" ", "") if nos else ""
+                key = (str(g.get("date")), item.get("time") if isinstance(item, dict) else None, no)
+                if key in seen:
+                    continue
+                seen.add(key)
+                items.append(item)
+            kept[i] = items
+        # 格式不對的（不是物件）原樣留著，照舊由 `cancellations` 報錯
+        out[feed] = [{**g, "list": kept[i]} if i in kept else g for i, g in enumerate(groups)]
+    return out
+
+
 def rows_of(airport: str, payload: dict, tz: str, fetched: datetime) -> list[dict]:
     """一個機場 `fetch_*` 的回傳 → 每班一行，依表定時間、方向、班號排序。看不出方向或表定時間的
-    筆數由 `cancellations.flights_of` 記 log。"""
+    筆數由 `cancellations.flights_of` 記 log。香港先用 `hkg_freshest` 去掉舊的那份。"""
+    if airport == "VHHH":
+        payload = hkg_freshest(payload)
     flights = cancellations.flights_of(airport, payload, tz, fetched)
     return _rows(airport, flights, fetched, SOURCES.get(airport))
 

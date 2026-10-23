@@ -425,8 +425,9 @@ def test_backfill_flights(tmp_path, monkeypatch, airports):
     pauses = []
     now = utc(2026, 10, 20, 20)  # 香港 10/21 04:00
     res = events.backfill_flights(history, [EV], airports, date(2026, 10, 19), now, pauses.append)
-    # 10/19、10/20、10/21 三天；每天回同樣的 6 班，第一天寫 5 行（HX613 已經有），之後 0
-    assert res == {"29W": {"2026-10-19": (6, 5), "2026-10-20": (6, 0), "2026-10-21": (6, 0)}}
+    # 10/19、10/20、10/21 三天；每天回同樣的 6 班，合併後 6 班，寫 5 行（HX613 已經有）
+    days = dict.fromkeys(("2026-10-19", "2026-10-20", "2026-10-21"), 6)
+    assert res == {"29W": {"days": days, "flights": 6, "written": 5}}
     assert [(p["date"], p["arrival"]) for p in asked] == [
         (day, a) for day in ("2026-10-19", "2026-10-20", "2026-10-21") for a in ("false", "true")
     ]
@@ -442,6 +443,38 @@ def test_backfill_flights(tmp_path, monkeypatch, airports):
     assert {r["t"] for r in lines if r.get("backfill")} == {"2026-10-20T20:00:00Z"}
 
 
+def test_backfill_flights_keeps_fresher_copy(tmp_path, monkeypatch, airports):
+    """同一班在 10/19 的回應（較新）和 10/20 的回應（帶前一天的尾巴、較舊）各一份：
+    只寫較新的那份。"""
+    item = {"time": "23:15", "flight": [{"no": "CX 271"}], "destination": ["NRT"]}
+
+    def group(day, updated, status):
+        return {
+            "date": day,
+            "arrival": False,
+            "cargo": False,
+            "lastUpdatedTime": updated,
+            "list": [{**item, "status": status}],
+        }
+
+    bodies = {
+        "2026-10-19": [group("2026-10-19", "2026-10-20T00:37:13+08:00", "Dep 00:15 (20/10/2026)")],
+        "2026-10-20": [group("2026-10-19", "2026-10-19T23:40:42+08:00", "Boarding")],
+    }
+
+    def get(url, params=None, **k):
+        body = [] if params["arrival"] == "true" else bodies[params["date"]]
+        return _Resp(json.dumps(body).encode())
+
+    monkeypatch.setattr(flights, "http_get", get)
+    history = tmp_path / "history"
+    now = utc(2026, 10, 19, 20)  # 香港 10/20
+    res = events.backfill_flights(history, [EV], airports, date(2026, 10, 19), now, lambda s: None)
+    assert res == {"29W": {"days": {"2026-10-19": 1, "2026-10-20": 1}, "flights": 1, "written": 1}}
+    (line,) = (history / "events" / "29W" / "flights" / "2026-10-19.jsonl").read_text().splitlines()
+    assert json.loads(line)["status"] == "Dep 00:15 (20/10/2026)"
+
+
 def test_backfill_flights_failure_and_out_of_period(tmp_path, monkeypatch, airports):
     def down(url, **k):
         raise SourceError(f"{url}: down", "network")
@@ -450,7 +483,9 @@ def test_backfill_flights_failure_and_out_of_period(tmp_path, monkeypatch, airpo
     history = tmp_path / "history"
     now = utc(2026, 10, 19, 20)  # 香港 10/20
     res = events.backfill_flights(history, [EV], airports, date(2026, 10, 19), now, lambda s: None)
-    assert res == {"29W": {"2026-10-19": None, "2026-10-20": None}}
+    assert res == {
+        "29W": {"days": {"2026-10-19": None, "2026-10-20": None}, "flights": 0, "written": 0}
+    }
     # 事件期間（10-19～10-28）外、或事件沒有香港：不抓
     late = utc(2026, 10, 30)
     assert events.backfill_flights(history, [EV], airports, date(2026, 10, 29), late) == {}

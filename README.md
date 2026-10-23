@@ -955,6 +955,11 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
      - `source`：`taoyuan-airport`／`tsa`／`kia`／`hongkongairport`／`aacm`；HD32 起多 `tdx`（下面）
      - **只在有變化時寫**：同一個 `source`＋`airport`＋`dir`＋`flight`＋`schedUtc`，`status`、`class`、`estUtc`、
        `actUtc` 任一個和檔裡最後一行不同才寫，第一次看到也寫（`t` 不同不算；`source` HD32 起算在鍵裡）
+     - **香港的舊副本**（2026-10-24 修正）：`past?date=` 每天的回應都帶前後一天還沒結束的幾班，同一班在昨天、
+       今天兩個回應各一份，兩份的更新時間（組的 `lastUpdatedTime`）不同、舊的狀態落後；逐班紀錄只留較新那組的
+       那份（`flights_log.hkg_freshest`）。修正前（10-23 16:46Z～修正上線）的香港行裡有同一班在兩個狀態之間
+       來回跳的（例如 `Dep 23:20` → `Gate Closed` → `Dep 23:20`），用的時候以 `actUtc` 有值、`t` 最晚的為準。
+       取消統計（`history/cancellations/`）照舊留最嚴重的分類，不受影響
 
      **TDX 台灣機場**（HD32，`src/hongthai/sources/tdx.py`，逐班轉換 `flights_log.tdx_rows`）：同一個檔另外存
      [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)的航空即時航班，`airports.json` 地區 `taiwan` 的十個
@@ -982,8 +987,9 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
 
      **補香港**：Actions 手動跑 `events` workflow、勾 `backfill-flights`（本機
      `python -m hongthai.events backfill-flights --archive data --from 2026-10-19`）：香港 `past?date=` 從
-     `--from` 到今天（香港日期，和事件期間重疊的部分）每天查出發、抵達各一次，照同樣的格式補進來（`t` 是實際
-     抓的時間，多 `"backfill": true`；同一班同狀態不重寫），最後印每天幾班、寫了幾行。桃園、松山、高雄、澳門
+     `--from` 到今天（香港日期，和事件期間重疊的部分）每天查出發、抵達各一次，全部的組接在一起再逐班轉換（同一班
+     在相鄰兩天各有一份時只留較新的），照同樣的格式補進來（`t` 是實際抓的時間，多 `"backfill": true`；同一班
+     同狀態不重寫），最後印補了幾天、幾班、寫了幾行。桃園、松山、高雄、澳門
      只有當天，補不到，只記 log
 
   颱風位置一行一點（日期是**發布時間**的 UTC 日期；同一來源同一 `issuedAt`＋`validAt` 已經有就不寫）：
