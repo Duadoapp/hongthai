@@ -290,9 +290,11 @@ class Timing:
       `bytesBilled`
     - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
     - AI 對決（HD5）：`{"run", "source": "ai", "ok", "error", "seconds", "bytes": 0,
-      "calls": {"claude": n, "gemini": n}, "usage": {...}, "costUsd": {"claude": x, "gemini": y}}`
+      "calls": {"claude": n, "gemini": n}, "usage": {...}, "costUsd": {"claude": x, "gemini": y},
+      "errorMessages": {"claude": 字串或 null, "gemini": 字串或 null}}`
       （`calls` 是這一報的呼叫次數；HD26 的 `usage` 是各模型這一報的 token 合計，鍵同戰績的 `usage`
-      再加 `calls`（有回應的次數），`costUsd` 是估計費用（美元），見 `ai/usage.py`）
+      再加 `calls`（有回應的次數），`costUsd` 是估計費用（美元），見 `ai/usage.py`；HD30 的
+      `errorMessages` 是各模型這一報第一則錯誤的訊息，見 `ai/run.py`）
     - 結束：`{"run", "source": "done", "ok": <有沒有產出 latest.json>, "seconds": <總秒數>}`
     """
 
@@ -324,6 +326,7 @@ class Timing:
             fields["calls"] = st.get("calls")
             fields["usage"] = st.get("usage")  # HD26
             fields["costUsd"] = st.get("costUsd")
+            fields["errorMessages"] = st.get("errorMessages")  # HD30
         if name == "openmeteo":
             fields["calls"] = st.get("calls")
         if name == "wn3":  # HD15
@@ -1188,8 +1191,8 @@ def run_ai(
     source = {"ok": src["ok"], "seconds": seconds, **{k: v for k, v in src.items() if k != "ok"}}
     ai.apply(latest, result, source)
     log.info("AI 對決：%s", source)
-    if timing is not None:  # token 合計與估計費用只進 timing/，`latest.json` 不加（HD26）
-        extra = {k: result.get(k) for k in ("usage", "costUsd")}
+    if timing is not None:  # token 合計、估計費用、錯誤訊息只進 timing/，`latest.json` 不加
+        extra = {k: result.get(k) for k in ("usage", "costUsd", "errorMessages")}  # HD26、HD30
         timing.source("ai", {**source, **extra}, budget.Context())
 
 

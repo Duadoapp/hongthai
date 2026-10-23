@@ -522,7 +522,9 @@ H10（2026-10-18）之後：
 - `source`：`start`、`ecmwf`、`gfs`、`taf`、`hko`、`cwa`、`smg`、`nws`（HD3 起）、`jma`（HD9 起）、`flights`、`ai`（HD5 起，
   AI 對決；`bytes` 是 0、`calls` 是這一報每個模型呼叫了幾次；HD26 起多 `usage`——兩家這一報的 token 合計，鍵同
   戰績的 `usage` 再加 `calls`（有回應的次數），都沒數字的鍵是 `null`——與估計費用 `costUsd`
-  `{"claude": 美元, "gemini": 美元}`，算不出來是 `null`；見「AI 對決」）、`og`（HD1 起，分享預覽圖；改發布上一份時
+  `{"claude": 美元, "gemini": 美元}`，算不出來是 `null`；HD30 起多 `errorMessages`
+  `{"claude": 字串或 null, "gemini": 字串或 null}`——各模型這一報**第一則**錯誤的訊息（同一報 20 個都一樣也只記
+  一則；沒有 HTTP、逾時、網路錯誤是 `null`，AI 步驟整個壞掉時整欄是 `null`）；見「AI 對決」）、`og`（HD1 起，分享預覽圖；改發布上一份時
   也有）、`done`（照執行順序）
 - `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`（`og` 有幾張畫不出來時是
   `"<IATA>:<例外類別>"`，多個用 `,` 接）；`bytes`：下載量（逾時的是到那時為止，
@@ -1170,6 +1172,21 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
     Gemini 的 `prompt_token_count` **含**快取命中的部分，用 `cacheRead ÷ input`。Gemini 沒命中、沒思考時回應不帶那兩個數
     （記 `null`），算命中率與費用時當 0。HD26 之前的戰績沒有 `usage`，不算
   - 省錢的做法（沿用評論、每天 2 次、Gemini 上限、規則移進快取前綴）在 10/21 日誌「待決定」，颱風報告後再談
+- **錯誤訊息**（HD30，2026-10-22 01:05Z 那報 Claude 20 個全部 `http_400`，紀錄只有 `http_400:-:-`，到 Console
+  才知道是餘額不足）：HTTP、逾時、網路錯誤時記下 API 回的錯誤訊息（`AiError.message`），**只進戰績與
+  `timing/`**，`latest.json` 的 `sources.ai.errors` 照舊只有代碼；提示詞、模型、參數都沒動
+  - Claude：`anthropic.APIStatusError` 的 `body`（`{"type": "error", "error": {"type", "message"}}`）→
+    `"<type>: <message>"`（例如 `"invalid_request_error: Your credit balance is too low ..."`），取不到用 `str(e)`
+  - Gemini：`google.genai.errors.APIError` 的 `status`／`message` → `"<status>: <message>"`（例如
+    `"DEADLINE_EXCEEDED: Deadline expired before operation could complete."`），都沒有用 `str(e)`
+  - 逾時、網路錯誤（含 Gemini 服務帳號換不到 token 的 `http_401`）：例外類別＋`str(e)`（例如
+    `"ReadTimeout: The read operation timed out"`）
+  - **清理**（`parse.clean_message`）：先把看起來像金鑰或權杖的片段換成 `***`（`sk-ant-` 開頭、`AIza` 開頭、
+    `Bearer ` 後面、長度 ≥ 32 的英數字串，含 `_`、`-`），再把換行與連續空白改成一個空白、只留前 200 字
+    （`parse.MAX_MESSAGE_CHARS`）。不記請求內容與回應內文；`bad_format`、`bad_wording`、`refusal`、`no_api_key`
+    沒有訊息
+  - log 那行照樣印，訊息接在代碼後面：`AI claude RCTP 失敗：http_400: invalid_request_error: Your credit balance
+    is too low ...［http_400:-:-］（0.4 秒）`
 - **模型參數**：Claude 用官方 `anthropic` SDK（Messages API），`max_tokens` 3000（HD6；HD5 是 1200）、
   `effort: "low"`；**不送 `temperature`**——Opus 5.5 不接受取樣參數（送了回 400），思考也關不掉、思考的
   token 算在 `max_tokens` 裡，所以用 `low` 留空間給四語短評；沒開 server-side fallback（換別的模型回答，
@@ -1275,6 +1292,14 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
               "usage": { "input": 9120, "output": 1840, "cacheRead": 2400, "cacheWrite": 0 } },
   "gemini": { "status": "ok", "level": "medium", "seconds": 18.3,
               "usage": { "input": 11800, "output": 880, "thinking": 1100, "cacheRead": null } }
+  ```
+- `claude`／`gemini` 因 HTTP、逾時、網路錯誤失敗時多一個 `message`（HD30，`latest.json` 不加；只在有錯誤時）：
+  API 回的錯誤訊息，清理過、≤ 200 字（見上面「AI 對決」的「錯誤訊息」）；重試過的是第二次的。內容錯誤
+  （`bad_format`、`bad_wording`、`refusal`）沒有
+
+  ```json
+  "claude": { "status": "error", "level": null, "detail": "http_400:-:-", "seconds": 0.4, "usage": null,
+              "message": "invalid_request_error: Your credit balance is too low to access the Anthropic API. ..." }
   ```
 
 ## 分享預覽圖

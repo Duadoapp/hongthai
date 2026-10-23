@@ -11,6 +11,8 @@
   API 不報錯、只是不快取（`cacheWrite`／`cacheRead` 一直是 0）
 - 每次有回應（成功或失敗）都取 `usage`（`usage_of`）：成功時放在回傳的 `usage`、失敗時在
   `AiError.usage`，給戰績與 `timing/`（`ai/usage.py`）
+- 錯誤訊息（HD30）：HTTP 錯誤取 API 回的 `{"error": {"type", "message"}}` → `"<type>: <message>"`
+  （取不到用 `str(e)`），逾時、網路錯誤是例外類別＋`str(e)`，清理後放 `AiError.message`
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ import os
 import anthropic
 
 from .config import CLAUDE_EFFORT, MAX_TOKENS, MODELS, TIMEOUT_S
-from .parse import AiError, parse_response, with_response
+from .parse import AiError, exception_text, parse_response, transport_error, with_response
 from .prompt import SYSTEM
 from .usage import as_count
 
@@ -51,11 +53,11 @@ def evaluate(
             messages=[{"role": "user", "content": text}],
         )
     except anthropic.APITimeoutError as e:  # 是 APIConnectionError 的子類別，要先接
-        raise AiError("timeout") from e
+        raise transport_error("timeout", exception_text(e)) from e
     except anthropic.APIStatusError as e:
-        raise AiError(f"http_{e.status_code}") from e
+        raise transport_error(f"http_{e.status_code}", status_message(e)) from e
     except anthropic.APIConnectionError as e:
-        raise AiError("network") from e
+        raise transport_error("network", exception_text(e)) from e
     usage = getattr(msg, "usage", None)
     try:
         if msg.stop_reason == "refusal":
@@ -67,6 +69,15 @@ def evaluate(
         with_response(e, msg.stop_reason, getattr(usage, "output_tokens", None), usage_of(msg))
         raise
     return {**result, "usage": usage_of(msg)}
+
+
+def status_message(e: anthropic.APIStatusError) -> str:
+    """HTTP 錯誤時 API 回的錯誤訊息（HD30）：`body` 是 `{"type": "error", "error": {"type",
+    "message"}}` → `"<type>: <message>"`；取不到用 `str(e)`。"""
+    err = e.body.get("error") if isinstance(e.body, dict) else None
+    if isinstance(err, dict) and err.get("message"):
+        return f"{err.get('type') or 'error'}: {err['message']}"
+    return str(e)
 
 
 def usage_of(msg: object) -> dict | None:

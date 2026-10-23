@@ -37,6 +37,9 @@
   沒拿到回應是 `null`；重試過的是第二次的）；`result()["usage"]` 是各模型這一報的合計（加
   `calls`：有回應的次數）、`result()["costUsd"]` 是估計費用，`build.run_ai` 寫進 `timing/` 的 `ai`
   那行，`latest.json` 不加
+- 錯誤訊息（HD30）：HTTP、逾時、網路錯誤時 API 回的錯誤訊息（`AiError.message`，清理過、≤ 200 字）；
+  戰績那筆失敗的模型多 `message`（重試過的是第二次的）；`result()["errorMessages"]` 是各模型這一報
+  **第一則**錯誤的 `message`（含重試前那次；沒有是 `None`），只進 `timing/` 的 `ai` 那行
 """
 
 from __future__ import annotations
@@ -131,10 +134,14 @@ def load_calls(history: Path, now: datetime) -> dict[str, int]:
 _UNSENT = object()  # 沒送出的呼叫：戰績不寫 `usage`（送出但沒回應是 `None`、寫 `null`）
 
 
-def _outcome(light: dict, detail: str | None, seconds: float | None, used: object) -> dict:
+def _outcome(
+    light: dict, detail: str | None, seconds: float | None, used: object, message: str | None
+) -> dict:
     out = {"status": light["status"], "level": light["level"]}
     if detail:
         out["detail"] = detail
+    if message:  # HD30
+        out["message"] = message
     if seconds is not None:
         out["seconds"] = seconds
     if used is not _UNSENT:
@@ -150,13 +157,16 @@ def record(
     details: dict[str, str | None] | None = None,
     seconds: dict[str, float | None] | None = None,
     usages: dict[str, dict | None] | None = None,
+    messages: dict[str, str | None] | None = None,
 ) -> dict:
     """戰績一筆；`details` 是各模型呼叫失敗的 `AiError.trace()`（沒有就不出現 `detail`），
     `seconds` 是各模型那次呼叫花的秒數（沒送出就不出現 `seconds`，HD12），`usages` 是那次的
-    token 數（沒送出的模型不在裡面、不出現 `usage`；送出但沒回應是 `None`，HD26）。"""
+    token 數（沒送出的模型不在裡面、不出現 `usage`；送出但沒回應是 `None`，HD26），`messages`
+    是失敗時的 `AiError.message`（沒有就不出現 `message`，HD30）。"""
     details = details or {}
     seconds = seconds or {}
     usages = usages or {}
+    messages = messages or {}
     best, first = select.max_level(airport)
     slots = [s for s in airport.get("slots") or [] if isinstance(s, dict)]
     return {
@@ -165,7 +175,9 @@ def record(
         "selected": selected,
         "rule": {"maxLevel": best, "firstFrom": first},
         **{
-            k: _outcome(lights[k], details.get(k), seconds.get(k), usages.get(k, _UNSENT))
+            k: _outcome(
+                lights[k], details.get(k), seconds.get(k), usages.get(k, _UNSENT), messages.get(k)
+            )
             for k in KEYS
         },
         "slots": [{"from": s.get("from"), "level": s.get("level")} for s in slots],
@@ -296,6 +308,8 @@ class Duel:
         self.details: dict[str, dict[str, str]] = {k: {} for k in KEYS}  # 呼叫失敗的 trace
         self.seconds: dict[str, dict[str, float]] = {k: {} for k in KEYS}  # 送出的呼叫花幾秒
         self.usage: dict[str, dict[str, dict | None]] = {k: {} for k in KEYS}  # 送出的呼叫（HD26）
+        self.messages: dict[str, dict[str, str]] = {k: {} for k in KEYS}  # 失敗的錯誤訊息（HD30）
+        self.first_message: dict[str, str] = {}  # 各模型這一報第一則錯誤訊息（HD30）
         self.model_errors: dict[str, str] = {}  # 整個模型不能用（no_api_key）
         self.regions: dict[str, Regions] = {}  # 有呼叫的模型（HD23）
         self.stop = threading.Event()
@@ -337,12 +351,15 @@ class Duel:
         detail: str | None = None,
         seconds: float | None = None,
         used: dict | None = None,
+        message: str | None = None,
     ) -> None:
         with self.lock:
             if not self.stop.is_set():  # 超時之後回來的不採用
                 self.lights[key][icao] = light
                 if detail:
                     self.details[key][icao] = detail
+                if message:
+                    self.messages[key][icao] = message
                 if seconds is not None:  # 真的送出的才有 `seconds` 與 `usage`
                     self.seconds[key][icao] = round(seconds, 1)
                     self.usage[key][icao] = used
@@ -372,7 +389,9 @@ class Duel:
                 light, err, backup, used = self._send(key, mod, icao, text, retry)
                 tag = ":retried"
         detail = f"{err.trace()}{tag}{':fallback' if backup else ''}" if err else None
-        self._set(key, icao, light, detail, time.monotonic() - t0, used)  # 重試時是兩次合計
+        message = err.message if err else None
+        seconds = time.monotonic() - t0  # 重試時是兩次合計
+        self._set(key, icao, light, detail, seconds, used, message)
 
     def _send(
         self, key: str, mod: ModuleType, icao: str, text: str, timeout: float
@@ -436,6 +455,10 @@ class Duel:
                 e.trace(),
                 time.monotonic() - t0,
             )
+            if e.message:
+                with self.lock:
+                    if not self.stop.is_set():
+                        self.first_message.setdefault(key, e.message)
             return error(key, e.code), e, e.usage
         except Exception:  # SDK 內部沒預期的錯：記成 network，不讓其他機場停掉
             log.exception("AI %s %s 失敗（沒預期的例外）", key, icao)
@@ -443,8 +466,8 @@ class Duel:
 
     def result(self, timed_out: bool = False) -> dict:
         """`{"ai": 頂層, "airports": {icao: airports[].ai}, "source": sources.ai, "usage",
-        "costUsd"}`（`source` 不含 `seconds`，由 `build.run_ai` 補；`usage`、`costUsd` 只進
-        `timing/`，HD26）。"""
+        "costUsd", "errorMessages"}`（`source` 不含 `seconds`，由 `build.run_ai` 補；`usage`、
+        `costUsd`、`errorMessages` 只進 `timing/`，HD26、HD30）。"""
         with self.lock:
             if self._result is not None:
                 return self._result
@@ -465,8 +488,11 @@ class Duel:
                 details = {k: self.details[k].get(icao) for k in KEYS}
                 seconds = {k: self.seconds[k].get(icao) for k in KEYS}
                 used = {k: self.usage[k][icao] for k in KEYS if icao in self.usage[k]}
+                messages = {k: self.messages[k].get(icao) for k in KEYS}
                 rows.append(
-                    record(a, self.run_at, reasons.get(icao), lights, details, seconds, used)
+                    record(
+                        a, self.run_at, reasons.get(icao), lights, details, seconds, used, messages
+                    )
                 )
             source = self._source(airports)
             totals = {k: usage.total(k, self.usage[k].values()) for k in KEYS}
@@ -477,6 +503,7 @@ class Duel:
                 "source": source,
                 "usage": totals,
                 "costUsd": {k: usage.cost_usd(k, totals[k], day) for k in KEYS},
+                "errorMessages": {k: self.first_message.get(k) for k in KEYS},
             }
             calls = dict(self.calls)
         self._write(calls, rows)

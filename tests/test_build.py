@@ -1464,6 +1464,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     assert set(ai_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "calls"),
         *("usage", "costUsd"),  # HD26
+        "errorMessages",  # HD30
     }
     assert ai_line["bytes"] == 0 and ai_line["calls"] == {"claude": 0, "gemini": 0}
     # 兩個都沒金鑰：沒有回應，合計全是 null、calls 0、費用 null
@@ -1478,6 +1479,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "gemini": {"input": None, "output": None, "thinking": None, "cacheRead": None, "calls": 0},
     }
     assert ai_line["costUsd"] == {"claude": None, "gemini": None}
+    assert ai_line["errorMessages"] == {"claude": None, "gemini": None}  # no_api_key 沒有訊息
     assert lines[-1]["ok"] is True and isinstance(lines[-1]["seconds"], float)
 
 
