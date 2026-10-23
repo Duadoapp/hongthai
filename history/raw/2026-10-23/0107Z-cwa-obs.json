@@ -1,0 +1,252 @@
+{
+ "success": "true",
+ "result": {
+  "resource_id": "O-A0003-001",
+  "fields": [
+   {
+    "id": "StationName",
+    "type": "String"
+   },
+   {
+    "id": "StationId",
+    "type": "String"
+   },
+   {
+    "id": "CoordinateName",
+    "type": "String"
+   },
+   {
+    "id": "CoordinateFormat",
+    "type": "String"
+   },
+   {
+    "id": "StationLatitude",
+    "type": "String"
+   },
+   {
+    "id": "StationLongitude",
+    "type": "String"
+   },
+   {
+    "id": "StationAltitude",
+    "type": "String"
+   },
+   {
+    "id": "CountyName",
+    "type": "String"
+   },
+   {
+    "id": "TownName",
+    "type": "String"
+   },
+   {
+    "id": "CountyCode",
+    "type": "String"
+   },
+   {
+    "id": "TownCode",
+    "type": "String"
+   },
+   {
+    "id": "Weather",
+    "type": "String"
+   },
+   {
+    "id": "VisibilityDescription",
+    "type": "String"
+   },
+   {
+    "id": "SunshineDuration",
+    "type": "String"
+   },
+   {
+    "id": "Precipitation",
+    "type": "String"
+   },
+   {
+    "id": "WindDirection",
+    "type": "String"
+   },
+   {
+    "id": "WindSpeed",
+    "type": "String"
+   },
+   {
+    "id": "AirTemperature",
+    "type": "String"
+   },
+   {
+    "id": "RelativeHumidity",
+    "type": "String"
+   },
+   {
+    "id": "AirPressure",
+    "type": "String"
+   },
+   {
+    "id": "UVIndex",
+    "type": "String"
+   },
+   {
+    "id": "PeakGustSpeed",
+    "type": "String"
+   },
+   {
+    "id": "DateTime",
+    "type": "DateTime"
+   }
+  ]
+ },
+ "records": {
+  "Station": [
+   {
+    "StationName": "金門",
+    "StationId": "467110",
+    "ObsTime": {
+     "DateTime": "2026-10-23T08:50:00+08:00"
+    },
+    "GeoInfo": {
+     "Coordinates": [
+      {
+       "CoordinateName": "TWD67",
+       "CoordinateFormat": "decimal degrees",
+       "StationLatitude": "24.408942",
+       "StationLongitude": "118.281127"
+      },
+      {
+       "CoordinateName": "WGS84",
+       "CoordinateFormat": "decimal degrees",
+       "StationLatitude": "24.407306",
+       "StationLongitude": "118.289281"
+      }
+     ],
+     "StationAltitude": "47.9",
+     "CountyName": "金門縣",
+     "TownName": "金城鎮",
+     "CountyCode": "09020",
+     "TownCode": "09020010"
+    },
+    "WeatherElement": {
+     "Weather": "晴",
+     "VisibilityDescription": ">30",
+     "SunshineDuration": "2.4",
+     "Now": {
+      "Precipitation": "0.0"
+     },
+     "WindDirection": "20.0",
+     "WindSpeed": "6.2",
+     "AirTemperature": "27.3",
+     "RelativeHumidity": "52",
+     "AirPressure": "1003.7",
+     "UVIndex": "2",
+     "Max10MinAverage": {
+      "WindSpeed": "7.0",
+      "Occurred_at": {
+       "WindDirection": "10.0",
+       "DateTime": "2026-10-23T07:09:00+08:00"
+      }
+     },
+     "GustInfo": {
+      "PeakGustSpeed": "12.0",
+      "Occurred_at": {
+       "WindDirection": "10.0",
+       "DateTime": "2026-10-23T07:02:00+08:00"
+      }
+     },
+     "DailyExtreme": {
+      "DailyHigh": {
+       "TemperatureInfo": {
+        "AirTemperature": "27.3",
+        "Occurred_at": {
+         "DateTime": "2026-10-23T08:48:00+08:00"
+        }
+       }
+      },
+      "DailyLow": {
+       "TemperatureInfo": {
+        "AirTemperature": "22.7",
+        "Occurred_at": {
+         "DateTime": "2026-10-23T01:28:00+08:00"
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "StationName": "馬祖",
+    "StationId": "467990",
+    "ObsTime": {
+     "DateTime": "2026-10-23T08:50:00+08:00"
+    },
+    "GeoInfo": {
+     "Coordinates": [
+      {
+       "CoordinateName": "TWD67",
+       "CoordinateFormat": "decimal degrees",
+       "StationLatitude": "26.171145",
+       "StationLongitude": "119.914855"
+      },
+      {
+       "CoordinateName": "WGS84",
+       "CoordinateFormat": "decimal degrees",
+       "StationLatitude": "26.169467",
+       "StationLongitude": "119.923158"
+      }
+     ],
+     "StationAltitude": "97.8",
+     "CountyName": "連江縣",
+     "TownName": "南竿鄉",
+     "CountyCode": "09007",
+     "TownCode": "09007010"
+    },
+    "WeatherElement": {
+     "Weather": "陰",
+     "VisibilityDescription": ">30",
+     "SunshineDuration": "0.0",
+     "Now": {
+      "Precipitation": "0.0"
+     },
+     "WindDirection": "10.0",
+     "WindSpeed": "10.1",
+     "AirTemperature": "22.8",
+     "RelativeHumidity": "77",
+     "AirPressure": "998.2",
+     "UVIndex": "1",
+     "Max10MinAverage": {
+      "WindSpeed": "10.6",
+      "Occurred_at": {
+       "WindDirection": "10.0",
+       "DateTime": "2026-10-23T07:53:00+08:00"
+      }
+     },
+     "GustInfo": {
+      "PeakGustSpeed": "18.2",
+      "Occurred_at": {
+       "WindDirection": "360.0",
+       "DateTime": "2026-10-23T07:48:00+08:00"
+      }
+     },
+     "DailyExtreme": {
+      "DailyHigh": {
+       "TemperatureInfo": {
+        "AirTemperature": "22.8",
+        "Occurred_at": {
+         "DateTime": "2026-10-23T08:12:00+08:00"
+        }
+       }
+      },
+      "DailyLow": {
+       "TemperatureInfo": {
+        "AirTemperature": "21.3",
+        "Occurred_at": {
+         "DateTime": "2026-10-23T04:32:00+08:00"
+        }
+       }
+      }
+     }
+    }
+   }
+  ]
+ }
+}
