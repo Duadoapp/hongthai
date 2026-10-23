@@ -37,7 +37,11 @@
   預計／實際時間和最後一行一樣就不寫。原始回應不存。
   `python -m hongthai.events backfill-flights --archive data --from <日期>`（`backfill_flights`）：
   香港 `past?date=` 從 `--from` 到今天（香港日期）每天查一次補進來（行多 `"backfill": true`，同一班
-  同狀態不重寫）；其他四個來源只有當天，補不到，只記 log
+  同狀態不重寫）；其他四個來源只有當天，補不到，只記 log。
+  HD32：同一個檔另外存 TDX（交通部運輸資料流通服務平臺）的航空即時航班（`sources/tdx.py`），
+  `airports.json` 地區 `taiwan` 的十個機場（事件的 `airports` 有的才寫）一次請求拿，`source: "tdx"`
+  （`flights_log.tdx_rows`）；桃園、松山、高雄和原本的來源各存各的（去重鍵含 `source`）。要
+  `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`，沒設就跳過（記一行「TDX 未設定」）；沒有補過去的功能
 
 來源（2026-10-20 實抓）：
 - METAR：AviationWeather `metar?ids=<25 站>&format=json&hours=6`（`hours` 讓半小時一報的
@@ -60,7 +64,7 @@
   （陣風）與 `MINIMUM CENTRAL PRESSURE AT 200000Z IS 929 MB`（只有實況）
 
 每小時四件事（METAR、JMA、JTWC、航班〔HD31〕）分開 try，失敗只記 log、不算整個失敗
-（`hourly` 一律回 0）。
+（`hourly` 一律回 0）。航班的 TDX（HD32）再另外 try：token 或請求失敗只記 log，不影響原本五個來源。
 """
 
 from __future__ import annotations
@@ -81,7 +85,7 @@ from zoneinfo import ZoneInfo
 
 from . import flights_log
 from .config import Airport, Event, load_airports, load_events
-from .sources import SourceError, cwa, flights, http_get, taf
+from .sources import SourceError, cwa, flights, http_get, taf, tdx
 from .timeutil import iso, parse_time, utcnow
 
 log = logging.getLogger("hongthai")
@@ -622,6 +626,34 @@ def backfill_flights(
     return out
 
 
+TDX_REGION = "taiwan"  # HD32：TDX 查 `airports.json` 這個地區的機場
+
+
+def fetch_tdx_flights(
+    e: Event, airports: list[Airport], fetched: datetime, d: Path, client: tdx.Client
+) -> dict[str, int | None]:
+    """HD32：TDX 一次請求拿事件裡的台灣機場，逐班寫進 `flights/`（`source: "tdx"`）；回傳每個機場
+    寫了幾行（TDX 沒回那個機場或解析失敗是 None）。token 或請求失敗丟 `tdx.TdxError`。"""
+    want = [a for a in airports if a.region == TDX_REGION and a.icao in e.airports]
+    if not want:
+        return {}
+    data = client.fids(a.iata for a in want)
+    out: dict[str, int | None] = {}
+    for a in want:
+        if a.iata not in data:
+            out[a.icao] = None
+            continue
+        try:
+            rows = flights_log.tdx_rows(a.icao, data[a.iata], a.tz, fetched)
+            out[a.icao] = store_flights(d, rows)
+        except Exception:  # 一個機場的格式怪不擋其他機場
+            log.exception("事件 %s：TDX 航班 %s 解析或寫檔失敗", e.id, a.icao)
+            out[a.icao] = None
+    summary = "、".join(f"{k} {'失敗' if v is None else v}" for k, v in out.items())
+    log.info("事件 %s：TDX 航班 %s", e.id, summary)
+    return out
+
+
 # ---- 每小時 ----
 
 
@@ -631,9 +663,11 @@ def hourly(
     airports: list[Airport],
     api_key: str | None,
     now: datetime,
+    tdx_client: tdx.Client | None = None,
 ) -> dict[str, dict[str, int | None]]:
     """期間內的每個事件做四件事，各自 try；回傳每件寫了幾行（失敗是 None；航班是五個機場的
-    合計，個別機場失敗只 log）。"""
+    合計，個別機場失敗只 log）。有 `tdx_client`（HD32）時航班另外存 TDX，`tdx` 是 TDX 各機場的
+    合計（token 或請求失敗是 None，只 log）；沒有就沒有 `tdx` 這個鍵。"""
     out: dict[str, dict[str, int | None]] = {}
     for e in active(events, now):
         d = event_dir(history, e)
@@ -658,6 +692,16 @@ def hourly(
         except Exception:
             log.exception("事件 %s：航班失敗", e.id)
             res["flights"] = None
+        if tdx_client is not None:
+            try:
+                written = fetch_tdx_flights(e, airports, now, d, tdx_client)
+                res["tdx"] = sum(v or 0 for v in written.values())
+            except SourceError as ex:
+                log.warning("事件 %s：TDX 航班失敗：%s", e.id, ex)
+                res["tdx"] = None
+            except Exception:
+                log.exception("事件 %s：TDX 航班失敗", e.id)
+                res["tdx"] = None
         out[e.id] = res
     return out
 
@@ -769,7 +813,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{tw_date(now)}（台灣）沒有期間內的事件")
         return 0
     result = hourly(
-        history, events, load_airports(args.airports), os.environ.get("CWA_API_KEY"), now
+        history,
+        events,
+        load_airports(args.airports),
+        os.environ.get("CWA_API_KEY"),
+        now,
+        tdx.Client.from_env(),
     )
     for eid, res in result.items():
         print(f"{eid}：" + "、".join(f"{k} {'失敗' if v is None else v}" for k, v in res.items()))

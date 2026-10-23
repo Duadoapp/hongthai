@@ -105,3 +105,10 @@ HD22（29W 驗證報告）：
 - `jma_bst_sample.txt`：**合成樣本**，JMA（RSMC Tokyo）`bst_all.txt` 的格式：表頭 `66666 <國際編號> …`、名稱在
   第 31–50 欄，資料行 `YYMMDDHH 002 <等級> <緯×10> <經×10> <氣壓> <最大風> …`；兩個颱風（2629 OTHERSTORM、
   2630 CHAMPI），報告工具要挑得出 CHAMPI
+
+HD32（TDX 航空即時航班）：
+- `tdx_fids_airport.json`：**手造**，`https://tdx.transportdata.tw/api/basic/v2/Air/FIDS/Airport` 的回應格式
+  （swagger「公共運輸-航空」v2 的 `Airport_FIDS`／`FIDSDeparture`／`FIDSArrival` 欄位；還沒有金鑰、沒實抓）：
+  台中（已飛帶實際時間、取消、預計晚 75 分鐘的準時、貨機、延誤、跨 UTC 日的抵達）、金門（`CodeShare` 字串
+  與掛名列、對照表沒有的「加班機」、沒有表定時間的一筆）、桃園（`CodeShare` 物件陣列、帶 `+08:00` 的時間、
+  班號已含航空公司代碼、只有英文狀態）、松山（「已到」只有預計時間）
