@@ -451,7 +451,8 @@ H10（2026-10-18）之後：
   `tools/gust_factor_report.py`
 - `src/hongthai/build.py`：組 JSON、寫檔、失敗處理
 - `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR、颱風現報與逐班航班紀錄
-  （HD31，逐班轉換在 `src/hongthai/flights_log.py`）（`.github/workflows/events.yml`）；推 `data` 分支用
+  （HD31，逐班轉換在 `src/hongthai/flights_log.py`；HD32 起多 TDX 台灣機場，`src/hongthai/sources/tdx.py`）
+  （`.github/workflows/events.yml`）；推 `data` 分支用
   `tools/push_data.sh`（`build.yml` 也用）
 - `cloudflare/trigger/`：Cloudflare 排程 Worker（HD25，上面「排程」），自己一份 `package.json` 與 lock，
   不動 repo 根目錄；`npm test` 測 cron → workflow 的對照（CI 只在 `cloudflare/` 有變動時跑）
@@ -949,9 +950,33 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
        「著陸」「起飛」）放 `actUtc`，其他放 `estUtc`；沒有就是 `null`
      - `class`：`cancelled`／`delayed`（狀態延誤，或預計／實際比表定晚 60 分鐘以上）／`other`（對照表沒列的
        狀態）／`normal`，和 `history/cancellations/` 的統計同一套
-     - `source`：`taoyuan-airport`／`tsa`／`kia`／`hongkongairport`／`aacm`
-     - **只在有變化時寫**：同一個 `airport`＋`dir`＋`flight`＋`schedUtc`，`status`、`class`、`estUtc`、`actUtc`
-       任一個和檔裡最後一行不同才寫，第一次看到也寫（`t` 不同不算）
+     - `source`：`taoyuan-airport`／`tsa`／`kia`／`hongkongairport`／`aacm`；HD32 起多 `tdx`（下面）
+     - **只在有變化時寫**：同一個 `source`＋`airport`＋`dir`＋`flight`＋`schedUtc`，`status`、`class`、`estUtc`、
+       `actUtc` 任一個和檔裡最後一行不同才寫，第一次看到也寫（`t` 不同不算；`source` HD32 起算在鍵裡）
+
+     **TDX 台灣機場**（HD32，`src/hongthai/sources/tdx.py`，逐班轉換 `flights_log.tdx_rows`）：同一個檔另外存
+     [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)的航空即時航班，`airports.json` 地區 `taiwan` 的十個
+     機場（桃園、松山、高雄、台中、台南、花蓮、台東、澎湖、金門、馬祖南竿；事件的 `airports` 有的才寫），
+     `source: "tdx"`。桃園、松山、高雄和原本的來源各存各的（不合併、不去重），之後比對兩邊一致性
+     - 認證：OAuth2 client credentials，`POST https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token`
+       （`grant_type=client_credentials`、`client_id`、`client_secret`）→ `access_token`（效期 24 小時），一次執行取一次、
+       記在記憶體。金鑰從環境變數 `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET` 讀（Actions secrets，下面「發布設定」），
+       不寫進檔案、log 不印；**沒設就整件事跳過**（log 一行「TDX 未設定」），其他照跑；token 或請求失敗只記 log
+     - 端點：`GET https://tdx.transportdata.tw/api/basic/v2/Air/FIDS/Airport?$filter=AirportID eq 'TPE' or …&$top=10&$format=JSON`
+       （基礎服務「公共運輸-航空」v2「取得機場的即時航班資料」，一次拿全部要的機場的出發與抵達），
+       `Accept-Encoding: gzip`。**每小時 2 個請求**（token＋資料），一個月約 1,488 個
+     - 頻率限制（2026-10-23 讀 TDX 訂閱收費頁與 swagger 說明，原文）：基礎會員「TWD 0 元/月| 虛擬點數：3 點/月|
+       存取頻率：5 次/分/金鑰」；「計次：1,500次/1點」「計量：150MB/1點」，次數與資料量**合併計算**；超過頻率
+       「API將回傳錯誤訊息(error code) 429」；點數用到 105% 當月停用。每小時一次資料請求一個月約 744 次（約 0.5 點），
+       資料量還沒實測（設好 secret 後看【會員中心 > 資料服務 > 使用統計】補上）
+     - 欄位對照：`FlightNumber` 不含航空公司代碼，`flight` 是 `AirlineID`＋`FlightNumber`；`peer` 是對方機場 IATA
+       （出發看 `ArrivalAirportID`、抵達看 `DepartureAirportID`）；表定／預計／實際時間是當地時間、帶日期，
+       `actUtc` 是 `Actual…Time`（沒有實際、但狀態已起飛／已降落時放預計），其他放 `Estimated…Time`
+     - `status` 是中文 `DepartureRemark`／`ArrivalRemark`（空的才用 `…RemarkEn`）；`class` 照 `cancellations.py`
+       的台灣規則（台灣三個來源的對照表合起來加單一中文／英文的用語；查不到時開頭「取消」→ 取消、「延誤」「延遲」
+       → 延誤；預計／實際比表定晚 60 分鐘以上也算延誤），對照表沒列的是 `other` 並記 log。貨機（`IsCargo`）不存；
+       共掛：某列的班號列在同方向、同表定時間另一列的 `CodeShare` 裡就是掛名列，併進那一列的 `codeshares`
+     - 沒有補過去的功能（FIDS 只有即時）
 
      **補香港**：Actions 手動跑 `events` workflow、勾 `backfill-flights`（本機
      `python -m hongthai.events backfill-flights --archive data --from 2026-10-19`）：香港 `past?date=` 從
@@ -1358,7 +1383,10 @@ HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**�
    - 服務帳號在那個專案要有 BigQuery Job User（跑查詢）；讀 GCS 統計 Zarr 要 allowlist 有含這個服務帳號
    - 開關（Variables，不是 secret）：`WN3_MODE`（`report-only`／`observe`，沒設＝`report-only`）、
      `WN3_VOTING`（`1` 投票，沒設＝旁觀）
-5. **Actions → build → Run workflow** 手動跑一次，然後開
+5. TDX（HD32，事件保存的台灣機場航班）：在 <https://tdx.transportdata.tw/> 註冊會員（基礎會員免費），
+   【會員中心 > 資料服務 > API金鑰】取得 Client Id 與 Client Secret，新增兩個 secret：`TDX_CLIENT_ID`、
+   `TDX_CLIENT_SECRET`。沒設時 `events` 只是跳過 TDX，其他照跑
+6. **Actions → build → Run workflow** 手動跑一次，然後開
    <https://duadoapp.github.io/hongthai/latest.json> 確認
 
 之後每天 UTC 01:05、08:25、13:05、20:25（台北／香港 09:05、16:25、21:05、04:25）自動跑（下面「排程」）。
@@ -1408,6 +1436,7 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 松山機場即時航班（data.gov.tw [37242](https://data.gov.tw/dataset/37242)／[37248](https://data.gov.tw/dataset/37248)／[37317](https://data.gov.tw/dataset/37317)／[37319](https://data.gov.tw/dataset/37319)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 高雄機場即時航班（data.gov.tw [33656](https://data.gov.tw/dataset/33656)／[33655](https://data.gov.tw/dataset/33655)／[33651](https://data.gov.tw/dataset/33651)／[33649](https://data.gov.tw/dataset/33649)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
+| [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)（交通部；基礎服務「公共運輸-航空」v2 `Air/FIDS/Airport`；HD32） | 台灣十個機場的逐班航班狀態，存事件保存的 `flights/`（`source: "tdx"`，不存原始回應、不進 `latest.json`） | 政府資料開放授權條款（平臺[資料授權利用條款](https://tdx.transportdata.tw/term)）：公開發行或展示時須標示資料來源為「交通部運輸資料流通服務平臺」或其資料來源單位（例如「資料來源：交通部運輸資料流通服務平臺（TDX）」） |
 | 澳門民航局航班資訊（data.gov.mo [離港（英文）](https://data.gov.mo/Detail?id=f910cf2e-5e30-45c3-9e62-3eb6bf912db3)／[抵港（英文）](https://data.gov.mo/Detail?id=44b62bd1-6c84-421f-b571-52ab184c7df3)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 澳門政府數據開放平台使用條款 |
 | [芫荽 Iansui](https://github.com/ButTaiwan/iansui)（子集，`assets/fonts/`；HD1） | 分享預覽圖的中文字 | [SIL OFL 1.1](assets/fonts/OFL-Iansui.txt) |
 | [Fraunces](https://github.com/undercasetype/Fraunces)（SOFT 100、wght 600 靜態檔的子集；HD1） | 分享預覽圖的英文與數字 | [SIL OFL 1.1](assets/fonts/OFL-Fraunces.txt) |

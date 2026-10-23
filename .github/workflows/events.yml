@@ -11,6 +11,8 @@ name: events
 # history/events/<id>/metar/（已有的不覆蓋，補進來的行多 "backfill"；金門、馬祖是氣象署觀測，補不到只記 log）；
 # 勾 backfill-flights（HD31）：香港 past?date= 從 2026-10-19 起每天補逐班航班紀錄到 history/events/<id>/flights/
 # （同一班同狀態不重寫，補進來的行多 "backfill": true；其他四個機場只有當天，補不到只記 log）。
+# HD32：每小時的航班另外存 TDX 台灣十個機場（source: "tdx"），要 secrets TDX_CLIENT_ID／TDX_CLIENT_SECRET，
+# 沒設就跳過（log 記「TDX 未設定」），其他照跑。
 # HD25：整點的排程由 Cloudflare 排程 Worker（cloudflare/trigger/）用 workflow_dispatch 觸發
 # （trigger: cloudflare），下面的 cron 留著當備援；不做跳過檢查（多跑一次只是去重）。
 on:
@@ -107,6 +109,9 @@ jobs:
         env:
           PYTHONPATH: src
           CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+          # HD32：TDX 航空即時航班（OAuth2 client credentials）；沒設就跳過
+          TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
+          TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
         run: |
           echo "觸發：$TRIGGER"
