@@ -10,7 +10,7 @@ from conftest import FIXTURES, ROOT, load_json, utc
 
 from hongthai import build, events
 from hongthai.config import Event, EventSeed, load_events
-from hongthai.sources import SourceError, cwa
+from hongthai.sources import SourceError, cwa, flights
 
 FETCHED = utc(2026, 10, 20, 6, 7)
 EV = Event(
@@ -306,14 +306,22 @@ def test_hourly_failures_only_logged(tmp_path, monkeypatch, airports):
         raise SourceError(f"{url}: down", "network")
 
     monkeypatch.setattr(events, "http_get", down)
+    monkeypatch.setattr(flights, "http_get", down)
     history = tmp_path / "history"
     res = events.hourly(history, [EV], airports, None, FETCHED)
-    # METAR 兩邊各自接住（沒有金鑰也只 log）→ 0 行；JMA、JTWC 失敗是 None
-    assert res == {"29W": {"metar": 0, "jma": None, "jtwc": None}}
+    # METAR 兩邊各自接住（沒有金鑰也只 log）→ 0 行；JMA、JTWC 失敗是 None；
+    # 航班每個機場各自接住（`flights.fetch`）→ 0 行
+    assert res == {"29W": {"metar": 0, "jma": None, "jtwc": None, "flights": 0}}
     assert events.hourly(history, [EV], airports, None, utc(2026, 10, 29)) == {}
 
 
-def test_hourly_writes_all_three(tmp_path, monkeypatch, airports):
+def _fake_flights(now):
+    tpe = {"rows": flights.parse_tpe((FIXTURES / "tpe_flights_big5.txt").read_bytes())}
+    hkg = {"departure": [], "arrival": load_json("hkg_arrival.json")}
+    return flights.FlightsData({"RCTP": tpe, "VHHH": hkg, "VMMC": {}}, {"RCSS": "network"})
+
+
+def test_hourly_writes_all_four(tmp_path, monkeypatch, airports):
     bodies = {
         "metar": (FIXTURES / "events_metar_hours2.json").read_bytes(),
         "targetTc": (FIXTURES / "jma_targettc.json").read_bytes(),
@@ -329,15 +337,125 @@ def test_hourly_writes_all_three(tmp_path, monkeypatch, airports):
         "fetch_obs",
         lambda key, st: obs_asked.append(st) or load_json("cwa_o-a0003-001_obs.json"),
     )
+    monkeypatch.setattr(flights, "fetch", _fake_flights)
     history = tmp_path / "history"
     res = events.hourly(history, [EV], airports, "key", FETCHED)
-    assert res == {"29W": {"metar": 12, "jma": 3, "jtwc": 9}}  # 10 筆 AW＋金門、馬祖
+    # 10 筆 AW＋金門、馬祖；航班只寫事件有的機場（EV 有 RCTP、VHHH）：桃園 9 班＋香港 6 班
+    assert res == {"29W": {"metar": 12, "jma": 3, "jtwc": 9, "flights": 15}}
     assert obs_asked == [("467110", "467990")]
     d = history / "events" / "29W"
     assert sorted(p.name for p in (d / "position").glob("*.jsonl")) == [
         "jma-2026-10-20.jsonl",
         "jtwc-2026-10-20.jsonl",
     ]
+    assert len(list((d / "flights").glob("*.jsonl"))) == 4  # 表定時間 UTC 10/16～10/19
+    # 下一小時同樣的資料：航班不重寫
+    later = utc(2026, 10, 20, 7, 7)
+    assert events.hourly(history, [EV], airports, "key", later)["29W"]["flights"] == 0
+
+
+def test_hourly_flights_failure_does_not_block_others(tmp_path, monkeypatch, airports):
+    """第四件事（航班）整個失敗只記 log，前三件照寫。"""
+    bodies = {
+        "metar": (FIXTURES / "events_metar_hours2.json").read_bytes(),
+        "targetTc": (FIXTURES / "jma_targettc.json").read_bytes(),
+        "specifications": (FIXTURES / "jma_tc2636_specifications.json").read_bytes(),
+        "wp2926": (FIXTURES / "jtwc_wp2926.tcw").read_bytes(),
+    }
+    monkeypatch.setattr(
+        events, "http_get", lambda url, **k: _Resp(next(v for n, v in bodies.items() if n in url))
+    )
+
+    def boom(now):
+        raise RuntimeError("壞了")
+
+    monkeypatch.setattr(flights, "fetch", boom)
+    history = tmp_path / "history"
+    res = events.hourly(history, [EV], airports, None, FETCHED)
+    assert res == {"29W": {"metar": 10, "jma": 3, "jtwc": 9, "flights": None}}
+    assert not (history / "events" / "29W" / "flights").exists()
+
+
+def test_hourly_flights_one_airport_bad(tmp_path, monkeypatch, airports):
+    """一個機場的格式壞掉（解析例外）不擋另一個機場。"""
+
+    def fake(now):
+        data = _fake_flights(now)
+        data.snapshots["VHHH"] = {"arrival": ["不是物件"]}
+        return data
+
+    monkeypatch.setattr(flights, "fetch", fake)
+    d = tmp_path / "events" / "29W"
+    assert events.fetch_flights(EV, airports, FETCHED, d) == {"RCTP": 9, "VHHH": None}
+
+
+def test_hourly_out_of_period_no_flights(tmp_path, monkeypatch, airports):
+    asked = []
+    monkeypatch.setattr(flights, "fetch", lambda now: asked.append(now) or _fake_flights(now))
+    history = tmp_path / "history"
+    assert events.hourly(history, [EV], airports, None, utc(2026, 10, 18, 15, 59)) == {}
+    assert asked == []
+    assert not (history / "events").exists()
+
+
+# ---- 補香港航班（HD31） ----
+
+
+def test_backfill_flights(tmp_path, monkeypatch, airports):
+    hkg = load_json("hkg_arrival.json")  # 香港 10/17、10/18 的組
+    asked = []
+
+    def get(url, params=None, **k):
+        asked.append(params)
+        body = hkg if params["arrival"] == "true" else []
+        return _Resp(json.dumps(body).encode())
+
+    monkeypatch.setattr(flights, "http_get", get)
+    history = tmp_path / "history"
+    d = history / "events" / "29W"
+    # 每小時已經寫過的同一班同狀態不重寫
+    have = [
+        r
+        for r in events.flights_log.rows_of(
+            "VHHH", {"arrival": hkg, "departure": []}, "Asia/Hong_Kong", FETCHED
+        )
+        if r["flight"] == "HX613"
+    ]
+    assert events.store_flights(d, have) == 1
+    pauses = []
+    now = utc(2026, 10, 20, 20)  # 香港 10/21 04:00
+    res = events.backfill_flights(history, [EV], airports, date(2026, 10, 19), now, pauses.append)
+    # 10/19、10/20、10/21 三天；每天回同樣的 6 班，第一天寫 5 行（HX613 已經有），之後 0
+    assert res == {"29W": {"2026-10-19": (6, 5), "2026-10-20": (6, 0), "2026-10-21": (6, 0)}}
+    assert [(p["date"], p["arrival"]) for p in asked] == [
+        (day, a) for day in ("2026-10-19", "2026-10-20", "2026-10-21") for a in ("false", "true")
+    ]
+    assert len(pauses) == len(asked) - 1
+    lines = [
+        json.loads(x)
+        for p in sorted((d / "flights").glob("*.jsonl"))
+        for x in p.read_text().splitlines()
+    ]
+    assert len(lines) == 6
+    assert [r.get("backfill") for r in lines if r["flight"] == "HX613"] == [None]
+    assert all(r["backfill"] is True for r in lines if r["flight"] != "HX613")
+    assert {r["t"] for r in lines if r.get("backfill")} == {"2026-10-20T20:00:00Z"}
+
+
+def test_backfill_flights_failure_and_out_of_period(tmp_path, monkeypatch, airports):
+    def down(url, **k):
+        raise SourceError(f"{url}: down", "network")
+
+    monkeypatch.setattr(flights, "http_get", down)
+    history = tmp_path / "history"
+    now = utc(2026, 10, 19, 20)  # 香港 10/20
+    res = events.backfill_flights(history, [EV], airports, date(2026, 10, 19), now, lambda s: None)
+    assert res == {"29W": {"2026-10-19": None, "2026-10-20": None}}
+    # 事件期間（10-19～10-28）外、或事件沒有香港：不抓
+    late = utc(2026, 10, 30)
+    assert events.backfill_flights(history, [EV], airports, date(2026, 10, 29), late) == {}
+    no_hkg = Event("30W", "", EV.start, EV.end, ("RCTP",), None, None)
+    assert events.backfill_flights(history, [no_hkg], airports, date(2026, 10, 19), now) == {}
 
 
 # ---- 補 METAR 缺口（HD25） ----

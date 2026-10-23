@@ -1,14 +1,16 @@
 name: events
 
-# 事件保存（HD20，颱風 29W 驗證）：每小時存機場 METAR、JMA／JTWC 颱風現報到 data 分支的
-# history/events/<id>/。期間（events.json 的 from～to，台灣日期）外 `hourly` 印一行就結束、不推。
+# 事件保存（HD20，颱風 29W 驗證）：每小時存機場 METAR、JMA／JTWC 颱風現報、五個機場的逐班航班紀錄（HD31）
+# 到 data 分支的 history/events/<id>/。期間（events.json 的 from～to，台灣日期）外 `hourly` 印一行就結束、不推。
 # 手動跑時勾 backfill：把 history/ 裡期間內已經過去的報搬進 history/events/<id>/（已存在的跳過）；
 # 勾 backfill-tracks（HD21）：從 2026-10-19T00:00Z 起的快照補抽各模式的颱風路徑到
 # history/events/<id>/tracks/（已存在的跳過；GFS、AIGFS 從 AWS 重抓海平面氣壓、IFS／AIFS 從 ECMWF
 # 開放資料抓，拿不到的記 log）；接著補 WeatherNext 3（HD15：起報 ≤ 現在 − 121 小時、CC BY 4.0 的報，事件檔
 # history/events/<id>/wn3/ 與路徑；要 Google 服務帳號，還沒核准時第一報 403 就停）；
 # 勾 backfill-metar（HD25）：從 2026-10-19T00:00Z 起把 AviationWeather 還有的 METAR 補進
-# history/events/<id>/metar/（已有的不覆蓋，補進來的行多 "backfill"；金門、馬祖是氣象署觀測，補不到只記 log）。
+# history/events/<id>/metar/（已有的不覆蓋，補進來的行多 "backfill"；金門、馬祖是氣象署觀測，補不到只記 log）；
+# 勾 backfill-flights（HD31）：香港 past?date= 從 2026-10-19 起每天補逐班航班紀錄到 history/events/<id>/flights/
+# （同一班同狀態不重寫，補進來的行多 "backfill": true；其他四個機場只有當天，補不到只記 log）。
 # HD25：整點的排程由 Cloudflare 排程 Worker（cloudflare/trigger/）用 workflow_dispatch 觸發
 # （trigger: cloudflare），下面的 cron 留著當備援；不做跳過檢查（多跑一次只是去重）。
 on:
@@ -31,6 +33,10 @@ on:
         default: false
       backfill-metar:
         description: "補 2026-10-19T00:00Z 以後缺的 METAR（AviationWeather 最多往回 30 天；history/events/<id>/metar/）"
+        type: boolean
+        default: false
+      backfill-flights:
+        description: "補 2026-10-19 起香港的逐班航班紀錄（history/events/<id>/flights/；其他機場只有當天）"
         type: boolean
         default: false
 
@@ -91,7 +97,13 @@ jobs:
           PYTHONPATH: src
         run: python -m hongthai.events backfill-metar --archive data --from 2026-10-19T00:00Z
 
-      - name: 每小時 METAR 與颱風現報
+      - name: 補香港航班（手動、backfill-flights）
+        if: github.event_name == 'workflow_dispatch' && inputs.backfill-flights
+        env:
+          PYTHONPATH: src
+        run: python -m hongthai.events backfill-flights --archive data --from 2026-10-19
+
+      - name: 每小時 METAR、颱風現報與航班
         env:
           PYTHONPATH: src
           CWA_API_KEY: ${{ secrets.CWA_API_KEY }}

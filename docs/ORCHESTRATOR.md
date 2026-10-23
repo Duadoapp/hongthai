@@ -380,6 +380,10 @@
   建議）29W 報告後再定
 - 保存（HD20）：`events.json` 的 29W（台灣日期 10-19～10-28、25 個機場）期間每報快照、每小時 METAR 與
   JMA／JTWC 現報都在 `data` 分支 `history/events/29W/`（README「事件保存」）；之後的颱風在 `events.json` 加一筆
+- **HD31 每小時逐班航班紀錄（10/23 起）**：`events` 的 `hourly` 第四件事，桃園、松山、高雄、香港、澳門逐班存
+  `history/events/29W/flights/<表定 UTC 日期>.jsonl`（只在狀態、分類、預計／實際時間有變化時寫；解析與分類沿用
+  `cancellations.py`），是 29W 報告「實際停飛」的真相資料；香港用 `backfill-flights` 補 10-19 起（合併後 Shawn 手動跑
+  一次），其他四個只有當天補不到。只多存資料，不改 `latest.json`、等級、投票、`build.py` 的輸出，凍結期間可以合併
 - 排程（**HD25**）只動排程與資料保存，**不改規則**：Cloudflare 排程 Worker（`cloudflare/trigger/`）當主鬧鐘、GitHub
   cron 留著當備援，build 同時段已出過就跳過（`timing/` 記 `skip`）；`events` 的 METAR 往回 6 小時、`backfill-metar`
   補 10-19 起的缺口（AviationWeather，金門、馬祖補不到）。等級規則、投票、門檻、`latest.json` 欄位都沒動，

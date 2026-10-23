@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -100,17 +100,27 @@ def parse_tpe(raw: bytes) -> list[dict[str, object]]:
     return rows
 
 
+def fetch_hkg_groups(day: date, arrival: bool) -> list:
+    """香港 `past?date=` 一天、一個方向的組（HD31 的 backfill 也用）。"""
+    params = {
+        "date": f"{day:%Y-%m-%d}",
+        "lang": "en",
+        "cargo": "false",
+        "arrival": "true" if arrival else "false",
+    }
+    groups = _json(http_get(HKG_URL, params=params, retries=2, error=FlightsError))
+    if not isinstance(groups, list):
+        raise FlightsError("香港航班回傳格式不對", "bad_format")
+    return groups
+
+
 def fetch_hkg(now: datetime) -> dict[str, list]:
     today = now.astimezone(ZoneInfo("Asia/Hong_Kong")).date()
     out: dict[str, list] = {"departure": [], "arrival": []}
     for day in (today - timedelta(days=1), today):
         for arrival in ("false", "true"):
-            params = {"date": f"{day:%Y-%m-%d}", "lang": "en", "cargo": "false", "arrival": arrival}
             try:
-                r = http_get(HKG_URL, params=params, retries=2, error=FlightsError)
-                groups = _json(r)
-                if not isinstance(groups, list):
-                    raise FlightsError("香港航班回傳格式不對", "bad_format")
+                groups = fetch_hkg_groups(day, arrival == "true")
             except FlightsError as e:
                 if day == today:
                     raise
