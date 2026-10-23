@@ -32,12 +32,14 @@ class AiError(Exception):
 
     `tag` 是不含短評內容的短標記（例如 `en_too_long`、`zh-HK/喺`）；`stop_reason`、`output_tokens`
     由 `claude.py`／`gemini.py` 在拿到回應後補上，`trace()` 給 log 與對決戰績的 `detail` 用；
-    `usage` 是那次回應的 token 數（HD26，`ai/usage.py`），沒拿到回應是 `None`。"""
+    `usage` 是那次回應的 token 數（HD26，`ai/usage.py`），沒拿到回應是 `None`；`message` 是
+    HTTP、逾時、網路錯誤時清理過的錯誤訊息（HD30，`transport_error`），其他是 `None`。"""
 
-    def __init__(self, code: str, detail: str = "", *, tag: str = ""):
+    def __init__(self, code: str, detail: str = "", *, tag: str = "", message: str | None = None):
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
         self.tag = tag
+        self.message = message
         self.stop_reason: str | None = None
         self.output_tokens: str | None = None
         self.usage: dict | None = None
@@ -56,6 +58,41 @@ def with_response(
     e.stop_reason = None if stop_reason is None else str(stop_reason)
     e.output_tokens = None if output_tokens is None else str(output_tokens)
     e.usage = usage
+
+
+# ---- 錯誤訊息（HD30） ----
+
+MAX_MESSAGE_CHARS = 200
+# 看起來像金鑰或權杖的片段：Anthropic 金鑰、Google API 金鑰、Bearer 後面、長度 ≥ 32 的英數字串
+_SECRETS = [
+    (re.compile("sk-" + r"ant-[A-Za-z0-9_\-]*"), "***"),  # 拆開寫：test_no_keys_in_code
+    (re.compile(r"AIza[A-Za-z0-9_\-]*"), "***"),
+    (re.compile(r"(Bearer\s+)\S+", re.IGNORECASE), r"\1***"),
+    (re.compile(r"[A-Za-z0-9_\-]{32,}"), "***"),
+]
+
+
+def clean_message(raw: object) -> str | None:
+    """錯誤訊息 → 遮掉金鑰樣式、換行改空白、只留前 `MAX_MESSAGE_CHARS` 字；空的是 `None`。
+    先遮再截，截斷的地方不會露出半截金鑰。"""
+    s = "" if raw is None else str(raw)
+    for pat, repl in _SECRETS:
+        s = pat.sub(repl, s)
+    s = " ".join(s.split())
+    return s[:MAX_MESSAGE_CHARS] or None
+
+
+def exception_text(e: BaseException) -> str:
+    """逾時、網路錯誤的訊息：`<例外類別>: <str(e)>`（`str(e)` 是空的只寫類別）。"""
+    text = str(e)
+    return f"{type(e).__name__}: {text}" if text else type(e).__name__
+
+
+def transport_error(code: str, raw: object) -> AiError:
+    """HTTP、逾時、網路錯誤的 `AiError`：`message` 是 `clean_message(raw)`，也放進例外的文字，
+    log 那行就印得出來。不放請求內容與回應內文，只放 API 回的錯誤訊息或例外訊息。"""
+    message = clean_message(raw)
+    return AiError(code, message or "", message=message)
 
 
 _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)

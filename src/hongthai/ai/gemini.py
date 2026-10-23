@@ -21,6 +21,9 @@
   context caching（`CachedContent` 要多一次呼叫、按小時收儲存費）
 - 每次有回應（成功或失敗）都取 `usage_metadata` 的四個數（`usage_of`）：成功時放在回傳的 `usage`、
   失敗時在 `AiError.usage`，給戰績與 `timing/`（`ai/usage.py`）
+- 錯誤訊息（HD30）：HTTP 錯誤取 `errors.APIError` 的 `status`／`message` → `"<status>: <message>"`
+  （都取不到用 `str(e)`），逾時、網路、換 token 的錯誤是例外類別＋`str(e)`，清理後放
+  `AiError.message`
 """
 
 from __future__ import annotations
@@ -36,7 +39,7 @@ from google.genai import errors, types
 from google.oauth2 import service_account
 
 from .config import ENV, GEMINI_THINKING_LEVEL, MAX_TOKENS, MODELS, TEMPERATURE, TIMEOUT_S
-from .parse import AiError, parse_response, with_response
+from .parse import AiError, exception_text, parse_response, transport_error, with_response
 from .prompt import SYSTEM
 from .usage import as_count
 
@@ -90,13 +93,13 @@ def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = 
     try:
         resp = client.models.generate_content(model=MODELS["gemini"], contents=text, config=config)
     except errors.APIError as e:
-        raise AiError(f"http_{e.code}") from e
+        raise transport_error(f"http_{e.code}", status_message(e)) from e
     except (httpx.TimeoutException, requests.Timeout) as e:
-        raise AiError("timeout") from e
+        raise transport_error("timeout", exception_text(e)) from e
     except auth_exceptions.RefreshError as e:  # 服務帳號換不到 token（金鑰被撤銷、權限不對）
-        raise AiError("http_401") from e
+        raise transport_error("http_401", exception_text(e)) from e
     except (httpx.HTTPError, requests.RequestException, auth_exceptions.GoogleAuthError) as e:
-        raise AiError("network") from e
+        raise transport_error("network", exception_text(e)) from e
     cands = resp.candidates or []
     reason = cands[0].finish_reason if cands else None
     try:
@@ -111,6 +114,13 @@ def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = 
         with_response(e, getattr(reason, "name", reason), output_tokens(resp), usage_of(resp))
         raise
     return {**result, "usage": usage_of(resp)}
+
+
+def status_message(e: errors.APIError) -> str:
+    """HTTP 錯誤時 API 回的錯誤訊息（HD30）：`"<status>: <message>"`（只有一個就只寫那個）；
+    都沒有用 `str(e)`。"""
+    parts = [str(x) for x in (e.status, e.message) if x]
+    return ": ".join(parts) if parts else str(e)
 
 
 def usage_of(resp: types.GenerateContentResponse) -> dict | None:
