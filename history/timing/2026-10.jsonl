@@ -551,3 +551,4 @@
 {"run": "2026-10-23T01:07:00Z", "source": "ai", "ok": true, "error": null, "seconds": 80.6, "bytes": 0, "calls": {"claude": 20, "gemini": 20}, "usage": {"claude": {"input": 320886, "output": 19598, "cacheRead": 47861, "cacheWrite": 2519, "calls": 20}, "gemini": {"input": 278987, "output": 13919, "thinking": null, "cacheRead": null, "calls": 20}}, "costUsd": {"claude": 1.697671, "gemini": 0.697164}}
 {"run": "2026-10-23T01:07:00Z", "source": "og", "ok": true, "error": null, "seconds": 2.6, "bytes": 995143}
 {"run": "2026-10-23T01:07:00Z", "source": "done", "ok": true, "seconds": 429.6}
+{"run": "2026-10-23T05:57:00Z", "source": "skip", "ok": true, "seconds": 0, "trigger": "schedule", "slot": "2026-10-23T01:05:00Z", "startedAt": "2026-10-23T05:56:59Z", "delayMinutes": 292.0, "generatedAt": "2026-10-23T01:07:00Z"}
