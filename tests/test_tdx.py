@@ -86,9 +86,9 @@ def test_tdx_rows_codeshares_unknown_and_skipped(caplog):
     assert set(rs) == {"AE1271", "AE1273"}
     assert rs["AE1271"]["codeshares"] == ["CI9271"]
     assert rs["AE1271"]["class"] == "normal"  # 時間更改
-    # 對照表沒列的狀態 → other，記 log
-    assert rs["AE1273"]["class"] == "other"
-    assert "看不懂的狀態 '加班機'" in caplog.text
+    # 「加班機」HD32 時是對照表沒列的 other；HD38 起開頭「加班」→ 正常，不再記 log
+    assert rs["AE1273"]["class"] == "normal"
+    assert "看不懂的狀態" not in caplog.text
     # 沒有表定時間的那筆跳過、記 log
     assert "1 筆沒有表定時間或班號" in caplog.text
 
@@ -121,7 +121,13 @@ def test_tdx_rows_taoyuan_and_songshan():
         ("離站", "", "normal"),
         ("", "CANCELLED", "cancelled"),  # 中文空白用英文
         ("", "", "normal"),
-        ("加班機", "EXTRA", "other"),
+        # HD38（HD37 報告工具先補的三種，2026-10-22～24 TDX 實際看到）
+        ("加班", "", "normal"),
+        ("加班機", "EXTRA", "normal"),
+        ("轉降", "", "diverted"),
+        ("預計12:30離站", "", "normal"),  # 表定 12:00，晚 30 分
+        ("預計13:00出發", "", "delayed"),  # 晚 60 分（狀態裡的時間當預計時間）
+        ("檢查", "", "other"),  # 還是看不懂的
     ],
 )
 def test_tdx_status_rules(zh, en, cls):

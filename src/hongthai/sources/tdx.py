@@ -1,5 +1,6 @@
-"""TDX（交通部運輸資料流通服務平臺）航空即時航班（FIDS），HD32：只給事件保存
-（`events.py` 的 `hourly`）存逐班紀錄，不進 `latest.json`、不算統計。
+"""TDX（交通部運輸資料流通服務平臺）航空即時航班（FIDS）。HD32：事件保存（`events.py` 的
+`hourly`）每小時存逐班紀錄；HD38：`build.py` 每一報也抓一次，台中、台南、花蓮、台東、澎湖、金門、
+馬祖南竿的取消／延誤統計進 `latest.json`（桃園、松山、高雄照舊用原本的來源）。
 
 - 認證：OAuth2 client credentials。`TDX_CLIENT_ID`、`TDX_CLIENT_SECRET` 從環境變數讀（Actions
   secrets），**不寫進檔案、log 不印**；沒設就整件事跳過（`Client.from_env` 回 None，記一行
@@ -20,8 +21,9 @@
   兩種都接）、`IsCargo`、`AcType`、`UpdateTime`。解析在 `flights_log.tdx_rows`
 - 頻率限制（`/webapi/pricing/` 與收費說明，2026-10-23 讀）：基礎會員「TWD 0 元/月| 虛擬點數：
   3 點/月| 存取頻率：5 次/分/金鑰」；計費「計次：1,500次/1點」「計量：150MB/1點」，兩者合併計算；
-  超過頻率回 429。每小時 1 次資料請求一個月約 744 次（約 0.5 點），回應要求 gzip 壓縮
-  （`Accept-Encoding`）壓低計量
+  超過頻率回 429；點數用到 105% 當月停權。回應要求 gzip 壓縮（`Accept-Encoding`）壓低計量。
+  HD38：`build.py` 每報抓之前數這個月已經用了幾次資料請求（`build.tdx_month_calls`：build 自己的
+  加上事件保存的），到 `MONTHLY_CALL_LIMIT` 就跳過、記 log（用量估算見 README「TDX 用量」）
 - 授權：政府資料開放授權條款；平臺「資料授權利用條款」要求標示資料來源為「交通部運輸資料流通服務
   平臺」或其資料來源單位（README「資料來源與授權」）
 """
@@ -42,6 +44,8 @@ log = logging.getLogger("hongthai")
 TOKEN_URL = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token"
 FIDS_URL = "https://tdx.transportdata.tw/api/basic/v2/Air/FIDS/Airport"
 ENV_ID, ENV_SECRET = "TDX_CLIENT_ID", "TDX_CLIENT_SECRET"
+# HD38：每月資料請求（`fids`，不含 token）的上限；build 與事件保存合計，到了 build 就不抓
+MONTHLY_CALL_LIMIT = 600
 
 
 class TdxError(SourceError):
@@ -65,6 +69,7 @@ class Client:
     _token: str | None = field(default=None, repr=False)
     # 同一次執行同樣的機場只請求一次（期間重疊的事件不重抓）
     _fids: dict[tuple[str, ...], dict[str, dict]] = field(default_factory=dict, repr=False)
+    calls: int = 0  # 這次執行送出的資料請求數（HD38，算每月用量）
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Client | None:
@@ -115,6 +120,7 @@ class Client:
         want = tuple(sorted(set(iatas)))
         if want in self._fids:
             return self._fids[want]
+        self.calls += 1
         r = http_get(
             FIDS_URL,
             params=fids_params(want),
