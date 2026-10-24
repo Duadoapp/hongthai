@@ -359,6 +359,19 @@
 - 保守假設都在 `assess.py` 與 `airports.json` 的門檻，改之前先跟 Shawn 確認；單位一律用節（HD2 起）
 - 隱私：這個 repo 不碰任何個資；公開 repo，程式裡不能有金鑰
 
+## 合併（2026-10-25 01:04 Shawn 定案：主對話自己合併沒問題的 PR）
+
+- 範圍：hongthai 全部 PR、Duado 裡 HongThai 的 HW PR；Duado 總指揮的 PR 不碰
+- 只合主對話審過、判「可以合併」的；要改的照舊給 Shawn 貼給雲端的文字，改好重審再合；主對話自己開的文件 PR 審完也合
+- 方法：CI 還在跑 → 開 auto-merge（`PUT /repos/{owner}/{repo}/pulls/{n}/ccr/auto_merge`，`merge_method: squash`），GitHub 等必要檢查（hongthai `ci`；
+  Duado `check`、`db`、`admin`、`worker`）綠了才合；CI 已綠（`mergeable_state: clean`）→ 直接 `PUT .../pulls/{n}/merge`（squash）
+- **檢查衝突**（兩個 repo 的規則集都**沒有**要求分支是最新的，所以 CI 各自綠、合在一起仍可能壞）：
+  - 合之前看 `mergeable_state`：`dirty`（有衝突）不合，請雲端 rebase
+  - 看 `compare main...head` 的 `behind_by`：main 在這支開出來之後有合進**改到同一批檔案**的 PR（文件以外）→ 先請雲端 rebase、等新的 CI 綠才合
+  - 每合一支，回頭看其他開著的 PR：變 `dirty` 或和剛合的改到同一批檔案、又已開 auto-merge 的 → 先關掉 auto-merge（`DELETE .../ccr/auto_merge`），請雲端 rebase
+  - B 組（動資料流程的）一次只合一支、照順序，前一支合併後下一支 rebase、CI 綠再合
+- 每合一支（或開 auto-merge）就跟 Shawn 說：編號、一句結論；Shawn 隨時可以在 GitHub 取消
+
 ## 29W 驗證期凍結（2026-10-22 12:00 台灣時間起；2026-10-20 19:04 Shawn 改定起點）
 
 - **10/22 12:00 系統定版**，之後只修 bug，直到 29W 離開所有範圍機場（或轉溫帶氣旋）後 24 小時、初版報告出來為止；
