@@ -147,7 +147,8 @@ p90 平均風，給報告看離散）。`voting` 預設 False（旁觀），環�
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import copy
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import radians, sin
@@ -1129,4 +1130,134 @@ def assess_slots(
         }
         slot["causes"] = slot_causes(slot, thresholds, off_levels) or []
         out.append(slot)
+    return out
+
+
+def rescore(
+    slot: dict,
+    th: Thresholds,
+    runs: dict[str, str | None] | None = None,
+    factor: GustFactor | None = None,
+) -> None:
+    """模式值換掉之後重算模式層等級、一致性、落差與整格等級（和 `assess_slots` 同一套規則；
+    官方層與已確認不受模式影響，維持原樣）。抄來的是 HD2 以前的結果時，先用 m/s 欄位補節的欄位。
+    三類等級（HD8）照抄來的雨量重算；依據是模式層的格 `causes` 也重算（官方層的不動）。
+    HD14：`models[]` 重組（IFS、GFS、IFS 系集從 `ec`／`gfs`，AIFS、AIGFS 從原本那筆的數字）、
+    重新投票（`vote`、`level`）；`runs`（`build.model_runs` 的結果）沒給時 `models[].run` 維持原值。
+    HD18：給了 `factor`（這一報這個機場的 G）時，估算陣風的那幾筆用 `windKt` × G 重算
+    （`refactor_estimated`；不沿用舊 G）。模式沿用（`build._rescore`）與 3 小時格（`merge_3h`，
+    HD35）都用這個。"""
+    m = slot["model"]
+    fill_kt(m["ec"], m["gfs"])
+    fill_model_wx(m["ec"], m["gfs"], th)
+    old = {e.get("id"): e for e in m.get("models") or [] if isinstance(e, dict)}
+    if factor is not None:
+        for mod in MODELS:
+            if mod.gust_estimated and mod.id in old:
+                refactor_estimated(old[mod.id], factor)
+    if runs is None:
+        runs = {i: e.get("run") for i, e in old.items() if isinstance(i, str)}
+    m["models"] = model_entries(m["ec"], m["gfs"], old, runs, th)
+    _, m["vote"] = model_vote(m["models"])
+    m["level"] = m["vote"]["level"]
+    m["agreement"] = agreement(m["ec"], m["gfs"], th)
+    if slot["basis"] in ("model", "none"):
+        slot["level"], slot["basis"] = (m["level"], "model") if m["level"] else ("unknown", "none")
+    off = slot["official"]
+    slot["gap"] = off is not None and m["level"] is not None and off["level"] != m["level"]
+    causes = slot_causes(slot, th)
+    if causes is not None:
+        slot["causes"] = causes
+
+
+# ---- 3 小時格（HD35）----
+
+THREE_HOUR_H = 3
+THREE_HOUR_SPAN_H = 72  # 0–72 小時每 3 小時一格（24 格）；72–120 小時維持 6 小時
+# 3 小時格的 `model.ec` 從包住它的 6 小時格抄的欄位：雨量、型態、氣溫（雨、雪的門檻是 6 小時累積）
+# 與系集的 24 小時窗機率（窗的邊界是 12 小時的倍數，3 小時格算出來和 6 小時格一樣，抄比較明白）
+EC_FROM_6H = (
+    "p10",
+    "p15",
+    "p25",
+    "p29Kt",
+    "p37Kt",
+    "p49Kt",
+    "rain6hMm",
+    "ptype",
+    "p24hRain25",
+    "p24hRain50",
+    "temp2mC",
+)
+# 3 小時資料的模式（`Model.three_hourly`）那筆從 6 小時格抄的欄位：雨量與型態（6 小時累積）
+RAIN_FROM_6H = ("rain6hMm", "ptype")
+# 比較 3 小時格與 6 小時格的等級（`level_mismatches`）用的順序
+SLOT_LEVEL_ORDER = ("unknown", "low", "medium", "high", "confirmed")
+
+
+def three_hour_bounds(
+    slot0: datetime, span_h: int = THREE_HOUR_SPAN_H
+) -> list[tuple[datetime, datetime]]:
+    """從 `slot0`（6 小時格的開頭）起每 3 小時一格、共 `span_h` 小時。"""
+    step = timedelta(hours=THREE_HOUR_H)
+    return [(slot0 + i * step, slot0 + (i + 1) * step) for i in range(span_h // THREE_HOUR_H)]
+
+
+def merge_3h(slot: dict, parent: dict, th: Thresholds, native: Collection[str]) -> None:
+    """`assess_slots` 用 3 小時窗算出來的一格 → 機場頁的 3 小時格（HD35，就地改 `slot`）。
+
+    - `native`：這一報 0–72 小時真的有 3 小時資料的模式 id（`Model.three_hourly`，而且這一報自己
+      抓到、不是沿用的）。它們的陣風、平均風、側風照 3 小時窗算（`assess_slots` 已經算好）；雨量與
+      型態（`rain6hMm`、`ptype`；IFS 還有氣溫與系集機率，`EC_FROM_6H`）用 `parent`（包住這格的
+      6 小時格，`latest.json` 那格）的——雨、雪的門檻是 6 小時累積，兩個 3 小時格一樣
+    - 其他模式：整筆用 `parent` 那筆（同一個 6 小時的值放進兩個 3 小時格），`sixHourly: true`；
+      GFS 不在 `native` 時 `model.gfs` 也整個用 `parent` 的
+    - 投票、等級、一致性、落差、`causes` 照 6 小時的規則重算（`rescore`）；官方層（TAF 依時段切、
+      警報、METAR）與已確認是 `assess_slots` 用 3 小時窗算的，不動
+    - `models[]` 每筆多 `sixHourly`（布林）"""
+    m = slot["model"]
+    pm = parent.get("model") or {}
+    pec, pgfs = pm.get("ec") or {}, pm.get("gfs") or {}
+    parents = {e.get("id"): e for e in pm.get("models") or [] if isinstance(e, dict)}
+    if "ifs" in native:
+        m["ec"].update({k: pec.get(k) for k in EC_FROM_6H})
+    else:
+        m["ec"] = {**dict.fromkeys(EC_KEYS), **copy.deepcopy(pec)}
+    if "gfs" in native:
+        m["gfs"].update({k: pgfs.get(k) for k in RAIN_FROM_6H})
+    else:
+        m["gfs"] = copy.deepcopy(pgfs)
+    six: set[str] = set()
+    entries = []
+    for e in m.get("models") or []:
+        mid = e.get("id")
+        p = parents.get(mid) or {}
+        if mid in native:
+            entries.append({**e, **{k: p.get(k) for k in RAIN_FROM_6H}})
+        else:
+            entries.append({**copy.deepcopy(p), "id": mid})
+            six.add(mid)
+    m["models"] = entries
+    rescore(slot, th)
+    for e in m["models"]:
+        e["sixHourly"] = e["id"] in six
+
+
+def _slot_rank(level: object) -> int:
+    return SLOT_LEVEL_ORDER.index(level) if level in SLOT_LEVEL_ORDER else -1
+
+
+def level_mismatches(slots3h: Sequence[dict], slots6h: Sequence[dict]) -> list[dict]:
+    """每個 6 小時格對應的 3 小時格（`from` 落在 [from, to)）等級取最高，和 6 小時格不同的列出來
+    （HD35：只記 log、不改任何一邊）。等級順序 `unknown` < 低 < 中 < 高 < `confirmed`。"""
+    out = []
+    for p in slots6h:
+        kids = [s for s in slots3h if p["from"] <= s["from"] < p["to"]]
+        if not kids:
+            continue
+        top = max((s["level"] for s in kids), key=_slot_rank)
+        if _slot_rank(top) != _slot_rank(p["level"]):
+            out.append(
+                {"from": p["from"], "level6h": p["level"], "levels3h": [s["level"] for s in kids]}
+            )
     return out
