@@ -955,7 +955,7 @@ def test_per_airport_truth_last_and_truth_until(archive):
     ]
     _add_roah(archive, rows)
     canc = _truth(archive)
-    assert canc.by_airport["ROAH"].last == _t(22, 13)  # 自己最新的 t（不是桃園的 asOf）
+    assert canc.by_airport["ROAH"].last == _t(22, 13)  # 整批 tdx 最新的 t（不是桃園的 asOf）
     assert canc.last("ROAH", None) == _t(22, 13)
     assert canc.last("ROAH", _t(22, 10)) == _t(22, 10)
     assert canc.last("RCTP", None) == utc(2026, 10, 24)
@@ -967,6 +967,27 @@ def test_per_airport_truth_last_and_truth_until(archive):
     assert lv.truth_last == utc(2026, 10, 24)  # 各機場最晚的
     lv = _result(archive, truth_until=_t(22, 10)).levels
     assert lv.sources["ROAH"].used == _t(22, 10) and lv.sources["ROAH"].slots == 0
+
+
+def test_flights_truth_last_is_batch_latest_t(archive):
+    # ROAH 最後一行很早（10/22 01Z），但同一批 TDX 有更新的 t：桃園（取消統計的機場、逐班不用）
+    # 與不在事件裡的綠島 → ROAH 的最後時間是整批最新的 10/22 13Z，B（06–12Z）照算
+    rows = [
+        _flight("ROAH", "dep", "NH1", _t(22, 7), "cancelled", t=_t(22, 1)),
+        _flight("ROAH", "arr", "NH2", _t(22, 8), "normal", t=_t(22, 1)),
+        _flight("RCTP", "dep", "CI1", _t(22, 9), "normal", t=_t(22, 12)),
+        _flight("RCGI", "dep", "B71", _t(22, 9), "normal", t=_t(22, 13)),
+        _flight("RCGI", "dep", "B72", _t(22, 9), "normal", t=_t(23, 1), source="other"),
+    ]
+    _add_roah(archive, rows)
+    canc = _truth(archive)
+    assert canc.by_airport["ROAH"].last == _t(22, 13)
+    assert canc.stopped("ROAH", *B, 0.3, 10) == (True, True)
+    assert canc.stopped("ROAH", *C, 0.3, 10) == (None, False)  # 10/23 12Z 才結束
+    assert set(canc.by_airport) == {"RCTP", "VHHH", "ROAH"}  # 綠島不在事件裡，只用來算 t
+    assert canc.last("RCTP", None) == utc(2026, 10, 24)  # 取消統計照舊用 asOf
+    src = _result(archive, truth_until=_t(22, 12)).levels.sources["ROAH"]
+    assert (src.last, src.used, src.slots) == (_t(22, 13), _t(22, 12), 1)
 
 
 def test_cancellations_preferred_over_flights(archive):

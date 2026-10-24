@@ -64,8 +64,9 @@
 - 來源依機場選：`history/cancellations/` 有的機場照舊用它；沒有的機場用 `events/<id>/flights/`
   的逐班紀錄（`source: tdx`）。同一班（`airport`、`dir`、`flight`、`schedUtc`、`source`）取 `t`
   最新的一行，表定時間落在格內的算進那格，停飛規則和 `cancellations/` 完全一樣；那格沒有航班不算
-- 實測的最後時間每個機場各一個：自己資料最新的時間（`cancellations/` 的 `asOf`、逐班的 `t`）和
-  `--truth-until` 早的那個。`levels.truthLast` 是各機場裡最晚的
+- 實測的最後時間每個機場各一個：資料最新的時間（`cancellations/` 是那個機場的 `asOf`；逐班是
+  整批最新的 `t`，所有 `source: tdx` 的行裡最大的）和 `--truth-until` 早的那個。
+  `levels.truthLast` 是各機場裡最晚的
 - 班次少：那格表定（出發＋抵達）少於 `FEW_FLIGHTS`（4）班，`cancellations/` 的機場也照同一個
   標準（用那格的 `total`）。規則照判，只是另外列：每格是「其中班次少」的子集；每報每機場是結果
   靠班次少的格決定的窗（有停飛時停飛的格全是班次少、沒停飛時有實測的格全是班次少；`few_window`）
@@ -275,7 +276,9 @@ class AirportTruth:
 
     source: str  # CANCELLATIONS／FLIGHTS
     rows: dict[datetime, dict]  # 格的 `from` → 列
-    last: datetime | None  # 這個機場資料最新的時間（`cancellations/` 的 `asOf`、逐班的 `t`）
+    last: (
+        datetime | None
+    )  # 資料最新的時間（`cancellations/` 是這個機場的 `asOf`、逐班是整批的 `t`）
 
 
 @dataclass
@@ -408,16 +411,19 @@ def load_flights(
 ) -> None:
     """`flights/*.jsonl`（`source: tdx`）→ 補進 `truth`：只補 `airports` 裡 `cancellations/` 沒有的
     機場。同一班（`airport`、`dir`、`flight`、`schedUtc`、`source`）取 `t` 最新的一行（同 `t` 取檔裡
-    後面的），依表定時間歸格；機場的 `last` 是它所有行最新的 `t`。重新分類的次數只算實測的最後時間
-    （min(`until`, `last`)）之前結束的格。"""
+    後面的），依表定時間歸格。逐班機場的 `last` 是整批最新的 `t`（所有 `source: tdx` 的行，
+    十個機場是同一個請求抓的；逐班只在有變化時寫，班次少的機場自己最新的 `t` 會停在很早）。
+    重新分類的次數只算實測的最後時間（min(`until`, `last`)）之前結束的格。"""
     want = set(airports) - truth.airports
     latest: dict[tuple, tuple[datetime, dict]] = {}
-    last: dict[str, datetime] = {}
+    last: datetime | None = None
     for r in _jsonl(sorted((d / "flights").glob("*.jsonl"))):
         airport, t = r.get("airport"), parse_time(r.get("t"))
-        if r.get("source") != FLIGHT_SOURCE or airport not in want or t is None:
+        if r.get("source") != FLIGHT_SOURCE or t is None:
             continue
-        last[airport] = max(last.get(airport, t), t)
+        last = t if last is None else max(last, t)
+        if airport not in want:
+            continue
         key = (airport, r.get("dir"), r.get("flight"), r.get("schedUtc"), r.get("source"))
         if key not in latest or t >= latest[key][0]:
             latest[key] = (t, r)
@@ -428,7 +434,7 @@ def load_flights(
             continue
         zone = ZoneInfo(tz.get(airport, "Asia/Taipei"))
         cls, rule = reclassify(r, zone)
-        a = truth.by_airport.setdefault(airport, AirportTruth(FLIGHTS, {}, last[airport]))
+        a = truth.by_airport.setdefault(airport, AirportTruth(FLIGHTS, {}, last))
         start = floor_6h(sched)
         row = a.rows.setdefault(start, {"dep": _zero_counts(), "arr": _zero_counts()})
         row[direction]["total"] += 1
@@ -1565,8 +1571,8 @@ def truth_source_lines(lv: LevelResult) -> list[str]:
         "",
         "`cancellations/` 有的機場用它（每 6 小時的取消統計，和定版以來一致）；沒有的機場用逐班紀錄"
         f"`flights/`（`source: {FLIGHT_SOURCE}`，同一班取最新一行、依表定時間歸格，停飛規則一樣）。"
-        "每個機場實測的最後時間是自己資料最新的時間（統計的 `asOf`、逐班的 `t`）"
-        "和實測截止早的那個。"
+        "每個機場實測的最後時間是資料最新的時間（統計是那個機場的 `asOf`、"
+        "逐班是整批 TDX 最新的 `t`）和實測截止早的那個。"
         f"格數、班數只算那之前結束的格；班次少＝表定（出發＋抵達）少於 {FEW_FLIGHTS} 班。",
         "",
     ]
