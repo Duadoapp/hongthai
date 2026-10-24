@@ -44,9 +44,9 @@ HD33b 旁觀的四個模式（`OBSERVER_MODELS`，`config.MODELS` 是 `voting=Fa
   `cma_grapes_global`；metadata 的路徑不同名（GEM 全球 2026 年起是 `cmc_gem_gdps_15km`，舊的
   `cmc_gem_gdps` 停在 2026-05；ARPEGE 是 `meteofrance_arpege_world025`）
 - 2026-10-24 16:4xZ 開發機實抓（單一座標，桃園）：GEM、ARPEGE 都有陣風（`gustEstimated: false`）、
-  雨量、降雪、天氣碼，**沒有能見度**；ARPEGE 00Z 那報只到約 102 小時（後面的小時是 null，最後幾格
-  這個模式沒有資料）。UKMO、CMA 當天開發機的 IP 已經用完每日額度（HTTP 429），沒抓到；Open-Meteo
-  文件寫兩個都有 10 米陣風（「前一小時最大」），先當有陣風
+  雨量、降雪、天氣碼，**沒有能見度**；ARPEGE 一報只到起報後約 102 小時（10/24 06Z 那報到
+  10/28 12Z，後面的小時是 null，最後幾格這個模式沒有資料）。UKMO、CMA 當天開發機的 IP 已經用完
+  每日額度（HTTP 429），沒抓到；Open-Meteo 文件寫兩個都有 10 米陣風（「前一小時最大」），先當有陣風
 - 變數照 ICON／JMA 的 7 個（同一個請求裡每個模式拿到的變數一樣，不能分開要）
 - **四個出錯不連累 ICON、JMA 兩票**：某個旁觀模式的單位不對或整欄沒有 → 只丟掉那個模式
   （`OpenMeteoData.model_errors`，`sources.openmeteo.modelError`）；整個預報請求回 HTTP 400（模式名

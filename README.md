@@ -873,7 +873,7 @@ HD33b（2026-10-25，Open-Meteo 的四個旁觀模式；`schema` 維持 `1`，**
 - `slots[].model.models[]` 每格 12 筆：四筆的欄位同 `icon`（`gustKt` 是自己的陣風、`gustEstimated: false`、
   `windKt` 同一小時的平均風、有雨量與型態、`visibilityM` 是 `null`、`p49Kt` 是 `null`）；`levels`、`level` 照算，
   但 `vote`、`model.level`、`level`、`causes`、`gap` 和沒有它們時一模一樣。沒資料的那一報（或那幾格，例如
-  ARPEGE 00／12Z 只到約 102 小時、最後幾格）數字與等級全 `null`
+  ARPEGE 一報只到起報後約 102 小時、最後幾格）數字與等級全 `null`
 - 頂層 `runs.ukmo`、`runs.gem`、`runs.arpege`、`runs.cma`（ISO 或 `null`；Open-Meteo metadata 的最近一報）
 - `sources.openmeteo`：`calls` 51 個機場 540.6（HD16 是 397.8）；新欄位 `modelError`（只有出錯時才有，例如
   `"cma:bad_units"`、`"ukmo:missing"`，四個都 `http_400` 時是模式名失效、已經只帶 ICON、JMA 重抓）；`runError`
@@ -1591,7 +1591,8 @@ HD16 Open-Meteo（2026-10-20 11:17Z 實抓，細節在 `src/hongthai/sources/ope
 - JMA GSM 沒有陣風（`wind_gusts_10m_jma_gsm` 全是 `null`、單位 `undefined`）→ 估算；ICON global、JMA GSM 都沒有
   能見度。系集的成員 0 是不帶後綴的 `wind_speed_10m`，其他 `_member01`…`_member63`
 - HD33b 的四個旁觀模式（2026-10-24 16:4xZ 開發機實抓，單一座標；細節在 `openmeteo.py` 開頭）：GEM、ARPEGE
-  有陣風、雨量、降雪、天氣碼，沒有能見度；ARPEGE 00Z 那報只到約 102 小時。UKMO、CMA 當天開發機的 IP 已經用完
+  有陣風、雨量、降雪、天氣碼，沒有能見度；ARPEGE 一報只到起報後約 102 小時（10/24 06Z 那報
+  到 10/28 12Z，回應從當天 00Z 起第 109 個小時以後是 null）。UKMO、CMA 當天開發機的 IP 已經用完
   每日額度（HTTP 429，連 `historical-forecast-api`、`previous-runs-api` 也是），照 Open-Meteo 文件當有陣風。
   metadata 的路徑和模式名不同：`ukmo_global_deterministic_10km`、`cmc_gem_gdps_15km`（舊的 `cmc_gem_gdps` 停在
   2026-05）、`meteofrance_arpege_world025`、`cma_grapes_global`。預報 7 個變數 × 6 個模式 → 4.2 × 51 ＝ 214.2，
