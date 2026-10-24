@@ -40,9 +40,10 @@
 實際看到、HD37 報告工具先補的三種（以前都是 `other`；新存的資料才套，舊檔不改寫）：
 - 開頭是「加班」（加班機）→ 正常
 - 開頭是「轉降」→ `diverted`（不算取消，另外計數）
-- `預計HH:MM到站`／`預計HH:MM離站`／`預計HH:MM出發`（也接 `抵達`、`到達`，和 `預計MM/DD HH:MM…`
-  帶月日的）→ 正常，狀態裡的時間當預計時間（來源本身沒有預計／實際時間時才用），晚 60 分鐘以上
-  照上面的規則算延誤；沒寫日期的照「沒有日期的預計／實際時間」的規則放（`tw_expected`）
+- `預計HH:MM到站`／`預計HH:MM離站`／`預計HH:MM出發`（也接 `抵達`、`到達`、`起飛`、沒有結尾字的，
+  和帶 `MM/DD` 或 `YYYY/MM/DD` 的，同 HD37 報告工具）→ 正常，狀態裡的時間當預計時間（來源本身
+  沒有預計／實際時間時才用），晚 60 分鐘以上照上面的規則算延誤；沒寫日期的照「沒有日期的預計／
+  實際時間」的規則放（`tw_expected`）
 
 每格表定（出發＋抵達）少於 `FEW_FLIGHTS`（4）班的，`latest.json` 標 `few: true`（`slot_json`；
 HD37 報告工具的「班次少」用同一個門檻）。
@@ -191,9 +192,10 @@ MFM_KEYWORDS = [
 MFM_DONE = r"(?:TOOK OFF|LANDED) AT "
 
 
-# `預計HH:MM到站` 之類（`_norm` 後）：第 1、2 群組是月日（可省），第 3 群組是時間
+# `預計HH:MM到站` 之類（`_norm` 後），和 HD37 報告工具（`tools/report_29w.py` 的 `_EST`）同一套：
+# 可帶 `MM/DD` 或 `YYYY/MM/DD`，結尾的「到站」之類可省。群組：年、月、日（都可省）、時間
 TW_EXPECTED = re.compile(
-    r"預計(?:(\d{1,2})[/-](\d{1,2}))?(\d{1,2}:\d{2})(?:到站|離站|出發|抵達|到達)"
+    r"預計(?:(?:(\d{4})[/-])?(\d{1,2})[/-](\d{1,2}))?(\d{1,2}:\d{2})(?:到站|離站|出發|抵達|到達|起飛)?"
 )
 
 
@@ -215,15 +217,18 @@ def _lookup(table: dict[str, str], status: object) -> str:
 
 def tw_expected(status: object, sched: datetime) -> datetime | None:
     """`預計HH:MM到站` 這類狀態裡的預計時間（帶表定時間的時區）；不是這類回 None。沒寫日期的
-    放在表定時間前 6 小時到後 18 小時之間（`_near`），寫了月日的取最接近表定日期的那一年。"""
+    放在表定時間前 6 小時到後 18 小時之間（`_near`），只寫月日的取最接近表定日期的那一年。"""
     m = TW_EXPECTED.fullmatch(_norm(status))
     if not m:
         return None
-    clock = _clock(m[3])
-    if not m[1]:
+    clock = _clock(m[4])
+    if not m[2]:
         return _near(sched, clock)
     try:
-        day = _nearest_year(int(m[1]), int(m[2]), sched.date())
+        if m[1]:
+            day = date(int(m[1]), int(m[2]), int(m[3]))
+        else:
+            day = _nearest_year(int(m[2]), int(m[3]), sched.date())
     except ValueError:
         return None
     return _at(day, clock, sched.tzinfo)  # type: ignore[arg-type]

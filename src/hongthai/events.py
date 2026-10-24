@@ -41,7 +41,9 @@
   HD32：同一個檔另外存 TDX（交通部運輸資料流通服務平臺）的航空即時航班（`sources/tdx.py`），
   `airports.json` 地區 `taiwan` 的十個機場（事件的 `airports` 有的才寫）一次請求拿，`source: "tdx"`
   （`flights_log.tdx_rows`）；桃園、松山、高雄和原本的來源各存各的（去重鍵含 `source`）。要
-  `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`，沒設就跳過（記一行「TDX 未設定」）；沒有補過去的功能
+  `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`，沒設就跳過（記一行「TDX 未設定」）；沒有補過去的功能。
+  HD38：每次資料請求在 `history/tdx/calls-<YYYY-MM>.jsonl` 記一行，本月到 `tdx.MONTHLY_CALL_LIMIT`
+  （build＋事件保存合計）就跳過
 
 來源（2026-10-20 實抓）：
 - METAR：AviationWeather `metar?ids=<25 站>&format=json&hours=6`（`hours` 讓半小時一報的
@@ -671,7 +673,10 @@ def hourly(
 ) -> dict[str, dict[str, int | None]]:
     """期間內的每個事件做四件事，各自 try；回傳每件寫了幾行（失敗是 None；航班是五個機場的
     合計，個別機場失敗只 log）。有 `tdx_client`（HD32）時航班另外存 TDX，`tdx` 是 TDX 各機場的
-    合計（token 或請求失敗是 None，只 log）；沒有就沒有 `tdx` 這個鍵。"""
+    合計（token 或請求失敗是 None，只 log）；沒有就沒有 `tdx` 這個鍵。HD38：TDX 每次資料請求記進
+    `history/tdx/calls-<YYYY-MM>.jsonl`（`caller: "events"`），本月（build＋這裡）到
+    `tdx.MONTHLY_CALL_LIMIT` 就不請求（`tdx` 是 None）；平常每報的 build 在更早的
+    `BUILD_CALL_LIMIT` 就停，所以事件期間的每小時存檔最後才停。"""
     out: dict[str, dict[str, int | None]] = {}
     for e in active(events, now):
         d = event_dir(history, e)
@@ -697,6 +702,19 @@ def hourly(
             log.exception("事件 %s：航班失敗", e.id)
             res["flights"] = None
         if tdx_client is not None:
+            if tdx_client.log is None:  # HD38：每次資料請求記一行，build 與這裡都讀來計數
+                tdx_client.log = tdx.CallLog(history, "events")
+            used = tdx.month_calls(history, now)
+            if used >= tdx.MONTHLY_CALL_LIMIT:
+                log.warning(
+                    "事件 %s：TDX 本月已用 %d 次（上限 %d），這小時跳過",
+                    e.id,
+                    used,
+                    tdx.MONTHLY_CALL_LIMIT,
+                )
+                res["tdx"] = None
+                out[e.id] = res
+                continue
             try:
                 written = fetch_tdx_flights(e, airports, now, d, tdx_client)
                 res["tdx"] = sum(v or 0 for v in written.values())

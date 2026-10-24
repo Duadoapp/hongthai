@@ -22,21 +22,29 @@
 - 頻率限制（`/webapi/pricing/` 與收費說明，2026-10-23 讀）：基礎會員「TWD 0 元/月| 虛擬點數：
   3 點/月| 存取頻率：5 次/分/金鑰」；計費「計次：1,500次/1點」「計量：150MB/1點」，兩者合併計算；
   超過頻率回 429；點數用到 105% 當月停權。回應要求 gzip 壓縮（`Accept-Encoding`）壓低計量。
-  HD38：`build.py` 每報抓之前數這個月已經用了幾次資料請求（`build.tdx_month_calls`：build 自己的
-  加上事件保存的），到 `MONTHLY_CALL_LIMIT` 就跳過、記 log（用量估算見 README「TDX 用量」）
+  HD38（Shawn 2026-10-25 實測）：**照壓縮後的傳輸量計**，10/24 一天 17 次共 1,764 KB（每次約
+  104 KB；解壓縮後約 1.68 MB），每月免費 3 點約 4,400 次。每次資料請求（token 不算）都在 `data`
+  分支 `history/tdx/calls-<YYYY-MM>.jsonl` 追加一行（`CallLog`：`t`、`caller`、`bytes`），build 與
+  事件保存都讀這個檔計數（`month_calls`）：平常每報（build）到 `BUILD_CALL_LIMIT` 就停，事件期間的
+  每小時存檔（events）到 `MONTHLY_CALL_LIMIT` 才停（用量估算見 README「TDX 用量」）
 - 授權：政府資料開放授權條款；平臺「資料授權利用條款」要求標示資料來源為「交通部運輸資料流通服務
   平臺」或其資料來源單位（README「資料來源與授權」）
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
-from collections.abc import Iterable, Mapping
+import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 
 import requests
 
+from ..timeutil import iso, utcnow
 from . import TIMEOUT, USER_AGENT, SourceError, http_get
 
 log = logging.getLogger("hongthai")
@@ -44,8 +52,69 @@ log = logging.getLogger("hongthai")
 TOKEN_URL = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token"
 FIDS_URL = "https://tdx.transportdata.tw/api/basic/v2/Air/FIDS/Airport"
 ENV_ID, ENV_SECRET = "TDX_CLIENT_ID", "TDX_CLIENT_SECRET"
-# HD38：每月資料請求（`fids`，不含 token）的上限；build 與事件保存合計，到了 build 就不抓
-MONTHLY_CALL_LIMIT = 600
+# HD38（Shawn 2026-10-25）：每月資料請求（`fids`，不含 token）的上限，build 與事件保存合計，
+# 是免費額度（約 4,400 次）的一半。快到上限先停平常每報的（build，`BUILD_CALL_LIMIT`），事件期間
+# 每小時的存檔（events）到 `MONTHLY_CALL_LIMIT` 才停
+MONTHLY_CALL_LIMIT = 2000
+BUILD_CALL_LIMIT = 1700
+CALLERS = ("build", "events")
+FIDS_ATTEMPTS, FIDS_BACKOFF_S = 2, 2.0
+# build 與 events 可能同時往同一個月的檔追加，`tools/push_data.sh` 的 rebase 會在檔尾衝突；
+# 這個目錄放 `.gitattributes` 讓 git 用 union 合併（兩邊的行都留下）
+GITATTRIBUTES = "*.jsonl merge=union\n"
+
+
+def calls_path(history: Path, t: datetime) -> Path:
+    """`history/tdx/calls-<YYYY-MM>.jsonl`（`t` 的 UTC 月份）。"""
+    return history / "tdx" / f"calls-{iso(t)[:7]}.jsonl"
+
+
+def month_calls(history: Path, now: datetime) -> int:
+    """這個月（UTC）已經送出的 TDX 資料請求數：build＋事件保存，`calls_path` 的行數（壞掉的行
+    跳過）。"""
+    path = calls_path(history, now)
+    if not path.exists():
+        return 0
+    n = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            n += isinstance(json.loads(line), dict)
+        except ValueError:
+            continue
+    return n
+
+
+@dataclass
+class CallLog:
+    """每次資料請求追加一行 `{"t", "caller", "bytes"}`（HD38）。`bytes` 是回應的 `Content-Length`
+    （gzip 壓縮後的傳輸量，TDX 照這個計費；沒有這個標頭時是解壓縮後的長度），請求失敗是 null。
+    寫不了只 log，不讓請求失敗。"""
+
+    history: Path
+    caller: str  # `CALLERS`
+    clock: Callable[[], datetime] = field(default=utcnow, repr=False)  # 測試換掉
+
+    def record(self, nbytes: int | None) -> None:
+        t = self.clock()
+        path = calls_path(self.history, t)
+        line = json.dumps({"t": iso(t), "caller": self.caller, "bytes": nbytes})
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            attrs = path.parent / ".gitattributes"
+            if not attrs.exists():
+                attrs.write_text(GITATTRIBUTES, encoding="utf-8")
+            with path.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except OSError as e:
+            log.warning("TDX 呼叫紀錄寫不進 %s：%s", path, e)
+
+
+def transfer_bytes(r: requests.Response) -> int:
+    """回應的傳輸量：`Content-Length`（壓縮後），沒有就用解壓縮後的長度。"""
+    try:
+        return int(r.headers.get("Content-Length") or len(r.content))
+    except (TypeError, ValueError):
+        return len(r.content)
 
 
 class TdxError(SourceError):
@@ -69,7 +138,8 @@ class Client:
     _token: str | None = field(default=None, repr=False)
     # 同一次執行同樣的機場只請求一次（期間重疊的事件不重抓）
     _fids: dict[tuple[str, ...], dict[str, dict]] = field(default_factory=dict, repr=False)
-    calls: int = 0  # 這次執行送出的資料請求數（HD38，算每月用量）
+    calls: int = 0  # 這次執行送出的資料請求數（HD38）
+    log: CallLog | None = field(default=None, repr=False)  # 每次資料請求記一行（HD38）
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Client | None:
@@ -120,14 +190,24 @@ class Client:
         want = tuple(sorted(set(iatas)))
         if want in self._fids:
             return self._fids[want]
-        self.calls += 1
-        r = http_get(
-            FIDS_URL,
-            params=fids_params(want),
-            headers={"Authorization": f"Bearer {self.token()}", "Accept-Encoding": "gzip"},
-            retries=2,
-            error=TdxError,
-        )
+        headers = {"Authorization": f"Bearer {self.token()}", "Accept-Encoding": "gzip"}
+        # 最多試 2 次（同以前的 `retries=2`），但每送一次就記一行，計數才不會少
+        for attempt in range(1, FIDS_ATTEMPTS + 1):
+            self.calls += 1
+            nbytes = None
+            try:
+                r = http_get(
+                    FIDS_URL, params=fids_params(want), headers=headers, retries=1, error=TdxError
+                )
+                nbytes = transfer_bytes(r)
+                break
+            except TdxError as e:
+                if attempt == FIDS_ATTEMPTS or e.code in ("http_401", "http_403"):
+                    raise
+                time.sleep(FIDS_BACKOFF_S)
+            finally:
+                if self.log is not None:
+                    self.log.record(nbytes)
         try:
             body = r.json()
         except ValueError as e:

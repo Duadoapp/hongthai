@@ -194,7 +194,7 @@ BUDGET_S: dict[str, float] = {
     # CAP 原文每則 0.6–1 秒、4 條平行；平時幾則、颱風期間估 10–40 則
     "swic": 45,
     "flights": 120,  # 抓＋統計＋寫檔
-    # HD38：TDX 台灣十個機場一次請求（token＋資料，約 1.7 MB）；總和 1875 秒（31.25 分鐘），
+    # HD38：TDX 台灣十個機場一次請求（token＋資料，傳輸約 104 KB）；總和 1875 秒（31.25 分鐘），
     # 還在 `build.yml` 那一步的 32 分鐘內
     "tdx": 45,
     "ai": 240,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒；HD12 180 → 240
@@ -343,7 +343,7 @@ class Timing:
             fields["usage"] = st.get("usage")  # HD26
             fields["costUsd"] = st.get("costUsd")
             fields["errorMessages"] = st.get("errorMessages")  # HD30
-        if name in ("openmeteo", "tdx"):  # tdx：HD38，每月用量從這裡數（`tdx_month_calls`）
+        if name in ("openmeteo", "tdx"):  # tdx：HD38（每月計數看 `history/tdx/`，不看這裡）
             fields["calls"] = st.get("calls")
         if name == "wn3":  # HD15
             for k in ("mode", "via", "estimateBytes", "bytesBilled"):
@@ -959,65 +959,28 @@ def tdx_airports(airports: list[Airport]) -> tuple[list[Airport], list[Airport]]
     return want, [a for a in want if a.icao not in cancellations.PARSERS]
 
 
-def tdx_month_calls(history: Path, now: datetime) -> int:
-    """這個月（UTC）已經送出的 TDX 資料請求數，build 與事件保存合計（HD38）：
-    - build：`history/timing/<YYYY-MM>.jsonl` 裡 `source: "tdx"` 那幾行的 `calls`（超過預算被放棄的
-      那行沒有 `calls`，當 1 次）
-    - 事件保存（每小時，`events.py`）：`history/events/*/flights/*.jsonl` 裡 `source: "tdx"`、`t` 在
-      這個月的行有幾個不同的 `t`（一次請求一個 `t`；那一小時十個機場都沒有變化就沒有行，會少算）
-    """
-    month = f"{now:%Y-%m}"
-    n = 0
-    timing = history / "timing" / f"{month}.jsonl"
-    if timing.exists():
-        for line in timing.read_text(encoding="utf-8").splitlines():
-            if '"tdx"' not in line:
-                continue
-            try:
-                r = json.loads(line)
-            except ValueError:
-                continue
-            if r.get("source") != TDX:
-                continue
-            calls = r.get("calls")
-            n += calls if isinstance(calls, int) else int(r.get("error") == "timeout")
-    # 逐班檔的日期是表定時間的 UTC 日期，這個月抓的會落在前後幾天的檔裡
-    first = now.replace(day=1).date()
-    lo, hi = str(first - timedelta(days=10)), str(first + timedelta(days=42))
-    stamps: set[str] = set()
-    for path in history.glob("events/*/flights/*.jsonl"):
-        if not lo <= path.stem <= hi:
-            continue
-        with path.open(encoding="utf-8") as f:
-            for line in f:
-                if f'"t": "{month}' not in line or f'"source": "{TDX}"' not in line:
-                    continue
-                try:
-                    r = json.loads(line)
-                except ValueError:
-                    continue
-                t = r.get("t")
-                if r.get("source") == TDX and isinstance(t, str) and t.startswith(month):
-                    stamps.add(t)
-    return n + len(stamps)
-
-
 def tdx_stats(
     client: tdx.Client | None, airports: list[Airport], now: datetime, history: Path
 ) -> FlightStats:
     """HD38：TDX 一次請求拿台灣十個機場，原本來源以外的七個算每 6 小時格的統計（只進
     `latest.json`，不寫 `history/cancellations/`；看不懂的狀態照樣合併進 `unknown-statuses.json`）。
 
+    每次資料請求記進 `history/tdx/calls-<YYYY-MM>.jsonl`（`caller: "build"`）；本月（build＋事件
+    保存）到 `tdx.BUILD_CALL_LIMIT` 就不請求，留給事件期間的每小時存檔（那邊到
+    `MONTHLY_CALL_LIMIT` 才停）。
+
     `status`（`sources.tdx`）：`calls` 是這一報送出的資料請求數、`monthCalls` 是含這一報的本月
-    合計；沒設金鑰是 `not_configured`、本月到 `tdx.MONTHLY_CALL_LIMIT` 是 `monthly_limit`（都不
-    請求）、token 或請求失敗是 `TdxError` 的代碼。都不影響整報。"""
+    合計；沒設金鑰是 `not_configured`、本月到上限是 `monthly_limit`（都不請求）、token 或請求失敗
+    是 `TdxError` 的代碼。都不影響整報。"""
     want, fill = tdx_airports(airports)
     if client is None:
         return FlightStats({"ok": False, "error": "not_configured", "calls": 0})
-    used = tdx_month_calls(history, now)
-    if used >= tdx.MONTHLY_CALL_LIMIT:
-        log.warning("TDX 本月已用 %d 次（上限 %d），這一報跳過", used, tdx.MONTHLY_CALL_LIMIT)
+    used = tdx.month_calls(history, now)
+    if used >= tdx.BUILD_CALL_LIMIT:
+        log.warning("TDX 本月已用 %d 次（每報的上限 %d），這一報跳過", used, tdx.BUILD_CALL_LIMIT)
         return FlightStats({"ok": False, "error": "monthly_limit", "calls": 0, "monthCalls": used})
+    if client.log is None:
+        client.log = tdx.CallLog(history, "build")
     try:
         data = client.fids(a.iata for a in want)
     except SourceError as e:
