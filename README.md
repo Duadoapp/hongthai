@@ -1073,6 +1073,30 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
   `observe` 時 `license` 是條款網址、`attribution` 是條款要的那段固定標註。**補報**：`events` workflow 勾
   `backfill-tracks` 時接著補 WN3（`--from` 以後、事件期間、起報 ≤ 現在 − 121 小時的主報，沒有事件檔或路徑檔
   的才抓；用 Actions 的服務帳號，還沒核准時第一報 403 就停）。G 用 `history/gustfactor/latest.json` 的
+- **新模式回補**（HD33a，`src/hongthai/sources/openmeteo_backfill.py`）`backfill/openmeteo-<模式>.jsonl`：
+  UKMO（`ukmo`）、GEM（`gem`）、ARPEGE（`arpege`）、CMA GRAPES（`cma`）經 Open-Meteo
+  [Previous Runs API](https://open-meteo.com/en/docs/previous-runs-api) 回補事件期間的逐時預報，**只給報告比**：
+  不進 `latest.json`、`models[]`、等級、投票、AI、網頁（Duado spec 第 16 節「新模式」：先旁觀、不投票，比過準確度
+  再決定投票或加權；旁觀進 `latest.json` 是 HD33b）。Actions 手動跑 `events` workflow、`backfill-openmeteo` 填
+  事件 id（例如 `29W`；本機 `python -m hongthai.events backfill-openmeteo --archive data --event 29W`）：
+  - 期間：`from` 台灣 00:00 所在的 6 小時格（29W 是 10/18 12Z）到 `to` 隔天台灣 00:00 與現在（取整點）早的那個
+  - 一個模式一個請求（模式代號不對或沒存只壞那一個）、每個請求一次帶事件的全部機場：`models=<代號>`、
+    `hourly=` 四個變數 `wind_speed_10m`、`wind_direction_10m`、`wind_gusts_10m`、`precipitation` 各接
+    `_previous_day0`…`_previous_day5`（24 個）、`start_date`／`end_date`（UTC 日期）、`wind_speed_unit=kn`、
+    `timezone=UTC`；模式之間停 2 秒。加權呼叫次數一個模式 2.4 × 26 ＝ 62.4、四個 249.6（< 每分鐘 600）
+  - `_previous_dayN` 是提前 N 天的那一報對同一個時間的預報（文件：day1 是 valid time 前 24 小時預報的值，
+    最多到 day 7；day0 是最新一報）。一行一個機場、一個小時、一個 N，**只追加**（同一個 `icao`、`validAt`、
+    `previousDay` 已經有就跳過，值不一樣也不覆蓋）；風速、陣風、雨量都是 `null` 的行不寫，之後重跑還能補：
+
+    ```json
+    {"t": "2026-10-25T01:00:00Z", "icao": "RCTP", "validAt": "2026-10-21T06:00:00Z", "previousDay": 1,
+     "windKt": 28.4, "windDir": 52.0, "gustKt": 41.2, "gustEstimated": false, "precipMm": 0.6}
+    ```
+
+    `gustKt` 是前一小時最大陣風、`precipMm` 前一小時雨量（同 HD16）；某個模式的陣風在整個回應裡全是 `null`
+    → 那個模式每行 `gustEstimated: true`、`gustKt: null`，報告用平均風 × 機場的估算係數 G
+  - 合併後 Shawn 手動跑一次、10/27 定稿前再跑一次（第二次只補新的小時）。**`openmeteo-ukmo.jsonl` 是 CC BY-SA 4.0**
+    （UK Met Office 的條款，下面「資料來源與授權」），用到 UKMO 數字的報告也要同樣標
 - **推 `data` 分支**：每小時和每天四次的主 build 可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
   `git pull --rebase origin data` 再推，失敗重試 3 次（間隔 20 秒）。兩邊寫的檔不重疊，不會衝突
 - 實際停飛照舊用 `history/cancellations/`（不用另外存）
@@ -1146,6 +1170,22 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
       JSON 多 `until`、`untilHasNext`、`lastReport`、`excludedByUntil`、`truthUntil`、`truthUntilDefault`、
       `gust.pastTruth`、`levels.truthLast`、`levels.windowComplete`、`levels.skipped` 的 `slotPastTruth`／
       `windowTruncated`／`windowNoTruth`、`tracks[].pastTruth`（原有欄位不改名）
+  - **旁觀・回補**（HD33a）：事件目錄有 `backfill/openmeteo-*.jsonl` 時多算這四個模式，**沒有這個目錄時報告與
+    JSON 和以前一字不差**。`--airports`（預設 repo 的 `airports.json`）給門檻與跑道，只在有回補檔時讀
+    - **提前時間**：起報當成「格開始時間減 `previousDay` 天那一天的 00Z」（一格裡的小時用同一個起報），提前時間＝
+      格的 `from` − 起報＝24N＋0／6／12／18 小時，照上面的切法：`previousDay` 0 → 0–24、1 → 24–48 … 4 → 96–120；
+      5 是 120 小時以後，不算（檔裡照存）。同一個（模式, 起報）的格合成一報，像 WN3 事件檔一樣比
+    - **一格的預測**照 `assess.hourly_for_slot`（ICON／JMA 那套）：有陣風取 (from, to] 小時的最大陣風、側風每小時
+      用陣風與風向算再取大；估算的取 [from, to] 最大平均風 × G（快照裡同一機場估算陣風那幾筆的 `gustFactor`，起報
+      當時或之前最近的一報，之前沒有用最早有的那報，都沒有 1.4），側風用每小時平均風 × G。(from, to] 6 個小時都有
+      的格才算（資料頭尾的半格不算）
+    - **模式等級**：單一模式的陣風（≥ 37 中、≥ 48 高）與側風（≥ 27 中、≥ 33 高）取較高，門檻照 `airports.json`
+    - `--until`：起報 ≤ 留下的最後一報的 `generatedAt` 才算；`--truth-until` 同 (a)、(b) 每格
+    - (a) 三張表最後多四列，標「（旁觀・回補）」（估算陣風一樣標 `*`）；(b) 多一張**每格各模式的風等級**對停飛實測：
+      快照 8 個模式各自的 `levels.wind` 和回補四個並列（之後決定投票或加權的依據；不分版本；停飛實測同 HD37，
+      含逐班紀錄的機場，表上方另寫算進來的格次裡班次少的有幾個）；摘要多一行回補的行數
+      與起報範圍。JSON 多 `backfill`（`rows`、`gustEstimated`、`runs`、`excludedRunsByUntil`、`gust`、`modelLevels`、
+      `modelLevelsSkipped`），原有欄位不變
   - 最後是資料完整度（每天幾報、每報 8 個模式有幾個、METAR 每站幾小時有觀測、跳過的格與超過實測截止的、路徑
     每報每模式追到幾步與停止原因）與每報一行的附錄
 
@@ -1496,6 +1536,7 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | [ECMWF AIFS Single](https://www.ecmwf.int/en/forecasts/datasets/open-data)（ECMWF 開放資料，經 AWS／Google 鏡像；HD14） | AI 模式的 10 米風 `10u`／`10v`、總降水 `tp`、降雪 `sf`、2 米溫度 `2t`（每 6 小時） | CC BY 4.0，© ECMWF |
 | NOAA AIGFS（[AWS 開放資料 `noaa-nws-graphcastgfs-pds`](https://registry.opendata.aws/noaa-nws-graphcastgfs-pds/)；HD14） | AI 模式的 10 米風 `UGRD`／`VGRD`、6 小時降水 `APCP`、2 米溫度 `TMP` | 美國政府公有領域 |
 | [Open-Meteo](https://open-meteo.com/)（[預報 API](https://open-meteo.com/en/docs) `models=icon_global,jma_gsm`、[系集 API](https://open-meteo.com/en/docs/ensemble-api) `models=google_weathernext2_ensemble`；HD16） | DWD ICON global 與 JMA GSM 的逐時 10 米風、風向、陣風（ICON）、雨量、降雪、天氣碼；Google WeatherNext 2 系集 64 個成員的 10 米風（6 小時一點） | **CC BY 4.0**（Open-Meteo 的資料授權；原始模式 © DWD、JMA、Google）。**免費版只限非商業**、每日 10,000／每月 300,000 次（加權）：**一旦 HongThai 或 Duado 收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或拿掉這三個模式**。（贊助，2026-10-21 Shawn 定案）照 [Open-Meteo 條款](https://open-meteo.com/en/terms)，自願捐款（tip jar）屬於非商業：網頁頁尾連到 duado.app/support（Ko-fi，只收單次自由贊助）。**之後不能開 Ko-fi 的 Memberships 或月費、不能放廣告或贊助商 logo**，否則要改買 Open-Meteo 商業方案或拿掉這三個模式。網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2」。Google 對即時 WeatherNext 資料另有實驗條款，Open-Meteo 的授權來源查不到（上面「已知的保守假設」） |
+| [Open-Meteo](https://open-meteo.com/) [Previous Runs API](https://open-meteo.com/en/docs/previous-runs-api)（HD33a，**只存進 `data` 分支給驗證報告比，不進 `latest.json`**） | UK Met Office Global 10 km（`ukmo_global_deterministic_10km`）、ECCC GEM Global（`cmc_gem_gdps`）、Météo-France ARPEGE World（`meteofrance_arpege_world`）、CMA GRAPES Global（`cma_grapes_global`）提前 0–5 天的逐時 10 米風、風向、陣風、雨量 | Open-Meteo（CC BY 4.0）・UK Met Office・ECCC GEM・Météo-France ARPEGE・CMA GRAPES。Open-Meteo [授權頁](https://open-meteo.com/en/licence)列的原始資料條款：UK Met Office **[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.en)**（Open-Meteo UKMO 頁：衍生產品要用相同或相容的授權再散布，所以 `backfill/openmeteo-ukmo.jsonl` 與用到 UKMO 數字的報告標 CC BY-SA 4.0）、加拿大 CMC（[ECCC 開放資料授權](https://eccc-msc.github.io/open-data/licence/readme_en/)）、Météo-France（[開放資料授權](https://donneespubliques.meteofrance.fr/?fond=dossier&id_dossier=1)）、中國氣象局 CMA（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）。免費版只限非商業，條件同上一列 Open-Meteo |
 | [Google WeatherNext 3](https://developers.google.com/weathernext)（BigQuery `weathernext_3_0_0_0p1deg`，備援 GCS `gs://weathernext3_statistics_spatial/`；HD15，要 allowlist） | 64 成員統計（p50、平均、p90）的逐時 10 米風、平均 u／v、1 小時雨量、2 米溫度；平均海平面氣壓（颱風路徑） | **有效時間在 1 小時以前：CC BY 4.0**（© Google LLC）；**1 小時內或未來：[GDM Real-Time Weather Forecasting Experimental Data Terms of Use](https://storage.googleapis.com/weathernext-public/terms-of-use.pdf)**——不能公開未修改的數字、日本是限制國家（下面「WeatherNext 3 的條款」）。所以預設 `report-only`：只存 CC BY 4.0 那部分 |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
 | [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 46 個機場（H9 的 36 個、HD3 的 10 個）的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
