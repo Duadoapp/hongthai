@@ -69,13 +69,16 @@ class Model:
     `votes_only_high`：只參加「高」的投票（判中時不算分母），IFS 系集與 WeatherNext 2 系集用；
     `gust_estimated`：沒有陣風、用平均風 × 機場的係數估算（HD18，`gustfactor.py`）；
     `voting`：`False` 是旁觀模式（HD16）——照樣抓、照樣寫進 `models[]` 與路徑檔，但不算進任何一類的
-    分母、不投票（`vote.total` 不含它），頂層 `models[].voting` 讓網頁標「旁觀，不投票」。"""
+    分母、不投票（`vote.total` 不含它），頂層 `models[].voting` 讓網頁標「旁觀，不投票」；
+    `three_hourly`：0–72 小時有 3 小時（或更細）的風（HD35，機場頁的 3 小時格各自算）；`False` 的
+    模式在 3 小時格用包住它的 6 小時格的值、標 `sixHourly`（`assess.merge_3h`）。"""
 
     id: str
     name: dict[str, str]
     votes_only_high: bool = False
     gust_estimated: bool = False
     voting: bool = True
+    three_hourly: bool = False
 
 
 # HD15：Google WeatherNext 3（`sources/wn3.py`）的兩個開關，環境變數可以覆寫（`build.yml` 不設就是
@@ -127,6 +130,7 @@ MODELS: tuple[Model, ...] = (
             "zh-CN": "欧洲中期预报中心 IFS",
             "en": "ECMWF IFS",
         },
+        three_hourly=True,  # HD35：HRES 陣風 0–144 小時每 3 小時一筆（`sources/ecmwf.py`）
     ),
     Model(
         "gfs",
@@ -167,11 +171,14 @@ MODELS: tuple[Model, ...] = (
     Model(
         "icon",
         {"zh-TW": "德國 ICON", "zh-HK": "德國 ICON", "zh-CN": "德国 ICON", "en": "DWD ICON"},
+        three_hourly=True,  # HD35：Open-Meteo 逐時，ICON global 0–78 小時原生 1 小時
     ),
     Model(
         "jma",
         {"zh-TW": "日本 GSM", "zh-HK": "日本 GSM", "zh-CN": "日本 GSM", "en": "JMA GSM"},
         gust_estimated=True,
+        # HD35：Open-Meteo 雖然逐時，雨量是每 6 小時一個值平均攤到 6 個小時、風是內插出來的
+        # （2026-10-24 13Z 那報實看），當 6 小時資料（`three_hourly` 不設）
     ),
     Model(
         "wn2-ens",
