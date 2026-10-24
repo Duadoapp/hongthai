@@ -15,6 +15,7 @@ from hongthai.assess import fill_model_wx, model_entries, model_levels, model_vo
 from hongthai.config import MODELS, Thresholds
 
 TH = Thresholds()
+OBS = [None] * 4  # HD33b：四個旁觀模式（ukmo、gem、arpege、cma）沒給資料
 
 
 def test_vote_two_models_one_high_is_high():
@@ -96,6 +97,10 @@ def test_entries_in_config_order_with_nulls():
             "icon",  # HD16
             "jma",
             "wn2-ens",
+            "ukmo",  # HD33b：旁觀
+            "gem",
+            "arpege",
+            "cma",
         ]
     )
     for e in es:
@@ -180,7 +185,7 @@ def test_snow_denominator_excludes_aigfs():
     assert by["aigfs"]["levels"]["snow"] is None
     assert by["aigfs"]["levels"]["rain"] == "low"
     snow = [e["levels"]["snow"] for e in es]
-    assert snow == ["high", "low", None, "low", None, None, None, None]
+    assert snow == ["high", "low", None, "low", None, None, None, None, *OBS]
     cats, _ = model_vote(es)
     assert cats["snow"] == "low"  # 高 1 × 2 < 3
     # AIFS 也判雪 → 2 × 2 ≥ 3 高
@@ -191,7 +196,7 @@ def test_snow_denominator_excludes_aigfs():
 def test_fog_denominator_is_one():
     """霧只有 GFS 能見度：分母永遠是 1，它說了算（封頂在中，HD10）。"""
     es = entries(_ec(hres=5), _gfs(gust=5, vis=300), _ai(gust=5), _ai(gust=5))
-    assert [e["levels"]["fog"] for e in es] == [None, "medium", None, None, None, None, None, None]
+    assert [e["levels"]["fog"] for e in es] == [None, "medium", *[None] * 6, *OBS]
     cats, v = model_vote(es)
     assert cats["fog"] == "medium" and v["level"] == "medium"
     assert v["thin"] is False  # thin 看風的分母
@@ -201,9 +206,15 @@ def test_rain_ensemble_does_not_vote():
     """雨：IFS（HRES 雨量或系集 24 小時雨量機率，同 `ec.rain`）、GFS、AIFS、AIGFS 投；
     系集那筆不投。"""
     es = entries(_ec(rain=35), _gfs(rain=5), _ai(rain=40), _ai(rain=2))
-    assert [e["levels"]["rain"] for e in es] == ["medium", "low", None, "medium", "low"] + [
-        None
-    ] * 3
+    assert [e["levels"]["rain"] for e in es] == [
+        "medium",
+        "low",
+        None,
+        "medium",
+        "low",
+        *[None] * 3,
+        *OBS,
+    ]
     assert model_vote(es)[0]["rain"] == "medium"  # 中 2 × 2 ≥ 4
 
 
@@ -253,6 +264,7 @@ def test_eight_models_vote():
         "low",
         "medium",
         "high",
+        *OBS,
     ]
     cats, v = model_vote(es)
     assert v == {
@@ -276,15 +288,18 @@ def test_wn2_votes_only_high():
     """WN2 系集比照 IFS 系集：`p49Kt`（成員比例）≥ 30% 投高、否則投低，不投雨、雪、霧；數字是中位數
     成員的估算陣風。"""
     es = entries(wn2=_wn2(p49=0.3, wind=31.0, gust=46.5))
-    w = es[-1]
-    assert w["id"] == "wn2-ens"
+    w = next(e for e in es if e["id"] == "wn2-ens")
     assert w["levels"] == {"wind": "high", "rain": None, "snow": None, "fog": None}
     assert (w["windKt"], w["gustKt"], w["gustEstimated"], w["p49Kt"]) == (31.0, 46.5, True, 0.3)
     assert (w["gustFactor"], w["gustFactorBasis"]) == (1.5, "run")
     assert (w["crosswindKt"], w["rain6hMm"], w["ptype"], w["visibilityM"]) == (None,) * 4
-    assert entries(wn2=_wn2(p49=0.29))[-1]["levels"]["wind"] == "low"
+    assert entries(wn2=_wn2(p49=0.29))[7]["levels"]["wind"] == "low"
     # 其他筆的 `p49Kt` 都是 null（IFS 系集的機率在 model.ec）
-    assert [e["p49Kt"] for e in entries(_ec(p49=0.5), wn2=_wn2(p49=0.4))] == [None] * 7 + [0.4]
+    assert [e["p49Kt"] for e in entries(_ec(p49=0.5), wn2=_wn2(p49=0.4))] == [
+        *[None] * 7,
+        0.4,
+        *OBS,
+    ]
     # 判中時不算分母：GFS 中、ICON 低、WN2 低 → 中那一輪 1 × 2 ≥ 2
     es = entries(gfs=_gfs(gust=40), icon=_ai(gust=20), wn2=_wn2(p49=0.1))
     assert model_vote(es)[1] == {
@@ -351,7 +366,7 @@ def test_non_voting_model_listed_but_not_counted(monkeypatch):
         "thin": False,
     }
     assert tally(es, "wind", "high") == (0, 2)
-    assert assess.non_voting() == {"icon"}
+    assert assess.non_voting() == {"icon", "ukmo", "gem", "arpege", "cma"}  # HD33b 的四個
 
 
 # ---- HD24：判中的分母 `mediumTotal` ----

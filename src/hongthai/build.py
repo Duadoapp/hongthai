@@ -166,7 +166,9 @@ BUDGET_S: dict[str, float] = {
     "gfs": 180,
     "aifs": 180,  # HD14：ECMWF AIFS Single，鏡像切換同 ecmwf
     "aigfs": 120,  # HD14：NOAA AIGFS，只有 AWS
-    "openmeteo": 90,  # HD16：ICON、JMA GSM、WeatherNext 2 系集，兩個請求各 60 秒逾時、不重試
+    # HD16：ICON、JMA GSM、WeatherNext 2 系集，兩個請求各 60 秒逾時、不重試；HD33b 的四個旁觀模式
+    # 併在預報那個請求（請求數不變，回應約 0.6 → 2 MB）
+    "openmeteo": 90,
     # HD15：WeatherNext 3，BigQuery 一個查詢（失敗退 GCS Zarr）＋事件期間的海平面氣壓；核准前每報
     # 幾秒就 `http_403`。`report-only`（預設）只在 5 天前那一報落在事件期間時才跑
     "wn3": 120,
@@ -397,10 +399,13 @@ def _download_extra(g: gfs.GfsData | aifs.AifsData | aigfs.AigfsData) -> dict:
 
 
 def _openmeteo_extra(om: openmeteo.OpenMeteoData) -> dict:
-    """`sources.openmeteo`（HD16）：下載量、加權呼叫次數；起報時間問不到的模式記在 `runError`。"""
+    """`sources.openmeteo`（HD16）：下載量、加權呼叫次數；起報時間問不到的模式記在 `runError`；
+    HD33b：丟掉的旁觀模式記在 `modelError`（例如 `"cma:bad_units"`，其他模式照用）。"""
     d: dict[str, object] = {"bytes": om.bytes_downloaded, "calls": om.calls}
     if om.meta_errors:
         d["runError"] = ",".join(f"{k}:{v}" for k, v in om.meta_errors.items())
+    if om.model_errors:
+        d["modelError"] = ",".join(f"{k}:{v}" for k, v in om.model_errors.items())
     return d
 
 
@@ -808,6 +813,11 @@ def assemble(
             icon=om.hourly["icon"].get(a.icao) if om else None,
             jma=om.hourly["jma"].get(a.icao) if om else None,
             wn2=om.ensemble.get(a.icao) if om else None,
+            # HD33b：四個旁觀模式
+            om_hourly={
+                mid: om.hourly.get(mid, {}).get(a.icao) if om else None
+                for mid in openmeteo.OBSERVER_MODELS
+            },
             wn3=wn.points.get(a.icao) if wn and observe_wn3 else None,
         )
         out_airports.append(

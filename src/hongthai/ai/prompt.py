@@ -18,6 +18,9 @@ HD14（多模式投票）：模式層第一行給等級、投票句（「投票�
 HD16（Open-Meteo 三票，8 票）：`models[]` 多德國模式（ICON）、日本模式（JMA GSM）、Google 的 AI 系集
 （WeatherNext 2）三行，系集那行給中位數估算陣風與成員比例；旁觀模式（`voting: false`）那行標
 「旁觀，不投票」，投票句的分母不含它（`assess.tally`）。短評不能寫 ICON、GSM、WeatherNext。
+
+HD33b：Open-Meteo 的四個旁觀模式（英國、加拿大、法國、中國模式，`Model.ai=False`）**不給 AI**，
+文字維持上面 8 個模式（改 AI 提示要另外決定）；它們不投票，所以投票句也不變。
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from ..assess import ENS_ID, MODEL_CAUSE_ORDER, ONLY_HIGH, model_vote, non_voting, tally
+from ..assess import ENS_ID, MODEL_CAUSE_ORDER, ONLY_HIGH, ai_hidden, model_vote, non_voting, tally
 from ..config import GUST_FACTOR_RANGE, Thresholds
 from ..og import slot_text
 from ..timeutil import parse_time
@@ -240,7 +243,11 @@ def _model_entry(e: dict, ec: dict) -> str:
 
 
 def _models(m: object) -> list[dict]:
-    return [e for e in m.get("models") or [] if isinstance(e, dict)] if isinstance(m, dict) else []
+    """`models[]` 裡給 AI 看的那幾筆：`Model.ai=False` 的（HD33b 的四個旁觀模式）不給。"""
+    if not isinstance(m, dict):
+        return []
+    hidden = ai_hidden()
+    return [e for e in m.get("models") or [] if isinstance(e, dict) and e.get("id") not in hidden]
 
 
 def _model(m: dict | None) -> str:

@@ -1,4 +1,6 @@
-"""Open-Meteo（CC BY 4.0）的三個模式：DWD ICON global、JMA GSM、Google WeatherNext 2 系集（HD16）。
+"""Open-Meteo（CC BY 4.0）的三個模式：DWD ICON global、JMA GSM、Google WeatherNext 2 系集（HD16）；
+HD33b 加四個旁觀（不投票）的模式：UK Met Office Global 10 km、ECCC GEM、Météo-France ARPEGE、
+CMA GRAPES。
 
 授權：Open-Meteo 免費版只限非商業（HongThai、Duado 目前沒收費、沒廣告）。**一旦收費、訂閱或放廣告，
 必須改買商業方案或拿掉這三個模式**；網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・
@@ -36,10 +38,29 @@ Google WeatherNext 2」。Google 對即時 WeatherNext 資料另有實驗條款�
 機場都抓）。照提示詞抓系集 3 個變數的話系集一個請求就是 979.2 次，超過每分鐘 600。
 `sources.openmeteo.calls` 記這一報的加權次數
 
+HD33b 旁觀的四個模式（`OBSERVER_MODELS`，`config.MODELS` 是 `voting=False`）**併在預報那個
+請求**（`models=` 多四個，請求數不變）：
+- 模式名：`ukmo_global_deterministic_10km`、`gem_global`、`meteofrance_arpege_world`、
+  `cma_grapes_global`；metadata 的路徑不同名（GEM 全球 2026 年起是 `cmc_gem_gdps_15km`，舊的
+  `cmc_gem_gdps` 停在 2026-05；ARPEGE 是 `meteofrance_arpege_world025`）
+- 2026-10-24 16:4xZ 開發機實抓（單一座標，桃園）：GEM、ARPEGE 都有陣風（`gustEstimated: false`）、
+  雨量、降雪、天氣碼，**沒有能見度**；ARPEGE 00Z 那報只到約 102 小時（後面的小時是 null，最後幾格
+  這個模式沒有資料）。UKMO、CMA 當天開發機的 IP 已經用完每日額度（HTTP 429），沒抓到；Open-Meteo
+  文件寫兩個都有 10 米陣風（「前一小時最大」），先當有陣風
+- 變數照 ICON／JMA 的 7 個（同一個請求裡每個模式拿到的變數一樣，不能分開要）
+- **四個出錯不連累 ICON、JMA 兩票**：某個旁觀模式的單位不對或整欄沒有 → 只丟掉那個模式
+  （`OpenMeteoData.model_errors`，`sources.openmeteo.modelError`）；整個預報請求回 HTTP 400（模式名
+  失效時 Open-Meteo 回 400）→ 只帶 ICON、JMA 再請求一次（只在出錯時才多一個請求）。四個一起或
+  個別沒資料都只是那幾筆 `models[]` 是 null，不沿用舊資料（同 ICON／JMA）
+- 加權呼叫次數：預報 7 個變數 × 6 個模式、6 天 → 4.2 × 51 ＝ 214.2 次（HD16 是 71.4），加系集
+  326.4 → **一報 540.6**（< 每分鐘 600；一天 4 報約 2,162 次，< 每日 10,000）
+
 起報時間：資料的回應裡沒有。Open-Meteo 有 metadata API（`META_URLS`，文件「Model Updates」頁），
 `last_run_initialisation_time` 是最近一報的起報時間（Unix 秒）。兩個資料請求**之後**才問（每個
 模式一個約 600 bytes 的小請求、不算呼叫次數、逾時 5 秒，最多多花 15 秒，不會把 90 秒的預算吃掉）；
-問不到的那個模式 `run` 是 None，不影響資料。文件說新的一報在 `last_run_availability_time` 之後約
+問不到的那個模式 `run` 是 None，不影響資料。HD33b 多四個；開始問旁觀模式的 metadata 時已經
+超過 `META_DEADLINE_S` 秒就不問（`run` 是 None、`runError` 記 `skipped`），免得 metadata 把整個
+來源拖過 90 秒的預算、連 ICON／JMA 的票都丟掉。文件說新的一報在 `last_run_availability_time` 之後約
 10 分鐘內各台伺服器才會一致，所以剛好碰到換報的那幾分鐘，`runs.*` 可能和實際用到的資料差一報
 """
 
@@ -65,9 +86,25 @@ META_URLS = {
     "icon": "https://api.open-meteo.com/data/dwd_icon/static/meta.json",
     "jma": "https://api.open-meteo.com/data/jma_gsm/static/meta.json",
     "wn2-ens": "https://ensemble-api.open-meteo.com/data/google_weathernext2_ensemble/static/meta.json",
+    # HD33b：旁觀的四個
+    "ukmo": "https://api.open-meteo.com/data/ukmo_global_deterministic_10km/static/meta.json",
+    "gem": "https://api.open-meteo.com/data/cmc_gem_gdps_15km/static/meta.json",
+    "arpege": "https://api.open-meteo.com/data/meteofrance_arpege_world025/static/meta.json",
+    "cma": "https://api.open-meteo.com/data/cma_grapes_global/static/meta.json",
 }
 # `config.MODELS` 的 id → Open-Meteo 預報 API 的模式名（變數名的後綴）
-FORECAST_MODELS = {"icon": "icon_global", "jma": "jma_gsm"}
+FORECAST_MODELS = {
+    "icon": "icon_global",
+    "jma": "jma_gsm",
+    # HD33b：旁觀（不投票），同一個請求
+    "ukmo": "ukmo_global_deterministic_10km",
+    "gem": "gem_global",
+    "arpege": "meteofrance_arpege_world",
+    "cma": "cma_grapes_global",
+}
+# HD33b：這幾個出錯只丟掉自己，不連累 ICON、JMA（見開頭）
+OBSERVER_MODELS = ("ukmo", "gem", "arpege", "cma")
+CORE_FORECAST_MODELS = tuple(m for m in FORECAST_MODELS if m not in OBSERVER_MODELS)
 FORECAST_VARS = (
     "wind_speed_10m",
     "wind_direction_10m",
@@ -85,6 +122,7 @@ ENSEMBLE_VARS = ("wind_speed_10m",)
 FORECAST_DAYS = 6
 TIMEOUT_S = 60
 META_TIMEOUT_S = 5
+META_DEADLINE_S = 60  # HD33b：超過就不再問旁觀模式的 metadata（預算 90 秒）
 SNOW_CM_PER_MM = 0.7  # Open-Meteo：降雪公分 ÷ 0.7 ＝ 水當量毫米
 NO_PRECIP_MM = 0.1  # 6 小時總降水小於這個 → `none`（同 AIFS）
 # WMO 天氣碼（Open-Meteo 的 `weather_code`）
@@ -122,14 +160,16 @@ class EnsStep:
 
 @dataclass
 class OpenMeteoData:
-    runs: dict[str, datetime | None]  # `config.MODELS` 的 id（icon、jma、wn2-ens）→ 起報時間
-    hourly: dict[str, dict[str, list[OmHour]]]  # icon／jma → icao → 逐時
+    runs: dict[str, datetime | None]  # `META_URLS` 的 id（含 HD33b 的四個）→ 起報時間
+    hourly: dict[str, dict[str, list[OmHour]]]  # `FORECAST_MODELS` 的 id → icao → 逐時（丟掉是 {}）
     ensemble: dict[str, list[EnsStep]]  # icao → 6 小時一個時間點
     raw: dict[str, object]  # {"forecast": 回應, "ensemble": 回應}
     bytes_downloaded: int = 0
     calls: float = 0.0  # 這一報的加權呼叫次數
     members: int = 0  # 系集實際的成員數
     meta_errors: dict[str, str] = field(default_factory=dict)
+    # HD33b：丟掉的旁觀模式 → 原因（`bad_units`、`missing`、`http_400`）
+    model_errors: dict[str, str] = field(default_factory=dict)
 
 
 def weighted_calls(n_vars: int, n_models: int, days: float, n_locations: int) -> float:
@@ -138,8 +178,8 @@ def weighted_calls(n_vars: int, n_models: int, days: float, n_locations: int) ->
     return round(max(1.0, max(per, days / 14 * per)) * n_locations, 1)
 
 
-def forecast_calls(n_locations: int) -> float:
-    return weighted_calls(len(FORECAST_VARS), len(FORECAST_MODELS), FORECAST_DAYS, n_locations)
+def forecast_calls(n_locations: int, n_models: int = len(FORECAST_MODELS)) -> float:
+    return weighted_calls(len(FORECAST_VARS), n_models, FORECAST_DAYS, n_locations)
 
 
 def ensemble_calls(n_locations: int) -> float:
@@ -153,10 +193,12 @@ def _coords(points: list[tuple[float, float]]) -> dict[str, str]:
     }
 
 
-def forecast_params(points: list[tuple[float, float]]) -> dict[str, object]:
+def forecast_params(
+    points: list[tuple[float, float]], models: tuple[str, ...] = tuple(FORECAST_MODELS)
+) -> dict[str, object]:
     return {
         **_coords(points),
-        "models": ",".join(FORECAST_MODELS.values()),
+        "models": ",".join(FORECAST_MODELS[m] for m in models),
         "hourly": ",".join(FORECAST_VARS),
         "forecast_days": FORECAST_DAYS,
         "wind_speed_unit": "kn",
@@ -210,16 +252,38 @@ def _series(hourly: dict, key: str, n: int) -> list[float | None]:
     return [_num(v) for v in vals[:n]] + [None] * max(0, n - len(vals))
 
 
-def parse_forecast(doc: object, icaos: list[str]) -> dict[str, dict[str, list[OmHour]]]:
-    """預報 API 的回應 → `{模式 id: {icao: 逐時}}`。"""
+def parse_forecast(
+    doc: object,
+    icaos: list[str],
+    models: tuple[str, ...] = tuple(FORECAST_MODELS),
+    errors: dict[str, str] | None = None,
+) -> dict[str, dict[str, list[OmHour]]]:
+    """預報 API 的回應 → `{模式 id: {icao: 逐時}}`（`models` 是請求裡帶的模式）。ICON、JMA 單位不對
+    丟 `OpenMeteoError`；旁觀模式（`OBSERVER_MODELS`，HD33b）單位不對或整欄沒有只丟掉那個模式
+    （`{}`，原因記進 `errors`）。"""
     locs = _locations(doc, len(icaos), "預報")
     out: dict[str, dict[str, list[OmHour]]] = {mid: {} for mid in FORECAST_MODELS}
+    dropped: dict[str, str] = {}
     for icao, loc in zip(icaos, locs, strict=True):
         hourly = loc.get("hourly") or {}
         times = _times(hourly)
         n = len(times)
-        for mid, suffix in FORECAST_MODELS.items():
-            _check_units(loc, f"wind_speed_10m_{suffix}", "預報")
+        for mid in models:
+            if mid in dropped:
+                continue
+            suffix = FORECAST_MODELS[mid]
+            key = f"wind_speed_10m_{suffix}"
+            if mid in OBSERVER_MODELS:
+                if not isinstance(hourly.get(key), list):
+                    dropped[mid] = "missing"
+                    continue
+                try:
+                    _check_units(loc, key, "預報")
+                except OpenMeteoError as e:
+                    dropped[mid] = e.code
+                    continue
+            else:
+                _check_units(loc, key, "預報")
             col = {v: _series(hourly, f"{v}_{suffix}", n) for v in FORECAST_VARS}
             rows = []
             for i, t in enumerate(times):
@@ -238,6 +302,11 @@ def parse_forecast(doc: object, icaos: list[str]) -> dict[str, dict[str, list[Om
                     )
                 )
             out[mid][icao] = rows
+    for mid, code in dropped.items():
+        log.warning("Open-Meteo 預報的 %s 不能用（%s），這一報沒有這個模式", mid, code)
+        out[mid] = {}
+    if errors is not None:
+        errors.update(dropped)
     return out
 
 
@@ -292,34 +361,51 @@ def _get_json(
 
 
 def fetch(airports: list[Airport]) -> OpenMeteoData:
-    """抓全部機場的 ICON、JMA GSM 與 WeatherNext 2 系集。任何一個資料請求失敗就整個
-    丟 `OpenMeteoError`（這一報沒有這三票）；metadata 問不到只是那個模式的 `run` 是 None。"""
+    """抓全部機場的 ICON、JMA GSM、HD33b 的四個旁觀模式與 WeatherNext 2 系集。任何一個資料請求失敗
+    就整個丟 `OpenMeteoError`（這一報沒有這三票）——只有預報請求回 HTTP 400 時先只帶 ICON、JMA 再試
+    一次（旁觀模式的名字失效不連累兩票，HD33b）；metadata 問不到只是那個模式的 `run` 是 None。"""
     t0 = time.monotonic()
     icaos = [a.icao for a in airports]
     points = [(a.lat, a.lon) for a in airports]
+    model_errors: dict[str, str] = {}
     with requests.Session() as session:
-        fc, fc_size = _get_json(FORECAST_URL, forecast_params(points), "預報", session)
-        hourly = parse_forecast(fc, icaos)
+        models = tuple(FORECAST_MODELS)
+        try:
+            fc, fc_size = _get_json(FORECAST_URL, forecast_params(points), "預報", session)
+        except OpenMeteoError as e:
+            if e.code != "http_400":
+                raise
+            log.warning("Open-Meteo 預報帶旁觀模式回 400，只帶 ICON、JMA 再試一次")
+            models = CORE_FORECAST_MODELS
+            model_errors.update(dict.fromkeys(OBSERVER_MODELS, "http_400"))
+            fc, fc_size = _get_json(FORECAST_URL, forecast_params(points, models), "預報", session)
+        hourly = parse_forecast(fc, icaos, models, model_errors)
         ens, ens_size = _get_json(ENSEMBLE_URL, ensemble_params(points), "系集", session)
         ensemble, members = parse_ensemble(ens, icaos)
         runs: dict[str, datetime | None] = {}
         meta_errors: dict[str, str] = {}
         for mid in META_URLS:
+            if mid in OBSERVER_MODELS and time.monotonic() - t0 > META_DEADLINE_S:
+                runs[mid] = None
+                meta_errors[mid] = "skipped"
+                continue
             try:
                 runs[mid] = _meta_run(mid, session)
             except OpenMeteoError as e:
                 log.warning("Open-Meteo %s 的起報時間問不到：%s", mid, e)
                 runs[mid] = None
                 meta_errors[mid] = e.code
-    calls = round(forecast_calls(len(points)) + ensemble_calls(len(points)), 1)
+    calls = round(forecast_calls(len(points), len(models)) + ensemble_calls(len(points)), 1)
     log.info(
-        "Open-Meteo：預報 %d bytes、系集 %d bytes（%d 個成員）、加權 %.1f 次，%.1f 秒；起報 %s",
+        "Open-Meteo：預報 %d bytes、系集 %d bytes（%d 個成員）、加權 %.1f 次，%.1f 秒；起報 %s；"
+        "丟掉的模式 %s",
         fc_size,
         ens_size,
         members,
         calls,
         time.monotonic() - t0,
         {k: v.isoformat() if v else None for k, v in runs.items()},
+        model_errors or "無",
     )
     return OpenMeteoData(
         runs=runs,
@@ -330,6 +416,7 @@ def fetch(airports: list[Airport]) -> OpenMeteoData:
         calls=calls,
         members=members,
         meta_errors=meta_errors,
+        model_errors=model_errors,
     )
 
 
