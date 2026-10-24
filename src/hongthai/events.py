@@ -589,14 +589,15 @@ def backfill_flights(
     since: date,
     now: datetime,
     pause: Callable[[float], None] = time.sleep,
-) -> dict[str, dict[str, tuple[int, int] | None]]:
+) -> dict[str, dict]:
     """`backfill-flights`（HD31）：期間和 `since`～今天（香港日期）重疊的每個事件，香港
-    `past?date=` 每天查出發、抵達各一次，逐班補進 `flights/`（行多 `"backfill": true`；同一班同
-    狀態不重寫）。回傳每個事件每天（班數, 寫了幾行）；那天失敗是 None。其他四個來源只有當天，
-    補不到，只記 log。"""
+    `past?date=` 每天查出發、抵達各一次；全部的組接在一起再逐班轉換（同一班在相鄰兩天的回應各有
+    一份時只留較新的，`flights_log.hkg_freshest`），補進 `flights/`（行多 `"backfill": true`；同一班
+    同狀態不重寫）。回傳每個事件 `{"days": {日期: 那天回應裡的班數，失敗是 None}, "flights": 合併後
+    的班數, "written": 寫了幾行}`。其他四個來源只有當天，補不到，只記 log。"""
     tz = _tz(airports)[HKG]
     today = now.astimezone(ZoneInfo(tz)).date()
-    out: dict[str, dict[str, tuple[int, int] | None]] = {}
+    out: dict[str, dict] = {}
     first = True
     for e in events:
         start, end = max(since, e.start), min(today, e.end)
@@ -605,8 +606,8 @@ def backfill_flights(
         others = [a for a in FLIGHT_FETCHERS if a != HKG and a in e.airports]
         if others:
             log.warning("事件 %s：%s 的航班資料只有當天，補不到", e.id, "、".join(others))
-        d = event_dir(history, e)
-        res: dict[str, tuple[int, int] | None] = {}
+        days: dict[str, int | None] = {}
+        merged: dict[str, list] = {"departure": [], "arrival": []}
         day = start
         while day <= end:
             try:
@@ -616,13 +617,16 @@ def backfill_flights(
                         pause(BACKFILL_PAUSE_S)
                     first = False
                     payload[name] = flights.fetch_hkg_groups(day, arrival)
-                rows = [{**r, "backfill": True} for r in flights_log.rows_of(HKG, payload, tz, now)]
-                res[f"{day}"] = (len(rows), store_flights(d, rows))
+                days[f"{day}"] = len(flights_log.rows_of(HKG, payload, tz, now))
+                for name, groups in payload.items():
+                    merged[name].extend(groups)
             except (SourceError, ValueError) as ex:
                 log.warning("事件 %s：香港 %s 的航班補不到：%s", e.id, day, ex)
-                res[f"{day}"] = None
+                days[f"{day}"] = None
             day += timedelta(days=1)
-        out[e.id] = res
+        rows = [{**r, "backfill": True} for r in flights_log.rows_of(HKG, merged, tz, now)]
+        written = store_flights(event_dir(history, e), rows)
+        out[e.id] = {"days": days, "flights": len(rows), "written": written}
     return out
 
 
@@ -794,14 +798,14 @@ def main(argv: list[str] | None = None) -> int:
         airports = load_airports(args.airports)
         result = backfill_flights(history, events, airports, since_day, utcnow())
         for eid, res in result.items():
-            ok = {day: v for day, v in res.items() if v is not None}
+            days = res["days"]
+            ok = sum(v is not None for v in days.values())
             print(
-                f"{eid}：香港補了 {len(ok)} 天、{sum(v[0] for v in ok.values())} 班、寫了 "
-                f"{sum(v[1] for v in ok.values())} 行；失敗 "
-                + ("、".join(day for day, v in res.items() if v is None) or "無")
+                f"{eid}：香港補了 {ok} 天、{res['flights']} 班、寫了 {res['written']} 行；失敗 "
+                + ("、".join(day for day, v in days.items() if v is None) or "無")
             )
-            for day, v in res.items():
-                print(f"  {day}：" + ("失敗" if v is None else f"{v[0]} 班、寫了 {v[1]} 行"))
+            for day, v in days.items():
+                print(f"  {day}：" + ("失敗" if v is None else f"回應裡 {v} 班"))
         return 0
     if args.command == "backfill":
         for eid, n in backfill(history, events).items():

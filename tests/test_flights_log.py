@@ -255,6 +255,36 @@ def test_class_matches_cancellations(airport):
     assert sum(s["dep"]["total"] + s["arr"]["total"] for s in stats) == len(rs)
 
 
+def _hkg_group(day, updated, status, no="CX 143"):
+    item = {"time": "23:15", "flight": [{"no": no}], "destination": ["NRT"], "status": status}
+    return {"date": day, "cargo": False, "lastUpdatedTime": updated, "list": [item]}
+
+
+def test_hkg_stale_copy_ignored():
+    """香港：同一班在昨天、今天兩個回應裡各一份，留 `lastUpdatedTime` 較新的那份，不管排在前後；
+    兩次抓的順序不同也不會來回跳（2026-10-24 上線後 CX143 在 Dep 23:20 和 Gate Closed 間跳）。"""
+    fresh = _hkg_group("2026-10-23", "2026-10-24T00:37:13+08:00", "Dep 23:20")
+    stale = _hkg_group("2026-10-23", "2026-10-23T23:40:42+08:00", "Gate Closed")
+    other = _hkg_group("2026-10-23", "2026-10-23T23:40:42+08:00", "Boarding", no="CX 999")
+    for groups in ([fresh, stale, other], [stale, other, fresh]):
+        rs = by_flight(rows("VHHH", {"departure": groups, "arrival": []}))
+        assert (rs["CX143"]["status"], rs["CX143"]["actUtc"]) == (
+            "Dep 23:20",
+            "2026-10-23T15:20:00Z",
+        )
+        assert rs["CX999"]["status"] == "Boarding"  # 只在舊的組裡的照留
+    first = rows("VHHH", {"departure": [fresh, stale], "arrival": []})
+    again = rows("VHHH", {"departure": [stale, fresh], "arrival": []})
+    assert flights_log.changed([json.dumps(r) for r in first], again) == []
+
+
+def test_hkg_freshest_keeps_payload_shape():
+    payload = {"departure": [_hkg_group("2026-10-23", None, "Boarding")], "arrival": []}
+    out = flights_log.hkg_freshest(payload)
+    assert out == payload  # 沒有重複就原樣（沒有 lastUpdatedTime 也行）
+    assert out is not payload
+
+
 # ---- 只在變化時寫 ----
 
 
