@@ -38,9 +38,10 @@ def by_flight(rows):
 
 
 class _Resp:
-    def __init__(self, body: object, status: int = 200):
+    def __init__(self, body: object, status: int = 200, headers: dict | None = None):
         self.content = json.dumps(body).encode()
         self.status_code = status
+        self.headers = headers or {}
 
     def json(self):
         return json.loads(self.content)
@@ -86,9 +87,9 @@ def test_tdx_rows_codeshares_unknown_and_skipped(caplog):
     assert set(rs) == {"AE1271", "AE1273"}
     assert rs["AE1271"]["codeshares"] == ["CI9271"]
     assert rs["AE1271"]["class"] == "normal"  # 時間更改
-    # 對照表沒列的狀態 → other，記 log
-    assert rs["AE1273"]["class"] == "other"
-    assert "看不懂的狀態 '加班機'" in caplog.text
+    # 「加班機」HD32 時是對照表沒列的 other；HD38 起開頭「加班」→ 正常，不再記 log
+    assert rs["AE1273"]["class"] == "normal"
+    assert "看不懂的狀態" not in caplog.text
     # 沒有表定時間的那筆跳過、記 log
     assert "1 筆沒有表定時間或班號" in caplog.text
 
@@ -121,7 +122,13 @@ def test_tdx_rows_taoyuan_and_songshan():
         ("離站", "", "normal"),
         ("", "CANCELLED", "cancelled"),  # 中文空白用英文
         ("", "", "normal"),
-        ("加班機", "EXTRA", "other"),
+        # HD38（HD37 報告工具先補的三種，2026-10-22～24 TDX 實際看到）
+        ("加班", "", "normal"),
+        ("加班機", "EXTRA", "normal"),
+        ("轉降", "", "diverted"),
+        ("預計12:30離站", "", "normal"),  # 表定 12:00，晚 30 分
+        ("預計13:00出發", "", "delayed"),  # 晚 60 分（狀態裡的時間當預計時間）
+        ("檢查", "", "other"),  # 還是看不懂的
     ],
 )
 def test_tdx_status_rules(zh, en, cls):
@@ -251,6 +258,50 @@ def test_client_token_once_and_bearer(monkeypatch, caplog):
     assert len(posts) == 1 and len(gets) == 2
 
 
+def test_each_data_request_recorded_with_retry(monkeypatch, tmp_path):
+    """HD38：每送一次資料請求記一行（重試的那次也記；token 不記），`bytes` 是壓縮後的
+    `Content-Length`。"""
+    _fake_tdx(monkeypatch)
+    sent = []
+
+    def flaky(url, params=None, headers=None, retries=3, **k):
+        sent.append(retries)
+        if len(sent) == 1:
+            raise tdx.TdxError("TDX：HTTP 503", "http_503")
+        return _Resp(load_json("tdx_fids_airport.json"), headers={"Content-Length": "104611"})
+
+    monkeypatch.setattr(tdx, "http_get", flaky)
+    monkeypatch.setattr(tdx.time, "sleep", lambda s: None)
+    c = tdx.Client(ID, SECRET)
+    c.log = tdx.CallLog(tmp_path, "events", clock=lambda: FETCHED)
+    assert set(c.fids(["RMQ"])) == {"RMQ"}
+    assert sent == [1, 1] and c.calls == 2  # 每次 http_get 只試一次，重試由 fids 自己做
+    lines = (tmp_path / "tdx" / "calls-2026-10.jsonl").read_text("utf-8").splitlines()
+    assert [json.loads(x) for x in lines] == [
+        {"t": "2026-10-23T06:07:00Z", "caller": "events", "bytes": None},
+        {"t": "2026-10-23T06:07:00Z", "caller": "events", "bytes": 104611},
+    ]
+    assert tdx.month_calls(tmp_path, FETCHED) == 2
+    # 同樣的機場不重抓、不多記
+    c.fids(["RMQ"])
+    assert tdx.month_calls(tmp_path, FETCHED) == 2
+
+
+def test_forbidden_not_retried_and_recorded(monkeypatch, tmp_path):
+    _fake_tdx(monkeypatch)
+    sent = []
+
+    def forbidden(*a, **k):
+        sent.append(1)
+        raise tdx.TdxError("TDX：HTTP 403", "http_403")
+
+    monkeypatch.setattr(tdx, "http_get", forbidden)
+    c = tdx.Client(ID, SECRET, log=tdx.CallLog(tmp_path, "build", clock=lambda: FETCHED))
+    with pytest.raises(tdx.TdxError):
+        c.fids(["RMQ"])
+    assert sent == [1] and tdx.month_calls(tmp_path, FETCHED) == 1
+
+
 def test_token_failure_message_has_no_secret(monkeypatch):
     _fake_tdx(monkeypatch, token_status=401)
     with pytest.raises(tdx.TdxError) as ei:
@@ -300,6 +351,31 @@ def test_hourly_tdx_writes(tmp_path, monkeypatch, airports):
     assert events.hourly(history, [EV], airports, None, later, tdx.Client(ID, SECRET)) == {
         "29W": {"metar": 0, "jma": None, "jtwc": None, "flights": 0, "tdx": 0}
     }
+
+
+@pytest.mark.parametrize(("used", "asked"), [(1999, 1), (2000, 0)])
+def test_hourly_tdx_monthly_limit(tmp_path, monkeypatch, airports, caplog, used, asked):
+    """HD38：事件期間的每小時存檔也看每月上限，到 2,000 次（build＋events）才停；每次請求記一行
+    `caller: "events"`。"""
+    _quiet_hd31(monkeypatch)
+    _, gets = _fake_tdx(monkeypatch)
+    history = tmp_path / "history"
+    path = tdx.calls_path(history, FETCHED)
+    path.parent.mkdir(parents=True)
+    path.write_text('{"t": "2026-10-20T08:25:00Z", "caller": "build", "bytes": 1}\n' * used)
+    c = tdx.Client(ID, SECRET, log=tdx.CallLog(history, "events", clock=lambda: FETCHED))
+    with caplog.at_level(logging.WARNING, "hongthai"):
+        res = events.hourly(history, [EV], airports, None, FETCHED, c)
+    assert len(gets) == asked
+    if asked:
+        assert res["29W"]["tdx"] == 10
+        last = json.loads(path.read_text("utf-8").splitlines()[-1])
+        assert (last["caller"], last["t"]) == ("events", "2026-10-23T06:07:00Z")
+        assert tdx.month_calls(history, FETCHED) == 2000
+    else:
+        assert res["29W"]["tdx"] is None
+        assert "TDX 本月已用 2000 次（上限 2000），這小時跳過" in caplog.text
+        assert tdx.month_calls(history, FETCHED) == 2000
 
 
 def test_hourly_without_tdx_secret_skips(tmp_path, monkeypatch, airports):
