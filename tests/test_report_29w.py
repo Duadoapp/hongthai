@@ -335,14 +335,19 @@ def test_stop_definition_threshold():
     assert rpt.is_stopped(_row("RCTP", A, 0, 0), 0.3, 10) is None
 
 
-def test_window_open_until_cancellations_cover_it(archive):
-    # 航班資料只到 10/23 08Z：C（10/23 06–12Z）還沒結束，兩報四個機場窗都還沒有結果
+def test_window_truncated_to_cancellations_as_of(archive):
+    # HD36：航班資料只到 10/23 08Z → 實測的最後時間是 asOf（早於實測截止）；C（10/23 06–12Z）
+    # 還沒結束，從四個窗丟掉（以前整個窗算「還沒結束」），剩下的照比
     for p in (archive / "data" / "history" / "cancellations").glob("*.json"):
         rows = json.loads(p.read_text(encoding="utf-8"))
         _write(p, [r | {"asOf": "2026-10-23T08:00:00Z"} for r in rows])
     lv = rpt.build_result(archive / "data", _event(archive), CUTOFF, 0.3, 10).levels
-    assert lv.counts["windowOpen"] == 4
-    assert lv.window["claude"].risky.tp == 0
+    assert lv.truth_last == utc(2026, 10, 23, 8)
+    assert (lv.counts["windowTruncated"], lv.counts["windowNoTruth"]) == (4, 0)
+    assert lv.counts["slotPastTruth"] == 4
+    claude = lv.window["claude"].risky
+    assert (claude.tp, claude.tn) == (2, 2)  # 桃園 B 停飛、香港沒有
+    assert lv.window_full["claude"].risky.summary()["tp"] == 0  # 每個窗都被截短
 
 
 def test_ai_falls_back_to_history_records(archive):
@@ -498,3 +503,246 @@ def test_main_unknown_event(archive, capsys):
         ]
     )
     assert code == 1
+
+
+# ---- HD36：--until、--truth-until ----
+
+
+def _t(*args):
+    return utc(2026, 10, *args)
+
+
+@pytest.mark.parametrize(
+    ("text", "want"),
+    [
+        ("2026-10-26T24:00+08:00", _t(26, 16)),
+        ("2026-10-26T24:00:00+08:00", _t(26, 16)),
+        ("2026-10-31T24:00Z", utc(2026, 11, 1, 0)),
+        ("2026-10-25T14:00+08:00", _t(25, 6)),
+        ("2026-10-25T08:25Z", _t(25, 8, 25)),
+        ("2026-10-25T08:25:00+00:00", _t(25, 8, 25)),
+    ],
+)
+def test_parse_cli_time(text, want):
+    assert rpt.parse_cli_time(text) == want
+
+
+@pytest.mark.parametrize("text", ["2026-10-25T14:00", "2026-10-25", "明天", "2026-10-26T25:00Z"])
+def test_parse_cli_time_rejects(text):
+    with pytest.raises(ValueError):
+        rpt.parse_cli_time(text)
+
+
+def test_default_truth_until(archive):
+    from dataclasses import replace
+    from datetime import date
+
+    event = _event(archive)
+    assert rpt.default_truth_until(event) == _t(28, 16)  # fixture 的 to 是 10-28
+    assert rpt.default_truth_until(replace(event, end=date(2026, 10, 26))) == _t(26, 16)
+    assert _result(archive).truth_until == _t(28, 16)
+
+
+def test_select_until():
+    xs = [_t(21), _t(22), _t(23)]
+    same = rpt.select_until(xs, lambda t: t, _t(22))
+    assert same == ([_t(21), _t(22), _t(23)], True)  # 剛好等於 22 的：22 算，再加之後的第一報
+    assert rpt.select_until(xs, lambda t: t, _t(21, 12)) == ([_t(21), _t(22)], True)
+    assert rpt.select_until(xs, lambda t: t, _t(24)) == (xs, False)  # 之後沒有報
+    assert rpt.select_until(xs, lambda t: t, None) == (xs, False)
+    assert rpt.select_until(xs, lambda t: t, _t(20)) == ([_t(21)], True)
+
+
+R3 = utc(2026, 10, 23, 1)
+
+
+def _add_r3_and_wn3(archive):
+    d = archive / "data" / "history" / "events" / "29W"
+    _write(d / f"{R3:%Y%m%dT%H%MZ}.json", _snapshot(R3, [_slot(C, "high", {"ifs": 60.0})], []))
+    for run in (_t(23), _t(24)):
+        _write(
+            d / "wn3" / f"{run:%Y%m%dT%H%MZ}.json",
+            {"model": "wn3", "run": iso(run), "airports": {"RCTP": []}},
+        )
+
+
+def test_until_reports_and_wn3(archive):
+    _add_r3_and_wn3(archive)
+    # 剛好等於 R1：R1 算、再加之後的第一報 R2；R3 不算。WN3 起報 10/22 00Z 前沒有 → 只算 10/22
+    res = _result(archive, until=iso(R1))
+    assert [r.generated for r in res.reports] == [R1, R2]
+    assert res.until_has_next
+    assert res.excluded["reports"] == 1 and res.excluded["wn3"] == 2
+    # 介於 R1、R2：一樣多算下一報 R2
+    res = _result(archive, until="2026-10-21T12:00+08:00")
+    assert [r.generated for r in res.reports] == [R1, R2]
+    # 剛好等於 WN3 10/22 00Z：10/22、10/23 兩報，10/24 不算
+    res = _result(archive, until="2026-10-22T00:00Z")
+    assert res.excluded["wn3"] == 1 and len(res.reports) == 2
+    # 之後沒有報
+    res = _result(archive, until="2026-10-30T00:00Z")
+    assert len(res.reports) == 3 and not res.until_has_next
+    assert (res.excluded["reports"], res.excluded["wn3"]) == (0, 0)
+    assert "時間之後還沒有報" in "\n".join(rpt.summary_lines(res))
+
+
+def test_until_tracks_follow_kept_reports(archive):
+    d = archive / "data" / "history" / "events" / "29W"
+    _write(
+        d / "tracks" / "20261020T1800Z-ifs.json",
+        {"model": "ifs", "run": "2026-10-20T18:00:00Z", "storm": None, "members": [], "mean": []},
+    )
+    # 兩報用的 ifs 都是 10/20 18Z：那份路徑收，10/21 00Z 起報的（沒有報用過）不收
+    res = _result(archive, until=iso(R2))
+    assert {(t.model, t.run) for t in res.track_runs} == {("ifs", utc(2026, 10, 20, 18))}
+    assert res.excluded["tracks"] == 3
+    assert len(_result(archive).track_runs) == 4  # 不給 --until：全部
+
+
+def test_truth_until_gust_slots(archive):
+    # T＝10/22 10Z：B（06–12Z）、C 的格超過；R1 的 A、R2 的 D 照算；WN3 的 B 也超過
+    g = _result(archive, truth_until=_t(22, 10)).gust
+    assert g.past_truth == 5
+    assert g.no_metar == 0  # 原本沒有觀測的 C 現在算超過實測截止
+    assert g.all["ifs"][0].summary()["n"] == 2
+    assert g.all["ifs"][1].summary()["n"] == 0
+    assert "wn3" not in g.all
+
+
+def test_truth_until_drops_metar_after_t(archive):
+    metars = rpt.load_metars(archive / "data" / "history" / "events" / "29W", _t(22, 5))
+    assert [o.at for o in metars["RCTP"]][-1] == _t(22, 3)  # 10/22 08Z 那筆不用
+
+
+def test_truth_until_levels_truncate_windows(archive):
+    # T＝10/22 10Z（早於航班 asOf 10/24）：B、C 結束得晚，每格算超過；窗截到 A／D
+    lv = _result(archive, truth_until=_t(22, 10)).levels
+    assert lv.truth_last == _t(22, 10)
+    assert lv.counts["slotPastTruth"] == 8
+    assert (lv.counts["windowTruncated"], lv.counts["windowNoTruth"]) == (4, 0)
+    claude = lv.window["claude"].summary()
+    # 桃園：R1 截短後只剩 A（沒停飛）→ 判高誤報；R2 剩 D（停飛）→ 命中，first＝D 的 0–24
+    assert (claude["risky"]["tp"], claude["risky"]["fp"], claude["risky"]["tn"]) == (1, 1, 2)
+    assert claude["recallByFirstStop"]["risky"][0] == 1.0
+    # 規則燈的預測仍取整個 0–120 小時：R1 桃園最高是 B 的 high → 誤報
+    assert lv.window[rpt.rule_key(rpt.BEFORE)].high.fp == 1
+    # 只算完整窗：四個都被截短，什麼都沒有
+    for w in lv.window_full.values():
+        assert w.risky.tp + w.risky.fp + w.risky.fn + w.risky.tn == 0
+
+
+def test_truth_until_window_empty_after_truncation(archive):
+    lv = _result(archive, truth_until=_t(21, 5)).levels  # A 06Z 才結束：每個窗一格不剩
+    assert (lv.counts["windowTruncated"], lv.counts["windowNoTruth"]) == (4, 4)
+    assert lv.window["claude"].risky.summary()["tp"] == 0
+    assert lv.counts["claudeNotOk"] == 0  # 不算的窗也不算 AI 的 not ok
+
+
+def test_window_complete_matches_when_nothing_dropped(archive):
+    lv = _result(archive).levels
+    assert lv.counts["windowTruncated"] == 0
+    for k, w in lv.window.items():
+        assert lv.window_full[k].summary() == w.summary()
+
+
+def test_truth_until_tracks(archive):
+    # T＝10/21 06Z：gfs 12Z、10/22 00Z 與系集中位數 12Z 的點超過
+    res = _result(archive, jtwc=FIXTURES / "bwp292026_sample.dat", truth_until=_t(21, 6))
+    (tr,) = res.tracks
+    assert tr.past_truth == 3
+    assert tr.models["gfs"][0].summary() == {"n": 1, "mean": 0.0, "median": 0.0}
+    assert tr.members["ifs-ens"][0].summary()["n"] == 0  # 成員 12Z 也不比
+    assert tr.spread["ifs-ens"][0].summary()["n"] == 2  # 離散不用真相，照算
+
+
+def test_truth_clipped_to_truth_until(archive):
+    d = archive / "data" / "history" / "events" / "29W"
+    bwp = FIXTURES / "bwp292026_sample.dat"
+    (jtwc,) = rpt.truths(d, _event(archive), bwp, None, None, _t(21, 9))
+    assert max(t for t, _, _ in jtwc.tracks[0].points) == _t(21, 6)
+    assert jtwc.at(_t(21, 8)) is None  # 不拿 12Z（截止後）的點內插
+    (prov,) = rpt.truths(d, _event(archive), None, None, None, _t(21, 9))
+    assert [len(t.points) for t in prov.tracks] == [2, 1]  # JTWC 00、06Z；JMA 只剩 00Z
+
+
+def _old_fields(doc: dict) -> dict:
+    """HD36 加的欄位拿掉，剩下的要和 HD36 前一模一樣。"""
+    doc = json.loads(json.dumps(doc))
+    for k in (
+        "until",
+        "untilHasNext",
+        "lastReport",
+        "excludedByUntil",
+        "truthUntil",
+        "truthUntilDefault",
+    ):
+        doc.pop(k)
+    doc["gust"].pop("pastTruth")
+    for k in ("truthLast", "windowComplete"):
+        doc["levels"].pop(k)
+    for k in ("slotPastTruth", "windowTruncated", "windowNoTruth"):
+        assert doc["levels"]["skipped"].pop(k) == 0
+    for t in doc["tracks"]:
+        t.pop("pastTruth")
+    return doc
+
+
+def test_no_new_args_same_as_before(archive):
+    import hashlib
+
+    def digest(doc):
+        body = json.dumps(_old_fields(doc), sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(body.encode()).hexdigest()
+
+    # HD36 前的程式對同一個 fixture 的 `to_json`（sort_keys 後的 sha256）
+    both = _result(
+        archive, jtwc=FIXTURES / "bwp292026_sample.dat", jma=FIXTURES / "jma_bst_sample.txt"
+    )
+    assert digest(rpt.to_json(both)) == (
+        "8ea11ca0e0f4fa20e98334d16ed0cb76dc9ccdccebcdc961cfe4bc20379b4593"
+    )
+    assert digest(rpt.to_json(_result(archive))) == (
+        "acea80bda42ca8a97f74057c69c4b064b1ed412e77dc0d7c20060b9e2a6edf7f"
+    )
+
+
+def test_main_until_and_truth_until(archive, capsys):
+    js = archive / "report" / "29W.json"
+    code = rpt.main(
+        [
+            "--archive",
+            str(archive / "data"),
+            "--events",
+            str(archive / "events.json"),
+            "--until",
+            "2026-10-21T12:00+08:00",
+            "--truth-until",
+            "2026-10-22T24:00+08:00",
+            "--out",
+            str(archive / "report" / "29W.md"),
+            "--json",
+            str(js),
+        ]
+    )
+    assert code == 0
+    doc = json.loads(js.read_text(encoding="utf-8"))
+    assert doc["until"] == "2026-10-21T12:00+08:00"
+    assert doc["lastReport"] == "2026-10-22T05:00:00Z"
+    assert doc["truthUntil"] == "2026-10-22T16:00:00Z" and doc["truthUntilDefault"] is False
+    assert doc["levels"]["skipped"]["windowTruncated"] == 4  # C（10/23）在兩報兩個機場的窗都超過
+    assert "windowComplete" in doc["levels"]
+    printed = capsys.readouterr().out
+    until = "`--until` 2026-10-21T12:00+08:00 之後的第一報"
+    assert f"預報算到：2026-10-22T05:00:00Z（台北 10/22 13:00；{until}）" in printed
+    assert "實測到：2026-10-22T16:00:00Z（台北 10/23 00:00；`--truth-until`）" in printed
+    md = (archive / "report" / "29W.md").read_text(encoding="utf-8")
+    assert "對照：只算完整窗" in md and "超過實測截止" in md
+
+
+@pytest.mark.parametrize("flag", ["--until", "--truth-until"])
+def test_main_bad_time(archive, capsys, flag):
+    code = rpt.main(
+        ["--archive", str(archive / "data"), "--events", str(archive / "events.json"), flag, "x"]
+    )
+    assert code == 1
+    assert flag in capsys.readouterr().err
