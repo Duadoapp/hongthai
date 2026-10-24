@@ -2,13 +2,12 @@
 
 在 repo 根目錄跑 `python tools/make_font_subset.py`。
 
-完整字型下載到暫存目錄（不進 repo），子集寫到 `assets/fonts/`：
-- Fraunces（ASCII 可印字元＋`EXTRA_LATIN`）：可變字型用 `varLib.instancer` 固定 SOFT 100、wght 600，
-  變成靜態檔再取子集。產兩個：小字用的 opsz、WONK 留預設（opsz 9、WONK 1）；IATA 大字用的 opsz 144
-  （HD4，WONK 一樣留預設）
-- 芫荽 Iansui：`hongthai.og.required_chars` 的非 ASCII 字裡芫荽有的
-- Noto Sans TC（芫荽缺字的備援）：可變字型固定 wght 400，取芫荽沒有的那些字；一個都沒缺時
-  照樣產生（只含全形空白），讓程式與測試的路徑固定
+完整字型下載到暫存目錄（不進 repo），子集寫到 `assets/fonts/`（HD39 起是 HongThai 品牌「風眼夜航」
+的字）：
+- Space Grotesk（ASCII 可印字元 95 個）：可變字型用 `varLib.instancer` 固定 wght，產兩個靜態檔：
+  小字用的 Medium（500）、IATA 大字用的 Bold（700）
+- Noto Sans TC（`hongthai.og.required_chars` 的非 ASCII 字）：可變字型固定 wght，產兩個靜態檔：
+  小字用的 Regular（400）、機場名與燈號字用的 Bold（700）。Noto 沒有的字會報錯（回傳 1）
 
 加了機場、改了 `og.TEXTS` 之後要重跑（`tests/test_og.py` 會檢查涵蓋，沒重跑 CI 會紅）。
 換字型版本時改下面的 commit，跑完把 `assets/fonts/README.md` 的版本與大小一起更新。
@@ -31,16 +30,20 @@ sys.path.insert(0, str(ROOT / "src"))
 from hongthai import og  # noqa: E402
 
 OUT = ROOT / "assets" / "fonts"
-RAW = "https://raw.githubusercontent.com"
+GOOGLE_FONTS = (
+    "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33"
+)
 SOURCES = {
-    "iansui": f"{RAW}/ButTaiwan/iansui/9d9a8e68bf1e138dd91e562eeff28d95bca33196"
-    "/fonts/ttf/Iansui-Regular.ttf",
-    "fraunces": f"{RAW}/undercasetype/Fraunces/7ccdec31c6028118dce3e47fe864e3744460371d"
-    "/fonts/variable/Fraunces%5BSOFT,WONK,opsz,wght%5D.ttf",
-    "noto": f"{RAW}/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33"
-    "/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
+    "spacegrotesk": f"{GOOGLE_FONTS}/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf",
+    "noto": f"{GOOGLE_FONTS}/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
 }
-EXTRA_LATIN = "–—’“”·"
+# 每個子集：(來源, 固定的 wght)
+WEIGHTS = {
+    "latin": ("spacegrotesk", 500),
+    "latin-bold": ("spacegrotesk", 700),
+    "cjk": ("noto", 400),
+    "cjk-bold": ("noto", 700),
+}
 
 
 def download(url: str, dest: Path) -> Path:
@@ -50,8 +53,8 @@ def download(url: str, dest: Path) -> Path:
     return dest
 
 
-def make_subset(font: TTFont, chars: set[str], out: Path, pin: dict | None = None) -> None:
-    """取子集（可變字型再用 `pin` 固定各軸，變成靜態檔）寫到 `out`。"""
+def make_subset(font: TTFont, chars: set[str], out: Path, pin: dict) -> None:
+    """取子集，再用 `pin` 固定各軸變成靜態檔，寫到 `out`。"""
     opts = subset.Options()
     opts.name_IDs = ["*"]  # 名稱表（含版本、授權）全部留著
     opts.name_languages = ["*"]
@@ -60,8 +63,8 @@ def make_subset(font: TTFont, chars: set[str], out: Path, pin: dict | None = Non
     s = subset.Subsetter(opts)
     s.populate(unicodes=sorted(ord(c) for c in chars))
     s.subset(font)
-    if pin is not None:  # 先取子集再固定（整套 CJK 可變字型直接 instancer 很慢）
-        font = instancer.instantiateVariableFont(font, pin, updateFontNames=True)
+    # 先取子集再固定（整套 CJK 可變字型直接 instancer 很慢）
+    font = instancer.instantiateVariableFont(font, pin, updateFontNames=True)
     font.save(out)
     print(f"{out.relative_to(ROOT)}：{len(font.getBestCmap())} 字，{out.stat().st_size:,} bytes")
 
@@ -71,29 +74,14 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="hongthai-fonts-") as tmp:
         files = {k: download(u, Path(tmp) / f"{k}.ttf") for k, u in SOURCES.items()}
-
-        for key, opsz in (("latin", None), ("display", 144)):
-            make_subset(
-                TTFont(files["fraunces"]),
-                latin | set(EXTRA_LATIN),
-                OUT / og.FONT_FILES[key],
-                {"SOFT": 100, "wght": 600, "opsz": opsz, "WONK": None},
-            )
-
-        ia = TTFont(files["iansui"])
-        ia_cmap = ia.getBestCmap()
-        have = {c for c in other if ord(c) in ia_cmap}
-        missing = other - have
-        make_subset(ia, have, OUT / og.FONT_FILES["cjk"])
-
-        noto = TTFont(files["noto"])
-        noto_cmap = noto.getBestCmap()
-        lost = {c for c in missing if ord(c) not in noto_cmap}
+        noto_cmap = TTFont(files["noto"], lazy=True).getBestCmap()
+        lost = {c for c in other if ord(c) not in noto_cmap}
         if lost:
-            print(f"芫荽與 Noto 都沒有：{''.join(sorted(lost))}")
+            print(f"Noto Sans TC 沒有：{''.join(sorted(lost))}")
             return 1
-        make_subset(noto, missing | {"　"}, OUT / og.FONT_FILES["fallback"], {"wght": 400})
-        print(f"芫荽缺、靠 Noto 補的字（{len(missing)}）：{''.join(sorted(missing)) or '（無）'}")
+        for key, (src, wght) in WEIGHTS.items():
+            chars = latin if src == "spacegrotesk" else other
+            make_subset(TTFont(files[src]), chars, OUT / og.FONT_FILES[key], {"wght": wght})
     return 0
 
 

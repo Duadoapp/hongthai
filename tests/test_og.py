@@ -1,5 +1,5 @@
-"""分享預覽圖（HD1、HD4）：51 張都畫得出來、尺寸與大小、一顆／三顆燈、時間軸、子集涵蓋、
-燈號與小字的規則。"""
+"""分享預覽圖（HD1、HD4、HD39）：51 張都畫得出來、尺寸與大小、一顆／三顆燈、時間軸、子集涵蓋、
+燈號與小字的規則、品牌（配色只用 token、LOGO 與字標）。"""
 
 from __future__ import annotations
 
@@ -150,9 +150,9 @@ def test_render_all_51_airports(tmp_path):
         "bytes": sum(p.stat().st_size for p in (tmp_path / "og").iterdir()),
     }
     im = _check_png(tmp_path / "og" / "tpe.png")
-    # 背景與燈（高＝apricot）的顏色和規格一樣
-    assert im.getpixel((5, 5)) == (0xED, 0xF1, 0xF4)
-    assert im.getpixel((og.WIDTH - og.MARGIN - 20, og.MARGIN + 20)) == (0xF7, 0xC9, 0xA9)
+    # 背景（night）與燈（高＝珊瑚）的顏色和網頁的 token 一樣
+    assert im.getpixel((5, 5)) == (0x0E, 0x17, 0x26)
+    assert im.getpixel((og.WIDTH - og.MARGIN - 20, og.MARGIN + 20)) == (0xFF, 0x6B, 0x5A)
     for p in (tmp_path / "og").iterdir():
         _check_png(p)
 
@@ -193,6 +193,162 @@ def test_render_three_lights(tmp_path):
     for i, lt in enumerate(lights):
         x = right - (3 - i) * w - (2 - i) * og.BLOCK_GAP + 12
         assert im.getpixel((x, top + 12)) == og._rgb(og.LEVEL_COLORS[lt.level][0])
+
+
+# ---- 品牌（HD39）----
+
+# Duado `site/hongthai/theme.ts` 的 `htColors`（HW8「風眼夜航」）；預覽圖只能用這些顏色
+THEME = {
+    "night": "#0E1726",
+    "card": "#17233A",
+    "cardDeep": "#121D30",
+    "line": "#22314B",
+    "chip": "#1E2C45",
+    "text": "#E8EEF6",
+    "textSoft": "#B8C4D6",
+    "textMuted": "#9AA8BC",
+    "eye": "#5CC8E8",
+    "low": "#2F4263",
+    "lowEdge": "#5A6E8F",
+    "medium": "#F2B84B",
+    "high": "#FF6B5A",
+    "confirmed": "#E8EEF6",
+}
+# 無資料：text 色不透明度 0.3 疊在 night 上
+NONE = "#4F5864"
+
+
+def test_colors_are_theme_tokens():
+    tokens = set(THEME.values())
+    for key, color in og.COLORS.items():
+        assert THEME[key] == color, key
+    assert {lv: og.LEVEL_COLORS[lv][0] for lv in og.RANKED + ("confirmed",)} == {
+        lv: THEME[lv] for lv in og.RANKED + ("confirmed",)
+    }
+    assert og.LEVEL_COLORS["unknown"] == (NONE, THEME["text"])
+    assert {fg for _, fg in og.LEVEL_COLORS.values()} <= tokens
+    # 文字在色塊上：低用 textSoft，中、高、已確認用 night（同網頁）
+    assert og.LEVEL_COLORS["low"][1] == THEME["textSoft"]
+    assert {og.LEVEL_COLORS[lv][1] for lv in ("medium", "high", "confirmed")} == {THEME["night"]}
+
+
+def _palette_colors() -> set[tuple[int, int, int]]:
+    pal = og._palette().getpalette()
+    return {tuple(pal[i : i + 3]) for i in range(0, len(pal), 3)}
+
+
+@pytest.mark.parametrize(
+    "levels",
+    [
+        ("low",),
+        ("medium",),
+        ("high",),
+        ("confirmed",),
+        ("unknown",),
+        ("high", "medium", "low"),
+        ("medium", "low", "unknown"),
+        ("confirmed", "high", "unknown"),
+    ],
+)
+def test_render_uses_only_theme_colors(tmp_path, levels):
+    """一顆燈的五種等級與三顆燈的組合都畫得出來；每個像素都在調色盤（token 與反鋸齒的中間色）裡，
+    面積大的顏色（> 0.5%）一定是 token；燈的色塊是等級色。"""
+    labels = (None,) if len(levels) == 1 else ("規則", "Claude", "Gemini")
+    lights = [
+        og.Light(lb, lv, "最高：高　10/20 20 時–10/21 02 時")
+        for lb, lv in zip(labels, levels, strict=False)
+    ]
+    tl = ["low", "medium", "high", "confirmed", "unknown"] * 4
+    out = tmp_path / "x.png"
+    size = og.render(airport("TPE", tl), "2026-10-18T18:15:00Z", lights, out)
+    assert size == out.stat().st_size <= 60 * 1024
+    im = _check_png(out)
+    colors = im.getcolors(1 << 16)
+    assert {c for _, c in colors} <= _palette_colors()
+    big = {"#{:02X}{:02X}{:02X}".format(*c) for n, c in colors if n > og.WIDTH * og.HEIGHT * 0.005}
+    assert big <= set(THEME.values()) | {NONE}, big
+    w = min(og.BLOCK_W, (og.LIGHTS_MAX_W - og.BLOCK_GAP * (len(levels) - 1)) // len(levels))
+    top = og.MARGIN + (og.LABEL_SIZE + 14 if len(levels) > 1 else 0)
+    right = og.WIDTH - og.MARGIN
+    for i, lv in enumerate(levels):
+        x = right - (len(levels) - i) * w - (len(levels) - 1 - i) * og.BLOCK_GAP + 12
+        assert im.getpixel((x, top + 12)) == og._rgb(og.LEVEL_COLORS[lv][0]), lv
+
+
+def test_palette_pure_colors_are_tokens():
+    pal = _palette_colors()
+    for color in set(THEME.values()) - {THEME[k] for k in ("card", "cardDeep", "line", "chip")}:
+        assert og._rgb(color) in pal, color
+    assert og._rgb(NONE) in pal
+    assert len(pal) <= 256
+
+
+def test_low_block_has_edge(tmp_path):
+    """低等級的色塊與時間軸格有 `lowEdge` 內框（深底上看得出邊），裡面是 low。"""
+    a = airport("HKG")
+    out = tmp_path / "low.png"
+    og.render(a, "2026-10-18T18:15:00Z", [og.rule_light(a)], out)
+    im = _check_png(out)
+    _, lay = og._draw(a, "2026-10-18T18:15:00Z", [og.rule_light(a)])
+    edge, low = og._rgb(THEME["lowEdge"]), og._rgb(THEME["low"])
+    left = og.WIDTH - og.MARGIN - og.BLOCK_W
+    mid = og.MARGIN + og.BLOCK_H // 2
+    assert im.getpixel((left, mid)) == edge
+    assert im.getpixel((left + og.LOW_EDGE + 2, mid)) == low
+    cell = lay.cells[0]
+    cy = (cell[1] + cell[3]) // 2
+    assert im.getpixel((cell[0], cy)) == edge
+    assert im.getpixel(((cell[0] + cell[2]) // 2, cy)) == low
+
+
+def test_brand_mark_and_wordmark_drawn(tmp_path):
+    """右下的漩渦 LOGO（eye 色）與字標「HongThai」（text 色）有畫上，在 URL 上方、靠右、
+    不壓到時間軸。"""
+    a = airport("TPE", ["high"] * 20)
+    out = tmp_path / "brand.png"
+    og.render(a, "2026-10-18T18:15:00Z", [og.rule_light(a)], out)
+    im = _check_png(out)
+    _, lay = og._draw(a, "2026-10-18T18:15:00Z", [og.rule_light(a)])
+    mark, wm = lay.mark, lay.wordmark
+    assert mark is not None and wm is not None
+    assert mark[2] - mark[0] == mark[3] - mark[1] == og.MARK_SIZE
+    assert mark[2] < wm[0] and wm[2] < og.WIDTH - og.MARGIN
+    assert wm[3] < og.HEIGHT - og.MARGIN - og.URL_SIZE
+    assert not _overlap(wm, lay.timeline) and not _overlap(mark, lay.timeline)
+
+    def count(box, color):
+        crop = im.crop(tuple(round(v) for v in box))
+        return sum(n for n, c in crop.getcolors(1 << 16) if c == og._rgb(color))
+
+    assert count(mark, THEME["eye"]) > 60
+    assert count(wm, THEME["text"]) > 600
+    # 中心圓的右側（24＋7, 24）是線、圓心是空的（底色）
+    k = og.MARK_SIZE / og.MARK_VIEWBOX
+    assert im.getpixel((round(mark[0] + 31 * k), round(mark[1] + 24 * k))) == og._rgb(THEME["eye"])
+    assert im.getpixel((round(mark[0] + 24 * k), round(mark[1] + 24 * k))) == og._rgb(
+        THEME["night"]
+    )
+    # 字標 H 的左豎（x 0–132、y 14–714 字體單位）中間是 text 色；o 的內圈是洞
+    s = (wm[3] - wm[1]) / og.WORDMARK_VIEWBOX[1]
+    assert im.getpixel((round(wm[0] + 66 * s), round(wm[1] + 360 * s))) == og._rgb(THEME["text"])
+    assert im.getpixel((round(wm[0] + 896 * s), round(wm[1] + 466 * s))) == og._rgb(THEME["night"])
+
+
+def test_wordmark_path_polygons():
+    polys = og.path_polygons(og.WORDMARK_PATH)
+    assert len(polys) == 12  # H、o（兩圈）、n、g（兩圈）、T、h、a（兩圈）、i（兩個）
+    xs = [x for p in polys for x, _ in p]
+    ys = [y for p in polys for _, y in p]
+    assert (min(xs), min(ys), max(xs), max(ys)) == (0, 0, *og.WORDMARK_VIEWBOX)
+    assert og.path_polygons("M0 0H10V10L0 10Z") == [[(0, 0), (10, 0), (10, 10), (0, 10)]]
+    # 二次曲線攤平後落在端點上
+    q = og.path_polygons("M0 0Q5 10 10 0Z")[0]
+    assert q[0] == (0, 0) and q[-1] == (10, 0) and len(q) == 1 + og.CURVE_STEPS
+
+
+def test_brand_texts():
+    assert og.BRAND_NATIVE in og.TEXTS and "duado.app/hongthai" in og.TEXTS
+    assert not any("機場停飛風險" in t for t in og.TEXTS)
 
 
 def _ai(claude: dict | None, gemini: dict | None) -> dict:
@@ -354,34 +510,35 @@ def _cmap(key):
 def test_font_subsets_cover_required_chars():
     """之後加機場或改字串沒重做子集（tools/make_font_subset.py），這裡會紅。"""
     latin, other = og.required_chars(ROOT / "airports.json")
-    for key in ("latin", "display"):  # 兩個 Fraunces 子集（opsz 9 與 IATA 大字的 opsz 144）
-        assert {ord(c) for c in latin} <= _cmap(key), key
+    for key in ("latin", "latin-bold"):  # Space Grotesk 兩個子集只收 ASCII
+        assert _cmap(key) == {ord(c) for c in latin}, key
     assert set("0123456789") <= latin
-    cjk = _cmap("cjk") | _cmap("fallback")
-    missing = sorted(c for c in other if ord(c) not in cjk)
-    assert not missing, f"子集缺字：{''.join(missing)}（重跑 tools/make_font_subset.py）"
+    for key in ("cjk", "cjk-bold"):  # Noto Sans TC 兩個字重
+        missing = sorted(c for c in other if ord(c) not in _cmap(key))
+        assert not missing, f"{key} 子集缺字：{''.join(missing)}（重跑 tools/make_font_subset.py）"
 
 
 def test_font_files_and_licenses():
     d = ROOT / "assets" / "fonts"
-    for f in og.FONT_FILES.values():
+    weights = {"latin": 500, "latin-bold": 700, "cjk": 400, "cjk-bold": 700}
+    families = {"latin": "Space Grotesk", "cjk": "Noto Sans TC"}
+    for key, f in og.FONT_FILES.items():
         t = TTFont(d / f)
         assert "fvar" not in t  # 都是靜態檔
-    small, display = TTFont(d / og.FONT_FILES["latin"]), TTFont(d / og.FONT_FILES["display"])
-    assert small["OS/2"].usWeightClass == display["OS/2"].usWeightClass == 600
-    assert "144pt" in display["name"].getDebugName(1)  # opsz 144 的靜態檔
-    assert "pt" not in small["name"].getDebugName(1)
-    assert display["hmtx"]["H"] != small["hmtx"]["H"]
-    for name in ("Iansui", "Fraunces", "NotoSansTC"):
+        assert t["OS/2"].usWeightClass == weights[key], key
+        assert t["name"].getDebugName(1).startswith(families[key.removesuffix("-bold")]), key
+    # HD39 拿掉晨光風格的字（Fraunces、芫荽）
+    assert not list(d.glob("Fraunces*")) and not list(d.glob("Iansui*"))
+    for name in ("SpaceGrotesk", "NotoSansTC"):
         assert "SIL OPEN FONT LICENSE Version 1.1" in (d / f"OFL-{name}.txt").read_text("utf-8")
     assert (d / "README.md").exists()
 
 
 def test_font_key_routing():
-    root = og.font_dir()
-    assert og.font_key("T", root) == "latin" and og.font_key("5", root) == "latin"
-    assert og.font_key("桃", root) == "cjk"
-    assert og.font_key("　", root) == "cjk"
+    assert og.font_key("T") == "latin" and og.font_key("5") == "latin"
+    assert og.font_key("T", bold=True) == "latin-bold"
+    assert og.font_key("桃") == "cjk" and og.font_key("桃", bold=True) == "cjk-bold"
+    assert og.font_key("　") == "cjk"
 
 
 # ---- 接進 build ----

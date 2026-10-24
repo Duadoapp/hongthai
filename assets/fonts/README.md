@@ -1,23 +1,26 @@
-# 分享預覽圖的字型（HD1、HD4）
+# 分享預覽圖的字型（HD1、HD4、HD39）
 
-`src/hongthai/og.py` 畫 `og/<iata>.png` 用的字型。三套都是 **SIL Open Font License 1.1**，
-這裡**只放子集**（只含圖上會出現的字），授權檔各自一份。完整字型不進 repo。
+`src/hongthai/og.py` 畫 `og/<iata>.png` 用的字型。HD39（2026-10-25）起換成 HongThai 品牌「風眼夜航」的字
+（Duado HW8 設計稿：標題與數字 Space Grotesk、中文 Noto Sans TC），拿掉晨光風格的 Fraunces 與芫荽。
+兩套都是 **SIL Open Font License 1.1**，這裡**只放子集**（只含圖上會出現的字），授權檔各自一份。完整字型不進 repo。
 
 | 檔案 | 字型 | 用在哪 | 來源與版本 | 子集 | 授權 |
 | --- | --- | --- | --- | --- | --- |
-| `Fraunces-Soft600.subset.ttf` | Fraunces（SuperSoft SemiBold，opsz 9） | ASCII 與數字的小字（英文名、日期時間、時間軸日期、`duado.app/hongthai`） | [undercasetype/Fraunces](https://github.com/undercasetype/Fraunces) commit `7ccdec31`，`fonts/variable/Fraunces[SOFT,WONK,opsz,wght].ttf`，Version 1.003 | ASCII 可印字元 95 個＋`–—’“”·`，共 101 字，25 KB | `OFL-Fraunces.txt` |
-| `Fraunces-Soft600-Display.subset.ttf` | Fraunces（144pt SuperSoft SemiBold，opsz 144） | 只給 IATA 大字（HD4） | 同上 | 同上，101 字，25 KB | `OFL-Fraunces.txt`（共用） |
-| `Iansui-Regular.subset.ttf` | 芫荽 Iansui | 其他字（中文、全形標點） | [ButTaiwan/iansui](https://github.com/ButTaiwan/iansui) commit `9d9a8e68`，`fonts/ttf/Iansui-Regular.ttf`，Version 1.012 | 150 字，82 KB | `OFL-Iansui.txt` |
-| `NotoSansTC-Regular.subset.ttf` | Noto Sans TC（Regular） | 芫荽缺的字（備援） | [google/fonts](https://github.com/google/fonts/tree/main/ofl/notosanstc) commit `47d54ca1`，`ofl/notosanstc/NotoSansTC[wght].ttf`，Version 2.004 | 芫荽缺的字＋全形空白；2026-10-19 芫荽全都有，所以只有全形空白 1 字，3 KB | `OFL-NotoSansTC.txt` |
+| `SpaceGrotesk-Medium.subset.ttf` | Space Grotesk Medium（wght 500） | ASCII 與數字的小字（英文名、日期時間、時間軸日期、`duado.app/hongthai`、「Claude」「Gemini」） | [google/fonts](https://github.com/google/fonts/tree/main/ofl/spacegrotesk) commit `47d54ca1`，`ofl/spacegrotesk/SpaceGrotesk[wght].ttf`，Version 2.000 | ASCII 可印字元 95 個，19 KB | `OFL-SpaceGrotesk.txt` |
+| `SpaceGrotesk-Bold.subset.ttf` | Space Grotesk Bold（wght 700） | 只給 IATA 大字 | 同上 | 同上，95 字，19 KB | `OFL-SpaceGrotesk.txt`（共用） |
+| `NotoSansTC-Regular.subset.ttf` | Noto Sans TC Regular（wght 400） | 中文小字（燈號小字、標籤、更新時間、「風颱」） | [google/fonts](https://github.com/google/fonts/tree/main/ofl/notosanstc) commit `47d54ca1`，`ofl/notosanstc/NotoSansTC[wght].ttf`，Version 2.004 | 149 字，41 KB | `OFL-NotoSansTC.txt` |
+| `NotoSansTC-Bold.subset.ttf` | Noto Sans TC Bold（wght 700） | 機場名、燈號色塊裡的字 | 同上 | 同上，149 字，41 KB | `OFL-NotoSansTC.txt`（共用） |
 
-- Fraunces 是可變字型，用 fontTools `varLib.instancer` 固定 `SOFT` 100（最圓）、`wght` 600，產生兩個
-  靜態檔（產生的檔案一樣是 OFL）：小字用的 `opsz`、`WONK` 留預設（9、1）；IATA 大字用的 `opsz` 144
-  （大字專用的字形，`WONK` 一樣留預設）。Noto Sans TC 固定 `wght` 400
-- 程式逐字選字型：ASCII（含數字）→ Fraunces（IATA 大字用 opsz 144 那個，其他用 opsz 9 那個）；其他字芫荽子集有就用芫荽，沒有用 Noto（`og.font_key`）
+- 兩套都是可變字型，用 fontTools `varLib.instancer` 固定 `wght` 產生靜態檔（產生的檔案一樣是 OFL）
+- 程式逐字選字型（`og.font_key`）：ASCII（含數字）→ Space Grotesk，其他字 → Noto Sans TC；粗細看那一行
+  （IATA、機場名 zh-TW、燈號字用 Bold，其他用 Medium／Regular）
 - 子集涵蓋的字（`og.required_chars`）：`airports.json` 的機場名（zh-TW、en）與地區名（zh-TW）、
-  `og.TEXTS`（燈號、小字、更新時間、品牌字樣等固定字串，也先放了 AI 對決要用的「規則」「Claude」
-  「Gemini」「沒看到明顯風險」，HD8 加主因的「強風」「大雨」「大雪」「濃霧」）、`og.PUNCTUATION`（全形標點、`–`、`・`），以及全部 ASCII
-- Reserved Font Name：芫荽、Fraunces 沒有；Noto 的授權保留的是「Source」，子集的名稱不含這個字
+  `og.TEXTS`（燈號、小字、更新時間、「風颱」、`duado.app/hongthai` 等固定字串，也先放了 AI 對決要用的「規則」
+  「Claude」「Gemini」「沒看到明顯風險」，HD8 加主因的「強風」「大雨」「大雪」「濃霧」）、`og.PUNCTUATION`
+  （全形標點、`–`、`・`）裡不是 ASCII 的字放 Noto；Space Grotesk 只收 ASCII（`–`、`・` 這些走 Noto）
+- 字標「HongThai」**不用字檔**：照 Duado `site/hongthai/brand.ts` 的 `WORDMARK_PATH`（Space Grotesk Bold
+  轉成的外框，含字距調整）攤平成多邊形畫（`og._wordmark`），和網頁的字標一模一樣
+- Reserved Font Name：Space Grotesk 沒有；Noto 的授權保留的是「Source」，子集的名稱不含這個字
 
 ## 怎麼重做
 
@@ -28,6 +31,7 @@ pip install ".[dev]"
 python tools/make_font_subset.py
 ```
 
-腳本從上面三個 commit 下載完整字型（Fraunces 產兩個子集）到暫存目錄（不進 repo），取子集寫回這裡，印出每套的字數與大小、
-芫荽缺了哪些字靠 Noto 補。芫荽與 Noto 都沒有的字會報錯（回傳 1）。換字型版本時改腳本裡的 commit，
-再更新這份的表格。
+腳本從上面的 commit 下載兩套完整的可變字型（Space Grotesk 約 140 KB、Noto Sans TC 約 12 MB）到暫存目錄（不進 repo），
+先取子集再固定字重，各產兩個靜態檔寫回這裡，印出每個的字數與大小。Noto Sans TC 沒有的字會報錯（回傳 1）。
+換字型版本時改腳本裡的 commit，再更新這份的表格。授權檔 `OFL-SpaceGrotesk.txt` 是同一個 commit 的
+`ofl/spacegrotesk/OFL.txt`。
