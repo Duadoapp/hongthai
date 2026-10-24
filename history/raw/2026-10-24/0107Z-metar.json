@@ -1,0 +1,1373 @@
+[
+ {
+  "icaoId": "PGUM",
+  "receiptTime": "2026-10-24T01:06:23.765Z",
+  "obsTime": 1792803240,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 29.4,
+  "dewp": 25.6,
+  "wdir": 100,
+  "wspd": 11,
+  "wgst": 18,
+  "visib": "10+",
+  "altim": 1011.9,
+  "slp": 1011.1,
+  "qcField": 12,
+  "metarType": "METAR",
+  "rawOb": "METAR PGUM 240054Z 10011G18KT 10SM BKN016 BKN023 BKN028 29/26 A2988 RMK AO2 SLP111 T02940256 $",
+  "lat": 13.4796,
+  "lon": 144.7958,
+  "elev": 74,
+  "name": "Guam/Pat Intl, , GU",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "BKN",
+    "base": 1600
+   },
+   {
+    "cover": "BKN",
+    "base": 2300
+   },
+   {
+    "cover": "BKN",
+    "base": 2800
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "PTRO",
+  "receiptTime": "2026-10-24T01:10:11.837Z",
+  "obsTime": 1792803000,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 30,
+  "dewp": 26,
+  "wdir": 300,
+  "wspd": 5,
+  "visib": 5,
+  "altim": 1010.9,
+  "qcField": 0,
+  "wxString": "HZ",
+  "metarType": "METAR",
+  "rawOb": "METAR PTRO 240050Z 30005KT 5SM HZ SCT016CB BKN120 OVC300 30/26 A2985 RMK HZ ALQDS CB ALQDS",
+  "lat": 7.367,
+  "lon": 134.544,
+  "elev": 30,
+  "name": "Palau/Tmetochl Intl, KO, PW",
+  "cover": "OVC",
+  "clouds": [
+   {
+    "cover": "SCT",
+    "base": 1600
+   },
+   {
+    "cover": "BKN",
+    "base": 12000
+   },
+   {
+    "cover": "OVC",
+    "base": 30000
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "RCFN",
+  "receiptTime": "2026-10-24T01:06:38.672Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 32,
+  "dewp": 26,
+  "wdir": 90,
+  "wspd": 6,
+  "visib": "6+",
+  "altim": 995,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR RCFN 240100Z 09006KT 030V150 9999 FEW020 BKN300 32/26 Q0995 NOSIG RMK QFF 995.0HPA A2939",
+  "lat": 22.755,
+  "lon": 121.102,
+  "elev": 42,
+  "name": "Feng Nin Arpt, TT, TW",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 2000
+   },
+   {
+    "cover": "BKN",
+    "base": 30000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RCKH",
+  "receiptTime": "2026-10-24T01:06:38.290Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 26,
+  "dewp": 22,
+  "wdir": 330,
+  "wspd": 7,
+  "visib": "6+",
+  "altim": 1003,
+  "qcField": 16,
+  "wxString": "-RA",
+  "metarType": "METAR",
+  "rawOb": "METAR RCKH 240100Z 33007KT 260V030 9999 -RA SCT013 BKN020 OVC035 26/22 Q1003 NOSIG RMK 33011KT/R09 QFF 1003.4HPA A2963",
+  "lat": 22.577,
+  "lon": 120.35,
+  "elev": 6,
+  "name": "Kaohsiung Intl, KH, TW",
+  "cover": "OVC",
+  "clouds": [
+   {
+    "cover": "SCT",
+    "base": 1300
+   },
+   {
+    "cover": "BKN",
+    "base": 2000
+   },
+   {
+    "cover": "OVC",
+    "base": 3500
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "RCMQ",
+  "receiptTime": "2026-10-24T01:06:38.643Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 23,
+  "dewp": 23,
+  "wdir": 330,
+  "wspd": 2,
+  "visib": 0.99,
+  "altim": 1004,
+  "qcField": 16,
+  "wxString": "RA BR",
+  "metarType": "METAR",
+  "rawOb": "METAR RCMQ 240100Z 33002KT 1600 RA BR SCT004 BKN006 BKN016 23/23 Q1004 NOSIG RMK A2967 RA AMT 7.0MM",
+  "lat": 24.265,
+  "lon": 120.621,
+  "elev": 202,
+  "name": "Cingcyuangang Arpt, TX, TW",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "SCT",
+    "base": 400
+   },
+   {
+    "cover": "BKN",
+    "base": 600
+   },
+   {
+    "cover": "BKN",
+    "base": 1600
+   }
+  ],
+  "fltCat": "LIFR"
+ },
+ {
+  "icaoId": "RCNN",
+  "receiptTime": "2026-10-24T01:11:38.154Z",
+  "obsTime": 1792804200,
+  "reportTime": "2026-10-24T01:10:00.000Z",
+  "temp": 25,
+  "dewp": 22,
+  "wdir": 340,
+  "wspd": 10,
+  "visib": "6+",
+  "altim": 1003,
+  "qcField": 16,
+  "metarType": "SPECI",
+  "rawOb": "SPECI RCNN 240110Z 34010KT 9999 SCT008 BKN016 BKN025 25/22 Q1003 NOSIG RMK A2964",
+  "lat": 22.95,
+  "lon": 120.206,
+  "elev": 15,
+  "name": "Tainan, TN, TW",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "SCT",
+    "base": 800
+   },
+   {
+    "cover": "BKN",
+    "base": 1600
+   },
+   {
+    "cover": "BKN",
+    "base": 2500
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "RCQC",
+  "receiptTime": "2026-10-24T01:06:38.686Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 29,
+  "dewp": 22,
+  "wdir": 330,
+  "wspd": 9,
+  "visib": "6+",
+  "altim": 1004,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR RCQC 240100Z 33009KT 9999 FEW010 SCT020 BKN040 29/22 Q1004 NOSIG RMK A2965 QFF1004.1HPA",
+  "lat": 23.569,
+  "lon": 119.628,
+  "elev": 26,
+  "name": "Makung, PE, TW",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 1000
+   },
+   {
+    "cover": "SCT",
+    "base": 2000
+   },
+   {
+    "cover": "BKN",
+    "base": 4000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RCSS",
+  "receiptTime": "2026-10-24T01:06:38.629Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 24,
+  "dewp": 23,
+  "wdir": 280,
+  "wspd": 19,
+  "visib": 2.49,
+  "altim": 997,
+  "qcField": 16,
+  "wxString": "-SHRA",
+  "metarType": "METAR",
+  "rawOb": "METAR RCSS 240100Z 28019KT 4000 -SHRA FEW003 BKN006 OVC020 24/23 Q0997 WS R28 NOSIG RMK 29017KT/R10 QFF 997.6HPA A2946 RA AMT 2.8MM",
+  "lat": 25.069,
+  "lon": 121.552,
+  "elev": 8,
+  "name": "Taipei/Songshan Arpt, TP, TW",
+  "cover": "OVC",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 300
+   },
+   {
+    "cover": "BKN",
+    "base": 600
+   },
+   {
+    "cover": "OVC",
+    "base": 2000
+   }
+  ],
+  "fltCat": "IFR"
+ },
+ {
+  "icaoId": "RCTP",
+  "receiptTime": "2026-10-24T01:06:38.242Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 24,
+  "dewp": 23,
+  "wdir": 310,
+  "wspd": 17,
+  "wgst": 30,
+  "visib": 3.73,
+  "altim": 999,
+  "qcField": 16,
+  "wxString": "-RA",
+  "metarType": "METAR",
+  "rawOb": "METAR RCTP 240100Z 31017G30KT 280V340 6000 -RA SCT004 BKN008 OVC012 24/23 Q0999 WS ALL RWY NOSIG RMK QFF 999.6HPA A2952 RA AMT 0.2MM",
+  "lat": 25.078,
+  "lon": 121.233,
+  "elev": 33,
+  "name": "Taipei/Taoyuan Arpt, TA, TW",
+  "cover": "OVC",
+  "clouds": [
+   {
+    "cover": "SCT",
+    "base": 400
+   },
+   {
+    "cover": "BKN",
+    "base": 800
+   },
+   {
+    "cover": "OVC",
+    "base": 1200
+   }
+  ],
+  "fltCat": "IFR"
+ },
+ {
+  "icaoId": "RJAA",
+  "receiptTime": "2026-10-24T01:05:34.486Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 18,
+  "dewp": 16,
+  "wdir": 310,
+  "wspd": 4,
+  "visib": "6+",
+  "altim": 1024,
+  "qcField": 16,
+  "wxString": "-SHRA",
+  "metarType": "METAR",
+  "rawOb": "METAR RJAA 240100Z 31004KT 270V350 9999 -SHRA FEW005 SCT100 BKN130 18/16 Q1024 NOSIG",
+  "lat": 35.765,
+  "lon": 140.386,
+  "elev": 36,
+  "name": "Narita Intl, 12, JP",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 500
+   },
+   {
+    "cover": "SCT",
+    "base": 10000
+   },
+   {
+    "cover": "BKN",
+    "base": 13000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RJBB",
+  "receiptTime": "2026-10-24T01:07:03.720Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 21,
+  "dewp": 20,
+  "wdir": 60,
+  "wspd": 13,
+  "visib": 4.35,
+  "altim": 1019,
+  "qcField": 0,
+  "wxString": "-SHRA BR",
+  "metarType": "METAR",
+  "rawOb": "METAR RJBB 240100Z 06013KT 7000 -SHRA BR FEW002 SCT008 BKN015 21/20 Q1019 TEMPO 4000 -SHRA BR FEW003 BKN008 BKN015",
+  "lat": 34.434,
+  "lon": 135.233,
+  "elev": 8,
+  "name": "Osaka/Kansai Intl, 28, JP",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 200
+   },
+   {
+    "cover": "SCT",
+    "base": 800
+   },
+   {
+    "cover": "BKN",
+    "base": 1500
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "RJCC",
+  "receiptTime": "2026-10-24T01:05:34.683Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 12,
+  "dewp": 9,
+  "wdir": 140,
+  "wspd": 7,
+  "visib": "6+",
+  "altim": 1021,
+  "qcField": 0,
+  "metarType": "METAR",
+  "rawOb": "METAR RJCC 240100Z 14007KT 9999 FEW025 SCT130 BKN150 12/09 Q1021",
+  "lat": 42.774,
+  "lon": 141.693,
+  "elev": 19,
+  "name": "Sapporo/Chitose Arpt, 1, JP",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 2500
+   },
+   {
+    "cover": "SCT",
+    "base": 13000
+   },
+   {
+    "cover": "BKN",
+    "base": 15000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RJFF",
+  "receiptTime": "2026-10-24T01:07:03.741Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 21,
+  "dewp": 20,
+  "wdir": "VRB",
+  "wspd": 2,
+  "visib": "6+",
+  "altim": 1014,
+  "qcField": 0,
+  "metarType": "METAR",
+  "rawOb": "METAR RJFF 240100Z VRB02KT 9999 FEW002 BKN130 OVC160 21/20 Q1014 BECMG 12008KT",
+  "lat": 33.584,
+  "lon": 130.452,
+  "elev": 7,
+  "name": "Fukuoka Arpt, 40, JP",
+  "cover": "OVC",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 200
+   },
+   {
+    "cover": "BKN",
+    "base": 13000
+   },
+   {
+    "cover": "OVC",
+    "base": 16000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RJFK",
+  "receiptTime": "2026-10-24T01:07:03.782Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 26,
+  "dewp": 23,
+  "wdir": 120,
+  "wspd": 6,
+  "visib": "6+",
+  "altim": 1016,
+  "qcField": 0,
+  "metarType": "METAR",
+  "rawOb": "METAR RJFK 240100Z 12006KT 9999 FEW010 BKN015 BKN/// 26/23 Q1016",
+  "lat": 31.803,
+  "lon": 130.719,
+  "elev": 271,
+  "name": "Kagoshima Arpt, 46, JP",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 1000
+   },
+   {
+    "cover": "BKN",
+    "base": 1500
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "RJGG",
+  "receiptTime": "2026-10-24T01:07:03.770Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 19,
+  "dewp": 18,
+  "wdir": 70,
+  "wspd": 9,
+  "visib": 4.97,
+  "altim": 1021,
+  "qcField": 0,
+  "wxString": "-SHRA",
+  "metarType": "METAR",
+  "rawOb": "METAR RJGG 240100Z 07009KT 8000 -SHRA FEW010 SCT020 BKN050 19/18 Q1021 BECMG 09010KT TEMPO TL0200 4000 SHRA BR FEW003 BKN008",
+  "lat": 34.858,
+  "lon": 136.805,
+  "elev": 5,
+  "name": "Nagoya/Chubu Intl, 23, JP",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 1000
+   },
+   {
+    "cover": "SCT",
+    "base": 2000
+   },
+   {
+    "cover": "BKN",
+    "base": 5000
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "RJSS",
+  "receiptTime": "2026-10-24T01:05:40.152Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 16,
+  "dewp": 13,
+  "wdir": 20,
+  "wspd": 3,
+  "visib": "6+",
+  "altim": 1023,
+  "qcField": 0,
+  "wxString": "-RA",
+  "metarType": "METAR",
+  "rawOb": "METAR RJSS 240100Z 02003KT 300V070 9999 -RA FEW015 SCT030 BKN130 16/13 Q1023",
+  "lat": 38.14,
+  "lon": 140.917,
+  "elev": 5,
+  "name": "Sendai Arpt, 4, JP",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 1500
+   },
+   {
+    "cover": "SCT",
+    "base": 3000
+   },
+   {
+    "cover": "BKN",
+    "base": 13000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RJTT",
+  "receiptTime": "2026-10-24T01:05:38.914Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 18,
+  "dewp": 15,
+  "wdir": 340,
+  "wspd": 6,
+  "visib": "6+",
+  "altim": 1024,
+  "qcField": 16,
+  "wxString": "-SHRA",
+  "metarType": "METAR",
+  "rawOb": "METAR RJTT 240100Z 34006KT 9999 -SHRA FEW030 BKN070 18/15 Q1024 NOSIG",
+  "lat": 35.553,
+  "lon": 139.781,
+  "elev": 5,
+  "name": "Tokyo/Haneda Intl, 13, JP",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 3000
+   },
+   {
+    "cover": "BKN",
+    "base": 7000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RKPC",
+  "receiptTime": "2026-10-24T01:04:32.598Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 20,
+  "dewp": 18,
+  "wdir": 120,
+  "wspd": 12,
+  "visib": 4.97,
+  "altim": 1016,
+  "qcField": 16,
+  "wxString": "-RA",
+  "metarType": "METAR",
+  "rawOb": "METAR RKPC 240100Z 12012KT 8000 -RA FEW015 BKN030 OVC080 20/18 Q1016 NOSIG",
+  "lat": 33.511,
+  "lon": 126.493,
+  "elev": 23,
+  "name": "Jeju Intl, 49, KR",
+  "cover": "OVC",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 1500
+   },
+   {
+    "cover": "BKN",
+    "base": 3000
+   },
+   {
+    "cover": "OVC",
+    "base": 8000
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "RKPK",
+  "receiptTime": "2026-10-24T01:04:32.624Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 17,
+  "dewp": 16,
+  "wdir": 320,
+  "wspd": 7,
+  "visib": 2.98,
+  "altim": 1018,
+  "qcField": 0,
+  "wxString": "-RA BR",
+  "metarType": "METAR",
+  "rawOb": "METAR RKPK 240100Z 32007KT 4800 -RA BR FEW005 BKN020 OVC100 17/16 Q1018",
+  "lat": 35.179,
+  "lon": 128.938,
+  "elev": 3,
+  "name": "Busan/Gimhae Intl, 48, KR",
+  "cover": "OVC",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 500
+   },
+   {
+    "cover": "BKN",
+    "base": 2000
+   },
+   {
+    "cover": "OVC",
+    "base": 10000
+   }
+  ],
+  "fltCat": "IFR"
+ },
+ {
+  "icaoId": "RKSI",
+  "receiptTime": "2026-10-24T01:04:32.548Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 16,
+  "dewp": 13,
+  "wdir": 30,
+  "wspd": 5,
+  "visib": "6+",
+  "altim": 1019,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR RKSI 240100Z 03005KT CAVOK 16/13 Q1019 NOSIG",
+  "lat": 37.469,
+  "lon": 126.451,
+  "elev": 7,
+  "name": "Seoul/Incheon Intl, 28, KR",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RKSS",
+  "receiptTime": "2026-10-24T01:04:32.574Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 15,
+  "dewp": 15,
+  "wdir": 50,
+  "wspd": 2,
+  "visib": "6+",
+  "altim": 1019,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR RKSS 240100Z 05002KT CAVOK 15/15 Q1019 NOSIG",
+  "lat": 37.558,
+  "lon": 126.791,
+  "elev": 18,
+  "name": "Seoul/Gimpo Intl, 41, KR",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ROAH",
+  "receiptTime": "2026-10-24T01:06:48.261Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 29,
+  "dewp": 27,
+  "wdir": 140,
+  "wspd": 25,
+  "wgst": 35,
+  "visib": "6+",
+  "altim": 1008,
+  "qcField": 0,
+  "wxString": "VCSH",
+  "metarType": "METAR",
+  "rawOb": "METAR ROAH 240100Z 14025G35KT 9999 VCSH FEW014 SCT018 FEW025TCU BKN/// 29/27 Q1008",
+  "lat": 26.196,
+  "lon": 127.646,
+  "elev": 6,
+  "name": "Naha Arpt, 47, JP",
+  "cover": "FEW",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 1400
+   },
+   {
+    "cover": "SCT",
+    "base": 1800
+   },
+   {
+    "cover": "FEW",
+    "base": 2500
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ROIG",
+  "receiptTime": "2026-10-24T01:07:02.351Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 26,
+  "dewp": 25,
+  "wdir": 180,
+  "wspd": 35,
+  "wgst": 60,
+  "visib": 1.24,
+  "altim": 996,
+  "qcField": 0,
+  "wxString": "SHRA BR",
+  "metarType": "METAR",
+  "rawOb": "METAR ROIG 240100Z 18035G60KT 2000 R04/1100VP2000U SHRA BR FEW005 BKN015 BKN022 26/25 Q0996",
+  "lat": 24.395,
+  "lon": 124.245,
+  "elev": 37,
+  "name": "Ishigaki Arpt, 47, JP",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 500
+   },
+   {
+    "cover": "BKN",
+    "base": 1500
+   },
+   {
+    "cover": "BKN",
+    "base": 2200
+   }
+  ],
+  "fltCat": "IFR"
+ },
+ {
+  "icaoId": "ROMY",
+  "receiptTime": "2026-10-24T01:05:39.014Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 27,
+  "dewp": 25,
+  "wdir": 160,
+  "wspd": 32,
+  "wgst": 43,
+  "visib": 4.35,
+  "altim": 1001,
+  "qcField": 0,
+  "wxString": "-SHRA",
+  "metarType": "METAR",
+  "rawOb": "METAR ROMY 240100Z 16032G43KT 7000 -SHRA SCT014 BKN070 27/25 Q1001",
+  "lat": 24.782,
+  "lon": 125.295,
+  "elev": 42,
+  "name": "Miyakojima/Miyako Arpt, 47, JP",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "SCT",
+    "base": 1400
+   },
+   {
+    "cover": "BKN",
+    "base": 7000
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "RPLC",
+  "receiptTime": "2026-10-24T01:06:38.334Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 28,
+  "dewp": 24,
+  "wdir": 20,
+  "wspd": 2,
+  "visib": 5.59,
+  "altim": 1010,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR RPLC 240100Z 02002KT 9000 FEW020 BKN100 28/24 Q1010 NOSIG RMK A2983",
+  "lat": 15.186,
+  "lon": 120.56,
+  "elev": 138,
+  "name": "Angeles City/Clark Intl, BA, PH",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 2000
+   },
+   {
+    "cover": "BKN",
+    "base": 10000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RPLL",
+  "receiptTime": "2026-10-24T01:06:38.306Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 30,
+  "dewp": 26,
+  "wdir": 260,
+  "wspd": 10,
+  "visib": 5.59,
+  "altim": 1009,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR RPLL 240100Z 26010KT 230V290 9000 FEW025 30/26 Q1009 NOSIG RMK A2980",
+  "lat": 14.507,
+  "lon": 121.004,
+  "elev": 15,
+  "name": "Manila/Aquino Intl, NC, PH",
+  "cover": "FEW",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 2500
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "RPVM",
+  "receiptTime": "2026-10-24T01:06:38.320Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 32,
+  "dewp": 26,
+  "wdir": "VRB",
+  "wspd": 2,
+  "visib": "6+",
+  "altim": 1010,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR RPVM 240100Z VRB02KT 9999 FEW018CB 32/26 Q1010 NOSIG RMK A2983 CB W/NW",
+  "lat": 10.308,
+  "lon": 123.978,
+  "elev": 9,
+  "name": "Mactan-Cebu Intl, CE, PH",
+  "cover": "FEW",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 1800
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "VHHH",
+  "receiptTime": "2026-10-24T01:01:22.775Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 26,
+  "dewp": 15,
+  "wdir": 340,
+  "wspd": 11,
+  "visib": "6+",
+  "altim": 1009,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR VHHH 240100Z 34011KT CAVOK 26/15 Q1009 NOSIG",
+  "lat": 22.309,
+  "lon": 113.922,
+  "elev": 9,
+  "name": "Hong Kong Intl, HK, HK",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "VMMC",
+  "receiptTime": "2026-10-24T01:06:38.173Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 27,
+  "dewp": 16,
+  "wdir": 340,
+  "wspd": 14,
+  "visib": "6+",
+  "altim": 1009,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR VMMC 240100Z 34014KT CAVOK 27/16 Q1009 NOSIG",
+  "lat": 22.141,
+  "lon": 113.596,
+  "elev": 1,
+  "name": "Macao Intl, MO, MO",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "VVCR",
+  "receiptTime": "2026-10-24T01:05:30.596Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 28,
+  "dewp": 23,
+  "wdir": 280,
+  "wspd": 4,
+  "visib": "6+",
+  "altim": 1011,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR VVCR 240100Z 28004KT CAVOK 28/23 Q1011 NOSIG",
+  "lat": 11.998,
+  "lon": 109.219,
+  "elev": 12,
+  "name": "Cam Ranh Intl, BR, VN",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "VVDN",
+  "receiptTime": "2026-10-24T01:05:30.650Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 27,
+  "dewp": 22,
+  "wdir": "VRB",
+  "wspd": 2,
+  "visib": "6+",
+  "altim": 1010,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR VVDN 240100Z VRB02KT CAVOK 27/22 Q1010 NOSIG",
+  "lat": 16.044,
+  "lon": 108.199,
+  "elev": 7,
+  "name": "Da Nang Intl, DN, VN",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "VVPQ",
+  "receiptTime": "2026-10-24T01:05:30.716Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 28,
+  "dewp": 26,
+  "wdir": "VRB",
+  "wspd": 1,
+  "visib": "6+",
+  "altim": 1010,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR VVPQ 240100Z VRB01KT 9999 FEW015 28/26 Q1010 NOSIG",
+  "lat": 10.169,
+  "lon": 103.995,
+  "elev": 8,
+  "name": "Phu Quoc Arpt, 40, VN",
+  "cover": "FEW",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 1500
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "VVTS",
+  "receiptTime": "2026-10-24T01:05:30.741Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 29,
+  "dewp": 26,
+  "wdir": 0,
+  "wspd": 0,
+  "visib": "6+",
+  "altim": 1010,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR VVTS 240100Z 00000KT 9999 SCT019 29/26 Q1010 NOSIG",
+  "lat": 10.817,
+  "lon": 106.667,
+  "elev": 10,
+  "name": "Ho Chi Minh/Nhat Intl, 23, VN",
+  "cover": "SCT",
+  "clouds": [
+   {
+    "cover": "SCT",
+    "base": 1900
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ZGGG",
+  "receiptTime": "2026-10-24T01:05:22.946Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 24,
+  "dewp": 17,
+  "wdir": 340,
+  "wspd": 10,
+  "visib": "6+",
+  "altim": 1011,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR ZGGG 240100Z 34005MPS 310V010 CAVOK 24/17 Q1011 NOSIG",
+  "lat": 23.392,
+  "lon": 113.307,
+  "elev": 11,
+  "name": "Guangzhou/Baiyun Intl, GD, CN",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ZGOW",
+  "receiptTime": "2026-10-24T01:06:42.383Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 26,
+  "dewp": 16,
+  "wdir": 10,
+  "wspd": 6,
+  "visib": "6+",
+  "altim": 1006,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR ZGOW 240100Z 01003MPS 300V060 CAVOK 26/16 Q1006 NOSIG",
+  "lat": 23.55,
+  "lon": 116.505,
+  "elev": 4,
+  "name": "Jieyang/Chaoshan Intl, GD, CN",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ZGSZ",
+  "receiptTime": "2026-10-24T01:06:42.425Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 26,
+  "dewp": 15,
+  "wdir": 340,
+  "wspd": 12,
+  "visib": "6+",
+  "altim": 1009,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR ZGSZ 240100Z 34006MPS CAVOK 26/15 Q1009 NOSIG",
+  "lat": 22.639,
+  "lon": 113.803,
+  "elev": 18,
+  "name": "Shenzhen/Boan Intl, GD, CN",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ZJHK",
+  "receiptTime": "2026-10-24T01:06:43.957Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 27,
+  "dewp": 25,
+  "wdir": 280,
+  "wspd": 4,
+  "visib": 4.35,
+  "altim": 1010,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR ZJHK 240100Z 28002MPS 7000 FEW023 27/25 Q1010 NOSIG",
+  "lat": 19.934,
+  "lon": 110.445,
+  "elev": 21,
+  "name": "Haikou/Meilan Intl, HI, CN",
+  "cover": "FEW",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 2300
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "ZJSY",
+  "receiptTime": "2026-10-24T01:06:43.998Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 29,
+  "dewp": 24,
+  "wdir": 300,
+  "wspd": 6,
+  "visib": "6+",
+  "altim": 1009,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR ZJSY 240100Z 30003MPS 270V360 CAVOK 29/24 Q1009 NOSIG",
+  "lat": 18.303,
+  "lon": 109.412,
+  "elev": 27,
+  "name": "Sanya/Phoenix Intl, HN, CN",
+  "cover": "CAVOK",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ZSAM",
+  "receiptTime": "2026-10-24T01:06:42.550Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 29,
+  "dewp": 19,
+  "wdir": 270,
+  "wspd": 8,
+  "visib": "6+",
+  "altim": 1004,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR ZSAM 240100Z 27004MPS 240V310 9999 FEW060 29/19 Q1004 NOSIG",
+  "lat": 24.546,
+  "lon": 118.131,
+  "elev": 13,
+  "name": "Xiamen-Gaoqi Intl, FJ, CN",
+  "cover": "FEW",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 6000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ZSFZ",
+  "receiptTime": "2026-10-24T01:06:42.593Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 27,
+  "dewp": 19,
+  "wdir": 320,
+  "wspd": 10,
+  "wgst": 19,
+  "visib": "6+",
+  "altim": 1003,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR ZSFZ 240100Z 32005G10MPS 290V360 9999 BKN040 27/19 Q1003 NOSIG",
+  "lat": 25.936,
+  "lon": 119.666,
+  "elev": 14,
+  "name": "Fuzhou/Changle Intl, FJ, CN",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "BKN",
+    "base": 4000
+   }
+  ],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ZSHC",
+  "receiptTime": "2026-10-24T01:05:22.968Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 18,
+  "dewp": 17,
+  "wdir": 340,
+  "wspd": 10,
+  "visib": 4.97,
+  "altim": 1014,
+  "qcField": 16,
+  "wxString": "-SHRA",
+  "metarType": "METAR",
+  "rawOb": "METAR ZSHC 240100Z 34005MPS 8000 -SHRA SCT006 BKN020 FEW026TCU 18/17 Q1014 NOSIG",
+  "lat": 30.229,
+  "lon": 120.434,
+  "elev": 8,
+  "name": "Hangzhou/Xiaoshan Intl, ZJ, CN",
+  "cover": "FEW",
+  "clouds": [
+   {
+    "cover": "SCT",
+    "base": 600
+   },
+   {
+    "cover": "BKN",
+    "base": 2000
+   },
+   {
+    "cover": "FEW",
+    "base": 2600
+   }
+  ],
+  "fltCat": "MVFR"
+ },
+ {
+  "icaoId": "ZSNB",
+  "receiptTime": "2026-10-24T01:06:42.633Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 21,
+  "dewp": 19,
+  "wdir": 20,
+  "wspd": 12,
+  "wgst": 21,
+  "visib": 2.49,
+  "altim": 1012,
+  "qcField": 0,
+  "wxString": "-SHRA BR",
+  "metarType": "METAR",
+  "rawOb": "METAR ZSNB 240100Z 02006G11MPS 340V050 4000 -SHRA BR SCT005 BKN016 21/19 Q1012 BECMG TL0130 SHRA",
+  "lat": 29.827,
+  "lon": 121.462,
+  "elev": 5,
+  "name": "Ningbo/Lishe Intl, ZJ, CN",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "SCT",
+    "base": 500
+   },
+   {
+    "cover": "BKN",
+    "base": 1600
+   }
+  ],
+  "fltCat": "IFR"
+ },
+ {
+  "icaoId": "ZSPD",
+  "receiptTime": "2026-10-24T01:05:22.997Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 21,
+  "dewp": 21,
+  "wdir": 70,
+  "wspd": 16,
+  "visib": "6+",
+  "altim": 1013,
+  "qcField": 16,
+  "wxString": "-SHRA",
+  "metarType": "METAR",
+  "rawOb": "METAR ZSPD 240100Z 07008MPS 010V090 9999 -SHRA NSC 21/21 Q1013 NOSIG",
+  "lat": 31.146,
+  "lon": 121.8,
+  "elev": 4,
+  "name": "Shanghai/Pudong Intl, SH, CN",
+  "cover": "CLR",
+  "clouds": [],
+  "fltCat": "VFR"
+ },
+ {
+  "icaoId": "ZSSS",
+  "receiptTime": "2026-10-24T01:05:23.024Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 19,
+  "dewp": 18,
+  "wdir": 20,
+  "wspd": 8,
+  "visib": 4.35,
+  "altim": 1014,
+  "qcField": 16,
+  "wxString": "-SHRA",
+  "metarType": "METAR",
+  "rawOb": "METAR ZSSS 240100Z 02004MPS 7000 -SHRA BKN005 19/18 Q1014 NOSIG",
+  "lat": 31.209,
+  "lon": 121.337,
+  "elev": 2,
+  "name": "Shanghai/Hongqiao Intl, SH, CN",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "BKN",
+    "base": 500
+   }
+  ],
+  "fltCat": "IFR"
+ },
+ {
+  "icaoId": "VVNB",
+  "receiptTime": "2026-10-24T01:05:30.673Z",
+  "obsTime": 1792803600,
+  "reportTime": "2026-10-24T01:00:00.000Z",
+  "temp": 28,
+  "dewp": 25,
+  "wdir": 110,
+  "wspd": 6,
+  "visib": "6+",
+  "altim": 1009,
+  "qcField": 16,
+  "metarType": "METAR",
+  "rawOb": "METAR VVNB 240100Z 11006KT 080V140 9999 FEW015 BKN081 BKN093 28/25 Q1009 NOSIG",
+  "lat": 21.218,
+  "lon": 105.805,
+  "elev": 6,
+  "name": "Hanoi/Noi Bai Intl, HI, VN",
+  "cover": "BKN",
+  "clouds": [
+   {
+    "cover": "FEW",
+    "base": 1500
+   },
+   {
+    "cover": "BKN",
+    "base": 8100
+   },
+   {
+    "cover": "BKN",
+    "base": 9300
+   }
+  ],
+  "fltCat": "VFR"
+ }
+]
