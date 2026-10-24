@@ -1,0 +1,201 @@
+{
+ "success": "true",
+ "result": {
+  "resource_id": "W-C0034-005",
+  "fields": []
+ },
+ "records": {
+  "identifier": "2026-10-25T02:50:00+08:00",
+  "tropicalCyclones": {
+   "tropicalCyclone": [
+    {
+     "year": "2026",
+     "typhoonName": "CHAMPI",
+     "cwaTyphoonName": "薔琵",
+     "cwaTdNo": "28",
+     "cwaTyNo": "30",
+     "analysisData": {
+      "fix": [
+       {
+        "fixTime": "2026-10-24T20:00:00+08:00",
+        "coordinate": "123.2,27.4",
+        "maxWindSpeed": "25",
+        "maxGustSpeed": "33",
+        "pressure": "990",
+        "circleOf15Ms": {
+         "radius": "280"
+        },
+        "circleOf25Ms": {
+         "radius": "-99"
+        }
+       },
+       {
+        "fixTime": "2026-10-24T14:00:00+08:00",
+        "coordinate": "123.3,26.4",
+        "maxWindSpeed": "25",
+        "maxGustSpeed": "33",
+        "pressure": "990",
+        "circleOf15Ms": {
+         "radius": "300"
+        },
+        "circleOf25Ms": {
+         "radius": "80"
+        }
+       },
+       {
+        "fixTime": "2026-10-25T02:00:00+08:00",
+        "coordinate": "123.5,27.9",
+        "maxWindSpeed": "25",
+        "maxGustSpeed": "33",
+        "pressure": "990",
+        "circleOf15Ms": {
+         "radius": "250"
+        },
+        "circleOf25Ms": {
+         "radius": "-99"
+        },
+        "movingSpeed": "20",
+        "movingDirection": "NNE",
+        "movingPrediction": [
+         {
+          "value": "以每小時20公里速度，向北北東進行",
+          "lang": "zh-TW"
+         },
+         {
+          "value": "NNE 20 KM/HR",
+          "lang": "en-US"
+         }
+        ]
+       }
+      ]
+     },
+     "forecastData": {
+      "fix": [
+       {
+        "initTime": "2026-10-25T02:00:00+08:00",
+        "tau": "24",
+        "coordinate": "126.6,31.3",
+        "maxWindSpeed": "23",
+        "maxGustSpeed": "30",
+        "pressure": "992",
+        "movingSpeed": "20",
+        "movingDirection": "NNE",
+        "circleOf15Ms": {
+         "radius": "180"
+        },
+        "circleOf25Ms": {
+         "radius": "-99"
+        },
+        "radiusOf70PercentProbability": "100"
+       },
+       {
+        "initTime": "2026-10-25T02:00:00+08:00",
+        "tau": "12",
+        "coordinate": "124.9,29.8",
+        "maxWindSpeed": "23",
+        "maxGustSpeed": "30",
+        "pressure": "992",
+        "movingSpeed": "20",
+        "movingDirection": "NNE",
+        "circleOf15Ms": {
+         "radius": "200"
+        },
+        "circleOf25Ms": {
+         "radius": "-99"
+        },
+        "radiusOf70PercentProbability": "60"
+       },
+       {
+        "initTime": "2026-10-25T02:00:00+08:00",
+        "tau": "36",
+        "coordinate": "129.5,32.2",
+        "maxWindSpeed": "23",
+        "maxGustSpeed": "30",
+        "pressure": "992",
+        "movingSpeed": "20",
+        "movingDirection": "NNE",
+        "circleOf15Ms": {
+         "radius": "-99"
+        },
+        "circleOf25Ms": {
+         "radius": "-99"
+        },
+        "radiusOf70PercentProbability": "150",
+        "stateTransfer": [
+         {
+          "value": "變性為溫帶氣旋",
+          "lang": "zh-TW"
+         },
+         {
+          "value": "BECOMING EXTRATROPICAL CYCLONE",
+          "lang": "en-US"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "year": "2026",
+     "typhoonName": "IN-FA",
+     "cwaTyphoonName": "煙花",
+     "cwaTdNo": "29",
+     "cwaTyNo": "31",
+     "analysisData": {
+      "fix": {
+       "fixTime": "2026-10-25T02:00:00+08:00",
+       "coordinate": "165.3,10.9",
+       "maxWindSpeed": "25",
+       "maxGustSpeed": "33",
+       "pressure": "990",
+       "circleOf15Ms": {
+        "radius": "200"
+       },
+       "circleOf25Ms": {
+        "radius": "-99"
+       }
+      }
+     },
+     "forecastData": {
+      "fix": [
+       {
+        "initTime": "2026-10-25T02:00:00+08:00",
+        "tau": "24",
+        "coordinate": "164.8,13.2",
+        "maxWindSpeed": "23",
+        "maxGustSpeed": "30",
+        "pressure": "992",
+        "movingSpeed": "20",
+        "movingDirection": "NNE",
+        "circleOf15Ms": {
+         "radius": "200"
+        },
+        "circleOf25Ms": {
+         "radius": "-99"
+        },
+        "radiusOf70PercentProbability": "110"
+       },
+       {
+        "initTime": "2026-10-25T02:00:00+08:00",
+        "tau": "48",
+        "coordinate": "165.4,14.7",
+        "maxWindSpeed": "23",
+        "maxGustSpeed": "30",
+        "pressure": "992",
+        "movingSpeed": "20",
+        "movingDirection": "NNE",
+        "circleOf15Ms": {
+         "radius": "250"
+        },
+        "circleOf25Ms": {
+         "radius": "-99"
+        },
+        "radiusOf70PercentProbability": "210"
+       }
+      ]
+     }
+    }
+   ]
+  }
+ }
+}
