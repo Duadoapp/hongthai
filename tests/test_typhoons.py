@@ -235,13 +235,15 @@ def test_build_selects_cwa_and_jma_only(cwa, jma):
     assert doc["active"] is True
     assert doc["bounds"] == typhoons.BOUNDS
     assert doc["sources"] == {"cwa": {"ok": True}, "jma": {"ok": True}}
-    # 29W 兩邊都有 → 只放氣象署那份、others 記 JMA；TD 只有 JMA → 用 JMA；In-fa 範圍外
+    # 29W 進過台灣附近 → 只放氣象署那份、others 記 JMA；TD 只有 JMA → 用 JMA
     assert [(s["id"], s["source"]) for s in doc["storms"]] == [
         ("2630", "cwa"),
         ("jma-TC2638", "jma"),
     ]
-    assert doc["outOfRange"] == [{"id": "2631", "source": "cwa"}]
+    # In-fa 從沒進過台灣附近 → 日本氣象廳那份（範圍外）
+    assert doc["outOfRange"] == [{"id": "2631", "source": "jma"}]
     champi, td = doc["storms"]
+    assert (champi["sourceId"], td["sourceId"]) == ("ty30", "TC2638")
     assert champi["name"] == {"zh-TW": "薔琵", "zh-HK": "薔琵", "zh-CN": "Champi", "en": "Champi"}
     assert champi["url"] == typhoon.CWA_PAGE and champi["issuedAt"] == "2026-10-24T18:00:00Z"
     assert champi["others"] == [
@@ -376,3 +378,129 @@ def test_read_previous(tmp_path):
     assert typhoons.read_previous(tmp_path) is None
     (tmp_path / typhoons.FILENAME).write_text('{"storms": []}', "utf-8")
     assert typhoons.read_previous(tmp_path) == {"storms": []}
+
+
+# ---- 以颱風為單位分來源（Shawn 2026-10-25：台灣附近 TAIWAN_NEAR，中途不換）----
+
+T0 = "2026-10-24T18:00:00Z"
+ISSUED = utc(2026, 10, 24, 18)
+
+
+def _pt(lat, lon, t=None):
+    return {"time": t, "lat": lat, "lon": lon}
+
+
+def _pair(past, now, issued=ISSUED):
+    """同一顆（編號 2640）的氣象署與 JMA 兩份；`past`／`now` 是 (緯, 經)。"""
+
+    def one(source, key):
+        n = {**_pt(*now, T0), "radius15": [], "radius25": []}
+        pts = [_pt(lat, lon) for lat, lon in past] + [_pt(*now, T0)]
+        return Storm(source, key, "2640", "", "Test", issued, pts, n, [])
+
+    return one("cwa", "ty40"), one("jma", "TC2644")
+
+
+def _doc(c, j, previous=None, now=NOW, status=OK):
+    return typhoons.build(
+        None if c is False else TyphoonData([c] if c else [], {}),
+        None if j is False else TyphoonData([j] if j else [], {}),
+        status,
+        now,
+        previous,
+    )
+
+
+def _src(doc):
+    return [(s["id"], s["source"]) for s in doc["storms"]]
+
+
+def test_taiwan_near_constant():
+    assert typhoons.TAIWAN_NEAR == {"south": 18, "north": 30, "west": 112, "east": 130}
+    c, _ = _pair([(15.0, 140.0)], (18.0, 130.0))  # 邊上算
+    assert typhoons.near_taiwan(c)
+    c, _ = _pair([(15.0, 140.0)], (17.9, 130.0))
+    assert not typhoons.near_taiwan(c)
+    c.forecast = [{"lat": 22.0, "lon": 125.0}]  # 預報點不算
+    assert not typhoons.near_taiwan(c)
+
+
+def test_never_near_taiwan_uses_jma():
+    c, j = _pair([(14.0, 140.0), (16.0, 136.0)], (18.0, 133.0))
+    doc = _doc(c, j)
+    assert _src(doc) == [("2640", "jma")]
+    assert doc["storms"][0]["others"][0]["source"] == "cwa"
+    assert doc["storms"][0]["sourceId"] == "TC2644"
+
+
+def test_entered_near_taiwan_uses_cwa_whole_life():
+    # 上一報還在外面（jma），這一報進了台灣附近 → 改用氣象署（只會 jma → cwa，不會反過來）
+    c, j = _pair([(14.0, 140.0)], (18.0, 133.0))
+    before = _doc(c, j)
+    assert _src(before) == [("2640", "jma")]
+    c, j = _pair([(14.0, 140.0), (18.0, 133.0)], (20.0, 129.5))
+    doc = _doc(c, j, before)
+    assert _src(doc) == [("2640", "cwa")]
+    assert doc["storms"][0]["others"][0] == {
+        "source": "jma",
+        "id": "TC2644",
+        "issuedAt": "2026-10-24T18:00:00Z",
+        "url": typhoon.JMA_PAGE,
+    }
+
+
+def test_left_near_taiwan_stays_cwa():
+    # 離開台灣附近：氣象署的過去路徑還有那一段 → 仍是 cwa
+    c, j = _pair([(20.0, 129.5), (28.0, 128.0)], (33.0, 135.0))
+    first = _doc(c, j)
+    assert _src(first) == [("2640", "cwa")]
+    # 就算這一報氣象署的過去路徑沒有那一段（判斷不出來），上一份是 cwa 就維持 cwa
+    c, j = _pair([(31.0, 131.0)], (34.0, 137.0))
+    assert not typhoons.near_taiwan(c)
+    assert _src(_doc(c, j, first)) == [("2640", "cwa")]
+    # 上一份是 jma 的照常判斷
+    assert _src(_doc(c, j, _doc(*_pair([(14.0, 140.0)], (18.0, 133.0))))) == [("2640", "jma")]
+
+
+def test_previous_cwa_but_cwa_missing_this_run():
+    """上一份是 cwa、這一報氣象署沒資料：沿用上一份那筆（stale 重算、記 reusedFrom），
+    不切回 jma。"""
+    c, j = _pair([(20.0, 129.5)], (24.0, 127.0))
+    first = _doc(c, j)
+    later = utc(2026, 10, 25, 7)
+    _, j2 = _pair([(20.0, 129.5), (24.0, 127.0)], (27.0, 126.0), utc(2026, 10, 25, 3))
+    # 1. 氣象署成功、但沒列這顆，日本氣象廳還有
+    doc = _doc(None, j2, first, later)
+    (s,) = doc["storms"]
+    assert (s["source"], s["sourceId"], s["now"]["lat"]) == ("cwa", "ty40", 24.0)
+    assert (s["reusedFrom"], s["stale"]) == (first["generatedAt"], True)
+    assert s["others"] == [
+        {
+            "source": "jma",
+            "id": "TC2644",
+            "issuedAt": "2026-10-25T03:00:00Z",
+            "url": typhoon.JMA_PAGE,
+        }
+    ]
+    # 再下一報還是沒有：reusedFrom 維持最早沿用的那份
+    assert _doc(None, j2, doc, later)["storms"][0]["reusedFrom"] == first["generatedAt"]
+    # 2. 氣象署整個失敗：日本氣象廳有或沒有都沿用
+    failed = {"cwaTyphoon": {"ok": False, "error": "timeout"}, "jmaTyphoon": {"ok": True}}
+    assert _src(_doc(False, j2, first, later, failed)) == [("2640", "cwa")]
+    assert _src(_doc(False, None, first, later, failed)) == [("2640", "cwa")]
+    # 3. 氣象署成功、兩邊都沒有這顆了 → 颱風結束，拿掉
+    gone = _doc(None, None, first, later)
+    assert (gone["active"], gone["storms"]) == (False, [])
+    # 4. 氣象署回來了 → 用這一報的
+    c3, j3 = _pair([(31.0, 131.0)], (34.0, 137.0), utc(2026, 10, 25, 6))
+    s3 = _doc(c3, j3, doc, later)["storms"][0]
+    assert (s3["source"], s3["issuedAt"], "reusedFrom" in s3) == (
+        "cwa",
+        "2026-10-25T06:00:00Z",
+        False,
+    )
+
+
+def test_cwa_only_never_near_taiwan_still_drawn():
+    c, _ = _pair([(14.0, 140.0)], (18.0, 133.0))
+    assert _src(_doc(c, None)) == [("2640", "cwa")]

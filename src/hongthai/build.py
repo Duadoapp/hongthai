@@ -1087,8 +1087,7 @@ def write_typhoons(
     """`--archive` 的 `typhoons.json`（HD34，`typhoons.build`；`publish()` 再複製到發布目錄）。
     失敗只 log，不讓 build 失敗、不動 `latest.json`。"""
     try:
-        prev = typhoons.read_previous(archive) if ct is None and jt is None else None
-        doc = typhoons.build(ct, jt, status, now, prev)
+        doc = typhoons.build(ct, jt, status, now, typhoons.read_previous(archive))
         _dump(archive / typhoons.FILENAME, doc, compact=True)
         log.info(
             "颱風地圖：範圍內 %d 顆 %s、範圍外 %s",

@@ -5,8 +5,19 @@
 分支根目錄也存一份，整個 build 失敗改發布上一份時一起發布）。網頁（Duado HW15）只在
 `active: true` 時畫地圖。
 
-- **選哪一份**：每顆熱帶氣旋，氣象署有就用氣象署，沒有才用日本氣象廳；兩邊都有時只放氣象署
-  那份，日本氣象廳那份記在 `others`（不畫兩條）。怎麼算同一顆（`same_storm`，照順序）：
+- **選哪一份**（Shawn 2026-10-25，`choose`）：**以颱風為單位、中途不換**。氣象署那份的過去路徑或
+  目前位置曾經落在「台灣附近」`TAIWAN_NEAR`（北緯 18–30、東經 112–130，和地圖框 `BOUNDS` 分開）
+  的，這顆整個生命期都用氣象署；從頭到尾沒進過的用日本氣象廳（WMO 西北太平洋區域專責氣象中心）。
+  沒用的那份記在 `others`（不畫兩條）。補充規則：
+  - **上一份 `typhoons.json` 這顆已經是 `cwa`** 的一律維持 `cwa`、不切回 `jma`：這一報氣象署有這顆
+    就用這一報的；這一報氣象署沒有這顆（氣象署整個失敗，或成功但沒列這顆而日本氣象廳還有）就沿用
+    上一份那筆（`stale` 照這一報的時間重算、記 `reusedFrom`，`others` 換成這一報日本氣象廳的）。
+    氣象署成功、兩邊都沒有這顆了才拿掉（颱風結束）
+  - 只有一邊有的：只有日本氣象廳有（例如氣象署失敗、上一份也不是 `cwa`）就用日本氣象廳；只有氣象署
+    有、從沒進過台灣附近（日本氣象廳沒發）就用氣象署——有官方資料就畫
+  - 怎麼找上一份的同一顆（`_previous_entry`）：`id` 相同，或上一份那筆的來源代號（`sourceId`）、
+    `others` 的代號和這一報任一邊的代號相同
+  怎麼算同一顆（`same_storm`，照順序）：
   1. 兩邊都有國際編號（氣象署 `year`＋`cwb_ty_no`、JMA `typhoonNumber`，例如 `2630`）：
      編號相同才算
   2. 兩邊都有英文名：名稱相同（不分大小寫、忽略非英數字，`IN-FA` ＝ `In-fa`）才算
@@ -17,18 +28,20 @@
   範圍外的不放進 `storms`，只在 `outOfRange` 記編號與來源
 - **資料舊**：`issuedAt` 早於產生時間 `STALE_HOURS`（12）小時就 `stale: true`
 - 兩個來源都失敗時沿用上一份的 `storms`（`stale` 照這一報的時間重算，另記 `reusedFrom`）；
-  沒有上一份就是 `active: false`、`storms: []`。只有一個失敗時照另一個出（氣象署失敗時，
-  台灣附近的颱風改用日本氣象廳那份）
+  沒有上一份就是 `active: false`、`storms: []`。只有一個失敗時照另一個出（上一份是 `cwa` 的照上面
+  的規則沿用）
 - 任何失敗只 log，不影響 `latest.json`（`build.write_typhoons`）
 
 格式（`schema` 1）：`{"schema", "generatedAt", "active",
 "bounds": {"south", "north", "west", "east"},
 "sources": {"cwa": {"ok"[, "error"]}, "jma": {"ok"[, "error"]}}, "storms": [...],
 "outOfRange": [{"id", "source"}][, "reusedFrom"]}`；每顆 `{"id", "name": {四語},
-"source": "cwa"|"jma", "issuedAt", "url", "stale",
-"others": [{"source", "id", "issuedAt", "url"}], "past": [...], "now", "forecast": [...]}`
+"source": "cwa"|"jma", "sourceId", "issuedAt", "url", "stale",
+"others": [{"source", "id", "issuedAt", "url"}], "past": [...], "now", "forecast": [...]
+[, "reusedFrom"]}`
 （點的格式見 `sources/typhoon.py`）。`id` 是國際編號（`2630`），沒有編號的是
-`cwa-td21`／`jma-TC2637`。`name`：氣象署給中文、英文，JMA 只給英文；照 `sources/cwa.py`
+`cwa-td21`／`jma-TC2637`；`sourceId` 是那個來源自己的代號（氣象署 `ty30`／`td21`、JMA
+`TC2636`），下一報認上一份的同一顆用。`name`：氣象署給中文、英文，JMA 只給英文；照 `sources/cwa.py`
 颱風警報的寫法，zh-TW／zh-HK 用中文名、zh-CN 與 en 用英文名，缺中文用英文，都缺用 `TD21`
 （氣象署熱帶性低氣壓編號）或 JMA 代號。
 """
@@ -52,20 +65,32 @@ FILENAME = "typhoons.json"
 # 51 個機場（airports.json）的緯度 7.367–42.7748、經度 103.9935–144.7973，外擴 5 度、往外取到 0.1 度
 BOUNDS = {"south": 2.3, "north": 47.8, "west": 98.9, "east": 149.8}
 MARGIN_DEG = 5
+# 「台灣附近」（Shawn 2026-10-25）：氣象署那份的過去路徑或目前位置進過這裡的颱風整個生命期用氣象署
+TAIWAN_NEAR = {"south": 18, "north": 30, "west": 112, "east": 130}
 STALE_HOURS = 12
 MATCH_KM = 300
 MATCH_HOURS = 6
 PAGES = {"cwa": CWA_PAGE, "jma": JMA_PAGE}
 
 
-def in_bounds(lat: float, lon: float) -> bool:
-    return BOUNDS["south"] <= lat <= BOUNDS["north"] and BOUNDS["west"] <= lon <= BOUNDS["east"]
+def in_bounds(lat: float, lon: float, box: dict = BOUNDS) -> bool:
+    return box["south"] <= lat <= box["north"] and box["west"] <= lon <= box["east"]
+
+
+def _in_range(now: dict | None, forecast: list[dict]) -> bool:
+    pts = ([now] if now else []) + forecast
+    return any(in_bounds(p["lat"], p["lon"]) for p in pts)
 
 
 def in_range(s: Storm) -> bool:
     """目前位置或任一預報點在 `BOUNDS` 內（過去路徑不算）。"""
-    pts = ([s.now] if s.now else []) + s.forecast
-    return any(in_bounds(p["lat"], p["lon"]) for p in pts)
+    return _in_range(s.now, s.forecast)
+
+
+def near_taiwan(s: Storm) -> bool:
+    """過去路徑或目前位置曾經落在 `TAIWAN_NEAR` 內（預報點不算）。"""
+    pts = s.past + ([s.now] if s.now else [])
+    return any(in_bounds(p["lat"], p["lon"], TAIWAN_NEAR) for p in pts)
 
 
 def _name_key(name: str) -> str:
@@ -120,6 +145,7 @@ def storm_json(s: Storm, now: datetime, others: list[Storm]) -> dict:
         "id": storm_id(s),
         "name": names(s),
         "source": s.source,
+        "sourceId": s.key,
         "issuedAt": iso(s.issued_at),
         "url": PAGES[s.source],
         "stale": _stale(iso(s.issued_at), now),
@@ -130,18 +156,62 @@ def storm_json(s: Storm, now: datetime, others: list[Storm]) -> dict:
     }
 
 
-def select(cwa: list[Storm], jma: list[Storm]) -> list[tuple[Storm, list[Storm]]]:
-    """每顆一筆（用的那份, 另一邊同一顆的）：氣象署全部，加上對不到氣象署的日本氣象廳。"""
-    out: list[tuple[Storm, list[Storm]]] = [(c, []) for c in cwa]
+Pair = tuple[Storm | None, Storm | None]  # （氣象署那份, 日本氣象廳那份）
+
+
+def pair_up(cwa: list[Storm], jma: list[Storm]) -> list[Pair]:
+    """每顆一筆（氣象署那份, 日本氣象廳那份），沒有的是 None；配對用 `same_storm`。"""
+    out: list[list[Storm | None]] = [[c, None] for c in cwa]
     for j in jma:
-        hit = next(
-            (pair for pair in out if pair[0].source == "cwa" and same_storm(pair[0], j)), None
-        )
+        hit = next((p for p in out if p[1] is None and same_storm(p[0], j)), None)  # type: ignore[arg-type]
         if hit is not None:
-            hit[1].append(j)
+            hit[1] = j
         else:
-            out.append((j, []))
-    return out
+            out.append([None, j])
+    return [(c, j) for c, j in out]
+
+
+def _codes(c: Storm | None, j: Storm | None) -> set[tuple[str, str]]:
+    return {(s.source, s.key) for s in (c, j) if s is not None}
+
+
+def _previous_entry(prev: list[dict], c: Storm | None, j: Storm | None) -> dict | None:
+    """上一份 `storms` 裡的同一顆（`id` 相同，或來源代號相同）。"""
+    ids = {storm_id(s) for s in (c, j) if s is not None}
+    codes = _codes(c, j)
+    for e in prev:
+        mine = {(e.get("source"), e.get("sourceId"))}
+        mine |= {
+            (o.get("source"), o.get("id")) for o in e.get("others") or [] if isinstance(o, dict)
+        }
+        if e.get("id") in ids or mine & codes:
+            return e
+    return None
+
+
+def choose(
+    c: Storm | None, j: Storm | None, prev: dict | None, cwa_ok: bool
+) -> tuple[Storm | dict, list[Storm]] | None:
+    """這顆用哪一份（規則見模組說明）：回傳（用的那份或要沿用的上一份那筆, 沒用的那份）；
+    沒有資料可用回 None。"""
+    sticky = prev is not None and prev.get("source") == "cwa"
+    if c is not None and (sticky or near_taiwan(c) or j is None):
+        return c, [j] if j is not None else []
+    if sticky and (j is not None or not cwa_ok):
+        return prev, [j] if j is not None else []  # type: ignore[return-value]
+    if j is not None:
+        return j, [c] if c is not None else []
+    return None
+
+
+def _reuse(entry: dict, others: list[Storm], now: datetime, generated: object) -> dict:
+    """上一份那筆照原樣沿用：`stale` 重算、`others` 換成這一報的、記 `reusedFrom`。"""
+    return {
+        **entry,
+        "stale": _stale(entry.get("issuedAt"), now),
+        "others": [_other(o) for o in others],
+        "reusedFrom": entry.get("reusedFrom") or generated,
+    }
 
 
 def build(
@@ -152,7 +222,7 @@ def build(
     previous: dict | None = None,
 ) -> dict:
     """組 `typhoons.json`。`cwa`／`jma` 是 None 表示那個來源失敗（原因在 `status`，`build._call` 的
-    `sources.cwaTyphoon`／`jmaTyphoon`）。"""
+    `sources.cwaTyphoon`／`jmaTyphoon`）。`previous` 是上一份 `typhoons.json`（沒有是 None）。"""
     sources = {}
     for name, key in (("cwa", "cwaTyphoon"), ("jma", "jmaTyphoon")):
         st = status.get(key) or {"ok": False, "error": "skipped"}
@@ -168,23 +238,39 @@ def build(
         "storms": [],
         "outOfRange": [],
     }
+    prev_storms = previous.get("storms") if isinstance(previous, dict) else None
+    prev_storms = (
+        [e for e in prev_storms if isinstance(e, dict)] if isinstance(prev_storms, list) else []
+    )
+    generated = previous.get("generatedAt") if isinstance(previous, dict) else None
     if cwa is None and jma is None:
-        prev_storms = previous.get("storms") if isinstance(previous, dict) else None
-        if isinstance(prev_storms, list) and prev_storms:
-            doc["storms"] = [
-                {**s, "stale": _stale(s.get("issuedAt"), now)}
-                for s in prev_storms
-                if isinstance(s, dict)
-            ]
-            doc["reusedFrom"] = previous.get("generatedAt")
-            doc["active"] = bool(doc["storms"])
+        if prev_storms:
+            doc["storms"] = [{**e, "stale": _stale(e.get("issuedAt"), now)} for e in prev_storms]
+            doc["reusedFrom"] = generated
+            doc["active"] = True
         return doc
-    pairs = select(cwa.storms if cwa else [], jma.storms if jma else [])
-    for s, others in pairs:
-        if in_range(s):
-            doc["storms"].append(storm_json(s, now, others))
+    used: list[int] = []
+    picked: list[tuple[Storm | dict, list[Storm]]] = []
+    for c, j in pair_up(cwa.storms if cwa else [], jma.storms if jma else []):
+        prev = _previous_entry(prev_storms, c, j)
+        if prev is not None:
+            used.append(id(prev))
+        res = choose(c, j, prev, cwa is not None)
+        if res is not None:
+            picked.append(res)
+    if cwa is None:  # 氣象署失敗、這一報兩邊都沒有的 `cwa` 那筆也沿用（不知道是不是結束了）
+        picked += [(e, []) for e in prev_storms if e.get("source") == "cwa" and id(e) not in used]
+    for s, others in picked:
+        if isinstance(s, dict):
+            entry = _reuse(s, others, now, generated)
+            ok = _in_range(entry.get("now"), entry.get("forecast") or [])
+            sid, src = entry.get("id"), entry.get("source")
         else:
-            doc["outOfRange"].append({"id": storm_id(s), "source": s.source})
+            entry, ok, sid, src = storm_json(s, now, others), in_range(s), storm_id(s), s.source
+        if ok:
+            doc["storms"].append(entry)
+        else:
+            doc["outOfRange"].append({"id": sid, "source": src})
     doc["active"] = bool(doc["storms"])
     return doc
 

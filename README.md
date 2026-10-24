@@ -900,7 +900,7 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
 ## 颱風地圖（HD34）
 
 Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，HongThai 不自己算任何路徑或時間**——台灣附近用
-中央氣象署開放資料、境外用日本氣象廳，都標出處；台灣與境外機場都**不算「幾點進暴風圈」**（台灣《氣象法》
+中央氣象署開放資料、境外用日本氣象廳（WMO 西北太平洋區域專責氣象中心），都標出處；台灣與境外機場都**不算「幾點進暴風圈」**（台灣《氣象法》
 第 18 條、日本《氣象業務法》）。網頁（Duado HW15）只在範圍內有颱風時出現：列表頁最上面一張、機場頁一張小圖。
 程式在 `src/hongthai/sources/typhoon.py`（抓取、解析）與 `src/hongthai/typhoons.py`（選哪一份、範圍、輸出）。
 
@@ -915,11 +915,19 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
     `…/<代號>/specifications.json`（實況、預報點、予報円、暴風警戒域、強風域、暴風域，公里與海浬）與
     `…/<代號>/forecast.json`（過去路徑與 JMA 畫圖用的幾何）。2026-10-25 00:45 JST 實抓：targetTc 211 bytes，
     每顆兩個檔各 2–4 KB；原始回應存 `history/raw/<日期>/<HHMM>Z-jma-typhoon.json`
-- **選哪一份**：每顆熱帶氣旋，氣象署有就用氣象署，沒有才用日本氣象廳；同一顆兩邊都有時只放氣象署那份、
-  `others` 記日本氣象廳有（不畫兩條）。同一顆的判斷照順序：兩邊都有國際編號（氣象署 `year`＋颱風編號、
-  JMA `typhoonNumber`，例如 `2630`）就比編號；都有英文名就比名稱（不分大小寫、忽略連字號）；都沒有（熱帶性
-  低氣壓）就看目前位置相距 300 公里內、定位時間相差 6 小時內。氣象署的資料涵蓋整個西北太平洋，所以平常幾乎
-  每顆都是氣象署那份；氣象署失敗時那一報全部改用日本氣象廳
+- **選哪一份**（Shawn 2026-10-25 定案）：**以颱風為單位、中途不換**。氣象署那份的過去路徑或目前位置曾經落在
+  「台灣附近」（北緯 18–30、東經 112–130，`typhoons.TAIWAN_NEAR`，和地圖框分開）的，這顆整個生命期都用氣象署；
+  從頭到尾沒進過的用**日本氣象廳（WMO 西北太平洋區域專責氣象中心）**。沒用的那份記在 `others`（不畫兩條）
+  - 每顆選到的來源記在 `storms[].source`（另有 `sourceId` 是來源自己的代號），下一報讀上一份 `typhoons.json`：
+    **上一報已經是 `cwa` 的一律維持 `cwa`，不切回 `jma`**（反過來 `jma` → `cwa` 會發生：颱風這一報才進台灣附近）
+  - 上一份是 `cwa`、這一報氣象署沒有這顆時：氣象署整個失敗，或成功但沒列這顆而日本氣象廳還有 → 沿用上一份那筆
+    （`stale` 照這一報的時間重算、記 `reusedFrom`，`others` 換成這一報日本氣象廳的）；氣象署成功、兩邊都沒有了
+    → 颱風結束，拿掉；氣象署回來了就用這一報的
+  - 只有一邊有：只有日本氣象廳（例如氣象署失敗、上一份也不是 `cwa`）就用日本氣象廳；只有氣象署、從沒進過台灣
+    附近就用氣象署（有官方資料就畫）
+  - 同一顆的判斷照順序：兩邊都有國際編號（氣象署 `year`＋颱風編號、JMA `typhoonNumber`，例如 `2630`）就比編號；
+    都有英文名就比名稱（不分大小寫、忽略連字號）；都沒有（熱帶性低氣壓）就看目前位置相距 300 公里內、定位時間
+    相差 6 小時內。上一份的同一顆用 `id`、`sourceId` 或 `others` 的代號認
 - **範圍**：目前位置或任一預報點落在地圖框（51 個機場的經緯度外擴 5 度，往外取到 0.1 度：北緯 2.3–47.8、
   東經 98.9–149.8，`typhoons.BOUNDS`，`typhoons.json` 的 `bounds`）內才算；範圍外的只在 `outOfRange` 記編號
 - **原文照轉載**：不平滑、不內插、不延伸；數值與單位照原文（氣象署只有公里，JMA 公里與海浬都是原文，**沒有
@@ -940,7 +948,7 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
   {
    "id": "2630",
    "name": {"zh-TW": "薔琵", "zh-HK": "薔琵", "zh-CN": "Champi", "en": "Champi"},
-   "source": "cwa", "issuedAt": "2026-10-24T18:00:00Z",
+   "source": "cwa", "sourceId": "ty30", "issuedAt": "2026-10-24T18:00:00Z",
    "url": "https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html", "stale": false,
    "others": [{"source": "jma", "id": "TC2636", "issuedAt": "2026-10-24T15:45:00Z",
                "url": "https://www.jma.go.jp/bosai/map.html#contents=typhoon"}],
@@ -959,7 +967,8 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
 - `id`：國際編號；沒有編號的熱帶性低氣壓是 `cwa-td21`（氣象署熱帶性低氣壓編號）或 `jma-TC2638`（JMA 代號）
 - `name`：照氣象署颱風警報的寫法，zh-TW／zh-HK 用氣象署的中文名、zh-CN 與 en 用英文名；JMA 只有英文名，
   缺中文就用英文，都沒有就用 `TD21`／JMA 代號
-- `source` 與 `url`：`cwa` 是氣象署颱風消息頁、`jma` 是日本氣象廳颱風資訊頁（網頁出處連這裡）；`issuedAt`：
+- `source` 與 `url`：`cwa` 是氣象署颱風消息頁、`jma` 是日本氣象廳颱風資訊頁（網頁出處連這裡）；`sourceId`：
+  那個來源自己的代號（氣象署 `ty30`／`td21`、JMA `TC2636`）；`issuedAt`：
   JMA 是發布時間，氣象署資料沒有發布時間，用最新定位時間（預報的 `init_time`）
 - `past[]`：過去路徑（原文的點，最後一點通常就是 `now`）。氣象署每點有 `time`；JMA 的 `time` 是 null，
   另有 `stage`（`preTyphoon`＝熱帶低氣壓階段、`typhoon`）
@@ -970,7 +979,8 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
   （`TD`／`TS`／`STS`／`TY`／`LOW`，`LOW` 是溫帶低氣壓）與 `jmaShapes`（JMA `forecast.json` 那一點的
   `galeWarningArea`（偏心圓：`center` [緯, 經]、`radius` 公尺）、`stormWarningArea`、`probabilityCircle`，
   照原樣）
-- `stale`：`issuedAt` 超過 12 小時；`reusedFrom`：兩個來源都失敗、沿用上一份時那份的 `generatedAt`
+- `stale`：`issuedAt` 超過 12 小時；`reusedFrom`：沿用上一份時那份的 `generatedAt`——兩個來源都失敗時在最上層，
+  上一份是 `cwa`、這一報氣象署沒有這顆時在那一顆（連續沿用時是第一次沿用的那份）
 - `sources.cwa`／`jma`：這報兩個來源有沒有抓到（`error` 同 `latest.json` 的 `sources.cwaTyphoon`／`jmaTyphoon`）
 
 ## 事件保存（HD20）
@@ -1573,8 +1583,8 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | [WMO 惡劣天氣資訊中心 SWIC](https://severeweather.wmo.int/)（香港天文台代 WMO 經營；網頁用的 `json/wmo_all.json` 與 `v2/cap-alerts/<url>` 的 CAP 原文，**非正式介面**；HD29） | 中國氣象局（各級氣象台）、韓國氣象廳、菲律賓 PAGASA 的 CAP 警報（中國大陸 14 個、韓國 4 個、菲律賓 3 個機場） | [SWIC 使用須知](https://severeweather.wmo.int/note.html)：「The information is free for re-use by media or other websites. When doing so, it should be indicated that they are issued by the respective Tropical Cyclone RSMCs, TCWCs or NMHSs.」——可再使用，要註明由相應機關發布：**中國氣象局**（China Meteorological Administration，CAP 的發布台，例如溫州市氣象台）、**韓國氣象廳**（Korea Meteorological Administration）、**菲律賓大氣地球物理天文管理局 PAGASA**（Philippine Atmospheric, Geophysical and Astronomical Services Administration）；`warnings[].text` 結尾都標「經 WMO SWIC」。同一頁也寫：「If no warning is found on land on the SWIC map, it may be due to other reasons apart from no warning is in effect for that area.」——**SWIC 沒有不代表官方沒發**（警報沒有 CAP 格式或 feed 抓不到），網頁要寫清楚 |
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號；HD8 起加暴雨警告信號 `WRAIN`、雷暴警告 `WTS`，同一個請求） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
 | [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報；HD8 起加 `W-C0033-001` 天氣特報；HD13 起加 `O-A0003-001` 氣象觀測站-10分鐘綜觀氣象資料） | 海上／陸上颱風警報與警戒區（台灣十個機場）；各縣市目前的天氣特報（只用大豪雨、超大豪雨、濃霧）；金門 467110、馬祖 467990 局屬站的能見度、天氣、風（當這兩個機場的 METAR） | [政府資料開放授權條款](https://data.gov.tw/license) |
-| [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-005` 颱風消息與警報-熱帶氣旋路徑；HD34） | 颱風地圖 `typhoons.json`：熱帶氣旋的過去路徑、目前位置、預報點、70% 機率圈、七級與十級風暴風半徑。**只轉載、不計算**（不平滑、不內插、不延伸、不算進暴風圈的時間） | [政府資料開放授權條款](https://data.gov.tw/license)：出處標「資料來源：中央氣象署」並連到[颱風消息頁](https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html)（`typhoons.json` 的 `url`） |
-| [日本氣象廳颱風資訊](https://www.jma.go.jp/bosai/map.html#contents=typhoon)（JMA 網頁用的 JSON `bosai/typhoon/data/targetTc.json`、`<代號>/specifications.json`、`<代號>/forecast.json`，**非正式介面**；HD34） | 颱風地圖 `typhoons.json`：氣象署沒有的熱帶氣旋（境外）的過去路徑、目前位置、預報點、予報円、暴風警戒域、強風域、暴風域。**只轉載、不計算**；只把 JSON 改成 `typhoons.json` 的格式，數值與單位照原文 | [氣象廳網站利用規約](https://www.jma.go.jp/jma/kishou/info/coment.html)（公共データ利用規約第 1.0 版）：要寫出處，編輯、加工過的要另外註明，例如「出典：気象庁ホームページ（https://www.jma.go.jp/bosai/map.html#contents=typhoon）」＋「気象庁「台風情報」を加工して作成」；不能寫成像是氣象廳自己做的。同頁提醒《氣象業務法》第 17 條（預報業務許可）：轉載氣象廳發布的路徑與暴風圈，不另外做預報 |
+| [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-005` 颱風消息與警報-熱帶氣旋路徑；HD34） | 颱風地圖 `typhoons.json`：進過台灣附近（北緯 18–30、東經 112–130）的熱帶氣旋整個生命期的過去路徑、目前位置、預報點、70% 機率圈、七級與十級風暴風半徑。**只轉載、不計算**（不平滑、不內插、不延伸、不算進暴風圈的時間） | [政府資料開放授權條款](https://data.gov.tw/license)：出處標「資料來源：中央氣象署」並連到[颱風消息頁](https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html)（`typhoons.json` 的 `url`） |
+| [日本氣象廳（WMO 西北太平洋區域專責氣象中心）颱風資訊](https://www.jma.go.jp/bosai/map.html#contents=typhoon)（JMA 網頁用的 JSON `bosai/typhoon/data/targetTc.json`、`<代號>/specifications.json`、`<代號>/forecast.json`，**非正式介面**；HD34） | 颱風地圖 `typhoons.json`：從沒進過台灣附近的熱帶氣旋（境外）的過去路徑、目前位置、預報點、予報円、暴風警戒域、強風域、暴風域。**只轉載、不計算**；只把 JSON 改成 `typhoons.json` 的格式，數值與單位照原文 | [氣象廳網站利用規約](https://www.jma.go.jp/jma/kishou/info/coment.html)（公共データ利用規約第 1.0 版）：要寫出處，編輯、加工過的要另外註明，例如「出典：気象庁ホームページ（https://www.jma.go.jp/bosai/map.html#contents=typhoon）」＋「気象庁「台風情報」を加工して作成」；不能寫成像是氣象廳自己做的。同頁提醒《氣象業務法》第 17 條（預報業務許可）：轉載氣象廳發布的路徑與暴風圈，不另外做預報 |
 | [澳門地球物理氣象局 XML](https://xml.smg.gov.mo/)（`c_typhoon.xml`／`e_typhoon.xml`；data.gov.mo 資料集[「熱帶氣旋信號」](https://data.gov.mo/Detail?id=15044781-1752-4f98-b87e-508208d70408)） | 熱帶氣旋信號 | [澳門政府數據開放平台使用條款](https://data.gov.mo/)：免費使用與再發布，須註明「澳門特別行政區政府數據開放平台」與取得日期 |
 | [香港機管局航班資訊](https://data.gov.hk/tc-data/dataset/aahk-team1-flight-info)（data.gov.hk） | 算每 6 小時格的取消／延誤統計（不存原始資料） | data.gov.hk 使用條款 |
 | [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
