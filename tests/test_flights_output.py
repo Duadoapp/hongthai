@@ -23,17 +23,22 @@ TDX_SEVEN = {"RCMQ", "RCNN", "RCYU", "RCFN", "RCQC", "RCBS", "RCFG"}
 
 
 class FakeClient:
-    """`tdx.Client` 的替身：`fids` 回 fixture（只有 RMQ、KNH、TPE、TSA 四個機場）。"""
+    """`tdx.Client` 的替身：`fids` 回 fixture（只有 RMQ、KNH、TPE、TSA 四個機場），和真的一樣每次
+    請求在 `log` 記一行（時間固定 `NOW`）。"""
 
     def __init__(self, fail: Exception | None = None):
         self.asked: list[tuple[str, ...]] = []
         self.calls = 0
         self.fail = fail
+        self.log: tdx.CallLog | None = None
 
     def fids(self, iatas):
         want = tuple(sorted(set(iatas)))
         self.asked.append(want)
         self.calls += 1
+        if self.log is not None:
+            self.log.clock = lambda: NOW
+            self.log.record(None if self.fail else 104_000)
         if self.fail is not None:
             raise self.fail
         body = load_json("tdx_fids_airport.json")
@@ -58,6 +63,8 @@ def _flight(direction, sched, category=cancellations.OK, no="X1"):
         ("預計19:00出發", cancellations.OK),
         ("預計07:05離站", cancellations.OK),
         ("預計10/25 01:30到站", cancellations.OK),
+        ("預計2026/10/25 01:30到站", cancellations.OK),  # 同 HD37 報告工具
+        ("預計 15:40", cancellations.OK),  # 結尾字可省
         ("檢查", cancellations.OTHER),
         ("回航", cancellations.OTHER),
         ("取消", cancellations.CANCELLED),
@@ -78,6 +85,9 @@ def test_tw_expected_with_and_without_date():
         hours=1, minutes=25
     )
     assert cancellations.tw_expected("預計10/26 01:00到站", sched) == sched + timedelta(
+        hours=25, minutes=25
+    )
+    assert cancellations.tw_expected("預計2026/10/26 01:00", sched) == sched + timedelta(
         hours=25, minutes=25
     )
     assert cancellations.tw_expected("準時", sched) is None
@@ -227,57 +237,64 @@ def test_tdx_stats_only_fills_seven(tmp_path, airports):
 def test_tdx_stats_failure_and_not_configured(tmp_path, airports):
     fs = build.tdx_stats(None, airports, NOW, tmp_path)
     assert fs.status == {"ok": False, "error": "not_configured", "calls": 0} and not fs.rows
-    client = FakeClient(fail=tdx.TdxError("TDX token：HTTP 401", "token_http"))
+    client = FakeClient(fail=tdx.TdxError("TDX 航班：timeout", "timeout"))
     fs = build.tdx_stats(client, airports, NOW, tmp_path)  # type: ignore[arg-type]
-    assert fs.status == {"ok": False, "error": "token_http", "calls": 1, "monthCalls": 1}
+    assert fs.status == {"ok": False, "error": "timeout", "calls": 1, "monthCalls": 1}
     assert not fs.rows
 
 
-def _timing(history, calls: list[object]):
-    path = history / "timing" / "2026-10.jsonl"
+def _calls(history, n: int, caller="events", month="2026-10"):
+    """`history/tdx/calls-<月>.jsonl` 先放 n 行。"""
+    path = history / "tdx" / f"calls-{month}.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        json.dumps({"run": "2026-10-20T08:25:00Z", "source": "tdx", "ok": True, "calls": c})
-        for c in calls
-    ]
-    lines.append(json.dumps({"run": "x", "source": "openmeteo", "calls": 99}))  # 別的來源不算
-    lines.append(json.dumps({"run": "y", "source": "tdx", "ok": False, "error": "timeout"}))
-    path.write_text("\n".join(lines) + "\n", "utf-8")
-
-
-def _event_rows(history, day: str, stamps: list[str], source="tdx"):
-    path = history / "events" / "29W" / "flights" / f"{day}.jsonl"
-    path.parent.mkdir(parents=True, exist_ok=True)
+    row = {"t": f"{month}-20T08:07:00Z", "caller": caller, "bytes": 104_000}
     with path.open("a", encoding="utf-8") as f:
-        for t in stamps:
-            for no in ("A1", "A2"):  # 同一次請求寫好幾行，只算一次
-                row = {"t": t, "airport": "RCMQ", "flight": no, "source": source}
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(row) + "\n" for _ in range(n))
 
 
-def test_month_calls_build_plus_events(tmp_path):
-    _timing(tmp_path, [1, 1, 0])  # 2 次＋超過預算那次當 1 次
-    _event_rows(tmp_path, "2026-10-22", ["2026-10-22T01:07:00Z", "2026-10-22T02:07:00Z"])
-    _event_rows(tmp_path, "2026-10-23", ["2026-10-22T02:07:00Z"])  # 同一個 t 不重複算
-    _event_rows(tmp_path, "2026-10-30", ["2026-09-30T23:07:00Z"])  # 上個月抓的不算
-    _event_rows(tmp_path, "2026-10-24", ["2026-10-24T03:07:00Z"], source="kia")  # 原本的來源不算
-    assert build.tdx_month_calls(tmp_path, NOW) == 3 + 2
-    assert build.tdx_month_calls(tmp_path, utc(2026, 11, 1, 1, 5)) == 0
+def test_month_calls_from_calls_file(tmp_path):
+    assert tdx.month_calls(tmp_path, NOW) == 0
+    _calls(tmp_path, 3, "build")
+    _calls(tmp_path, 2, "events")
+    _calls(tmp_path, 7, month="2026-09")  # 上個月不算
+    (tmp_path / "tdx" / "calls-2026-10.jsonl").open("a").write("壞掉的行\n")
+    assert tdx.month_calls(tmp_path, NOW) == 5
+    assert tdx.month_calls(tmp_path, utc(2026, 11, 1, 1, 5)) == 0
+    assert (tdx.MONTHLY_CALL_LIMIT, tdx.BUILD_CALL_LIMIT) == (2000, 1700)
 
 
-def test_monthly_limit_skips_tdx(tmp_path, airports, caplog):
-    _timing(tmp_path, [1] * (tdx.MONTHLY_CALL_LIMIT - 1))  # ＋timeout 那行＝上限
+def test_tdx_stats_records_each_call(tmp_path, airports):
+    client = FakeClient()
+    build.tdx_stats(client, airports, NOW, tmp_path)  # type: ignore[arg-type]
+    path = tmp_path / "tdx" / "calls-2026-10.jsonl"
+    assert [json.loads(x) for x in path.read_text("utf-8").splitlines()] == [
+        {"t": "2026-10-23T06:07:00Z", "caller": "build", "bytes": 104_000}
+    ]
+    # build 與 events 同時追加同一個檔：union 合併，push_data.sh 的 rebase 不衝突
+    assert (path.parent / ".gitattributes").read_text("utf-8") == "*.jsonl merge=union\n"
+    # 失敗的請求也記（bytes 是 null）
+    client = FakeClient(fail=tdx.TdxError("TDX 航班：HTTP 500", "http_500"))
+    fs = build.tdx_stats(client, airports, NOW, tmp_path)  # type: ignore[arg-type]
+    assert fs.status == {"ok": False, "error": "http_500", "calls": 1, "monthCalls": 2}
+    assert json.loads(path.read_text("utf-8").splitlines()[-1])["bytes"] is None
+
+
+@pytest.mark.parametrize(("used", "skipped"), [(1699, False), (1700, True)])
+def test_build_stops_at_build_limit(tmp_path, airports, caplog, used, skipped):
+    _calls(tmp_path, used)
     client = FakeClient()
     fs = build.tdx_stats(client, airports, NOW, tmp_path)  # type: ignore[arg-type]
-    assert fs.status == {
-        "ok": False,
-        "error": "monthly_limit",
-        "calls": 0,
-        "monthCalls": tdx.MONTHLY_CALL_LIMIT,
-    }
-    assert client.asked == [] and not fs.rows
-    assert "TDX 本月已用" in caplog.text
-    assert tdx.MONTHLY_CALL_LIMIT == 600
+    if skipped:
+        assert fs.status == {
+            "ok": False,
+            "error": "monthly_limit",
+            "calls": 0,
+            "monthCalls": tdx.BUILD_CALL_LIMIT,
+        }
+        assert client.asked == [] and not fs.rows
+        assert "TDX 本月已用 1700 次（每報的上限 1700）" in caplog.text
+    else:
+        assert fs.status["ok"] is True and fs.status["monthCalls"] == 1700
 
 
 # ---- 整報：latest.json 的新欄位 ----
@@ -328,8 +345,8 @@ def test_build_writes_tdx_flights_into_latest(workspace, monkeypatch, no_models)
     # TDX 不寫 history/cancellations/ 的格統計（只有 unknown-statuses.json）
     cdir = workspace / "data" / "history" / "cancellations"
     assert [p.name for p in cdir.iterdir()] == ["unknown-statuses.json"]
-    # 耗時紀錄記了 calls，下一報數得到
-    assert build.tdx_month_calls(workspace / "data" / "history", NOW) == 1
+    # 呼叫紀錄在 data 分支（archive）的 history/tdx/，下一報數得到
+    assert tdx.month_calls(workspace / "data" / "history", NOW) == 1
 
 
 def test_build_original_sources_into_latest(workspace, monkeypatch, no_models):  # noqa: F811
