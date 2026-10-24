@@ -4,7 +4,14 @@
 
     python -m tools.report_29w --archive data --event 29W \\
       [--jtwc bwp292026.dat] [--jma bst_all.txt] [--cutoff 2026-10-22T04:00Z] \\
+      [--until 2026-10-25T14:00+08:00] [--truth-until 2026-10-26T24:00+08:00] \\
       [--cancel-rate 0.3 --cancel-count 10] [--out report/29W.md] [--json report/29W.json]
+
+29W 實際用法（HD36）：
+
+    python -m tools.report_29w --archive data --event 29W --jtwc bwp292026.dat \\
+      --until 2026-10-25T14:00+08:00 --truth-until 2026-10-26T24:00+08:00 \\
+      --out report/29W.md --json report/29W.json
 
 純讀 `history/events/<id>/`（快照、`metar/`、`position/`、`tracks/`、`wn3/`）、
 `history/cancellations/`、`history/ai/`，不改任何檔案（除了 `--out`／`--json`）。只用標準函式庫，
@@ -35,6 +42,21 @@
   （`mean`），系集另印成員誤差與離散（成員到中位數的平均距離）。真相：`--jtwc`（ATCF b-deck）、
   `--jma`（JMA `bst_all.txt` 或單一颱風的檔）給了哪份比哪份、兩份並列；都沒給時用 `position/`
   的現報（`analysis`）當暫時真相：JTWC 內插得到就用 JTWC，不然用 JMA
+
+兩個截止（HD36，Shawn 2026-10-24 定案，`docs/prompts/2026-10-24-HD36-report-until.md`）：
+
+- `--until`：預報算到「這個時間之後的第一報」——`generatedAt` ≤ 時間的報全部算，
+  再加上之後的第一報（還沒出就只算到時間以前的）；WN3 事件檔用起報、同一個規則；模式路徑
+  只收留下的報用過的起報（WN3 路徑照 WN3 的規則）。不給＝全部的報。時間要寫時區
+  （`Z`、`+08:00`），`T24:00` 當隔天 `T00:00`
+- `--truth-until`（`T`）：實測只用到這個時間；不給＝`events.json` 那筆 `to` 的台灣日期
+  隔天 00:00。實測的最後時間取 `min(T, 該資料本身最新的時間)`（航班是 `asOf`）。超過的
+  不算命中也不算誤報，另計「超過實測截止」：(a) 格的 `to` 晚於 `T`（METAR 也只用 ≤ `T`
+  的）；(b) 每格：格的 `to` 晚於實測最後時間；(b) 每報每機場：窗裡超過的格丟掉（計
+  「截短」），一格不剩計「沒有實測」，其他照原規則比（`first` 照截短後的窗）；規則燈的
+  預測仍取整個 0–120 小時的最高等級（和 AI 的 5 天燈同一範圍）。另算一份「只算完整窗」
+  （沒有格被丟掉的）當對照；(c) 真相只用 `validAt` ≤ `T` 的點，模式路徑 `validAt` > `T`
+  的點不算
 """
 
 from __future__ import annotations
@@ -45,9 +67,9 @@ import re
 import sys
 import time
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 from statistics import mean, median
@@ -114,6 +136,42 @@ def version_of(generated: datetime, cutoff: datetime) -> str:
     return BEFORE if generated < cutoff else AFTER
 
 
+_HOUR24 = re.compile(r"^(\d{4}-\d{2}-\d{2})T24(:00){1,2}(\.0+)?(Z|[+-]\d{2}:?\d{2})$")
+
+
+def parse_cli_time(s: str) -> datetime:
+    """`--until`／`--truth-until`：ISO 8601，要有時區（`Z` 或 `+08:00`）；`T24:00` 當隔天 `T00:00`。
+    看不懂丟 ValueError。"""
+    m = _HOUR24.match(s.strip())
+    text = f"{m.group(1)}T00:00{m.group(4)}" if m else s.strip()
+    try:
+        t = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"看不懂的時間 {s}（ISO 8601，例如 2026-10-26T24:00+08:00）") from None
+    if t.tzinfo is None:
+        raise ValueError(f"時間 {s} 要寫時區（Z 或 +08:00）")
+    return (t + timedelta(days=1) if m else t).astimezone(UTC)
+
+
+def default_truth_until(event: Event) -> datetime:
+    """`events.json` 的 `to`（台灣日期）隔天 00:00（台灣）：`to: 2026-10-26` → 10/26 16:00Z。"""
+    nxt = event.end + timedelta(days=1)
+    return datetime(nxt.year, nxt.month, nxt.day, tzinfo=TAIPEI).astimezone(UTC)
+
+
+def select_until[T](
+    items: list[T], at: Callable[[T], datetime], until: datetime | None
+) -> tuple[list[T], bool]:
+    """`at` ≤ `until` 的全部，再加上之後的第一個（依 `at` 排序）；回傳
+    （留下的, 有沒有之後的那一個）。`until` 是 None 時全部留下。"""
+    items = sorted(items, key=at)
+    if until is None:
+        return items, False
+    kept = [x for x in items if at(x) <= until]
+    later = [x for x in items if at(x) > until]
+    return kept + later[:1], bool(later)
+
+
 def storm_name(event: Event) -> str | None:
     """`CHAMPI（薔琵）` → `CHAMPI`。"""
     m = _NAME.search(event.name)
@@ -150,13 +208,16 @@ class Obs:
     wind: float
 
 
-def load_metars(d: Path) -> dict[str, list[Obs]]:
-    """`metar/*.jsonl` → 每站的觀測（依時間排序；同一站同一 `observedAt` 只留一筆）。"""
+def load_metars(d: Path, until: datetime | None = None) -> dict[str, list[Obs]]:
+    """`metar/*.jsonl` → 每站的觀測（依時間排序；同一站同一 `observedAt` 只留一筆；
+    只留 ≤ `until` 的）。"""
     seen: set[tuple[str, datetime]] = set()
     out: dict[str, list[Obs]] = defaultdict(list)
     for r in _jsonl(sorted((d / "metar").glob("*.jsonl"))):
         icao, at, wind = r.get("icao"), parse_time(r.get("observedAt")), _num(r.get("windKt"))
         if not isinstance(icao, str) or at is None or wind is None or (icao, at) in seen:
+            continue
+        if until is not None and at > until:
             continue
         seen.add((icao, at))
         gust = _num(r.get("gustKt"))
@@ -571,14 +632,20 @@ class GustResult:
     windy: dict[str, list[GustCell]]
     estimated: set[str]
     no_metar: int = 0  # 格內沒有觀測，跳過的（機場 × 格，每報各算）
+    past_truth: int = 0  # 格的 `to` 晚於實測截止（同上的算法）
 
 
-def _gust_slots(slots: list[Slot], ref: datetime, obs: list[Obs], res: GustResult) -> None:
+def _gust_slots(
+    slots: list[Slot], ref: datetime, obs: list[Obs], res: GustResult, until: datetime | None
+) -> None:
     for s in slots:
         if s.end <= ref:
             continue
         b = bucket(lead_hours(s.start, ref))
         if b is None or not s.gusts:
+            continue
+        if until is not None and s.end > until:
+            res.past_truth += 1
             continue
         o = slot_obs(obs, s.start, s.end)
         if o is None:
@@ -598,15 +665,18 @@ def _gust_slots(slots: list[Slot], ref: datetime, obs: list[Obs], res: GustResul
 
 
 def gust_stats(
-    reports: list[Report], wn3: list[Wn3Run], metars: dict[str, list[Obs]]
+    reports: list[Report],
+    wn3: list[Wn3Run],
+    metars: dict[str, list[Obs]],
+    until: datetime | None = None,
 ) -> GustResult:
     res = GustResult({}, {}, set())
     for r in reports:
         for a in r.airports.values():
-            _gust_slots(a.slots, r.generated, metars.get(a.icao, []), res)
+            _gust_slots(a.slots, r.generated, metars.get(a.icao, []), res, until)
     for w in wn3:
         for icao, slots in w.airports.items():
-            _gust_slots(slots, w.run, metars.get(icao, []), res)
+            _gust_slots(slots, w.run, metars.get(icao, []), res, until)
     return res
 
 
@@ -685,7 +755,9 @@ class WindowStats:
 class LevelResult:
     airports: list[str]
     slot: dict[str, dict[str, list[Confusion]]]  # 版本 → risky／high → 每段
-    window: dict[str, WindowStats]  # 「規則燈（定版前）」等 → 統計
+    window: dict[str, WindowStats]  # 「規則燈（定版前）」等 → 統計（窗截到實測截止）
+    window_full: dict[str, WindowStats]  # 同上，只算完整窗（沒有格超過實測截止的）
+    truth_last: datetime | None = None  # 實測的最後時間＝min(實測截止, 航班 `asOf`)
     counts: Counter[str] = field(default_factory=Counter)
 
 
@@ -700,12 +772,20 @@ def level_stats(
     cutoff: datetime,
     rate: float,
     count: int,
+    until: datetime | None = None,
 ) -> LevelResult:
+    """`until` 是實測截止；實測的最後時間取它和航班 `asOf` 早的那個，晚於它結束的格不算
+    （每格計 `slotPastTruth`；每報每機場的窗丟掉那些格，計 `windowTruncated`，一格不剩再計
+    `windowNoTruth`）。"""
     scope = sorted(set(airports) & canc.airports)
+    keys = (rule_key(BEFORE), rule_key(AFTER), *AI_KEYS)
+    last = canc.as_of if until is None or canc.as_of is None else min(until, canc.as_of)
     res = LevelResult(
         scope,
         {BEFORE: _confusions(), AFTER: _confusions()},
-        {k: WindowStats() for k in (rule_key(BEFORE), rule_key(AFTER), *AI_KEYS)},
+        {k: WindowStats() for k in keys},
+        {k: WindowStats() for k in keys},
+        last,
     )
     for r in reports:
         ver = version_of(r.generated, cutoff)
@@ -714,21 +794,24 @@ def level_stats(
             if a is None:
                 continue
             window: list[tuple[int, bool | None]] = []
+            dropped = 0
             best: str | None = None
-            last_end: datetime | None = None
             for s in a.slots:
                 if s.end <= r.generated:
                     continue
                 b = bucket(lead_hours(s.start, r.generated))
                 if b is None:
                     continue
-                actual = canc.stopped(icao, s.start, s.end, rate, count)
-                window.append((b, actual))
-                last_end = s.end
                 if s.level is not None and (
                     best is None or LEVELS.index(s.level) > LEVELS.index(best)
                 ):
                     best = s.level
+                if last is None or s.end > last:
+                    dropped += 1
+                    res.counts["slotPastTruth"] += 1
+                    continue
+                actual = canc.stopped(icao, s.start, s.end, rate, count)
+                window.append((b, actual))
                 if actual is None:
                     res.counts["slotNoTruth"] += 1
                     continue
@@ -737,17 +820,22 @@ def level_stats(
                     continue
                 res.slot[ver]["risky"][b].add(s.level in RISKY, actual)
                 res.slot[ver]["high"][b].add(s.level in HIGH, actual)
-            if last_end is None or canc.as_of is None or last_end > canc.as_of:
-                res.counts["windowOpen"] += 1
+            if dropped:
+                res.counts["windowTruncated"] += 1
+            if not window:
+                res.counts["windowNoTruth"] += 1
                 continue
             actual_any = any(x for _, x in window)
             first = next((b for b, x in window if x), None)
-            if best is not None:
-                res.window[rule_key(ver)].add(best, actual_any, first)
+            targets = [res.window] if dropped else [res.window, res.window_full]
+            for stats in targets:
+                if best is not None:
+                    stats[rule_key(ver)].add(best, actual_any, first)
+                for k in AI_KEYS:
+                    if a.ai[k] is not None:
+                        stats[k].add(a.ai[k], actual_any, first)
             for k in AI_KEYS:
-                if a.ai[k] is not None:
-                    res.window[k].add(a.ai[k], actual_any, first)
-                else:
+                if a.ai[k] is None:
                     res.counts[f"{k}NotOk"] += 1
     return res
 
@@ -827,6 +915,7 @@ class TrackResult:
     members: dict[str, list[TrackCell]]  # 系集：成員對真相的誤差
     spread: dict[str, list[TrackCell]]  # 系集：成員到中位數的距離
     no_truth: int = 0
+    past_truth: int = 0  # 模式路徑 `validAt` 晚於實測截止的點
     used: dict[str, int] = field(default_factory=dict)
 
 
@@ -834,7 +923,11 @@ def _cells() -> list[TrackCell]:
     return [TrackCell() for _ in BUCKETS]
 
 
-def track_stats(tracks: list[ModelTrack], truth: Truth) -> TrackResult:
+def track_stats(
+    tracks: list[ModelTrack], truth: Truth, until: datetime | None = None
+) -> TrackResult:
+    """`until`：實測截止，`validAt` 晚於它的點不算（主路徑計 `past_truth`；系集成員的誤差也不算，
+    離散不用真相，照算）。真相本身在 `truths` 就截好了。"""
     res = TrackResult(truth.label, truth.provisional, {}, {}, {})
     for tr in tracks:
         cells = res.models.setdefault(tr.model, _cells())
@@ -842,6 +935,9 @@ def track_stats(tracks: list[ModelTrack], truth: Truth) -> TrackResult:
             lead = lead_hours(t, tr.run)
             b = bucket(lead) if lead >= 0 else None
             if b is None:
+                continue
+            if until is not None and t > until:
+                res.past_truth += 1
                 continue
             p = truth.at(t)
             if p is None:
@@ -861,6 +957,8 @@ def track_stats(tracks: list[ModelTrack], truth: Truth) -> TrackResult:
                     continue
                 if t in center:
                     spread[b].errors.append(distance_km(lat, lon, *center[t]))
+                if until is not None and t > until:
+                    continue
                 p = truth.at(t)
                 if p is not None:
                     errs[b].errors.append(distance_km(lat, lon, *p))
@@ -868,24 +966,65 @@ def track_stats(tracks: list[ModelTrack], truth: Truth) -> TrackResult:
     return res
 
 
+def _clip(track: Track, until: datetime | None) -> Track:
+    """真相只用 `validAt` ≤ `until` 的點。"""
+    if until is None:
+        return track
+    return Track(track.name, [p for p in track.points if p[0] <= until])
+
+
 def truths(
-    d: Path, event: Event, jtwc: Path | None, jma: Path | None, jma_id: str | None
+    d: Path,
+    event: Event,
+    jtwc: Path | None,
+    jma: Path | None,
+    jma_id: str | None,
+    until: datetime | None = None,
 ) -> list[Truth]:
     out = []
     if jtwc is not None:
         pts = parse_atcf(jtwc.read_text(encoding="utf-8", errors="replace"))
-        out.append(Truth(f"JTWC 最佳路徑（{jtwc.name}）", [Track("jtwc-best", pts)]))
+        out.append(Truth(f"JTWC 最佳路徑（{jtwc.name}）", [_clip(Track("jtwc-best", pts), until)]))
     if jma is not None:
         storms = parse_jma_bst(jma.read_text(encoding="utf-8", errors="replace"))
         s = pick_bst(storms, jma_id, storm_name(event))
         out.append(
-            Truth(f"JMA 最佳路徑（{jma.name}，{s.number} {s.name}）", [Track("jma-best", s.points)])
+            Truth(
+                f"JMA 最佳路徑（{jma.name}，{s.number} {s.name}）",
+                [_clip(Track("jma-best", s.points), until)],
+            )
         )
     if not out:
         out.append(
-            Truth("暫時真相：現報（JTWC 優先、再 JMA）", provisional_tracks(d), provisional=True)
+            Truth(
+                "暫時真相：現報（JTWC 優先、再 JMA）",
+                [_clip(t, until) for t in provisional_tracks(d)],
+                provisional=True,
+            )
         )
     return out
+
+
+def tracks_until(
+    tracks: list[ModelTrack], reports: list[Report], until: datetime | None
+) -> list[ModelTrack]:
+    """`--until`：模式路徑只收留下的報用過的起報（同模式取最晚的那個，以前的都收）；WN3 路徑照 WN3
+    事件檔的規則（起報 ≤ 時間，再加之後的第一個起報）。"""
+    if until is None:
+        return tracks
+    latest: dict[str, datetime] = {}
+    for r in reports:
+        for m, run in r.model_runs.items():
+            t = parse_time(run)
+            if t is not None and (m not in latest or t > latest[m]):
+                latest[m] = t
+    wn3, _ = select_until(sorted({t.run for t in tracks if t.model == "wn3"}), lambda t: t, until)
+    keep = set(wn3)
+    return [
+        t
+        for t in tracks
+        if (t.run in keep if t.model == "wn3" else t.model in latest and t.run <= latest[t.model])
+    ]
 
 
 # ---- 資料完整度 ----
@@ -948,6 +1087,11 @@ class Result:
     metar_span: int
     metar_hours: dict[str, int]
     cancel_as_of: datetime | None
+    truth_until: datetime
+    truth_until_default: bool = True  # 沒給 `--truth-until`，用 events.json 的 `to`
+    until: str | None = None  # `--until` 原值
+    until_has_next: bool = False  # `--until` 之後有沒有報（有的話已經多算了那一報）
+    excluded: dict[str, int] = field(default_factory=dict)  # `--until` 排除的：報、WN3、路徑
 
 
 def render(res: Result) -> str:
@@ -1024,36 +1168,25 @@ def render(res: Result) -> str:
                 ]
             )
     L += md_table(["系統", *[f"{b} h" for b in BUCKET_LABELS]], rows)
+    c = lv.counts
     L += [
         "",
-        "### 每報每機場（0–120 小時內任一格停飛；AI 的燈是整個機場 5 天一個等級）",
+        "### 每報每機場（0–120 小時內任一格停飛；AI 的燈是整個機場 5 天一個等級；窗截到實測截止）",
         "",
-        "規則燈取這報 0–120 小時的最高等級。提前段的欄是召回率，依窗裡第一個停飛格的提前時間分。",
+        "規則燈取這報 0–120 小時的最高等級。提前段的欄是召回率，依窗裡第一個停飛格的提前時間分。"
+        f"窗裡結束時間晚於實測的最後時間（{iso(lv.truth_last) or '-'}，實測截止與航班資料"
+        f"早的那個）的格丟掉，截短 {c['windowTruncated']} 個窗（其中一格不剩、不算的 "
+        f"{c['windowNoTruth']} 個）；"
+        "截短後任一格停飛＝有停飛。",
         "",
     ]
-    rows = []
-    for kind, name in (("risky", "判中或高"), ("high", "判高")):
-        for key in (rule_key(BEFORE), rule_key(AFTER), *AI_KEYS):
-            w = lv.window[key]
-            c = w.risky if kind == "risky" else w.high
-            by = w.recall_risky if kind == "risky" else w.recall_high
-            label = AI_NAMES.get(key) or f"規則燈（{key.split(':')[1]}）"
-            rows.append(
-                [
-                    f"{label}{name}",
-                    str(c.tp),
-                    str(c.fp),
-                    str(c.fn),
-                    str(c.tn),
-                    _f(c.precision, 2),
-                    _f(c.recall, 2),
-                    *[_f(x.recall, 2) for x in by],
-                ]
-            )
-    L += md_table(
-        ["系統", "TP", "FP", "FN", "TN", "精確率", "召回率", *[f"{b} h" for b in BUCKET_LABELS]],
-        rows,
-    )
+    L += window_table(lv.window)
+    L += [
+        "",
+        "#### 對照：只算完整窗（窗裡沒有任何格超過實測截止）",
+        "",
+    ]
+    L += window_table(lv.window_full)
     L += ["", "## (c) 路徑：距離誤差（公里）", ""]
     L += ["每格 `平均／中位數（n）`；提前時間＝`validAt` − 起報。系集是中位數位置。", ""]
     for tr in res.tracks:
@@ -1119,6 +1252,57 @@ def render(res: Result) -> str:
     return "\n".join(L) + "\n"
 
 
+def window_table(stats: dict[str, WindowStats]) -> list[str]:
+    rows = []
+    for kind, name in (("risky", "判中或高"), ("high", "判高")):
+        for key in (rule_key(BEFORE), rule_key(AFTER), *AI_KEYS):
+            w = stats[key]
+            c = w.risky if kind == "risky" else w.high
+            by = w.recall_risky if kind == "risky" else w.recall_high
+            label = AI_NAMES.get(key) or f"規則燈（{key.split(':')[1]}）"
+            rows.append(
+                [
+                    f"{label}{name}",
+                    str(c.tp),
+                    str(c.fp),
+                    str(c.fn),
+                    str(c.tn),
+                    _f(c.precision, 2),
+                    _f(c.recall, 2),
+                    *[_f(x.recall, 2) for x in by],
+                ]
+            )
+    return md_table(
+        ["系統", "TP", "FP", "FN", "TN", "精確率", "召回率", *[f"{b} h" for b in BUCKET_LABELS]],
+        rows,
+    )
+
+
+def cutoff_lines(res: Result) -> list[str]:
+    """摘要最上面：兩個截止（HD36）與各自排除了多少。"""
+    reps, ex, c = res.reports, res.excluded, res.levels.counts
+    last = reps[-1].generated if reps else None
+    if res.until is None:
+        note = "沒給 `--until`，全部的報"
+    elif res.until_has_next:
+        note = f"`--until` {res.until} 之後的第一報"
+    else:
+        note = f"`--until` {res.until}；時間之後還沒有報"
+    t = res.truth_until
+    how = "預設＝events.json 的 to 隔天 00:00" if res.truth_until_default else "`--truth-until`"
+    past_track = res.tracks[0].past_truth if res.tracks else 0
+    return [
+        f"- 預報算到：{iso(last) or '沒有快照'}（台北 {_tw(last) if last else '-'}；{note}）；"
+        f"`--until` 排除了 {ex.get('reports', 0)} 報、WN3 {ex.get('wn3', 0)} 報、"
+        f"路徑 {ex.get('tracks', 0)} 份",
+        f"- 實測到：{iso(t)}（台北 {_tw(t)}；{how}）；航班資料到 {iso(res.cancel_as_of) or '-'}，"
+        f"(b) 實際算到 {iso(res.levels.truth_last) or '-'}",
+        f"- 超過實測截止、仍然沒有實測的（不算命中也不算誤報）：(a) 陣風 {res.gust.past_truth} 格、"
+        f"(b) 每格 {c['slotPastTruth']} 格、每報每機場截短 {c['windowTruncated']} 個窗"
+        f"（截短後沒有實測 {c['windowNoTruth']} 筆）、(c) 路徑 {past_track} 點",
+    ]
+
+
 def summary_lines(res: Result) -> list[str]:
     e, reps = res.event, res.reports
     span = f"{iso(reps[0].generated)} – {iso(reps[-1].generated)}" if reps else "沒有快照"
@@ -1127,6 +1311,7 @@ def summary_lines(res: Result) -> list[str]:
     return [
         "## 摘要",
         "",
+        *cutoff_lines(res),
         f"- 事件：{e.id} {e.name}，期間（台灣日期）{e.start}～{e.end}，{len(e.airports)} 個機場",
         f"- 快照：{len(reps)} 報（{span}）",
         f"- 版本切點：{iso(res.cutoff)}（台北 {_tw(res.cutoff)}）；定版前 {versions[BEFORE]} 報、"
@@ -1156,11 +1341,45 @@ def completeness_lines(res: Result) -> list[str]:
     L += [
         "### 跳過的",
         "",
-        f"- (a) 格內沒有 METAR 觀測：{res.gust.no_metar} 格（機場 × 格，每報各算）",
-        f"- (b) 每格：還沒結束或沒有航班 {c['slotNoTruth']} 格、"
-        f"規則燈 unknown {c['slotNoLevel']} 格；"
-        f"每報每機場：窗還沒結束 {c['windowOpen']} 筆；AI 不是 ok（skipped／error／沒有）："
-        f"Claude {c['claudeNotOk']}、Gemini {c['geminiNotOk']} 筆",
+        "格是機場 × 格、每報各算；超過實測截止的不算命中也不算誤報。",
+        "",
+    ]
+    rows = [
+        [
+            "(a) 陣風",
+            f"格內沒有 METAR 觀測 {res.gust.no_metar} 格",
+            f"{res.gust.past_truth} 格",
+            "-",
+            "-",
+        ],
+        [
+            "(b) 每格",
+            f"結束了但沒有航班 {c['slotNoTruth']} 格、規則燈 unknown {c['slotNoLevel']} 格",
+            f"{c['slotPastTruth']} 格",
+            "-",
+            "-",
+        ],
+        [
+            "(b) 每報每機場",
+            f"AI 不是 ok（skipped／error／沒有）：Claude {c['claudeNotOk']}、"
+            f"Gemini {c['geminiNotOk']} 筆",
+            "（見截短）",
+            f"{c['windowTruncated']} 個",
+            f"{c['windowNoTruth']} 筆",
+        ],
+    ]
+    for tr in res.tracks:
+        rows.append(
+            [
+                f"(c) 路徑（對 {tr.label}）",
+                f"真相內插不到 {tr.no_truth} 點",
+                f"{tr.past_truth} 點",
+                "-",
+                "-",
+            ]
+        )
+    L += md_table(["類別", "跳過", "超過實測截止", "截短的窗", "截短後沒有實測"], rows)
+    L += [
         "",
         "### 路徑每報每模式追到幾步",
         "",
@@ -1191,12 +1410,19 @@ def to_json(res: Result) -> dict:
         "event": {"id": res.event.id, "name": res.event.name, "airports": list(res.event.airports)},
         "buckets": list(BUCKET_LABELS),
         "cutoff": iso(res.cutoff),
+        "until": res.until,
+        "untilHasNext": res.until_has_next,
+        "lastReport": iso(res.reports[-1].generated) if res.reports else None,
+        "excludedByUntil": res.excluded,
+        "truthUntil": iso(res.truth_until),
+        "truthUntilDefault": res.truth_until_default,
         "stopDefinition": {"rate": res.rate, "count": res.count},
         "gust": {
             "estimated": sorted(res.gust.estimated),
             "all": gust(res.gust.all),
             f"windGe{MIN_WIND_KT}": gust(res.gust.windy),
             "noMetar": res.gust.no_metar,
+            "pastTruth": res.gust.past_truth,
         },
         "levels": {
             "airports": lv.airports,
@@ -1205,8 +1431,11 @@ def to_json(res: Result) -> dict:
                 ver: {k: [c.summary() for c in cs] for k, cs in v.items()}
                 for ver, v in lv.slot.items()
             },
+            "truthLast": iso(lv.truth_last),
             "window": {k: w.summary() for k, w in lv.window.items()},
-            "skipped": dict(lv.counts),
+            "windowComplete": {k: w.summary() for k, w in lv.window_full.items()},
+            "skipped": {"slotPastTruth": 0, "windowTruncated": 0, "windowNoTruth": 0}
+            | dict(lv.counts),
         },
         "tracks": [
             {
@@ -1216,6 +1445,7 @@ def to_json(res: Result) -> dict:
                 "members": {m: [c.summary() for c in cs] for m, cs in t.members.items()},
                 "spread": {m: [c.summary() for c in cs] for m, cs in t.spread.items()},
                 "noTruth": t.no_truth,
+                "pastTruth": t.past_truth,
                 "truthPointsUsed": t.used,
             }
             for t in res.tracks
@@ -1247,27 +1477,47 @@ def build_result(
     jtwc: Path | None = None,
     jma: Path | None = None,
     jma_id: str | None = None,
+    until: str | None = None,
+    truth_until: datetime | None = None,
 ) -> Result:
+    """`until` 是 `--until` 原值（`parse_cli_time` 看得懂的）；`truth_until` 不給＝`events.json` 的
+    `to` 隔天 00:00（台灣）。"""
     history = archive / "history"
     d = history / "events" / event.id
-    reports = load_reports(d, event.airports, history)
-    metars = load_metars(d)
+    until_at = parse_cli_time(until) if until is not None else None
+    t_until = truth_until or default_truth_until(event)
+    all_reports = load_reports(d, event.airports, history)
+    reports, has_next = select_until(all_reports, lambda r: r.generated, until_at)
+    all_wn3 = load_wn3(d, event.airports)
+    wn3, _ = select_until(all_wn3, lambda w: w.run, until_at)
+    metars = load_metars(d, t_until)
     canc = load_cancellations(history)
-    track_runs = load_tracks(d)
+    all_tracks = load_tracks(d)
+    track_runs = tracks_until(all_tracks, reports, until_at)
     span, hours = metar_hours(metars, event.airports)
+    truth_list = truths(d, event, jtwc, jma, jma_id, t_until)
     return Result(
         event=event,
         reports=reports,
         cutoff=cutoff,
         rate=rate,
         count=count,
-        gust=gust_stats(reports, load_wn3(d, event.airports), metars),
-        levels=level_stats(reports, canc, event.airports, cutoff, rate, count),
-        tracks=[track_stats(track_runs, t) for t in truths(d, event, jtwc, jma, jma_id)],
+        gust=gust_stats(reports, wn3, metars, t_until),
+        levels=level_stats(reports, canc, event.airports, cutoff, rate, count, t_until),
+        tracks=[track_stats(track_runs, t, t_until) for t in truth_list],
         track_runs=track_runs,
         metar_span=span,
         metar_hours=hours,
         cancel_as_of=canc.as_of,
+        truth_until=t_until,
+        truth_until_default=truth_until is None,
+        until=until,
+        until_has_next=has_next,
+        excluded={
+            "reports": len(all_reports) - len(reports),
+            "wn3": len(all_wn3) - len(wn3),
+            "tracks": len(all_tracks) - len(track_runs),
+        },
     )
 
 
@@ -1282,6 +1532,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--jma", type=Path, help="JMA 最佳路徑（bst_all.txt 或單一颱風的檔）")
     ap.add_argument("--jma-id", help="JMA 國際編號（例如 2630）；不給就比颱風名稱")
     ap.add_argument("--cutoff", default=DEFAULT_CUTOFF, help="定版時間（UTC）")
+    ap.add_argument(
+        "--until",
+        help="預報算到這個時間之後的第一報（例如 2026-10-25T14:00+08:00）；不給＝全部的報",
+    )
+    ap.add_argument(
+        "--truth-until",
+        help="實測只用到這個時間（例如 2026-10-26T24:00+08:00）；"
+        "不給＝events.json 的 to 隔天 00:00（台灣）",
+    )
     ap.add_argument("--cancel-rate", type=float, default=0.3)
     ap.add_argument("--cancel-count", type=int, default=10)
     ap.add_argument("--out", type=Path, help="Markdown 報告；不給就印在標準輸出")
@@ -1296,6 +1555,15 @@ def main(argv: list[str] | None = None) -> int:
     if cutoff is None:
         print(f"看不懂的 --cutoff {args.cutoff}", file=sys.stderr)
         return 1
+    truth_until = None
+    for flag, value in (("--until", args.until), ("--truth-until", args.truth_until)):
+        try:
+            t = parse_cli_time(value) if value is not None else None
+        except ValueError as ex:
+            print(f"{flag}：{ex}", file=sys.stderr)
+            return 1
+        if flag == "--truth-until":
+            truth_until = t
     try:
         res = build_result(
             args.archive,
@@ -1306,6 +1574,8 @@ def main(argv: list[str] | None = None) -> int:
             args.jtwc,
             args.jma,
             args.jma_id,
+            args.until,
+            truth_until,
         )
     except ValueError as ex:
         print(ex, file=sys.stderr)

@@ -1082,7 +1082,15 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
   ```
   python -m tools.report_29w --archive data --event 29W \
     [--jtwc bwp292026.dat] [--jma bst_all.txt] [--jma-id 2630] [--cutoff 2026-10-22T04:00Z] \
+    [--until 2026-10-25T14:00+08:00] [--truth-until 2026-10-26T24:00+08:00] \
     [--cancel-rate 0.3 --cancel-count 10] [--out report/29W.md] [--json report/29W.json]
+  ```
+
+  29W 實際用法（HD36；預報算到 10/25 14:00 之後的第一報，實測到 10/26 當天結束）：
+
+  ```
+  python -m tools.report_29w --archive data --event 29W --jtwc bwp292026.dat \
+    --until 2026-10-25T14:00+08:00 --truth-until 2026-10-26T24:00+08:00 --out report/29W.md --json report/29W.json
   ```
 
   標準輸出印摘要（沒給 `--out` 就整份 Markdown 印出來）；`--json` 是同樣的數字給之後畫圖。規則（Shawn
@@ -1103,8 +1111,24 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
     HRES、系集用中位數位置，系集另印成員誤差與離散（成員到中位數）。`--jtwc`（ATCF b-deck）、`--jma`
     （`bst_all.txt` 依名稱 `CHAMPI` 挑，或 `--jma-id` 指定；單一颱風的檔直接用）給了哪份比哪份、並列；
     都沒給時用 `position/` 的現報當暫時真相（JTWC 內插得到用 JTWC，不然用 JMA），報告標「暫時真相：現報」
-  - 最後是資料完整度（每天幾報、每報 8 個模式有幾個、METAR 每站幾小時有觀測、跳過的格、路徑每報每模式
-    追到幾步與停止原因）與每報一行的附錄
+  - **兩個截止**（HD36，Shawn 2026-10-24 定案）：時間是 ISO 8601、要寫時區（`Z` 或 `+08:00`），`T24:00` 當隔天
+    `T00:00`，看不懂就印錯誤、回 1
+    - `--until`（預報算到哪一報）：`generatedAt` ≤ 時間的報全部算，再加上之後的第一報；之後還沒有報就只算到
+      時間以前的（摘要寫「時間之後還沒有報」）。WN3 事件檔用起報、同一個規則；模式路徑只收留下的報用過的起報。
+      不給＝全部的報
+    - `--truth-until`（實測到哪裡，`T`）：METAR、颱風真相、航班只用到 `T`；不給＝`events.json` 那筆 `to` 的台灣
+      日期隔天 00:00（`to: 2026-10-26` → 10/26 16:00Z）。實測的最後時間取 `min(T, 該資料本身最新的時間)`（航班
+      是 `asOf`）。超過的**不算命中也不算誤報**，另計「超過實測截止」：(a) 格的 `to` 晚於 `T`；(b) 每格：格的
+      `to` 晚於實測的最後時間；(c) 真相只用 `validAt` ≤ `T` 的點，模式路徑晚於 `T` 的點不算
+    - (b) **每報每機場**的窗截到實測的最後時間：超過的格丟掉（計「截短的窗」），截短後一格不剩的不算（計「截短後
+      沒有實測」），其他照原規則比（任一格停飛＝有停飛，第一個停飛格照截短後的窗）；規則燈的預測仍取整個
+      0–120 小時的最高等級。截短版是主表，下面附「只算完整窗」（沒有格被丟掉的）當對照。規則燈的每格照舊
+    - 摘要最上面寫預報算到哪一報（`generatedAt`、台北時間、`--until`）、實測到哪裡與兩個截止各排除了幾報／幾筆；
+      JSON 多 `until`、`untilHasNext`、`lastReport`、`excludedByUntil`、`truthUntil`、`truthUntilDefault`、
+      `gust.pastTruth`、`levels.truthLast`、`levels.windowComplete`、`levels.skipped` 的 `slotPastTruth`／
+      `windowTruncated`／`windowNoTruth`、`tracks[].pastTruth`（原有欄位不改名）
+  - 最後是資料完整度（每天幾報、每報 8 個模式有幾個、METAR 每站幾小時有觀測、跳過的格與超過實測截止的、路徑
+    每報每模式追到幾步與停止原因）與每報一行的附錄
 
 ## AI 對決
 
