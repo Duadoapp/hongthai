@@ -41,7 +41,7 @@ def test_switches_default_and_env():
     assert (m.id, m.gust_estimated, m.votes_only_high, m.voting) == ("wn3", True, False, False)
     assert set(m.name.values()) == {"Google WeatherNext 3"}
     # 預設 report-only：`MODELS` 沒有 wn3（`latest.json` 完全沒有它）
-    assert [x.id for x in config.MODELS][-1] == "cma"  # HD33b 的四個旁觀模式接在 wn2-ens 後面
+    assert [x.id for x in config.MODELS][-1] == "cma"  # HD33b 的三個旁觀模式接在 wn2-ens 後面
 
 
 def test_latest_run_follows_dissemination_schedule():
@@ -554,9 +554,9 @@ def test_env_switches_at_import():
         )
         return out.stdout.split()
 
-    assert run() == ["12", "cma", "False"]  # HD33b：8 票＋4 個旁觀
-    assert run(WN3_MODE="observe") == ["13", "wn3", "False"]
-    assert run(WN3_MODE="observe", WN3_VOTING="1") == ["13", "wn3", "True"]
+    assert run() == ["11", "cma", "False"]  # HD33b：8 票＋3 個旁觀
+    assert run(WN3_MODE="observe") == ["12", "wn3", "False"]
+    assert run(WN3_MODE="observe", WN3_VOTING="1") == ["12", "wn3", "True"]
 
 
 def test_budget_and_workflow_timeout():

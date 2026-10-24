@@ -15,7 +15,7 @@ from hongthai.assess import fill_model_wx, model_entries, model_levels, model_vo
 from hongthai.config import MODELS, Thresholds
 
 TH = Thresholds()
-OBS = [None] * 4  # HD33b：四個旁觀模式（ukmo、gem、arpege、cma）沒給資料
+OBS = [None] * 3  # HD33b：三個旁觀模式（gem、arpege、cma）沒給資料
 
 
 def test_vote_two_models_one_high_is_high():
@@ -97,8 +97,7 @@ def test_entries_in_config_order_with_nulls():
             "icon",  # HD16
             "jma",
             "wn2-ens",
-            "ukmo",  # HD33b：旁觀
-            "gem",
+            "gem",  # HD33b：旁觀
             "arpege",
             "cma",
         ]
@@ -366,7 +365,7 @@ def test_non_voting_model_listed_but_not_counted(monkeypatch):
         "thin": False,
     }
     assert tally(es, "wind", "high") == (0, 2)
-    assert assess.non_voting() == {"icon", "ukmo", "gem", "arpege", "cma"}  # HD33b 的四個
+    assert assess.non_voting() == {"icon", "gem", "arpege", "cma"}  # HD33b 的三個
 
 
 # ---- HD24：判中的分母 `mediumTotal` ----

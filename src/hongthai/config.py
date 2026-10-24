@@ -70,7 +70,7 @@ class Model:
     `gust_estimated`：沒有陣風、用平均風 × 機場的係數估算（HD18，`gustfactor.py`）；
     `voting`：`False` 是旁觀模式（HD16）——照樣抓、照樣寫進 `models[]` 與路徑檔，但不算進任何一類的
     分母、不投票（`vote.total` 不含它），頂層 `models[].voting` 讓網頁標「旁觀，不投票」；
-    `ai`：`False` 的不放進給 AI 短評的文字（HD33b：四個旁觀模式不給，改 AI 提示要另外決定）。"""
+    `ai`：`False` 的不放進給 AI 短評的文字（HD33b：三個旁觀模式不給，改 AI 提示要另外決定）。"""
 
     id: str
     name: dict[str, str]
@@ -186,15 +186,9 @@ MODELS: tuple[Model, ...] = (
         votes_only_high=True,
         gust_estimated=True,
     ),
-    # HD33b：Open-Meteo 的四個旁觀模式（不投票、不給 AI），用 29W 回補（HD33a）比過準確度後再
-    # 決定投票或加權，不照解析度加權。GEM、ARPEGE 2026-10-24 實抓有陣風；UKMO、CMA 照 Open-Meteo
-    # 文件有陣風
-    Model(
-        "ukmo",
-        {"zh-TW": "英國模式", "zh-HK": "英國模式", "zh-CN": "英国模式", "en": "UK Met Office"},
-        voting=False,
-        ai=False,
-    ),
+    # HD33b：Open-Meteo 的三個旁觀模式（不投票、不給 AI），用 29W 回補（HD33a）比過準確度後再
+    # 決定投票或加權，不照解析度加權。GEM、ARPEGE 2026-10-24 實抓有陣風；CMA 照 Open-Meteo 文件
+    # 有陣風。UKMO 是 CC BY-SA 4.0（ShareAlike），不進 `latest.json`，只在 HD33a 的報告比對
     Model(
         "gem",
         {"zh-TW": "加拿大模式", "zh-HK": "加拿大模式", "zh-CN": "加拿大模式", "en": "Canada GEM"},

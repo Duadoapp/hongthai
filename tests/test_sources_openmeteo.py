@@ -32,7 +32,7 @@ def ens():
 
 
 def test_parse_forecast_real_response(hourly):
-    # HD16 的 fixture 沒有 HD33b 四個旁觀模式的欄位 → 那四個丟掉（`{}`），ICON、JMA 照用
+    # HD16 的 fixture 沒有 HD33b 三個旁觀模式的欄位 → 那三個丟掉（`{}`），ICON、JMA 照用
     assert set(hourly) == {"icon", "jma", *openmeteo.OBSERVER_MODELS}
     assert all(hourly[mid] == {} for mid in openmeteo.OBSERVER_MODELS)
     for mid in ("icon", "jma"):
@@ -177,12 +177,12 @@ def test_ensemble_member_without_values_not_counted():
 def test_weighted_calls():
     """Open-Meteo 文件 API 頁的公式：51 個機場一報 71.4 ＋ 326.4 ＝ 397.8 次（< 每分鐘 600），一天
     4 報約 1,591 次。系集照提示詞抓 3 個變數會是 979.2 次，一個請求就超過每分鐘 600。
-    HD33b：預報多四個模式（6 個模式）→ 214.2 ＋ 326.4 ＝ 540.6 次，還在每分鐘 600 內。"""
+    HD33b：預報多三個模式（5 個模式）→ 178.5 ＋ 326.4 ＝ 504.9 次，還在每分鐘 600 內。"""
     assert openmeteo.forecast_calls(51, 2) == 71.4
-    assert openmeteo.forecast_calls(51) == 214.2  # HD33b
+    assert openmeteo.forecast_calls(51) == 178.5  # HD33b
     assert openmeteo.ensemble_calls(51) == 326.4
-    assert round(openmeteo.forecast_calls(51) + openmeteo.ensemble_calls(51), 1) == 540.6 < 600
-    assert round(540.6 * 4, 1) == 2162.4 < 10_000
+    assert round(openmeteo.forecast_calls(51) + openmeteo.ensemble_calls(51), 1) == 504.9 < 600
+    assert round(504.9 * 4, 1) == 2019.6 < 10_000
     assert openmeteo.weighted_calls(3, 64, 6, 51) == 979.2
     assert openmeteo.weighted_calls(1, 1, 7, 1) == 1.0  # 一地 7 天單變數
     assert openmeteo.weighted_calls(20, 1, 7, 1) == 2.0  # 超過 10 個變數
@@ -225,7 +225,7 @@ def test_fetch_requests_and_runs(monkeypatch, airports):
     monkeypatch.setattr(openmeteo, "http_get", fake_get)
     aps = _airports(airports)
     data = openmeteo.fetch(aps)
-    # 先兩個資料請求（不重試、60 秒逾時）、再七個 metadata（5 秒逾時）；同一個 Session。HD33b 的四個
+    # 先兩個資料請求（不重試、60 秒逾時）、再六個 metadata（5 秒逾時）；同一個 Session。HD33b 的三個
     # 旁觀模式併在預報那個請求，請求數不變
     assert [u for u, _ in asked] == [*docs, *openmeteo.META_URLS.values()]
     fc_kw, ens_kw = asked[0][1], asked[1][1]
@@ -235,8 +235,7 @@ def test_fetch_requests_and_runs(monkeypatch, airports):
     assert fc_kw["params"] == {
         "latitude": ",".join(f"{a.lat:g}" for a in aps),
         "longitude": ",".join(f"{a.lon:g}" for a in aps),
-        "models": "icon_global,jma_gsm,ukmo_global_deterministic_10km,gem_global,"
-        "meteofrance_arpege_world,cma_grapes_global",
+        "models": "icon_global,jma_gsm,gem_global,meteofrance_arpege_world,cma_grapes_global",
         "hourly": "wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,snowfall,"
         "visibility,weather_code",
         "forecast_days": 6,
@@ -250,13 +249,12 @@ def test_fetch_requests_and_runs(monkeypatch, airports):
         "icon": utc(2026, 10, 20, 6),
         "jma": utc(2026, 10, 20, 6),
         "wn2-ens": None,
-        "ukmo": None,
         "gem": utc(2026, 10, 20, 0),
         "arpege": None,
         "cma": None,
     }
-    assert data.meta_errors == dict.fromkeys(("wn2-ens", "ukmo", "arpege", "cma"), "timeout")
-    # fixture 沒有四個旁觀模式的欄位 → 丟掉、記原因
+    assert data.meta_errors == dict.fromkeys(("wn2-ens", "arpege", "cma"), "timeout")
+    # fixture 沒有三個旁觀模式的欄位 → 丟掉、記原因
     assert data.model_errors == dict.fromkeys(openmeteo.OBSERVER_MODELS, "missing")
     assert data.bytes_downloaded == 2000 and data.members == 8
     assert data.calls == round(openmeteo.forecast_calls(3) + openmeteo.ensemble_calls(3), 1)
@@ -304,13 +302,13 @@ def test_failure_returns_none_in_build(monkeypatch, airports):
     assert status["openmeteo"]["ok"] is False and status["openmeteo"]["error"] == "http_429"
 
 
-# ---- HD33b：四個旁觀模式（UKMO、GEM、ARPEGE、CMA） ----
+# ---- HD33b：三個旁觀模式（GEM、ARPEGE、CMA；UKMO 是 CC BY-SA 4.0，不放） ----
 
 
 def _with_observers(doc: list[dict], drop: tuple[str, ...] = (), gustless: tuple[str, ...] = ()):
-    """在 HD16 的 fixture 補四個旁觀模式的欄位（照 ICON 的值：UKMO ×1、GEM ×1.1、ARPEGE ×1.2、
-    CMA ×0.9）。`drop` 的模式不補（整欄沒有）；`gustless` 的模式陣風全 null（同 JMA）。"""
-    scale = {"ukmo": 1.0, "gem": 1.1, "arpege": 1.2, "cma": 0.9}
+    """在 HD16 的 fixture 補三個旁觀模式的欄位（照 ICON 的值：GEM ×1.1、ARPEGE ×1.2、CMA ×0.9）。
+    `drop` 的模式不補（整欄沒有）；`gustless` 的模式陣風全 null（同 JMA）。"""
+    scale = {"gem": 1.1, "arpege": 1.2, "cma": 0.9}
     for loc in doc:
         h, units = loc["hourly"], loc["hourly_units"]
         for mid, k in scale.items():
@@ -329,7 +327,7 @@ def _with_observers(doc: list[dict], drop: tuple[str, ...] = (), gustless: tuple
 
 
 def test_parse_forecast_observers():
-    """四個旁觀模式和 ICON、JMA 從同一份回應解析；陣風全 null 的模式（這裡假設 CMA）照樣有
+    """三個旁觀模式和 ICON、JMA 從同一份回應解析；陣風全 null 的模式（這裡假設 CMA）照樣有
     平均風。"""
     doc = _with_observers(load_json("openmeteo_forecast_3.json"), gustless=("cma",))
     errors: dict[str, str] = {}
@@ -363,7 +361,7 @@ def test_observer_error_drops_only_that_model(break_it, code):
     hourly = openmeteo.parse_forecast(doc, ICAOS, errors=errors)
     assert errors == {"cma": code}
     assert hourly["cma"] == {}
-    assert all(list(hourly[m]) == ICAOS for m in ("icon", "jma", "ukmo", "gem", "arpege"))
+    assert all(list(hourly[m]) == ICAOS for m in ("icon", "jma", "gem", "arpege"))
 
 
 def test_core_model_bad_units_still_fails():
@@ -376,7 +374,7 @@ def test_core_model_bad_units_still_fails():
 
 
 def test_fetch_one_forecast_request_with_observers(monkeypatch, airports):
-    """六個模式一個預報請求（請求數和 HD16 一樣是 2 個資料請求）；加權次數照 6 個模式算。"""
+    """五個模式一個預報請求（請求數和 HD16 一樣是 2 個資料請求）；加權次數照 5 個模式算。"""
     docs = {
         openmeteo.FORECAST_URL: _with_observers(load_json("openmeteo_forecast_3.json")),
         openmeteo.ENSEMBLE_URL: load_json("openmeteo_ensemble_3x8.json"),
@@ -392,15 +390,15 @@ def test_fetch_one_forecast_request_with_observers(monkeypatch, airports):
     monkeypatch.setattr(openmeteo, "http_get", fake_get)
     data = openmeteo.fetch(_airports(airports))
     assert asked.count(openmeteo.FORECAST_URL) == 1 and asked.count(openmeteo.ENSEMBLE_URL) == 1
-    assert len(asked) == 2 + 7
+    assert len(asked) == 2 + 6
     assert data.model_errors == {} and data.meta_errors == {}
-    assert data.calls == round(openmeteo.forecast_calls(3, 6) + openmeteo.ensemble_calls(3), 1)
+    assert data.calls == round(openmeteo.forecast_calls(3, 5) + openmeteo.ensemble_calls(3), 1)
     assert all(list(data.hourly[m]) == ICAOS for m in openmeteo.FORECAST_MODELS)
     assert data.runs["cma"] == utc(2026, 10, 20, 6)
 
 
 def test_fetch_http_400_retries_without_observers(monkeypatch, airports):
-    """預報請求回 400（旁觀模式的名字失效）→ 只帶 ICON、JMA 再請求一次；兩票照用、四個記
+    """預報請求回 400（旁觀模式的名字失效）→ 只帶 ICON、JMA 再請求一次；兩票照用、三個記
     http_400。"""
     fc = load_json("openmeteo_forecast_3.json")
     asked = []
@@ -419,7 +417,7 @@ def test_fetch_http_400_retries_without_observers(monkeypatch, airports):
     data = openmeteo.fetch(_airports(airports))
     assert asked == [",".join(openmeteo.FORECAST_MODELS.values()), "icon_global,jma_gsm"]
     assert data.model_errors == dict.fromkeys(openmeteo.OBSERVER_MODELS, "http_400")
-    assert list(data.hourly["icon"]) == ICAOS and data.hourly["ukmo"] == {}
+    assert list(data.hourly["icon"]) == ICAOS and data.hourly["gem"] == {}
     assert data.calls == round(openmeteo.forecast_calls(3, 2) + openmeteo.ensemble_calls(3), 1)
 
 

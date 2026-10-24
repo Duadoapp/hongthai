@@ -1,6 +1,7 @@
 """Open-Meteo（CC BY 4.0）的三個模式：DWD ICON global、JMA GSM、Google WeatherNext 2 系集（HD16）；
-HD33b 加四個旁觀（不投票）的模式：UK Met Office Global 10 km、ECCC GEM、Météo-France ARPEGE、
-CMA GRAPES。
+HD33b 加三個旁觀（不投票）的模式：ECCC GEM、Météo-France ARPEGE、CMA GRAPES（UK Met Office
+是 CC BY-SA 4.0，ShareAlike 會牽動 `latest.json` 的授權，2026-10-25 Shawn 定案不放，只在 HD33a 的
+報告比對）。
 
 授權：Open-Meteo 免費版只限非商業（HongThai、Duado 目前沒收費、沒廣告）。**一旦收費、訂閱或放廣告，
 必須改買商業方案或拿掉這三個模式**；網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・
@@ -38,27 +39,27 @@ Google WeatherNext 2」。Google 對即時 WeatherNext 資料另有實驗條款�
 機場都抓）。照提示詞抓系集 3 個變數的話系集一個請求就是 979.2 次，超過每分鐘 600。
 `sources.openmeteo.calls` 記這一報的加權次數
 
-HD33b 旁觀的四個模式（`OBSERVER_MODELS`，`config.MODELS` 是 `voting=False`）**併在預報那個
-請求**（`models=` 多四個，請求數不變）：
-- 模式名：`ukmo_global_deterministic_10km`、`gem_global`、`meteofrance_arpege_world`、
-  `cma_grapes_global`；metadata 的路徑不同名（GEM 全球 2026 年起是 `cmc_gem_gdps_15km`，舊的
-  `cmc_gem_gdps` 停在 2026-05；ARPEGE 是 `meteofrance_arpege_world025`）
+HD33b 旁觀的三個模式（`OBSERVER_MODELS`，`config.MODELS` 是 `voting=False`）**併在預報那個
+請求**（`models=` 多三個，請求數不變）：
+- 模式名：`gem_global`、`meteofrance_arpege_world`、`cma_grapes_global`；metadata 的路徑不同名
+  （GEM 全球 2026 年起是 `cmc_gem_gdps_15km`，舊的 `cmc_gem_gdps` 停在 2026-05；ARPEGE 是
+  `meteofrance_arpege_world025`）
 - 2026-10-24 16:4xZ 開發機實抓（單一座標，桃園）：GEM、ARPEGE 都有陣風（`gustEstimated: false`）、
   雨量、降雪、天氣碼，**沒有能見度**；ARPEGE 一報只到起報後約 102 小時（10/24 06Z 那報到
-  10/28 12Z，後面的小時是 null，最後幾格這個模式沒有資料）。UKMO、CMA 當天開發機的 IP 已經用完
-  每日額度（HTTP 429），沒抓到；Open-Meteo 文件寫兩個都有 10 米陣風（「前一小時最大」），先當有陣風
+  10/28 12Z，後面的小時是 null，最後幾格這個模式沒有資料）。CMA 當天開發機的 IP 已經用完每日
+  額度（HTTP 429），沒抓到；Open-Meteo 文件寫有 10 米陣風（「前一小時最大」），先當有陣風
 - 變數照 ICON／JMA 的 7 個（同一個請求裡每個模式拿到的變數一樣，不能分開要）
-- **四個出錯不連累 ICON、JMA 兩票**：某個旁觀模式的單位不對或整欄沒有 → 只丟掉那個模式
+- **三個出錯不連累 ICON、JMA 兩票**：某個旁觀模式的單位不對或整欄沒有 → 只丟掉那個模式
   （`OpenMeteoData.model_errors`，`sources.openmeteo.modelError`）；整個預報請求回 HTTP 400（模式名
-  失效時 Open-Meteo 回 400）→ 只帶 ICON、JMA 再請求一次（只在出錯時才多一個請求）。四個一起或
+  失效時 Open-Meteo 回 400）→ 只帶 ICON、JMA 再請求一次（只在出錯時才多一個請求）。三個一起或
   個別沒資料都只是那幾筆 `models[]` 是 null，不沿用舊資料（同 ICON／JMA）
-- 加權呼叫次數：預報 7 個變數 × 6 個模式、6 天 → 4.2 × 51 ＝ 214.2 次（HD16 是 71.4），加系集
-  326.4 → **一報 540.6**（< 每分鐘 600；一天 4 報約 2,162 次，< 每日 10,000）
+- 加權呼叫次數：預報 7 個變數 × 5 個模式、6 天 → 3.5 × 51 ＝ 178.5 次（HD16 是 71.4），加系集
+  326.4 → **一報 504.9**（< 每分鐘 600；一天 4 報約 2,020 次，< 每日 10,000）
 
 起報時間：資料的回應裡沒有。Open-Meteo 有 metadata API（`META_URLS`，文件「Model Updates」頁），
 `last_run_initialisation_time` 是最近一報的起報時間（Unix 秒）。兩個資料請求**之後**才問（每個
 模式一個約 600 bytes 的小請求、不算呼叫次數、逾時 5 秒，最多多花 15 秒，不會把 90 秒的預算吃掉）；
-問不到的那個模式 `run` 是 None，不影響資料。HD33b 多四個；開始問旁觀模式的 metadata 時已經
+問不到的那個模式 `run` 是 None，不影響資料。HD33b 多三個；開始問旁觀模式的 metadata 時已經
 超過 `META_DEADLINE_S` 秒就不問（`run` 是 None、`runError` 記 `skipped`），免得 metadata 把整個
 來源拖過 90 秒的預算、連 ICON／JMA 的票都丟掉。文件說新的一報在 `last_run_availability_time` 之後約
 10 分鐘內各台伺服器才會一致，所以剛好碰到換報的那幾分鐘，`runs.*` 可能和實際用到的資料差一報
@@ -86,8 +87,7 @@ META_URLS = {
     "icon": "https://api.open-meteo.com/data/dwd_icon/static/meta.json",
     "jma": "https://api.open-meteo.com/data/jma_gsm/static/meta.json",
     "wn2-ens": "https://ensemble-api.open-meteo.com/data/google_weathernext2_ensemble/static/meta.json",
-    # HD33b：旁觀的四個
-    "ukmo": "https://api.open-meteo.com/data/ukmo_global_deterministic_10km/static/meta.json",
+    # HD33b：旁觀的三個
     "gem": "https://api.open-meteo.com/data/cmc_gem_gdps_15km/static/meta.json",
     "arpege": "https://api.open-meteo.com/data/meteofrance_arpege_world025/static/meta.json",
     "cma": "https://api.open-meteo.com/data/cma_grapes_global/static/meta.json",
@@ -97,13 +97,12 @@ FORECAST_MODELS = {
     "icon": "icon_global",
     "jma": "jma_gsm",
     # HD33b：旁觀（不投票），同一個請求
-    "ukmo": "ukmo_global_deterministic_10km",
     "gem": "gem_global",
     "arpege": "meteofrance_arpege_world",
     "cma": "cma_grapes_global",
 }
 # HD33b：這幾個出錯只丟掉自己，不連累 ICON、JMA（見開頭）
-OBSERVER_MODELS = ("ukmo", "gem", "arpege", "cma")
+OBSERVER_MODELS = ("gem", "arpege", "cma")
 CORE_FORECAST_MODELS = tuple(m for m in FORECAST_MODELS if m not in OBSERVER_MODELS)
 FORECAST_VARS = (
     "wind_speed_10m",
@@ -160,7 +159,7 @@ class EnsStep:
 
 @dataclass
 class OpenMeteoData:
-    runs: dict[str, datetime | None]  # `META_URLS` 的 id（含 HD33b 的四個）→ 起報時間
+    runs: dict[str, datetime | None]  # `META_URLS` 的 id（含 HD33b 的三個）→ 起報時間
     hourly: dict[str, dict[str, list[OmHour]]]  # `FORECAST_MODELS` 的 id → icao → 逐時（丟掉是 {}）
     ensemble: dict[str, list[EnsStep]]  # icao → 6 小時一個時間點
     raw: dict[str, object]  # {"forecast": 回應, "ensemble": 回應}
@@ -361,7 +360,7 @@ def _get_json(
 
 
 def fetch(airports: list[Airport]) -> OpenMeteoData:
-    """抓全部機場的 ICON、JMA GSM、HD33b 的四個旁觀模式與 WeatherNext 2 系集。任何一個資料請求失敗
+    """抓全部機場的 ICON、JMA GSM、HD33b 的三個旁觀模式與 WeatherNext 2 系集。任何一個資料請求失敗
     就整個丟 `OpenMeteoError`（這一報沒有這三票）——只有預報請求回 HTTP 400 時先只帶 ICON、JMA 再試
     一次（旁觀模式的名字失效不連累兩票，HD33b）；metadata 問不到只是那個模式的 `run` 是 None。"""
     t0 = time.monotonic()

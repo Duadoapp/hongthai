@@ -314,15 +314,14 @@ def test_top_level(latest):
         "icon",
         "jma",
         "wn2-ens",
-        "ukmo",  # HD33b：旁觀
-        "gem",
+        "gem",  # HD33b：旁觀
         "arpege",
         "cma",
     ]
     for m in latest["models"]:
         assert set(m) == {"id", "name", "voting", "votesOnlyHigh"} and set(m["name"]) == LANGS
-        # HD16：三票都投票；HD33b 的四個是旁觀
-        assert m["voting"] is (m["id"] not in ("ukmo", "gem", "arpege", "cma"))
+        # HD16：三票都投票；HD33b 的三個是旁觀
+        assert m["voting"] is (m["id"] not in ("gem", "arpege", "cma"))
         # HD24：只投高或低的系集（判中時不算分母）
         assert m["votesOnlyHigh"] is (m["id"] in ("ifs-ens", "wn2-ens"))
     assert latest["models"][3]["name"] == {
@@ -516,8 +515,7 @@ def test_slot_shape(latest):
                 "icon",
                 "jma",
                 "wn2-ens",
-                "ukmo",  # HD33b：旁觀
-                "gem",
+                "gem",  # HD33b：旁觀
                 "arpege",
                 "cma",
             ]
@@ -857,8 +855,7 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
         "icon": None,  # HD16
         "jma": None,
         "wn2-ens": None,
-        "ukmo": None,  # HD33b
-        "gem": None,
+        "gem": None,  # HD33b
         "arpege": None,
         "cma": None,
     }
@@ -1231,8 +1228,7 @@ def test_ecmwf_failure_reuses_previous_model(workspace, monkeypatch):
         "icon": None,  # HD16
         "jma": None,
         "wn2-ens": None,
-        "ukmo": None,  # HD33b
-        "gem": None,
+        "gem": None,  # HD33b
         "arpege": None,
         "cma": None,
     }
@@ -1290,8 +1286,7 @@ def test_reuse_expires_after_24h(workspace, monkeypatch):
         "icon": None,  # HD16
         "jma": None,
         "wn2-ens": None,
-        "ukmo": None,  # HD33b
-        "gem": None,
+        "gem": None,  # HD33b
         "arpege": None,
         "cma": None,
     }
@@ -1974,14 +1969,13 @@ def test_rescore_revotes_models():
         "icon",
         "jma",
         "wn2-ens",
-        "ukmo",  # HD33b：旁觀
-        "gem",
+        "gem",  # HD33b：旁觀
         "arpege",
         "cma",
     ]
     assert m["models"][3]["run"] == "2026-10-18T00:00:00Z"  # 沒給 runs 時維持原值
     winds = [e["levels"]["wind"] for e in m["models"]]
-    assert winds == ["high", "medium", "high", "medium", *[None] * 8]
+    assert winds == ["high", "medium", "high", "medium", *[None] * 7]
     # 高 2 × 2 ≥ 4（IFS、系集）→ 高
     assert m["vote"] == {
         "total": 4,
@@ -1994,7 +1988,7 @@ def test_rescore_revotes_models():
     }
     assert (m["level"], slot["level"], slot["causes"]) == ("high", "high", ["wind"])
     build._rescore(slot, Thresholds(), {"ifs": "2026-10-18T06:00:00Z"})
-    assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z"] + [None] * 11
+    assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z"] + [None] * 10
 
 
 # ---- 估算陣風的係數（HD18）----
@@ -2164,7 +2158,7 @@ def test_openmeteo_three_votes_in_output(airports):
     # 高 1 × 2 < 4；中那一輪兩個系集不算，ICON、JMA 都低 → 低
     assert v["level"] == s["model"]["level"] == "low"
     assert out["runs"]["wn2-ens"] is None and wn2["run"] is None
-    assert [m["voting"] for m in out["models"]] == [True] * 8 + [False] * 4  # HD33b
+    assert [m["voting"] for m in out["models"]] == [True] * 8 + [False] * 3  # HD33b
 
 
 def test_openmeteo_failure_drops_three_votes(airports):
@@ -2229,13 +2223,13 @@ def test_rescore_keeps_this_runs_openmeteo_entries(airports):
     assert s["model"]["vote"]["total"] == 4
 
 
-# ---- HD33b：Open-Meteo 的四個旁觀模式 ----
+# ---- HD33b：Open-Meteo 的三個旁觀模式（UKMO 是 CC BY-SA 4.0，不放） ----
 
-OBSERVERS = ("ukmo", "gem", "arpege", "cma")
+OBSERVERS = ("gem", "arpege", "cma")
 
 
 def with_observers(om, airports, gust=80.0, wind=50.0, rain=20.0):
-    """`sample_openmeteo` 再加四個旁觀模式（每小時陣風 80 節、雨 20 mm → 每格風、雨都是高）。"""
+    """`sample_openmeteo` 再加三個旁觀模式（每小時陣風 80 節、雨 20 mm → 每格風、雨都是高）。"""
     t0 = utc(2026, 10, 18, 0)
     hours = [t0 + timedelta(hours=h) for h in range(144)]
     hourly = {
@@ -2261,8 +2255,8 @@ def _strip(out, ids=OBSERVERS):
 
 
 def test_observers_listed_but_do_not_change_level_or_vote(airports):
-    """四個旁觀模式每格都判高，但 `level`、`vote`、`model.level`、`causes`、`gap` 和沒有它們時
-    一模一樣；`models[]` 那四筆照寫（數字、`levels`、`level`、`run`），頂層 `models[]` 四筆
+    """三個旁觀模式每格都判高，但 `level`、`vote`、`model.level`、`causes`、`gap` 和沒有它們時
+    一模一樣；`models[]` 那三筆照寫（數字、`levels`、`level`、`run`），頂層 `models[]` 三筆
     `voting: false`。"""
     base = _assemble(airports, sample_openmeteo(airports))
     out = _assemble(airports, with_observers(sample_openmeteo(airports), airports))
@@ -2283,13 +2277,14 @@ def test_observers_listed_but_do_not_change_level_or_vote(airports):
     assert s["model"]["vote"]["total"] == 4 and s["model"]["level"] == "low"
     assert [m["id"] for m in out["models"]][8:] == list(OBSERVERS)
     assert all(m["voting"] is False and m["votesOnlyHigh"] is False for m in out["models"][8:])
-    assert out["models"][8]["name"] == {
-        "zh-TW": "英國模式",
-        "zh-HK": "英國模式",
-        "zh-CN": "英国模式",
-        "en": "UK Met Office",
+    assert out["models"][10]["name"] == {
+        "zh-TW": "中國模式",
+        "zh-HK": "中國模式",
+        "zh-CN": "中国模式",
+        "en": "CMA GRAPES",
     }
-    assert {m["id"]: m["name"]["en"] for m in out["models"][9:]} == {
+    assert "ukmo" not in out["runs"]  # UKMO 不進 latest.json（ShareAlike）
+    assert {m["id"]: m["name"]["en"] for m in out["models"][8:]} == {
         "gem": "Canada GEM",
         "arpege": "Météo-France ARPEGE",
         "cma": "CMA GRAPES",
@@ -2298,7 +2293,7 @@ def test_observers_listed_but_do_not_change_level_or_vote(airports):
 
 
 def test_observers_missing_do_not_break_report(airports):
-    """四個旁觀模式都沒資料（例如被 `parse_forecast` 丟掉）：那四筆全 null、整報照出、其他不變。"""
+    """三個旁觀模式都沒資料（例如被 `parse_forecast` 丟掉）：那三筆全 null、整報照出、其他不變。"""
     om = sample_openmeteo(airports)
     om = replace(
         om,
@@ -2308,9 +2303,7 @@ def test_observers_missing_do_not_break_report(airports):
     status = {"openmeteo": {"ok": True, "seconds": 2.0, **build._openmeteo_extra(om)}}
     out = _assemble(airports, om, status)
     assert _strip(out) == _strip(_assemble(airports, sample_openmeteo(airports)))
-    assert out["sources"]["openmeteo"]["modelError"] == (
-        "ukmo:missing,gem:missing,arpege:missing,cma:missing"
-    )
+    assert out["sources"]["openmeteo"]["modelError"] == ("gem:missing,arpege:missing,cma:missing")
     for a in out["airports"]:
         for s in a["slots"]:
             for e in s["model"]["models"]:

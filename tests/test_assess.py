@@ -1187,7 +1187,7 @@ def test_models_entries_numbers_and_levels():
     by = {e["id"]: e for e in m["models"]}
     assert list(by) == [
         *("ifs", "gfs", "ifs-ens", "aifs", "aigfs", "icon", "jma", "wn2-ens"),
-        *("ukmo", "gem", "arpege", "cma"),  # HD33b：旁觀
+        *("gem", "arpege", "cma"),  # HD33b：旁觀
     ]
     ifs, g, ens, ai, ag = (by[i] for i in ("ifs", "gfs", "ifs-ens", "aifs", "aigfs"))
     assert (ifs["gustKt"], ifs["gustEstimated"], ifs["rain6hMm"], ifs["ptype"]) == (
@@ -1276,8 +1276,7 @@ def test_models_present_when_sources_missing():
         "icon",
         "jma",
         "wn2-ens",
-        "ukmo",  # HD33b：旁觀
-        "gem",
+        "gem",  # HD33b：旁觀
         "arpege",
         "cma",
     ]

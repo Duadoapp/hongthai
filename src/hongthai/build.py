@@ -166,8 +166,8 @@ BUDGET_S: dict[str, float] = {
     "gfs": 180,
     "aifs": 180,  # HD14：ECMWF AIFS Single，鏡像切換同 ecmwf
     "aigfs": 120,  # HD14：NOAA AIGFS，只有 AWS
-    # HD16：ICON、JMA GSM、WeatherNext 2 系集，兩個請求各 60 秒逾時、不重試；HD33b 的四個旁觀模式
-    # 併在預報那個請求（請求數不變，回應約 0.6 → 2 MB）
+    # HD16：ICON、JMA GSM、WeatherNext 2 系集，兩個請求各 60 秒逾時、不重試；HD33b 的三個旁觀模式
+    # 併在預報那個請求（請求數不變，回應約 0.6 → 1.6 MB）
     "openmeteo": 90,
     # HD15：WeatherNext 3，BigQuery 一個查詢（失敗退 GCS Zarr）＋事件期間的海平面氣壓；核准前每報
     # 幾秒就 `http_403`。`report-only`（預設）只在 5 天前那一報落在事件期間時才跑
@@ -813,7 +813,7 @@ def assemble(
             icon=om.hourly["icon"].get(a.icao) if om else None,
             jma=om.hourly["jma"].get(a.icao) if om else None,
             wn2=om.ensemble.get(a.icao) if om else None,
-            # HD33b：四個旁觀模式
+            # HD33b：三個旁觀模式
             om_hourly={
                 mid: om.hourly.get(mid, {}).get(a.icao) if om else None
                 for mid in openmeteo.OBSERVER_MODELS

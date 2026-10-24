@@ -139,10 +139,10 @@ Open-Meteo 三票與旁觀模式（HD16，Shawn 2026-10-20 19:04 定案）——
   HD16 的三票都投票；這個開關給 HD15 的 WeatherNext 3 與之後的新模式
 - G 一律是 HD19 的（IFS 樣本）；新模式不進樣本（`gustfactor.py`）。這三個模式不沿用舊資料
 
-HD33b 的四個旁觀模式（`ukmo` UK Met Office、`gem` ECCC GEM、`arpege` Météo-France ARPEGE、
-`cma` CMA GRAPES，都經 Open-Meteo、`voting=False`）：數字與 `levels` 同 ICON（`hourly_for_slot`，
-有陣風；`config` 標 `gust_estimated` 的才估算），`vote`／`level`／`causes` 完全不受影響；不給 AI
-短評（`ai_hidden`）
+HD33b 的三個旁觀模式（`gem` ECCC GEM、`arpege` Météo-France ARPEGE、`cma` CMA GRAPES，都經
+Open-Meteo、`voting=False`；UKMO 是 CC BY-SA 4.0，不放）：數字與 `levels` 同 ICON
+（`hourly_for_slot`，有陣風；`config` 標 `gust_estimated` 的才估算），`vote`／`level`／`causes`
+完全不受影響；不給 AI 短評（`ai_hidden`）
 
 WeatherNext 3（HD15，`wn3`）：只有 `config.WN3_MODE` 是 `observe` 時才在 `MODELS` 裡（預設
 `report-only`，`latest.json` 沒有它）。數字是逐時的成員中位數（p50）10 米風，同 JMA GSM 估算陣風
@@ -855,7 +855,7 @@ def non_voting() -> frozenset[str]:
 
 
 def ai_hidden() -> frozenset[str]:
-    """不給 AI 短評看的模式（`Model.ai=False`，HD33b 的四個旁觀模式）的 id；同 `non_voting`。"""
+    """不給 AI 短評看的模式（`Model.ai=False`，HD33b 的三個旁觀模式）的 id；同 `non_voting`。"""
     return frozenset(m.id for m in MODELS if not m.ai)
 
 
@@ -1003,7 +1003,7 @@ def assess_slots(
     `models[].run`；`gust_factor` 是這個機場估算陣風的係數（HD18）。`icon`／`jma`／`wn2` 是
     Open-Meteo 的 ICON、JMA GSM、WeatherNext 2 系集（HD16）；`wn3` 是 WeatherNext 3（HD15，只在
     `MODELS` 有 `wn3`、也就是 `observe` 模式時才會進 `models[]`）。`om_hourly` 是 Open-Meteo 其他
-    逐時模式（HD33b 的四個旁觀模式：`ukmo`、`gem`、`arpege`、`cma`），id → 逐時（None 是沒資料），
+    逐時模式（HD33b 的三個旁觀模式：`gem`、`arpege`、`cma`），id → 逐時（None 是沒資料），
     算法同 ICON。"""
     official_until = now + timedelta(hours=OFFICIAL_HORIZON_H)
     warning_until = now + timedelta(hours=WARNING_HORIZON_H)
