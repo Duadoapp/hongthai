@@ -364,6 +364,8 @@ H10（2026-10-18）之後：
 | cwa | 45 | 幾秒 |
 | nws（HD3，關島） | 30 | 不到 1 秒 |
 | jma（HD9，日本與沖繩 11 個 office 各一個請求） | 45 | 8.6（2026-10-20，每個 0.5–1.0 秒、3–35 KB） |
+| cwaTyphoon（HD34，氣象署 `W-C0034-005` 一個請求） | 15 | 還沒有授權碼實測 |
+| jmaTyphoon（HD34，JMA targetTc＋每顆兩個請求） | 20 | 約 3（2026-10-25 雲端開發機，兩顆共 5 個請求，每個 0.4–0.9 秒） |
 | flights（抓＋統計＋寫檔） | 120 | 約 20 |
 | ai（AI 對決，HD5；兩個模型平行，每報最多 20 個機場） | 240（HD12；原 180） | 約 111–117，HD11 後第一報 178（單次請求逾時 60 秒） |
 | og（分享預覽圖 51 張，HD1；`publish()` 之後） | 60 | 約 3–6 |
@@ -373,7 +375,8 @@ H10（2026-10-18）之後：
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
 - 總和 1785 秒（29.75 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
-  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒、HD15 加 wn3 120 秒），
+  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒、HD15 加 wn3 120 秒；
+  HD29 加 swic 45 秒到 1830 秒，HD34 加 cwaTyphoon 15＋jmaTyphoon 20 秒到 1865 秒，約 31.1 分鐘），
   Actions「產生 latest.json」那一步上限 32 分鐘、整個 job 42 分鐘（HD15 前 30／40、HD16 前 28／38、HD21 前
   25／35、HD14 前是 20／30、HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
   多抓的海平面氣壓（每個步長約 1.0／1.0／0.5 MB，三個共約 52 MB）算在它們自己的預算裡
@@ -459,6 +462,8 @@ H10（2026-10-18）之後：
 - `src/hongthai/tracks.py`：颱風路徑抽取（HD21）：ECMWF 路徑產品（BUFR）與從海平面氣壓找中心
   （下面「事件保存」）；HD15 起找中心吃任何規則經緯網格（`grid_field`）
 - `src/hongthai/wn3report.py`：WeatherNext 3 的事件檔與補報（HD15，下面「事件保存」）
+- `src/hongthai/typhoons.py`：颱風地圖 `typhoons.json`（HD34，下面「颱風地圖」）；兩個官方來源的抓取與解析在
+  `src/hongthai/sources/typhoon.py`
 - `tools/report_29w.py`：颱風 29W 的驗證報告（HD22，下面「事件保存」）
 - `tools/ai_cost.py`：AI 對決的 token 用量、快取命中率與估計費用（HD26，下面「AI 對決」）
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
@@ -472,13 +477,15 @@ H10（2026-10-18）之後：
 - GitHub Pages（`public/`）：`latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（歷次結果，**只放最近 7 天**：
   H9 起一份約 515 KB、HD3 起約 642 KB（2026-10-18 實測），`publish()` 只複製檔名時間（＝`generatedAt`）在 7 天內的，Pages 上更舊的刪掉；
   `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，
-  每報重畫、不進 `data` 分支）
+  每報重畫、不進 `data` 分支）；颱風地圖 `typhoons.json`（HD34，只放最新一份，下面「颱風地圖」）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws,jma,swic,openmeteo}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
   `/alerts/active` 的原始回應，HD3 起；JMA 是 `{office 代碼: 警報 JSON}`，HD9 起；SWIC 是
   `{"wmoAll": 中韓菲三國的清單摘錄, "caps": {url: CAP 原文}, "capErrors": {url: 原因}}`，HD29 起；Open-Meteo 是
   `{"forecast": 預報回應, "ensemble": 系集回應}`，HD16 起，**不縮排**、一份約 1.2 MB（zlib 後約 190 KB）；氣象署天氣特報 `W-C0033-001` 是另一個檔 `<HHMM>Z-cwa-hazards.json`，
-  HD8 起，`-cwa.json` 照舊是颱風警報；金門、馬祖的局屬站觀測 `O-A0003-001` 是 `<HHMM>Z-cwa-obs.json`，HD13 起）與航班的
+  HD8 起，`-cwa.json` 照舊是颱風警報；金門、馬祖的局屬站觀測 `O-A0003-001` 是 `<HHMM>Z-cwa-obs.json`，HD13 起；
+  颱風地圖的氣象署路徑 `W-C0034-005` 是 `<HHMM>Z-cwa-typhoon.json`、日本氣象廳是 `<HHMM>Z-jma-typhoon.json`，HD34 起；
+  根目錄另有最新一份 `typhoons.json`）與航班的
   取消／延誤統計 `history/cancellations/<日期>.json`（之後回測「風險等級 vs 實際停飛」用；
   原始航班資料不存）、狀態對照表沒列的字串 `history/cancellations/unknown-statuses.json`、
   每次 build 的耗時紀錄 `history/timing/<YYYY-MM>.jsonl`，以及 AI 對決的戰績
@@ -873,6 +880,10 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
 - `sources.gfs.mirror`（H10）：GFS 最後從哪裡下載，`"aws"`（AWS 開放資料鏡像）／`"nomads"`
 - `sources.ecmwf.reusedFrom`、`sources.gfs.reusedFrom`：這次失敗、模式資料沿用之前的結果時，抄的
   那一份的 `generatedAt`（`ok` 仍是 `false`，網頁照樣顯示「這次沒讀到」）
+- `sources.cwaTyphoon`、`sources.jmaTyphoon`（HD34，每報都有）：颱風地圖的兩個官方來源（下面「颱風地圖」），
+  `{"ok", "seconds", "storms"}`（`storms` 是這報那個來源有幾顆，含範圍外）；JMA 某一顆抓不到時多
+  `tcErrors`（`"TC2637:http_500"`，那顆跳過）。失敗時 `error`，`latest.json` 其他內容不受影響；路徑本身不進
+  `latest.json`
 - `sources.tracks`（HD21）：颱風路徑抽取，**只在 `events.json` 有事件在期間內時才有**：
   `{"ok", "seconds", "bytes"}`；有模式抽不出來時 `ok: false`、`error: "partial"`（其他模式照寫），超時
   `error: "timeout"`。路徑本身不進 `latest.json`（在 `data` 分支，下面「事件保存」）
@@ -885,6 +896,82 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
 - 官方與模式都沒資料的格：`level: "unknown"`、`basis: "none"`、`model.level: null`；
   `agreement` 在少一個模式時是 `null`
 - TAF 沒涵蓋、也沒有警報的 0–30 小時格：`official: null`、`basis: "model"`
+
+## 颱風地圖（HD34）
+
+Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，HongThai 不自己算任何路徑或時間**——台灣附近用
+中央氣象署開放資料、境外用日本氣象廳，都標出處；台灣與境外機場都**不算「幾點進暴風圈」**（台灣《氣象法》
+第 18 條、日本《氣象業務法》）。網頁（Duado HW15）只在範圍內有颱風時出現：列表頁最上面一張、機場頁一張小圖。
+程式在 `src/hongthai/sources/typhoon.py`（抓取、解析）與 `src/hongthai/typhoons.py`（選哪一份、範圍、輸出）。
+
+- 每報抓（`build.py` 的來源 `cwaTyphoon`、`jmaTyphoon`，各自的時間預算 15、20 秒，失敗互不影響）：
+  - 氣象署 `GET https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0034-005`（「颱風消息與警報-熱帶氣旋
+    路徑」，`CWA_API_KEY`）：西北太平洋與南海所有活動中的熱帶氣旋，過去與現在的定位（`analysis_data`）、
+    預報點（`forecast_data`）、七級／十級風暴風半徑、70% 機率圈半徑（公里）。JSON 的鍵名沒有文件，照
+    [資料說明](https://opendata.cwa.gov.tw/opendatadoc/MFC/W-C0034-005.pdf)的 XML 欄位寫、鍵名比對寬鬆
+    （`sources/typhoon.py` 開頭）；**還沒有授權碼實抓過**，原始回應存 `history/raw/<日期>/<HHMM>Z-cwa-typhoon.json`，
+    合併後第一報要對一次
+  - 日本氣象廳 `https://www.jma.go.jp/bosai/typhoon/data/targetTc.json` → 每顆
+    `…/<代號>/specifications.json`（實況、預報點、予報円、暴風警戒域、強風域、暴風域，公里與海浬）與
+    `…/<代號>/forecast.json`（過去路徑與 JMA 畫圖用的幾何）。2026-10-25 00:45 JST 實抓：targetTc 211 bytes，
+    每顆兩個檔各 2–4 KB；原始回應存 `history/raw/<日期>/<HHMM>Z-jma-typhoon.json`
+- **選哪一份**：每顆熱帶氣旋，氣象署有就用氣象署，沒有才用日本氣象廳；同一顆兩邊都有時只放氣象署那份、
+  `others` 記日本氣象廳有（不畫兩條）。同一顆的判斷照順序：兩邊都有國際編號（氣象署 `year`＋颱風編號、
+  JMA `typhoonNumber`，例如 `2630`）就比編號；都有英文名就比名稱（不分大小寫、忽略連字號）；都沒有（熱帶性
+  低氣壓）就看目前位置相距 300 公里內、定位時間相差 6 小時內。氣象署的資料涵蓋整個西北太平洋，所以平常幾乎
+  每顆都是氣象署那份；氣象署失敗時那一報全部改用日本氣象廳
+- **範圍**：目前位置或任一預報點落在地圖框（51 個機場的經緯度外擴 5 度，往外取到 0.1 度：北緯 2.3–47.8、
+  東經 98.9–149.8，`typhoons.BOUNDS`，`typhoons.json` 的 `bounds`）內才算；範圍外的只在 `outOfRange` 記編號
+- **原文照轉載**：不平滑、不內插、不延伸；數值與單位照原文（氣象署只有公里，JMA 公里與海浬都是原文，**沒有
+  換算**）。唯一的相加是氣象署預報點的時間＝`init_time`＋`tau`（原文兩個欄位）。`issuedAt` 超過 12 小時就
+  `stale: true`
+- 失敗只 log：兩個來源都失敗時沿用上一份的 `storms`（`stale` 重算、記 `reusedFrom`），沒有上一份就是沒有颱風；
+  組不出來時 `data` 那份不動、Pages 照發上一份；整個 build 失敗改發布上一份時 `typhoons.json` 也一起發布
+
+`typhoons.json`（GitHub Pages，和 `latest.json` 同一層，只放最新一份；`data` 分支根目錄同一份），沒有颱風時
+`active: false`、`storms: []`（下面的數字是測試用的手造氣象署資料）：
+
+```json
+{
+ "schema": 1, "generatedAt": "2026-10-24T20:25:00Z", "active": true,
+ "bounds": {"south": 2.3, "north": 47.8, "west": 98.9, "east": 149.8},
+ "sources": {"cwa": {"ok": true}, "jma": {"ok": true}},
+ "storms": [
+  {
+   "id": "2630",
+   "name": {"zh-TW": "薔琵", "zh-HK": "薔琵", "zh-CN": "Champi", "en": "Champi"},
+   "source": "cwa", "issuedAt": "2026-10-24T18:00:00Z",
+   "url": "https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html", "stale": false,
+   "others": [{"source": "jma", "id": "TC2636", "issuedAt": "2026-10-24T15:45:00Z",
+               "url": "https://www.jma.go.jp/bosai/map.html#contents=typhoon"}],
+   "past": [{"time": "2026-10-24T12:00:00Z", "lat": 27.4, "lon": 123.2}, …],
+   "now": {"time": "2026-10-24T18:00:00Z", "lat": 27.9, "lon": 123.5,
+           "radius15": [{"dir": "all", "km": 250}], "radius25": []},
+   "forecast": [{"time": "2026-10-25T06:00:00Z", "leadHours": 12, "lat": 29.8, "lon": 124.9,
+                 "probabilityRadius": {"km": 60}, "radius15": [{"dir": "all", "km": 200}],
+                 "radius25": [], "stormWarning": []}, …]
+  }
+ ],
+ "outOfRange": [{"id": "2631", "source": "cwa"}]
+}
+```
+
+- `id`：國際編號；沒有編號的熱帶性低氣壓是 `cwa-td21`（氣象署熱帶性低氣壓編號）或 `jma-TC2638`（JMA 代號）
+- `name`：照氣象署颱風警報的寫法，zh-TW／zh-HK 用氣象署的中文名、zh-CN 與 en 用英文名；JMA 只有英文名，
+  缺中文就用英文，都沒有就用 `TD21`／JMA 代號
+- `source` 與 `url`：`cwa` 是氣象署颱風消息頁、`jma` 是日本氣象廳颱風資訊頁（網頁出處連這裡）；`issuedAt`：
+  JMA 是發布時間，氣象署資料沒有發布時間，用最新定位時間（預報的 `init_time`）
+- `past[]`：過去路徑（原文的點，最後一點通常就是 `now`）。氣象署每點有 `time`；JMA 的 `time` 是 null，
+  另有 `stage`（`preTyphoon`＝熱帶低氣壓階段、`typhoon`）
+- `now`／`forecast[]`：`radius15`／`radius25` 是七級（15 m/s）／十級（25 m/s）風暴風半徑（JMA 的強風域／
+  暴風域），每筆 `{"dir", "km"[, "nm"][, "area"]}`，`dir` 是 `all` 或八方位（JMA 依方位給不同半徑，`area` 是
+  原文 `東`、`南西`、`全域`）；`forecast[]` 另有 `leadHours`、`probabilityRadius`（70% 機率圈，JMA 的予報円）、
+  `stormWarning`（JMA 預報點的**暴風警戒域**，格式同 `radius25`；氣象署是 `[]`）。JMA 的點另有 `category`
+  （`TD`／`TS`／`STS`／`TY`／`LOW`，`LOW` 是溫帶低氣壓）與 `jmaShapes`（JMA `forecast.json` 那一點的
+  `galeWarningArea`（偏心圓：`center` [緯, 經]、`radius` 公尺）、`stormWarningArea`、`probabilityCircle`，
+  照原樣）
+- `stale`：`issuedAt` 超過 12 小時；`reusedFrom`：兩個來源都失敗、沿用上一份時那份的 `generatedAt`
+- `sources.cwa`／`jma`：這報兩個來源有沒有抓到（`error` 同 `latest.json` 的 `sources.cwaTyphoon`／`jmaTyphoon`）
 
 ## 事件保存（HD20）
 
@@ -1486,6 +1573,8 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | [WMO 惡劣天氣資訊中心 SWIC](https://severeweather.wmo.int/)（香港天文台代 WMO 經營；網頁用的 `json/wmo_all.json` 與 `v2/cap-alerts/<url>` 的 CAP 原文，**非正式介面**；HD29） | 中國氣象局（各級氣象台）、韓國氣象廳、菲律賓 PAGASA 的 CAP 警報（中國大陸 14 個、韓國 4 個、菲律賓 3 個機場） | [SWIC 使用須知](https://severeweather.wmo.int/note.html)：「The information is free for re-use by media or other websites. When doing so, it should be indicated that they are issued by the respective Tropical Cyclone RSMCs, TCWCs or NMHSs.」——可再使用，要註明由相應機關發布：**中國氣象局**（China Meteorological Administration，CAP 的發布台，例如溫州市氣象台）、**韓國氣象廳**（Korea Meteorological Administration）、**菲律賓大氣地球物理天文管理局 PAGASA**（Philippine Atmospheric, Geophysical and Astronomical Services Administration）；`warnings[].text` 結尾都標「經 WMO SWIC」。同一頁也寫：「If no warning is found on land on the SWIC map, it may be due to other reasons apart from no warning is in effect for that area.」——**SWIC 沒有不代表官方沒發**（警報沒有 CAP 格式或 feed 抓不到），網頁要寫清楚 |
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號；HD8 起加暴雨警告信號 `WRAIN`、雷暴警告 `WTS`，同一個請求） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
 | [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報；HD8 起加 `W-C0033-001` 天氣特報；HD13 起加 `O-A0003-001` 氣象觀測站-10分鐘綜觀氣象資料） | 海上／陸上颱風警報與警戒區（台灣十個機場）；各縣市目前的天氣特報（只用大豪雨、超大豪雨、濃霧）；金門 467110、馬祖 467990 局屬站的能見度、天氣、風（當這兩個機場的 METAR） | [政府資料開放授權條款](https://data.gov.tw/license) |
+| [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-005` 颱風消息與警報-熱帶氣旋路徑；HD34） | 颱風地圖 `typhoons.json`：熱帶氣旋的過去路徑、目前位置、預報點、70% 機率圈、七級與十級風暴風半徑。**只轉載、不計算**（不平滑、不內插、不延伸、不算進暴風圈的時間） | [政府資料開放授權條款](https://data.gov.tw/license)：出處標「資料來源：中央氣象署」並連到[颱風消息頁](https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html)（`typhoons.json` 的 `url`） |
+| [日本氣象廳颱風資訊](https://www.jma.go.jp/bosai/map.html#contents=typhoon)（JMA 網頁用的 JSON `bosai/typhoon/data/targetTc.json`、`<代號>/specifications.json`、`<代號>/forecast.json`，**非正式介面**；HD34） | 颱風地圖 `typhoons.json`：氣象署沒有的熱帶氣旋（境外）的過去路徑、目前位置、預報點、予報円、暴風警戒域、強風域、暴風域。**只轉載、不計算**；只把 JSON 改成 `typhoons.json` 的格式，數值與單位照原文 | [氣象廳網站利用規約](https://www.jma.go.jp/jma/kishou/info/coment.html)（公共データ利用規約第 1.0 版）：要寫出處，編輯、加工過的要另外註明，例如「出典：気象庁ホームページ（https://www.jma.go.jp/bosai/map.html#contents=typhoon）」＋「気象庁「台風情報」を加工して作成」；不能寫成像是氣象廳自己做的。同頁提醒《氣象業務法》第 17 條（預報業務許可）：轉載氣象廳發布的路徑與暴風圈，不另外做預報 |
 | [澳門地球物理氣象局 XML](https://xml.smg.gov.mo/)（`c_typhoon.xml`／`e_typhoon.xml`；data.gov.mo 資料集[「熱帶氣旋信號」](https://data.gov.mo/Detail?id=15044781-1752-4f98-b87e-508208d70408)） | 熱帶氣旋信號 | [澳門政府數據開放平台使用條款](https://data.gov.mo/)：免費使用與再發布，須註明「澳門特別行政區政府數據開放平台」與取得日期 |
 | [香港機管局航班資訊](https://data.gov.hk/tc-data/dataset/aahk-team1-flight-info)（data.gov.hk） | 算每 6 小時格的取消／延誤統計（不存原始資料） | data.gov.hk 使用條款 |
 | [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
