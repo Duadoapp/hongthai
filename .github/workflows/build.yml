@@ -88,6 +88,10 @@ jobs:
           WN3_MODE: ${{ vars.WN3_MODE }}
           WN3_VOTING: ${{ vars.WN3_VOTING }}
           WN3_BQ_TABLE: ${{ vars.WN3_BQ_TABLE }}
+          # HD38：TDX 航空即時航班（台中、台南、花蓮、台東、澎湖、金門、馬祖南竿的取消統計），和 events.yml
+          # 同一組 secrets；沒設就跳過（sources.tdx 記 not_configured），其他照跑
+          TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
+          TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
           # HD25：GitHub 排程是 schedule、Worker 帶 cloudflare、手動按的是 manual。前兩個這個時段已經出過就
           # 跳過（不產生 public/latest.json，下面兩步 Pages 自動不跑；推 data 分支只推 timing/ 那一行 skip）
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}

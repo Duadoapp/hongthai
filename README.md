@@ -365,6 +365,7 @@ H10（2026-10-18）之後：
 | nws（HD3，關島） | 30 | 不到 1 秒 |
 | jma（HD9，日本與沖繩 11 個 office 各一個請求） | 45 | 8.6（2026-10-20，每個 0.5–1.0 秒、3–35 KB） |
 | flights（抓＋統計＋寫檔） | 120 | 約 20 |
+| tdx（HD38，台灣十個機場一次請求：token＋資料，約 1.7 MB；沒設金鑰或到每月上限就不請求） | 45 | 還沒實測（事件保存那邊每小時一次） |
 | ai（AI 對決，HD5；兩個模型平行，每報最多 20 個機場） | 240（HD12；原 180） | 約 111–117，HD11 後第一報 178（單次請求逾時 60 秒） |
 | og（分享預覽圖 51 張，HD1；`publish()` 之後） | 60 | 約 3–6 |
 | tracks（颱風路徑，HD21；只在事件期間、四個模式抓完之後） | 150 | 約 5–10（ECMWF 路徑產品約 1.3 MB＋解析三個模式的氣壓場；2026-10-20 雲端開發機） |
@@ -373,7 +374,8 @@ H10（2026-10-18）之後：
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
 - 總和 1785 秒（29.75 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
-  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒、HD15 加 wn3 120 秒），
+  aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒、HD15 加 wn3 120 秒；
+  HD29 加 swic 45 秒、HD38 加 tdx 45 秒，總和 1875 秒＝31.25 分鐘），
   Actions「產生 latest.json」那一步上限 32 分鐘、整個 job 42 分鐘（HD15 前 30／40、HD16 前 28／38、HD21 前
   25／35、HD14 前是 20／30、HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
   多抓的海平面氣壓（每個步長約 1.0／1.0／0.5 MB，三個共約 52 MB）算在它們自己的預算裡
@@ -544,16 +546,18 @@ H10（2026-10-18）之後：
   "from": "2026-10-18T06:00:00Z",
   "to": "2026-10-18T12:00:00Z",
   "asOf": "2026-10-18T13:05:00Z",
-  "dep": { "total": 118, "cancelled": 2, "delayed": 7, "other": 0 },
-  "arr": { "total": 121, "cancelled": 1, "delayed": 9, "other": 0 }
+  "dep": { "total": 118, "cancelled": 2, "delayed": 7, "diverted": 0, "other": 0 },
+  "arr": { "total": 121, "cancelled": 1, "delayed": 9, "diverted": 1, "other": 0 }
 }
 ```
 
 - 依**表定**時間歸格（當地時間用 `airports.json` 的 `tz` 轉 UTC）；出發、抵達分開；不含貨機；
   共掛班號與重複的列只算一班
 - `cancelled`：狀態是取消；`delayed`：狀態是延誤，或預計／實際時間比表定晚 60 分鐘以上（取消的不重複算）；
-  `other`：看不懂的狀態（仍算進 `total`，log 印出字串，並記進 `unknown-statuses.json`）。三者互斥，
-  其餘是正常或還沒有狀態
+  `diverted`：狀態是轉降（HD38 起；之前算 `other`，舊列沒有這個鍵）；
+  `other`：看不懂的狀態（仍算進 `total`，log 印出字串，並記進 `unknown-statuses.json`）。四者互斥，
+  其餘是正常或還沒有狀態（HD38 起台灣來源的「加班」、`預計HH:MM到站` 是正常，後者的時間拿來算延誤）
+- 只有原本的五個來源（桃園、松山、高雄、香港、澳門）；TDX 的七個機場（HD38）不寫這裡，只進 `latest.json`
 - `asOf`：算出這筆的跑次時間
 - 合併：每次 build 把算出來的格合併進對應日期的檔（一次可能動到兩三個日期）。同 `airport`＋`from`
   已有紀錄時新的覆蓋舊的，但新的 `dep.total + arr.total` 比舊的少就留舊的（來源換日後看不到前一天的班機，
@@ -601,9 +605,11 @@ H10（2026-10-18）之後：
           "level": "medium", "basis": "official",
           "official": { "windKt": 25, "gustKt": 38, "kind": "tempo", "level": "medium", "crosswindKt": 21.4, "warnings": [] },
           "model": { "ec": { "p10": 0.92, "p15": 0.55, "p25": 0.08, "p29Kt": 0.55, "p37Kt": null, "p49Kt": 0.08, "hresGustMs": 19.4, "hresGustKt": 37.7, "crosswindKt": 26.1 }, "gfs": { "gustMs": 19.6, "gustKt": 38.1, "crosswindKt": 12.3 }, "level": "medium", "agreement": "agree" },
-          "gap": false
+          "gap": false,
+          "flights": { "total": 118, "cancelled": 2, "delayed": 7, "diverted": 0, "few": false, "source": "taoyuan-airport", "asOf": "2026-10-18T08:10:00Z", "dep": { "total": 60, "cancelled": 1, "delayed": 3, "diverted": 0 }, "arr": { "total": 58, "cancelled": 1, "delayed": 4, "diverted": 0 } }
         }
       ],
+      "flightSources": [ "taoyuan-airport" ],
       "confirmed": [ { "from": "…", "to": "…", "note": { "zh-TW": "…", "en": "…" } } ],
       "ai": {
         "evaluatedAt": "2026-10-18T08:10:00Z",
@@ -855,6 +861,41 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
 - 大小：Pages 上 2026-10-20 15:04Z 那報重算，`latest.json`（不縮排）3,178 KB → 3,195 KB（**多約 16 KB**，
   1,020 格 × `"mediumTotal":6,`）
 
+HD38（2026-10-25，航班取消、延誤數上網頁；`schema` 維持 `1`，**只加欄位，既有欄位不改名、不改型別**；網頁是
+Duado HW14）：
+
+- `slots[].flights`（新，物件）：這格（依**表定**時間歸格，和 `history/cancellations/` 同一套，
+  `cancellations.py`）的航班統計，**出發＋抵達合計**：
+  - `total`（表定班數，不含貨機，共掛算一班）、`cancelled`、`delayed`（狀態延誤，或預計／實際比表定晚
+    60 分鐘以上）、`diverted`（轉降，不算取消）：整數；對照表沒列的狀態只算在 `total`，不另列
+  - `few`：布林，`total` 少於 4 班（`cancellations.FEW_FLIGHTS`，HD37 報告工具的「班次少」同一個門檻）。
+    規則照判，只是標出來（網頁加小字「這段時間班次少，一兩班取消比例就很高」）
+  - `source`：這格用哪個來源（同 `flightSources`）；`asOf`：統計的時間（這一報的 `generatedAt`；原本五個
+    來源照 `history/cancellations/` 的合併規則留了舊列時是那一報的時間）
+  - `dep`、`arr`：出發、抵達各自的 `total`／`cancelled`／`delayed`／`diverted`（`few`、`source`、`asOf`
+    只在外層）
+  - **沒有航班資料的機場、那格沒有任何班機的格都不寫這個鍵**（不寫 `total: 0`，免得和「沒有資料」混在一起）。
+    已經過去、但還在 `slots` 裡的那格（現在那格）照算
+  - 原本五個來源：這一報統計和 `history/cancellations/` 已有的同一格照存檔的規則合併（新的班數比舊的少就留
+    舊的），網頁看到的和存檔一致
+- `airports[].flightSources`（新，字串陣列）：這一報航班統計用的來源，`taoyuan-airport`（桃園機場）、`tsa`
+  （松山機場）、`kia`（高雄機場）、`hongkongairport`（香港機場管理局）、`aacm`（澳門民航局）、`tdx`（交通部
+  運輸資料流通服務平臺，台中、台南、花蓮、台東、澎湖、金門、馬祖南竿）；和逐班紀錄的 `source` 同一套。這一報
+  抓不到或算不出來、或沒有航班來源的機場是 `[]`
+- `sources.tdx`（新）：`{"ok", "seconds", "calls", "monthCalls"}`；`calls` 是這一報送出的 TDX 資料請求數、
+  `monthCalls` 是含這一報的本月合計（下面「TDX 用量」）；`error` 多 `not_configured`（沒設金鑰）、
+  `monthly_limit`（本月到上限，不請求）；有機場沒回或算不出來時 `statsError`（`"<機場>:<訊息>"`）
+- 分類新增（`cancellations.py`，台灣三個來源與 TDX；新存的資料才套）：開頭「加班」→ 正常；開頭「轉降」→
+  `diverted`（`history/cancellations/` 的 `dep`／`arr` 多 `diverted`，HD38 以前的列沒有，當 0）；
+  `預計HH:MM到站`／`離站`／`出發`（可帶月日）→ 正常、時間當預計時間算延誤。逐班紀錄的 `class` 多
+  `diverted`
+- 不寫 `history/cancellations/` 的只有 TDX 的七個機場（每 6 小時的統計在 `history/<時間>.json` 的
+  `slots[].flights` 裡；HD37 報告工具的停飛實測照舊讀事件保存的逐班紀錄）
+- 3 小時格：同一批航班另外依表定歸 3 小時格（`cancellations.slot_stats(..., hours=3)`、`build.slot_flights`），
+  給 HD35 的每機場檔 `slots3h[].flights`（同欄位）
+- 大小：`data` 分支 2026-10-24 13:06Z 那報的 `latest.json`（不縮排）加上 17:07Z 實抓的五個來源與事件逐班紀錄
+  重建的 TDX 七個機場，3,194 KB → 3,205 KB（**多約 11 KB**；有航班的格 41 格，每格約 260 bytes）
+
 規格以外加的欄位與值（網頁可以忽略）：
 
 - HD2（2026-10-19）加的節欄位（要進 Duado spec 第 16 節；舊欄位全部照出、型別不變）：
@@ -950,8 +991,11 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
      - `estUtc`／`actUtc`：取消統計算延誤用的那個時間；狀態表示已起飛／已降落（桃園「出發」「已到」、松山
        「已飛」「已到」、高雄「離站」「抵達」、香港 `Dep`／`At gate`／`Landed`、澳門 `TOOK OFF AT`／`LANDED AT`／
        「著陸」「起飛」）放 `actUtc`，其他放 `estUtc`；沒有就是 `null`
-     - `class`：`cancelled`／`delayed`（狀態延誤，或預計／實際比表定晚 60 分鐘以上）／`other`（對照表沒列的
-       狀態）／`normal`，和 `history/cancellations/` 的統計同一套
+     - `class`：`cancelled`／`diverted`（轉降，HD38 起；之前是 `other`）／`delayed`（狀態延誤，或預計／實際比表定晚
+       60 分鐘以上）／`other`（對照表沒列的狀態）／`normal`，和 `history/cancellations/` 的統計同一套。HD38 起台灣
+       來源與 TDX 的「加班」是 `normal`、`預計HH:MM到站／離站` 是 `normal`（狀態裡的時間放 `estUtc`，晚 60 分鐘以上
+       是 `delayed`）；分類改了的班機在 HD38 上線後第一次抓到時會多寫一行（狀態沒變、`class`／`estUtc` 變了），
+       之前的行不改寫
      - `source`：`taoyuan-airport`／`tsa`／`kia`／`hongkongairport`／`aacm`；HD32 起多 `tdx`（下面）
      - **只在有變化時寫**：同一個 `source`＋`airport`＋`dir`＋`flight`＋`schedUtc`，`status`、`class`、`estUtc`、
        `actUtc` 任一個和檔裡最後一行不同才寫，第一次看到也寫（`t` 不同不算；`source` HD32 起算在鍵裡）
@@ -971,11 +1015,30 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
        不寫進檔案、log 不印；**沒設就整件事跳過**（log 一行「TDX 未設定」），其他照跑；token 或請求失敗只記 log
      - 端點：`GET https://tdx.transportdata.tw/api/basic/v2/Air/FIDS/Airport?$filter=AirportID eq 'TPE' or …&$top=10&$format=JSON`
        （基礎服務「公共運輸-航空」v2「取得機場的即時航班資料」，一次拿全部要的機場的出發與抵達），
-       `Accept-Encoding: gzip`。**每小時 2 個請求**（token＋資料），一個月約 1,488 個
+       `Accept-Encoding: gzip`。事件期間**每小時 2 個請求**（token＋資料）；HD38 起 build 每一報也各 2 個（下面
+       「TDX 用量」）
      - 頻率限制（2026-10-23 讀 TDX 訂閱收費頁與 swagger 說明，原文）：基礎會員「TWD 0 元/月| 虛擬點數：3 點/月|
        存取頻率：5 次/分/金鑰」；「計次：1,500次/1點」「計量：150MB/1點」，次數與資料量**合併計算**；超過頻率
-       「API將回傳錯誤訊息(error code) 429」；點數用到 105% 當月停用。每小時一次資料請求一個月約 744 次（約 0.5 點），
-       資料量還沒實測（設好 secret 後看【會員中心 > 資料服務 > 使用統計】補上）
+       「API將回傳錯誤訊息(error code) 429」；點數用到 105% 當月停用
+
+     **TDX 用量**（HD38 改寫）：
+     - 誰在抓：**平常（沒有颱風事件）build 每一報抓一次**（一天 4 報，一個月約 124 次，`sources.tdx`）；
+       **颱風事件期間**事件保存照舊每小時一次（`events.py`，一天 24 次），build 那 4 次照抓（沒有改成讀逐班
+       紀錄）。token 請求不計
+     - 估算（每次資料請求的計量照約 1.7 MB 算，還沒在【會員中心 > 資料服務 > 使用統計】對過；回應有要求
+       gzip，若計量是壓縮後的大小會少很多）：平常 124 次 ×（1/1,500 點＋1.7/150 點）≈ 0.08＋1.41 ≈
+       **1.5 點／月**；事件期間每天多 24 次 ≈ 0.02＋0.27 ≈ **0.29 點／天**。每月 3 點：平常之外大約只夠
+       **5 天**的事件期間（3.15 點＝105% 停權）
+     - 上限：`sources/tdx.py` 的 `MONTHLY_CALL_LIMIT`（預設 **600 次**／月，build＋事件保存合計）。build 每報
+       抓之前數這個月已用的次數（`build.tdx_month_calls`：`history/timing/<YYYY-MM>.jsonl` 裡 `source: "tdx"`
+       的 `calls`，超過預算被放棄的那行當 1 次；加上事件逐班紀錄裡 `source: "tdx"`、`t` 在這個月的不同 `t`
+       個數），到了上限就跳過 TDX、記 log，`sources.tdx` 是 `{"ok": false, "error": "monthly_limit"}`，台灣
+       其他 7 個機場這一報沒有航班數，其他照出。事件保存不看這個上限（`events.py` 不動）
+     - **注意**：照 1.7 MB 算，600 次約 0.4＋6.8 ≈ 7.2 點，超過每月 3 點；要靠上限保證不停權，上限要降到約
+       **250 次**（3 點 ÷（1/1,500＋1.7/150）≈ 265）。先照定案設 600，月初看【使用統計】的實際計量再調整
+       常數（調低時事件期間 build 會比較早停抓 TDX）
+     - 超過時的處理：當月剩下的報台灣其他 7 個機場沒有航班數（網頁什麼都不顯示，`flightSources` 是 `[]`），
+       下個月 1 日（UTC）起自動恢復；若已經被停權，`sources.tdx` 會是 token 或資料請求的錯誤代碼，一樣不影響整報
      - 欄位對照：`FlightNumber` 不含航空公司代碼，`flight` 是 `AirlineID`＋`FlightNumber`；`peer` 是對方機場 IATA
        （出發看 `ArrivalAirportID`、抵達看 `DepartureAirportID`）；表定／預計／實際時間是當地時間、帶日期，
        `actUtc` 是 `Actual…Time`（沒有實際、但狀態已起飛／已降落時放預計），其他放 `Estimated…Time`
@@ -1502,9 +1565,9 @@ HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**�
    - 服務帳號在那個專案要有 BigQuery Job User（跑查詢）；讀 GCS 統計 Zarr 要 allowlist 有含這個服務帳號
    - 開關（Variables，不是 secret）：`WN3_MODE`（`report-only`／`observe`，沒設＝`report-only`）、
      `WN3_VOTING`（`1` 投票，沒設＝旁觀）
-5. TDX（HD32，事件保存的台灣機場航班）：在 <https://tdx.transportdata.tw/> 註冊會員（基礎會員免費），
+5. TDX（HD32，事件保存的台灣機場航班；HD38 起 build 也用）：在 <https://tdx.transportdata.tw/> 註冊會員（基礎會員免費），
    【會員中心 > 資料服務 > API金鑰】取得 Client Id 與 Client Secret，新增兩個 secret：`TDX_CLIENT_ID`、
-   `TDX_CLIENT_SECRET`。沒設時 `events` 只是跳過 TDX，其他照跑
+   `TDX_CLIENT_SECRET`。沒設時 `events` 與 `build` 只是跳過 TDX，其他照跑（`events.yml`、`build.yml` 都讀這兩個）
 6. **Actions → build → Run workflow** 手動跑一次，然後開
    <https://duadoapp.github.io/hongthai/latest.json> 確認
 
@@ -1556,7 +1619,7 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 松山機場即時航班（data.gov.tw [37242](https://data.gov.tw/dataset/37242)／[37248](https://data.gov.tw/dataset/37248)／[37317](https://data.gov.tw/dataset/37317)／[37319](https://data.gov.tw/dataset/37319)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 高雄機場即時航班（data.gov.tw [33656](https://data.gov.tw/dataset/33656)／[33655](https://data.gov.tw/dataset/33655)／[33651](https://data.gov.tw/dataset/33651)／[33649](https://data.gov.tw/dataset/33649)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
-| [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)（交通部；基礎服務「公共運輸-航空」v2 `Air/FIDS/Airport`；HD32） | 台灣十個機場的逐班航班狀態，存事件保存的 `flights/`（`source: "tdx"`，不存原始回應、不進 `latest.json`） | 政府資料開放授權條款（平臺[資料授權利用條款](https://tdx.transportdata.tw/term)）：公開發行或展示時須標示資料來源為「交通部運輸資料流通服務平臺」或其資料來源單位（例如「資料來源：交通部運輸資料流通服務平臺（TDX）」） |
+| [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)（交通部；基礎服務「公共運輸-航空」v2 `Air/FIDS/Airport`；HD32） | 台灣十個機場的逐班航班狀態，存事件保存的 `flights/`（`source: "tdx"`，不存原始回應）；HD38 起台中、台南、花蓮、台東、澎湖、金門、馬祖南竿的每 6 小時取消／延誤數進 `latest.json`（`slots[].flights`，`source: "tdx"`） | 政府資料開放授權條款（平臺[資料授權利用條款](https://tdx.transportdata.tw/term)）：公開發行或展示時須標示資料來源為「交通部運輸資料流通服務平臺」或其資料來源單位（例如「資料來源：交通部運輸資料流通服務平臺（TDX）」） |
 | 澳門民航局航班資訊（data.gov.mo [離港（英文）](https://data.gov.mo/Detail?id=f910cf2e-5e30-45c3-9e62-3eb6bf912db3)／[抵港（英文）](https://data.gov.mo/Detail?id=44b62bd1-6c84-421f-b571-52ab184c7df3)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 澳門政府數據開放平台使用條款 |
 | [芫荽 Iansui](https://github.com/ButTaiwan/iansui)（子集，`assets/fonts/`；HD1） | 分享預覽圖的中文字 | [SIL OFL 1.1](assets/fonts/OFL-Iansui.txt) |
 | [Fraunces](https://github.com/undercasetype/Fraunces)（SOFT 100、wght 600 靜態檔的子集；HD1） | 分享預覽圖的英文與數字 | [SIL OFL 1.1](assets/fonts/OFL-Fraunces.txt) |
