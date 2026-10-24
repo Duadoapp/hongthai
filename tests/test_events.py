@@ -32,7 +32,7 @@ def test_events_json(airports):
     assert (e.id, e.start, e.end, e.jma_tc_id, e.jtwc_id) == (
         "29W",
         date(2026, 10, 19),
-        date(2026, 10, 28),
+        date(2026, 10, 26),  # 2026-10-24 由 10-28 提前（Shawn 定案）
         "TC2636",
         "wp2926",
     )
