@@ -11,6 +11,8 @@ name: events
 # history/events/<id>/metar/（已有的不覆蓋，補進來的行多 "backfill"；金門、馬祖是氣象署觀測，補不到只記 log）；
 # 勾 backfill-flights（HD31）：香港 past?date= 從 2026-10-19 起每天補逐班航班紀錄到 history/events/<id>/flights/
 # （同一班同狀態不重寫，補進來的行多 "backfill": true；其他四個機場只有當天，補不到只記 log）。
+# backfill-openmeteo（HD33a）填事件 id（例如 29W）：UKMO、GEM、ARPEGE、CMA 經 Open-Meteo Previous Runs
+# 回補事件期間的預報到 history/events/<id>/backfill/（只追加、已有的跳過；只給報告比，不進 latest.json）。
 # HD32：每小時的航班另外存 TDX 台灣十個機場（source: "tdx"），要 secrets TDX_CLIENT_ID／TDX_CLIENT_SECRET，
 # 沒設就跳過（log 記「TDX 未設定」），其他照跑。
 # HD25：整點的排程由 Cloudflare 排程 Worker（cloudflare/trigger/）用 workflow_dispatch 觸發
@@ -41,6 +43,10 @@ on:
         description: "補 2026-10-19 起香港的逐班航班紀錄（history/events/<id>/flights/；其他機場只有當天）"
         type: boolean
         default: false
+      backfill-openmeteo:
+        description: "事件 id（例如 29W）：回補 UKMO、GEM、ARPEGE、CMA 的預報到 history/events/<id>/backfill/；空白＝不跑"
+        type: string
+        default: ""
 
 permissions:
   contents: write # 推 data 分支
@@ -104,6 +110,13 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m hongthai.events backfill-flights --archive data --from 2026-10-19
+
+      - name: 回補 Open-Meteo 新模式（手動、backfill-openmeteo）
+        if: github.event_name == 'workflow_dispatch' && inputs.backfill-openmeteo != ''
+        env:
+          PYTHONPATH: src
+          EVENT_ID: ${{ inputs.backfill-openmeteo }}
+        run: python -m hongthai.events backfill-openmeteo --archive data --event "$EVENT_ID"
 
       - name: 每小時 METAR、颱風現報與航班
         env:
