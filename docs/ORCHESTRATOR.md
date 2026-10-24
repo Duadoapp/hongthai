@@ -83,6 +83,10 @@
     燈號＝未來 5 天最高等級＋第一個達到那級的格（當地時間，跨午夜寫兩個日期），有已確認的格時顯示「已確認」；
     字型芫荽（中文）＋Fraunces SOFT 100／wght 600（ASCII）＋Noto Sans TC（備援，目前沒用到）的子集放
     `assets/fonts/`，加機場要跑 `tools/make_font_subset.py`（測試會擋）；51 張約 0.9 MB、本機約 3 秒，預算 60 秒
+    **HD39（2026-10-25）換 HongThai 新品牌「風眼夜航」**（提示詞 `docs/prompts/2026-10-25-HD39-og-rebrand.md`）：
+    配色照 Duado `site/hongthai/theme.ts`（`og.COLORS`／`og.LEVEL_COLORS`，兩邊一起改）、右下漩渦 LOGO＋字標
+    「HongThai」（brand.ts 的外框路徑攤平畫）＋「風颱」、字型 Space Grotesk（ASCII）＋Noto Sans TC（中文），
+    拿掉 Fraunces 與芫荽；版面、內容、檔名、網址不變；51 張約 0.74 MB、本機約 3.3 秒
   - **第四階段：AI 對決「三顆燈」（2026-10-18 定案）**——規則（現有等級）、Claude Opus 5.5、Gemini 4 Argon
     各一顆燈。兩個 AI 各自讀該機場的全部數據，給自己的等級＋一段短評（像評論員）；數據照舊全部保留給讀者。
     只請 AI 評「未來 5 天有任一時段 ≥ 中、或等級有變」的機場，其他機場兩個 AI 燈直接寫「沒看到明顯風險」、
@@ -547,7 +551,7 @@ Settings → Secrets and variables → Actions 新增 `CWA_API_KEY`（氣象署�
 | 香港天文台開放數據（warnsum） | 熱帶氣旋信號（香港）；HD8 起加暴雨警告信號、雷暴警告 | data.gov.hk 使用條款 |
 | 澳門地球物理氣象局 SMG（`xml.smg.gov.mo`，data.gov.mo 資料集「熱帶氣旋信號」） | 熱帶氣旋信號（澳門） | 澳門政府數據開放平台使用條款（須註明平台與取得日期） |
 | 航班狀態（香港機管局、桃園機場、松山／高雄／澳門見 README） | 算每 6 小時格的取消／延誤統計（不存原始資料），之後回測 | 各自條款，見 README |
-| 芫荽 Iansui、Fraunces、Noto Sans TC（子集，`assets/fonts/`；HD1） | 分享預覽圖的字型 | SIL OFL 1.1（各附 `OFL-*.txt`） |
+| Space Grotesk、Noto Sans TC（子集，`assets/fonts/`；HD1，HD39 換字） | 分享預覽圖的字型（字標「HongThai」是 Duado `brand.ts` 的 Space Grotesk Bold 外框） | SIL OFL 1.1（各附 `OFL-*.txt`） |
 | Google WeatherNext 3（BigQuery／GCS Zarr，要 allowlist；HD15） | 預設只存 5 天前那一報的機場數字與颱風路徑（報告比對） | 1 小時以前：CC BY 4.0（© Google LLC）；1 小時內或未來：GDM 即時資料實驗條款（不能公開未修改數字、日本是限制國家），細節 README「WeatherNext 3 的條款」 |
 
 NWS 查的結果（HD3，2026-10-18；細節在 README「資料來源與授權」與 `src/hongthai/sources/nws.py` 開頭）：
