@@ -299,6 +299,7 @@ def test_build_publishes_airport_files(workspace, monkeypatch, airports):
     assert set(out["airports"][0]) == {
         *("icao", "iata", "tz", "name", "region", "official", "warningSources", "warnings"),
         *("metar", "taf", "slots", "confirmed", "ai"),
+        "flightSources",  # HD38
     }
     line = next(
         json.loads(x)

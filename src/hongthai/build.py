@@ -1013,6 +1013,10 @@ def airport_files(
     except Exception:  # 保險：3 小時格不能讓 build 失敗
         log.exception("機場頁 3 小時格整個算不出來")
         failed.append("*")
+    try:  # HD38：3 小時格也帶 `flights`（`src["fs"]`，同 6 小時格的來源）；算大小之前放進去
+        flight_files(docs, airports, list(src.get("fs") or []))  # type: ignore[arg-type]
+    except Exception:  # 保險：航班放不進去不影響機場檔
+        log.exception("機場頁 3 小時格的航班放不進去")
     size = sum(len(_compact(d).encode("utf-8")) + 1 for d in docs.values())
     seconds = round(time.monotonic() - t0, 1)
     log.info(
@@ -1329,11 +1333,17 @@ def run(
             sources = {n: d if d is not None else prev for n, d in sources.items()}
         reuse_models(latest, sources, failed, now, airports, factors)
     if airport_out is not None:  # HD35：機場頁的 3 小時格，只進 Pages（publish），不進 archive
-        docs = airport_files(
-            latest, now=now, airports=airports, confirmed=confirmed, timing=timing, **inputs
+        airport_out.update(
+            airport_files(
+                latest,
+                now=now,
+                airports=airports,
+                confirmed=confirmed,
+                timing=timing,
+                fs=[fs, fs_tdx],  # HD38：3 小時格也帶 `flights`
+                **inputs,
+            )
         )
-        flight_files(docs, airports, [fs, fs_tdx])  # HD38：3 小時格也帶 `flights`
-        airport_out.update(docs)
     run_ai(latest, previous_latest(archive, pages_url), now, history, timing)
 
     stamp = f"{now:%Y%m%dT%H%M}Z"
