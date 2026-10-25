@@ -588,6 +588,8 @@ def test_build_real_1306z():
     assert (len(champi["past"]), len(champi["forecast"])) == (13, 4)
     assert (infa["id"], infa["source"], infa["sourceId"]) == ("2631", "jma", "TC2637")
     assert infa["issuedAt"] == "2026-10-25T10:10:00Z"
+    # 日本氣象廳那份只有英文名：配到的氣象署那份的中文名借給 zh-TW／zh-HK（2026-10-26）
+    assert infa["name"] == {"zh-TW": "煙花", "zh-HK": "煙花", "zh-CN": "In-fa", "en": "In-fa"}
     assert infa["others"] == [
         {
             "source": "cwa",
@@ -642,3 +644,16 @@ def test_storm_id_rules():
     assert not typhoons.near_taiwan(c2)
     assert _src(_doc(c2, j2, td)) == [("2632", "cwa")]
     assert _src(_doc(c2, j2)) == [("2632", "jma")]
+
+
+def test_names_borrow_cwa_zh_only_for_jma():
+    """借名只借氣象署那份的中文名；自己有中文名、或配到的不是氣象署的，不借。"""
+    j = _storm("jma", "TC2637", "2631", en="In-fa")
+    c = _storm("cwa", "ty30", en="In-fa")
+    c.name_zh = "煙花"
+    assert typhoons.names(j) == dict.fromkeys(("zh-TW", "zh-HK", "zh-CN", "en"), "In-fa")
+    assert typhoons.names(j, [c])["zh-TW"] == "煙花"
+    assert typhoons.names(j, [c])["zh-CN"] == "In-fa"
+    c2 = _storm("cwa", "ty29", en="Champi")
+    c2.name_zh = "薔琵"
+    assert typhoons.names(c2, [j])["zh-HK"] == "薔琵"
