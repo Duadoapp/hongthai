@@ -26,7 +26,7 @@ def _parse(name="openmeteo_previous_runs_2.json", start=START, end=END):
 def test_models_and_params():
     assert ob.MODELS == {
         "ukmo": "ukmo_global_deterministic_10km",
-        "gem": "cmc_gem_gdps",
+        "gem": "gem_global",
         "arpege": "meteofrance_arpege_world",
         "cma": "cma_grapes_global",
     }
@@ -79,6 +79,19 @@ def test_parse_skips_rows_without_values():
     assert ("VHHH", "2026-10-21T09:00:00Z", 5) in keys
     assert empty == 1 + 3 * 2
     assert len(rows) == 2 * 13 * 6 - empty
+
+
+def test_parse_day0_key_with_or_without_suffix():
+    """實際回應的 day0 不帶後綴（`wind_speed_10m`）；萬一帶 `_previous_day0` 也照讀。"""
+    doc = load_json("openmeteo_previous_runs_2.json")
+    assert "wind_speed_10m" in doc[0]["hourly"]
+    assert "wind_speed_10m_previous_day0" not in doc[0]["hourly"]
+    for loc in doc:
+        for sec in ("hourly", "hourly_units"):
+            loc[sec] = {
+                (f"{k}_previous_day0" if k in ob.VARS else k): v for k, v in loc[sec].items()
+            }
+    assert ob.parse(doc, ICAOS, START, END, FETCHED) == _parse()
 
 
 def test_parse_clips_to_window():
@@ -149,7 +162,7 @@ def test_backfill_one_model_fails_others_written(tmp_path, airports, monkeypatch
     def get(url, *, params, **kw):
         asked.append(params["models"])
         assert url == ob.PREVIOUS_RUNS_URL
-        if params["models"] == "cmc_gem_gdps":
+        if params["models"] == "gem_global":
             raise OpenMeteoError("HTTP 400", "http_400")
         name = "openmeteo_previous_runs_2"
         return _Resp(
@@ -179,7 +192,7 @@ def test_backfill_error_reason_from_response(airports, monkeypatch):
         status_code = 400
 
         def json(self):
-            return {"error": True, "reason": "Cannot initialize cmc_gem_gdps"}
+            return {"error": True, "reason": "Cannot initialize gem_global"}
 
     def get(url, **kw):
         e = OpenMeteoError("x: HTTP 400", "http_400")
@@ -188,7 +201,7 @@ def test_backfill_error_reason_from_response(airports, monkeypatch):
 
     monkeypatch.setattr(ob, "http_get", get)
     res = ob.fetch_model("gem", _airports(airports), START, END, FETCHED)
-    assert res.error is not None and "Cannot initialize cmc_gem_gdps" in res.error
+    assert res.error is not None and "Cannot initialize gem_global" in res.error
 
 
 # ---- events backfill-openmeteo ----
@@ -247,7 +260,7 @@ def test_main_backfill_openmeteo(tmp_path, monkeypatch, capsys):
     assert events.main(args) == 0
     out = capsys.readouterr().out
     assert "29W ukmo（ukmo_global_deterministic_10km）：3 行、寫了 2" in out
-    assert "29W gem（cmc_gem_gdps）：失敗 HTTP 400（No data）" in out
+    assert "29W gem（gem_global）：失敗 HTTP 400（No data）" in out
     assert events.main(["backfill-openmeteo", "--archive", str(tmp_path), "--event", "NOPE"]) == 1
 
 

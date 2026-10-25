@@ -12,10 +12,10 @@ API）；文件寫 `_previous_day1` 是 valid time 前 24 小時預報的值、`
 `tools/report_29w.py` 開頭。
 
 - 模式（`MODELS`，id → Open-Meteo 的模式代號；id 和 HD33b 的 `config.MODELS` 一樣）：
-  `ukmo` → `ukmo_global_deterministic_10km`、`gem` → `cmc_gem_gdps`、`arpege` →
-  `meteofrance_arpege_world`、`cma` → `cma_grapes_global`。GEM Global 照 2026-10-24 的文件頁
-  （預報 API 與 Previous Runs API 的模式清單都是 `cmc_gem_gdps`，GEM API 頁的範例是
-  `cmc_gem_seamless`；舊名 `gem_global` 的 metadata 路徑 404），不是提示詞預計的 `gem_global`
+  `ukmo` → `ukmo_global_deterministic_10km`、`gem` → `gem_global`、`arpege` →
+  `meteofrance_arpege_world`、`cma` → `cma_grapes_global`。GEM Global 現在的文件頁寫
+  `cmc_gem_gdps`，2026-10-25 00:10Z 實測 Previous Runs 兩個代號都收、回的值逐點一樣（別名），
+  用 `gem_global` 和 HD33b（`latest.json` 的旁觀）一致
 - 變數：逐時 `wind_speed_10m`、`wind_direction_10m`、`wind_gusts_10m`、`precipitation`，每個都帶
   `_previous_day0`…`_previous_day5`（`PREVIOUS_DAYS`），`wind_speed_unit=kn`、`timezone=UTC`。
   `wind_gusts_10m` 是前一小時最大陣風、`precipitation` 是前一小時的量（同 `openmeteo.py`）
@@ -25,6 +25,16 @@ API）；文件寫 `_previous_day1` 是 valid time 前 24 小時預報的值、`
 - 某個模式的陣風在整個回應裡全是 null（例如 JMA GSM，`openmeteo.py`）→ 那個模式每行
   `gustEstimated: true`、`gustKt: null`，報告用平均風 × 機場的估算係數 G
 - 一行三個值（`windKt`、`gustKt`、`precipMm`）都是 null 的不寫（那一報還沒有或沒存），之後重跑還能補
+
+實測（2026-10-25 00:10Z，雲端開發機，29W 26 個機場、10/18 12Z～10/25 00Z）：
+- 四個模式都有陣風；`_previous_day0` 回來的鍵不帶後綴（`response_key`）。有值的提前天數
+  （0–7 都問）：UKMO 0–6、GEM 0–7、CMA 0–4、**ARPEGE 0–3**（ARPEGE 的 96–120 小時段沒有），
+  10/18 起的都還在
+- 四個請求各約 663–693 KB、14–45 秒（含 TLS 被斷重試），共 2 分 17 秒；行數 UKMO、GEM 各 24,492、
+  CMA 20,410、ARPEGE 16,328
+- `gem_global` 與文件現在寫的 `cmc_gem_gdps` 回的值逐點一樣（別名）
+- Single Runs API 對照：GEM `_previous_day1` 在 10/21 00–11Z 等於 10/19 12Z 那報（提前 36–47
+  小時）、12–23Z 等於 10/20 12Z 那報（24–35 小時），提前時間落在 24–47 小時
 
 加權呼叫次數（`openmeteo.weighted_calls`）：一個模式 4 個變數 × 6 個提前天數＝24 個變數，事件期間
 不到 14 天 → 2.4 × 26 個機場＝62.4 次；四個模式 249.6 次（< 每分鐘 600、每日 10,000）。
@@ -60,7 +70,7 @@ PREVIOUS_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1/forecast"
 # id → Open-Meteo 的模式代號（照 README 的顯示順序）
 MODELS = {
     "ukmo": "ukmo_global_deterministic_10km",
-    "gem": "cmc_gem_gdps",
+    "gem": "gem_global",
     "arpege": "meteofrance_arpege_world",
     "cma": "cma_grapes_global",
 }
@@ -87,6 +97,13 @@ class ModelResult:
 
 def var_name(var: str, day: int) -> str:
     return f"{var}_previous_day{day}"
+
+
+def response_key(hourly: dict, var: str, day: int) -> str:
+    """回應裡的鍵：`_previous_day0` 回來時**不帶後綴**（2026-10-25 實測，同預報 API 的名字），
+    其他照請求的名字。"""
+    key = var_name(var, day)
+    return var if day == 0 and key not in hourly else key
 
 
 def params(
@@ -132,13 +149,15 @@ def parse(
         times = _times(hourly)
         units = loc.get("hourly_units") or {}
         for d in PREVIOUS_DAYS:
-            key = var_name("wind_speed_10m", d)
+            key = response_key(hourly, "wind_speed_10m", d)
             if key in units and units[key] != "kn":
                 raise OpenMeteoError(
                     f"Open-Meteo Previous Runs 的 {key} 單位是 {units[key]!r}，不是 kn", "bad_units"
                 )
         c = {
-            (v, d): _column(hourly, var_name(v, d), len(times)) for v in VARS for d in PREVIOUS_DAYS
+            (v, d): _column(hourly, response_key(hourly, v, d), len(times))
+            for v in VARS
+            for d in PREVIOUS_DAYS
         }
         any_gust = any_gust or any(
             x is not None for d in PREVIOUS_DAYS for x in c[("wind_gusts_10m", d)]
