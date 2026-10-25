@@ -292,6 +292,60 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
   `history/*.json` 既有的檔案不重算、不改，回看戰績（`history/ai/`、`history/cancellations/`）時 `run` 在
   HD7 合併之前（第一份套用 HD7 的 `generatedAt` 是 2026-10-19T05:25:00Z）的，第一格要打折看
 
+### 機場頁的 3 小時時間軸（HD35）
+
+Shawn 2026-10-23、2026-10-25 00:35 定案（Duado spec 第 16 節「颱風期間功能擴充計畫」的「時間軸」）：機場頁
+**0–72 小時每 3 小時一格**（24 格），72–120 小時維持 6 小時一格（8 格）；列表頁與 `latest.json` 維持 6 小時、
+**完全不變**。每個機場另外發一個檔 `airports/<iata 小寫>.json`（下面「輸出」），網頁進機場頁才載入，載不到就
+退回 `latest.json` 的 6 小時。每 1 小時要內插一半以上的模式，不做。
+
+- **怎麼算**：同一套 `assess.assess_slots` 用 3 小時窗（`assess.three_hour_bounds`，從 6 小時格的開頭
+  `floor_6h(現在)` 起）再跑一次，再用 `latest.json` 包住它的那個 6 小時格合併（`assess.merge_3h`）；投票、門檻、
+  官方層、`gap`、`causes` 都是 6 小時的規則（`assess.rescore`，模式沿用也是用它），不另寫一份
+- **陣風、平均風、側風**：有 3 小時資料的模式各自取 3 小時窗內的最大值（窗的定義同 6 小時：HRES 陣風取結束
+  時間落在 (from, to] 的區間，0–90 小時的 `10fg` 是「前 1 小時」最大陣風、每 3 小時一筆，所以一格就是結束在
+  `to` 那一筆；ICON 取 (from, to] 的小時）。風向照現在的做法：HRES 配區間結束時間往後最近的 6 小時步長
+- **只有 6 小時資料的模式**：同一個 6 小時的值（`latest.json` 那格的那一筆，整筆）放進兩個 3 小時格，那筆
+  `sixHourly: true`（網頁寫「6 小時資料」）。哪些模式有 3 小時資料是 `config.Model.three_hourly`，以實際資料為準
+  （2026-10-24 查）：
+
+  | 模式 | 0–72 小時的時間解析度 | `sixHourly` |
+  | --- | --- | --- |
+  | `ifs`（HRES） | 陣風每 3 小時（`10fg`，前 1 小時最大）；10 米風、雨量只抓 6 小時整的步長（H10） | `false`（雨量照下面用 6 小時） |
+  | `gfs` | 只抓 6 小時整的步長（`gfs.STEP_H`；GFS 本身有 3 小時，但要多抓一倍） | `true` |
+  | `ifs-ens` | 24 小時窗的機率、每 12 小時一個窗 | `true`（窗的邊界是 12 小時的倍數，兩個 3 小時格本來就一樣） |
+  | `aifs`、`aigfs` | 每 6 小時一個步長 | `true` |
+  | `icon` | Open-Meteo 逐時，ICON global 0–78 小時原生 1 小時 | `false` |
+  | `jma` | Open-Meteo 逐時，但雨量是每 6 小時一個值平均攤到 6 個小時、風是內插的（metadata `jma_gsm` 的 `temporal_resolution_seconds` 21600） | `true` |
+  | `wn2-ens` | Open-Meteo `temporal_resolution=native`，每 6 小時 | `true` |
+  | `wn3`（`observe` 才有） | 只讀 6 小時整的步長（`wn3.STEP_H`） | `true` |
+  | `gem`、`arpege`（HD33b 旁觀） | Open-Meteo 逐時，原生 1 小時（metadata `cmc_gem_gdps_15km`、`meteofrance_arpege_world025` 的 `temporal_resolution_seconds` 3600；ARPEGE 約 102 小時後沒有） | `false` |
+  | `cma`（HD33b 旁觀） | Open-Meteo 逐時，原生 3 小時（metadata `cma_grapes_global` 10800；3 小時格各有一個原生值） | `false` |
+
+  `three_hourly` 的模式這一報沒抓到（失敗、沿用舊資料，`sources.<名稱>.ok` 是 false）時也整筆用 6 小時格的、
+  標 `sixHourly: true`（`build.native_3h`）；GFS 不是 3 小時，所以 `model.gfs` 整個用 6 小時格的
+- **雨**：門檻是 6 小時累積，所以每個模式的 `rain6hMm`、`ptype`（IFS 還有 `temp2mC` 與系集機率）都用包住它的
+  6 小時格的（兩格一樣），雨、雪的等級與 `causes` 照算；系集機率（24 小時窗）同現在取包住的窗
+- **官方層（0–30 小時）**：TAF 依時段切到 3 小時格（和格重疊、`now` 之後還有效的時段，同 HD7）；警報同 6 小時
+  （同一個時刻有效就算，開始時間早於「現在 + 12 小時」的格）；METAR 只算進 `now` 所在的那個 3 小時格（第一格）；
+  官方層只到開始時間早於「現在 + 30 小時」的格，所以 3 小時格的官方層可能比 6 小時格早半格結束
+- **AI 不變**：還是讀 `latest.json` 的 6 小時格
+- **一致性**：每個 6 小時格對應的兩個 3 小時格，等級取最高（`unknown` < 低 < 中 < 高 < 已確認）和 6 小時格不同時
+  記 log（`assess.level_mismatches`，不改任何一邊；耗時紀錄的 `mismatches` 是格數）。可能不同的原因：
+  - 窗不同：6 小時格每個模式取 6 小時的最大值再投票，3 小時格是各自那 3 小時的最大值再投票。例如 IFS 在前 3 小時
+    到中、ICON 在後 3 小時到中，6 小時格兩票、3 小時格各一票，3 小時格可能兩格都不成立
+  - 投票分母不同：某個模式在 6 小時窗有資料、在某個 3 小時窗沒有（例如缺一個步長），那格的分母少一個
+  - 官方層的界線：官方層（開始時間早於現在 + 30 小時）與警報（早於現在 + 12 小時）用格的開始時間判斷，6 小時格
+    後半的 3 小時格可能已經過了界線、改由模式層決定；METAR 的側風只進第一個 3 小時格
+  - build 晚跑（現在已經在第一個 6 小時格的後半）時，第一個 3 小時格整個在過去：TAF 只算現在之後還有效的時段、
+    沒有 TAF 的機場 METAR 只撐現在所在的格，所以那格常常沒有官方層、改由模式層決定。四個排定時間（01:05、08:25、
+    13:05、20:25Z）都在第一個 3 小時格裡，晚 35 分鐘以上的 08:25／20:25 那報才會碰到（2026-10-24 17:02Z 本機實跑
+    的 2 格不一致——宮古、濟州的 12–15Z——都是這個）
+- **失敗**：某個機場的檔產生失敗只 log、不發那個檔（網頁退回 6 小時）；整步失敗也一樣，都不影響
+  `latest.json`、不讓 build 失敗。整個流程失敗改發布上一份 `latest.json` 時不發任何機場檔
+- **耗時**：純計算、不下載，不走來源的預算執行緒（`BUDGET_S` 不變、總和不變）；`history/timing/` 記一行
+  `source: "airports3h"`
+
 ## 怎麼跑
 
 需要 Python 3.12 以上。`eccodes` 的 pip 套件已附函式庫；Linux 也可以先裝 `libeccodes-dev`。
@@ -381,6 +435,7 @@ H10（2026-10-18）之後：
 | ai（AI 對決，HD5；兩個模型平行，每報最多 20 個機場） | 240（HD12；原 180） | 約 111–117，HD11 後第一報 178（單次請求逾時 60 秒） |
 | og（分享預覽圖 51 張，HD1；`publish()` 之後） | 60 | 約 3–6 |
 | tracks（颱風路徑，HD21；只在事件期間、四個模式抓完之後） | 150 | 約 5–10（ECMWF 路徑產品約 1.3 MB＋解析三個模式的氣壓場；2026-10-20 雲端開發機） |
+| airports3h（機場頁的 3 小時格，HD35；純計算，**不走預算執行緒、不在 `BUDGET_S`**） | — | 0.6（2026-10-24 17:02Z 雲端開發機，51 個機場；51 個檔共 5.02 MB） |
 
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
@@ -485,7 +540,9 @@ H10（2026-10-18）之後：
 - GitHub Pages（`public/`）：`latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（歷次結果，**只放最近 7 天**：
   H9 起一份約 515 KB、HD3 起約 642 KB（2026-10-18 實測），`publish()` 只複製檔名時間（＝`generatedAt`）在 7 天內的，Pages 上更舊的刪掉；
   `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，
-  每報重畫、不進 `data` 分支）
+  每報重畫、不進 `data` 分支）；每個機場一個機場頁的 3 小時時間軸 `airports/<iata 小寫>.json`（HD35，上面
+  「機場頁的 3 小時時間軸」、格式在下面；只放這一報、不進 `history/`、不進 `data` 分支，事件保存的快照照舊只存
+  `latest.json`）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws,jma,swic,openmeteo}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
   `/alerts/active` 的原始回應，HD3 起；JMA 是 `{office 代碼: 警報 JSON}`，HD9 起；SWIC 是
@@ -539,7 +596,9 @@ H10（2026-10-18）之後：
   `{"claude": 美元, "gemini": 美元}`，算不出來是 `null`；HD30 起多 `errorMessages`
   `{"claude": 字串或 null, "gemini": 字串或 null}`——各模型這一報**第一則**錯誤的訊息（同一報 20 個都一樣也只記
   一則；沒有 HTTP、逾時、網路錯誤是 `null`，AI 步驟整個壞掉時整欄是 `null`）；見「AI 對決」）、`og`（HD1 起，分享預覽圖；改發布上一份時
-  也有）、`done`（照執行順序）
+  也有）、`airports3h`（HD35，機場頁的 3 小時格；在 `flights` 之後、`ai` 之前；多 `files`（發了幾個機場檔）與
+  `mismatches`（3 小時與 6 小時等級不一致的格數），`bytes` 是全部機場檔不縮排的總大小，有機場算不出來時
+  `ok: false`、`error` 是那幾個 IATA 用 `,` 接，整步壞掉是 `*`）、`done`（照執行順序）
 - `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`（`og` 有幾張畫不出來時是
   `"<IATA>:<例外類別>"`，多個用 `,` 接）；`bytes`：下載量（逾時的是到那時為止，
   ecmwf 只算下載完的檔；`og` 是畫出來的圖的總大小）；
@@ -627,6 +686,35 @@ H10（2026-10-18）之後：
   ]
 }
 ```
+
+`airports/<iata 小寫>.json`（HD35，機場頁的 3 小時時間軸；不縮排）：
+
+```json
+{
+  "schema": 1,
+  "generatedAt": "2026-10-25T08:25:00Z",
+  "icao": "RCTP", "iata": "TPE",
+  "slots3h": [
+    { "from": "2026-10-25T06:00:00Z", "to": "2026-10-25T09:00:00Z", "level": "medium", "basis": "official", "causes": ["wind"], "official": { "…": "…" },
+      "model": { "ec": { "…": "…" }, "gfs": { "…": "…" }, "level": "medium", "agreement": "agree", "vote": { "…": "…" },
+        "models": [ { "id": "ifs", "gustKt": 41.2, "…": "…", "sixHourly": false }, { "id": "gfs", "…": "…", "sixHourly": true } ] },
+      "gap": false }
+  ],
+  "slots6h": [ { "from": "2026-10-28T06:00:00Z", "to": "2026-10-28T12:00:00Z", "…": "…" } ]
+}
+```
+
+- `schema`：這個檔自己的版本（`build.AIRPORT_SCHEMA`，規則同 `latest.json`：只加欄位不升）；`generatedAt` 和同一報的
+  `latest.json` 一樣（網頁可以用它確認兩個檔是同一報）
+- `slots3h`：0–72 小時、每 3 小時一格、24 格（第一格從 `latest.json` 第一格的 `from` 開始）；每格的欄位**和
+  `latest.json` 的 `slots[]` 同一套**（`from`、`to`、`level`、`basis`、`causes`、`official`、`model`、`gap`），
+  `model.models[]` 每筆多 `sixHourly`（布林；`true` 是那筆用包住它的 6 小時格的值，規則在上面）
+- `slots6h`：72–120 小時那 8 格，直接是 `latest.json` 那個機場 `slots[12:]` 的內容（沒有 `sixHourly`）
+- 最後一個 3 小時格的 `to` ＝ `slots6h` 第一格的 `from`
+- 大小（2026-10-24 17:02Z 雲端開發機實跑，8 個模式）：一個檔 96.8–99.6 KB（最大是濟州），51 個檔共
+  5,019,288 bytes（約 4.8 MB；`latest.json` 同一報 3.08 MB）；gzip 後一個約 4.4 KB、全部約 190 KB（GitHub Pages
+  有壓縮）。`models[]` 一筆約 285 bytes，每多一個模式一個檔多約 9 KB（32 格）；HD33b 的三個旁觀模式進來後
+  約 127 KB。**目標：每個檔約 127 KB（壓縮後約 5 KB）可以接受**（Shawn 2026-10-25；提示詞原本是 ≤ 120 KB）
 
 第二階段（2026-10-18）加的欄位（規格 16 節已補；網頁之後顯示在依據區，現在忽略也不會壞）：
 

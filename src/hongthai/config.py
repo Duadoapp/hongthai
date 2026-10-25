@@ -70,6 +70,8 @@ class Model:
     `gust_estimated`：沒有陣風、用平均風 × 機場的係數估算（HD18，`gustfactor.py`）；
     `voting`：`False` 是旁觀模式（HD16）——照樣抓、照樣寫進 `models[]` 與路徑檔，但不算進任何一類的
     分母、不投票（`vote.total` 不含它），頂層 `models[].voting` 讓網頁標「旁觀，不投票」；
+    `three_hourly`：0–72 小時有 3 小時（或更細）的風（HD35，機場頁的 3 小時格各自算）；`False` 的
+    模式在 3 小時格用包住它的 6 小時格的值、標 `sixHourly`（`assess.merge_3h`）；
     `ai`：`False` 的不放進給 AI 短評的文字（HD33b：三個旁觀模式不給，改 AI 提示要另外決定）。"""
 
     id: str
@@ -77,6 +79,7 @@ class Model:
     votes_only_high: bool = False
     gust_estimated: bool = False
     voting: bool = True
+    three_hourly: bool = False
     ai: bool = True
 
 
@@ -129,6 +132,7 @@ MODELS: tuple[Model, ...] = (
             "zh-CN": "欧洲中期预报中心 IFS",
             "en": "ECMWF IFS",
         },
+        three_hourly=True,  # HD35：HRES 陣風 0–144 小時每 3 小時一筆（`sources/ecmwf.py`）
     ),
     Model(
         "gfs",
@@ -169,11 +173,15 @@ MODELS: tuple[Model, ...] = (
     Model(
         "icon",
         {"zh-TW": "德國 ICON", "zh-HK": "德國 ICON", "zh-CN": "德国 ICON", "en": "DWD ICON"},
+        three_hourly=True,  # HD35：Open-Meteo 逐時，ICON global 0–78 小時原生 1 小時
     ),
     Model(
         "jma",
         {"zh-TW": "日本 GSM", "zh-HK": "日本 GSM", "zh-CN": "日本 GSM", "en": "JMA GSM"},
         gust_estimated=True,
+        # HD35：Open-Meteo 雖然逐時，雨量是每 6 小時一個值平均攤到 6 個小時、風是內插出來的
+        # （2026-10-24 13Z 那報實看；metadata `jma_gsm` 的 `temporal_resolution_seconds` 是
+        # 21600），當 6 小時資料（`three_hourly` 不設）
     ),
     Model(
         "wn2-ens",
@@ -195,6 +203,8 @@ MODELS: tuple[Model, ...] = (
         {"zh-TW": "加拿大模式", "zh-HK": "加拿大模式", "zh-CN": "加拿大模式", "en": "Canada GEM"},
         voting=False,
         ai=False,
+        # HD35：metadata `cmc_gem_gdps_15km` 的 `temporal_resolution_seconds` 3600（逐時原生）
+        three_hourly=True,
     ),
     Model(
         "arpege",
@@ -206,12 +216,16 @@ MODELS: tuple[Model, ...] = (
         },
         voting=False,
         ai=False,
+        # HD35：metadata `meteofrance_arpege_world025` 3600（逐時原生，約 102 小時後沒有）
+        three_hourly=True,
     ),
     Model(
         "cma",
         {"zh-TW": "中國模式", "zh-HK": "中國模式", "zh-CN": "中国模式", "en": "CMA GRAPES"},
         voting=False,
         ai=False,
+        # HD35：metadata `cma_grapes_global` 10800（原生 3 小時，3 小時格各一個原生值）
+        three_hourly=True,
     ),
     *((WN3_MODEL,) if wn3_mode() == "observe" else ()),
 )

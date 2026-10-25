@@ -1446,6 +1446,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "jma",
         "swic",  # HD29
         "flights",
+        "airports3h",  # HD35
         "ai",
         "og",
         "done",
@@ -1476,7 +1477,12 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     om_line = lines[5]  # HD16：openmeteo 記加權呼叫次數（失敗是 null）
     assert set(om_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert (om_line["ok"], om_line["calls"]) == (False, None)
-    ai_line = lines[14]
+    ap_line = lines[14]  # HD35：機場頁的 3 小時格
+    assert set(ap_line) == {
+        *("run", "source", "ok", "error", "seconds", "bytes", "files", "mismatches"),
+    }
+    assert (ap_line["ok"], ap_line["error"], ap_line["files"]) == (True, None, 51)
+    ai_line = lines[15]
     assert set(ai_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "calls"),
         *("usage", "costUsd"),  # HD26
