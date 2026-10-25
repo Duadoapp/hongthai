@@ -51,6 +51,7 @@
 `sourceId` 是那個來源自己的代號（氣象署 `ty29`／`td33`、JMA `TC2636`），下一報認上一份的同一顆
 用。`name`：氣象署給中文、英文，JMA 只給英文；照 `sources/cwa.py` 颱風警報的寫法，zh-TW／zh-HK
 用中文名、zh-CN 與 en 用英文名，缺中文用英文，都缺用 `TD33`（氣象署熱帶性低氣壓編號）或 JMA 代號。
+用日本氣象廳那份時，`others` 裡配到的氣象署那份有中文名就借來給 zh-TW／zh-HK（2026-10-26）。
 """
 
 from __future__ import annotations
@@ -137,10 +138,13 @@ def storm_id(s: Storm | dict, c: Storm | None, j: Storm | None, prev: dict | Non
     return f"{s.source}-{s.key}"
 
 
-def names(s: Storm) -> dict[str, str]:
+def names(s: Storm, others: list[Storm] | tuple[Storm, ...] = ()) -> dict[str, str]:
+    """四語名稱。用日本氣象廳那份（只有英文名）時，配到的氣象署那份有中文名就借來給 zh-TW／zh-HK
+    （Shawn 2026-10-26：只借名字，路徑、暴風圈、`source` 照用日本氣象廳的）。"""
     fallback = s.key.upper() if s.source == "cwa" else s.key
     en = s.name_en or fallback
-    zh = s.name_zh or en
+    borrowed = next((o.name_zh for o in others if o.source == "cwa" and o.name_zh), "")
+    zh = s.name_zh or borrowed or en
     return {"zh-TW": zh, "zh-HK": zh, "zh-CN": en, "en": en}
 
 
@@ -161,7 +165,7 @@ def _other(s: Storm) -> dict:
 def storm_json(s: Storm, sid: str, now: datetime, others: list[Storm]) -> dict:
     return {
         "id": sid,
-        "name": names(s),
+        "name": names(s, others),
         "source": s.source,
         "sourceId": s.key,
         "issuedAt": iso(s.issued_at),
