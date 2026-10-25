@@ -24,11 +24,13 @@
   - `history/events/<id>/tracks/<起報時間>-<模式>.json`：事件期間每個模式每一報的颱風路徑（HD21，
     `tracks.py`；來源 `tracks`，見下面）
   - `history/events/<id>/wn3/<起報時間>.json`：WeatherNext 3 每格的數字（HD15，`wn3report.py`）
+  - `typhoons.json`：颱風地圖的官方路徑與暴風圈，只有最新一份（HD34，`typhoons.py`；來源
+    `cwaTyphoon`、`jmaTyphoon`，原始回應 `history/raw/<日期>/<HHMM>Z-{cwa,jma}-typhoon.json`）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
   `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
-  以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）與
+  以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）、
   機場頁的 3 小時時間軸 `airports/<iata 小寫>.json`（HD35，`airport_files`；只放這一報，不進
-  `data` 分支）
+  `data` 分支）與颱風地圖 `typhoons.json`（HD34，從 `--archive` 複製）
 
 失敗處理：單一來源失敗記在 `sources.<名稱>`，其他照出。整個流程失敗（例外沒接到）時不產生新的
 `latest.json`，改用上一份（先找 `--archive` 裡的，沒有就從 Pages 網址抓）重新發布，並回傳非 0。
@@ -113,6 +115,7 @@ from . import (
     gustfactor,
     og,
     tracks,
+    typhoons,
     wn3report,
 )
 from .ai import run as ai
@@ -145,6 +148,7 @@ from .sources import (
     swic,
     taf,
     tdx,
+    typhoon,
     wn3,
 )
 from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
@@ -204,9 +208,13 @@ BUDGET_S: dict[str, float] = {
     # CAP 原文每則 0.6–1 秒、4 條平行；平時幾則、颱風期間估 10–40 則
     "swic": 45,
     "flights": 120,  # 抓＋統計＋寫檔
-    # HD38：TDX 台灣十個機場一次請求（token＋資料，傳輸約 104 KB）；總和 1875 秒（31.25 分鐘），
-    # 還在 `build.yml` 那一步的 32 分鐘內
+    # HD38：TDX 台灣十個機場一次請求（token＋資料，傳輸約 104 KB）
     "tdx": 45,
+    # HD34：颱風地圖的官方路徑。氣象署 `W-C0034-005` 一個請求；JMA targetTc＋每顆兩個請求
+    # （每個約 0.5–1 秒）。HD38＋HD34 後總和 1910 秒（約 31.8 分鐘），還在 `build.yml` 那一步的
+    # 32 分鐘內
+    "cwaTyphoon": 15,
+    "jmaTyphoon": 20,
     "ai": 240,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒；HD12 180 → 240
     "og": 60,  # HD1：51 張分享預覽圖，publish() 之後畫（本機約 3 秒）
 }
@@ -475,6 +483,15 @@ def _swic_extra(s: swic.SwicData) -> dict:
     d: dict[str, object] = {"caps": s.caps}
     if s.cap_errors:
         d["capErrors"] = len(s.cap_errors)
+    return d
+
+
+def _typhoon_extra(t: typhoon.TyphoonData) -> dict:
+    """`sources.cwaTyphoon`／`jmaTyphoon`（HD34）：這報有幾顆（含範圍外）；JMA 某一顆抓不到時
+    `tcErrors`（`代號:原因`，那顆跳過、其他照出）。"""
+    d: dict[str, object] = {"storms": len(t.storms)}
+    if t.errors:
+        d["tcErrors"] = ",".join(f"{k}:{v}" for k, v in t.errors.items())
     return d
 
 
@@ -1278,6 +1295,9 @@ def run(
     nw = _call("nws", lambda: nws.fetch(nws_zones), status, timing)
     jma_areas = [a.jma_area for a in airports if "jma" in a.warning_sources and a.jma_area]
     jm = _call("jma", lambda: jma.fetch(jma_areas), status, timing)
+    # HD34：颱風地圖（`typhoons.json`）；`latest.json` 只多這兩個 `sources`
+    ct = _call("cwaTyphoon", lambda: typhoon.fetch_cwa(api_key), status, timing, _typhoon_extra)
+    jt = _call("jmaTyphoon", typhoon.fetch_jma, status, timing, _typhoon_extra)
     swic_airports = [a for a in airports if swic.SOURCES & set(a.warning_sources)]
     sw = _call("swic", lambda: swic.fetch(swic_airports, now), status, timing, _swic_extra)
     fs = _call(
@@ -1367,13 +1387,40 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-jma.json", jm.raw)
     if sw is not None:
         _dump(raw_dir / f"{now:%H%M}Z-swic.json", sw.raw)
+    if ct is not None:
+        _dump(raw_dir / f"{now:%H%M}Z-cwa-typhoon.json", ct.raw)
+    if jt is not None:
+        _dump(raw_dir / f"{now:%H%M}Z-jma-typhoon.json", jt.raw)
     if om is not None:  # HD16：兩個回應約 1.2 MB，縮排會變好幾倍，不縮排
         _dump(raw_dir / f"{now:%H%M}Z-openmeteo.json", om.raw, compact=True)
     _dump(history / f"{stamp}.json", latest, compact=True)
     _dump(archive / "latest.json", latest, compact=True)
+    write_typhoons(archive, ct, jt, status, now)
     if events_path is not None:
         event_snapshots(events_path, history, now, history / f"{stamp}.json")
     return latest
+
+
+def write_typhoons(
+    archive: Path,
+    ct: typhoon.TyphoonData | None,
+    jt: typhoon.TyphoonData | None,
+    status: dict[str, dict],
+    now: datetime,
+) -> None:
+    """`--archive` 的 `typhoons.json`（HD34，`typhoons.build`；`publish()` 再複製到發布目錄）。
+    失敗只 log，不讓 build 失敗、不動 `latest.json`。"""
+    try:
+        doc = typhoons.build(ct, jt, status, now, typhoons.read_previous(archive))
+        _dump(archive / typhoons.FILENAME, doc, compact=True)
+        log.info(
+            "颱風地圖：範圍內 %d 顆 %s、範圍外 %s",
+            len(doc["storms"]),
+            [(s["id"], s["source"]) for s in doc["storms"]],
+            doc["outOfRange"],
+        )
+    except Exception:  # 保險：颱風地圖不能讓 build 失敗
+        log.exception("typhoons.json 寫不了")
 
 
 def track_events(events_path: Path | None, now: datetime) -> list[Event]:
@@ -1532,7 +1579,8 @@ def publish(
     raw／cancellations）放進發布目錄。
 
     檔名的時間就是那一份的 `generatedAt`，所以用檔名判斷、不用打開約 500 KB 的檔。發布目錄裡已經有、
-    但超過天數的舊檔刪掉。`data` 分支（`--archive`）照舊全部保留（H9）。
+    但超過天數的舊檔刪掉。`data` 分支（`--archive`）照舊全部保留（H9）。`--archive` 有
+    `typhoons.json`（HD34）就一起複製（整個流程失敗改發布上一份時也是）。
 
     HD35：`airport_docs`（`airport_files` 的結果）寫成 `airports/<iata 小寫>.json`（不縮排），只放
     這一報；這次沒有的機場檔（算不出來、改發布上一份時）刪掉，網頁退回 6 小時。不進 `history/`、
@@ -1541,6 +1589,8 @@ def publish(
     out.mkdir(parents=True, exist_ok=True)
     if latest is not None:
         _dump(out / "latest.json", latest, compact=True)
+    if (archive / typhoons.FILENAME).exists():  # HD34：只放最新一份
+        shutil.copy2(archive / typhoons.FILENAME, out / typhoons.FILENAME)
     docs = airport_docs or {}
     ap_out = out / AIRPORT_DIR
     ap_out.mkdir(parents=True, exist_ok=True)

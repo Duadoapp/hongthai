@@ -809,6 +809,9 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(build.nws, "fetch", lambda zones: build.nws.NwsData([], {}))
     monkeypatch.setattr(build.jma, "fetch", lambda areas: build.jma.JmaData({}, {}))
     monkeypatch.setattr(build.swic, "fetch", lambda airports, now: build.swic.SwicData([], {}, 0))
+    # HD34：颱風地圖的兩個來源預設沒有颱風（測試不連網）
+    monkeypatch.setattr(build.typhoon, "fetch_cwa", lambda key: build.typhoon.TyphoonData([], {}))
+    monkeypatch.setattr(build.typhoon, "fetch_jma", lambda: build.typhoon.TyphoonData([], {}))
     # HD14 的兩個模式、HD16 的 Open-Meteo、HD15 的 WeatherNext 3 預設失敗（測試不連網）
     for mod in (build.aifs, build.aigfs, build.openmeteo, build.wn3):
         monkeypatch.setattr(mod, "fetch", _boom)
@@ -829,6 +832,59 @@ def workspace(tmp_path, monkeypatch):
     return tmp_path
 
 
+REAL_FETCH_CWA = build.typhoon.fetch_cwa  # workspace 換掉之前的（HD34）
+
+
+def sample_typhoons():
+    """HD34 的手造氣象署回應與 JMA 實抓＋手造 TD（`tests/test_typhoons.py` 同一份）。"""
+    t = build.typhoon
+    raw = load_json("jma_typhoon.json")
+    jma = [
+        t.parse_jma(tc, raw[tc]["specifications"], raw[tc]["forecast"])
+        for tc in raw
+        if tc != "targetTc"
+    ]
+    cwa_raw = load_json("cwa_typhoon_track.json")
+    return t.TyphoonData(t.parse_cwa(cwa_raw), cwa_raw), t.TyphoonData(jma, raw)
+
+
+def test_typhoon_failures_do_not_touch_latest(workspace, monkeypatch, airports):
+    """HD34：颱風來源失敗、或 typhoons.json 組不出來，latest.json 照出、只多 sources 兩筆。"""
+    monkeypatch.setattr(build.typhoon, "fetch_jma", _boom)
+    monkeypatch.setattr(build, "utcnow", lambda: NOW)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["sources"]["jmaTyphoon"] == {
+        "ok": False,
+        "error": "timeout",
+        "seconds": out["sources"]["jmaTyphoon"]["seconds"],
+    }
+    assert out["sources"]["cwaTyphoon"]["ok"] is True
+    assert "typhoons" not in out
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert (ty["active"], ty["sources"]["jma"]["error"]) == (False, "timeout")
+
+    def broken(*a, **k):
+        raise KeyError("bug")
+
+    monkeypatch.setattr(build.typhoons, "build", broken)
+    monkeypatch.setattr(build, "utcnow", lambda: NOW + timedelta(hours=6))
+    assert build.main([]) == 0
+    out2 = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out2["generatedAt"] != out["generatedAt"]
+    # 組不出來時 data 裡那份沒動，Pages 照舊發布上一份
+    assert json.loads((workspace / "public" / "typhoons.json").read_text("utf-8")) == ty
+
+
+def test_pipeline_crash_republishes_previous_typhoons(workspace, monkeypatch):
+    (workspace / "data").mkdir()
+    (workspace / "data" / "latest.json").write_text('{"schema": 1, "airports": []}', "utf-8")
+    (workspace / "data" / "typhoons.json").write_text('{"active": false}', "utf-8")
+    monkeypatch.setattr(build, "run", lambda **kw: (_ for _ in ()).throw(RuntimeError("bug")))
+    assert build.main([]) == 1
+    assert (workspace / "public" / "typhoons.json").read_text("utf-8") == '{"active": false}'
+
+
 def _airport(out, icao):
     return next(a for a in out["airports"] if a["icao"] == icao)
 
@@ -841,12 +897,22 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
     mods = (build.ecmwf, build.gfs, build.taf, build.hko, build.smg, build.nws, build.jma)
     for mod in (*mods, build.swic):
         monkeypatch.setattr(mod, "fetch", _boom)
+    monkeypatch.setattr(build.typhoon, "fetch_cwa", REAL_FETCH_CWA)  # 沒設授權碼
+    monkeypatch.setattr(build.typhoon, "fetch_jma", _boom)
     monkeypatch.delenv("CWA_API_KEY", raising=False)
     assert build.main([]) == 0
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     assert {
         k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "tdx", "ai")
-    } == dict.fromkeys(build.SOURCE_NAMES, False)
+    } == dict.fromkeys((*build.SOURCE_NAMES, "cwaTyphoon", "jmaTyphoon"), False)
+    assert out["sources"]["cwaTyphoon"]["error"] == "no_api_key"
+    # HD34：兩個都失敗、沒有上一份 → 沒有颱風（網頁不畫）
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert (ty["active"], ty["storms"], ty["sources"]["jma"]) == (
+        False,
+        [],
+        {"ok": False, "error": "timeout"},
+    )
     assert out["sources"]["cwa"]["error"] == "no_api_key"
     assert out["runs"] == {
         "ecmwf": None,
@@ -897,6 +963,9 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     monkeypatch.setattr(build.swic, "fetch", lambda aps, now: swic_asked.extend(aps) or sw)
     om = sample_openmeteo(airports)
     monkeypatch.setattr(build.openmeteo, "fetch", lambda *a, **k: om)
+    ct, jt = sample_typhoons()
+    monkeypatch.setattr(build.typhoon, "fetch_cwa", lambda key: ct)
+    monkeypatch.setattr(build.typhoon, "fetch_jma", lambda: jt)
     monkeypatch.setattr(build, "utcnow", lambda: NOW)
     monkeypatch.setattr(build.ai, "EVALUATORS", {"claude": fake_ai("high"), "gemini": fake_ai()})
     assert build.main([]) == 0
@@ -918,8 +987,33 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     raw = workspace / "data" / "history" / "raw" / "2026-10-18"
     assert sorted(p.name for p in raw.iterdir()) == [
         f"0810Z-{n}.json"
-        for n in ("cwa", "hko", "jma", "metar", "nws", "openmeteo", "smg", "swic", "taf")
+        for n in (
+            "cwa-typhoon",  # HD34（排序 `-` 在 `.` 前面）
+            "cwa",
+            "hko",
+            "jma-typhoon",
+            "jma",
+            "metar",
+            "nws",
+            "openmeteo",
+            "smg",
+            "swic",
+            "taf",
+        )
     ]
+    # HD34：typhoons.json 在 data 根目錄與 Pages（只放最新一份）；latest.json 只多兩個 sources
+    assert json.loads((raw / "0810Z-jma-typhoon.json").read_text("utf-8")) == jt.raw
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert ty == json.loads((workspace / "data" / "typhoons.json").read_text("utf-8"))
+    assert ty["generatedAt"] == out["generatedAt"] and ty["active"] is True
+    assert [(s["id"], s["source"]) for s in ty["storms"]] == [
+        ("2630", "cwa"),
+        ("jma-TC2638", "jma"),
+    ]
+    assert {k: out["sources"][k]["storms"] for k in ("cwaTyphoon", "jmaTyphoon")} == {
+        "cwaTyphoon": 2,
+        "jmaTyphoon": 3,
+    }
     assert json.loads((raw / "0810Z-swic.json").read_text("utf-8")) == sw.raw
     assert out["sources"]["swic"]["caps"] == 1 and "capErrors" not in out["sources"]["swic"]
     wnz = _airport(out, "ZSWZ")
@@ -1449,6 +1543,8 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "smg",
         "nws",
         "jma",
+        "cwaTyphoon",  # HD34
+        "jmaTyphoon",
         "swic",  # HD29
         "flights",
         "tdx",  # HD38
@@ -1483,15 +1579,19 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     om_line = lines[5]  # HD16：openmeteo 記加權呼叫次數（失敗是 null）
     assert set(om_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert (om_line["ok"], om_line["calls"]) == (False, None)
-    tdx_line = lines[14]  # HD38：tdx 記資料請求數（沒設金鑰是 0），每月上限從這裡數
+    assert [(r["source"], r["ok"]) for r in lines[12:14]] == [
+        ("cwaTyphoon", True),
+        ("jmaTyphoon", True),
+    ]
+    tdx_line = lines[16]  # HD38：tdx 記資料請求數（沒設金鑰是 0），每月上限從這裡數
     assert set(tdx_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert (tdx_line["error"], tdx_line["calls"]) == ("not_configured", 0)
-    ap_line = lines[15]  # HD35：機場頁的 3 小時格
+    ap_line = lines[17]  # HD35：機場頁的 3 小時格
     assert set(ap_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "files", "mismatches"),
     }
     assert (ap_line["ok"], ap_line["error"], ap_line["files"]) == (True, None, 51)
-    ai_line = lines[16]
+    ai_line = lines[18]  # HD34 在 jma 後面多 cwaTyphoon、jmaTyphoon
     assert set(ai_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "calls"),
         *("usage", "costUsd"),  # HD26
