@@ -366,7 +366,9 @@
   名稱 HongTai（T 大寫，四語同一個拉丁字，不附「風颱」）；副標題 能飛嗎？／飛唔飛到？／能飞吗？／Can I fly?；完全搬到 `hongtai.app`
   （Cloudflare Pages 獨立專案、根目錄），`duado.app/hongthai/...` 301 永久轉過去、路徑照帶；**不改**：這個 repo 的名稱、
   `hongthai.*` 鍵名、所有 JSON 欄位、資料源頭。**10/27 29W 報告定稿後才開工**（報告統一叫 HongThai），網域 Shawn 到時候自己買。
-  這邊要做的 HD：分享圖（og）上的名稱與網址改新的
+  這邊要做的 HD：分享圖（og）上的名稱與網址改新的。**2026-10-26 補**：Shawn 先買 `hongtai.app` 佔住（搬家照排）；搬家時 `hongtai.app` 要登記
+  Google Search Console、送 sitemap；公司 **Sunhong Studio LLC**（台語「順風」），HongTai 是旗下產品，公司成立後頁尾與關於頁寫
+  「Sunhong Studio 出品」（現在照舊）
 
 ## 合併（2026-10-25 01:04 Shawn 定案：主對話自己合併沒問題的 PR）
 
