@@ -390,3 +390,34 @@ def test_build_original_sources_into_latest(workspace, monkeypatch, no_models): 
     assert out["sources"]["tdx"]["error"] == "not_configured"
     # TDX 七個機場沒資料
     assert all(by[i]["flightSources"] == [] for i in TDX_SEVEN)
+
+
+def test_flight_files_adds_3h_flights_to_airport_docs():
+    """HD38＋HD35：每機場檔的 3 小時格也帶 `flights`；沒有檔或沒有航班資料的機場不動。"""
+    from types import SimpleNamespace
+
+    row = {
+        "from": "2026-10-25T09:00:00Z",
+        "asOf": "2026-10-25T08:25:00Z",
+        "dep": {"total": 3, "cancelled": 1, "delayed": 0, "diverted": 0},
+        "arr": {"total": 2, "cancelled": 0, "delayed": 1, "diverted": 0},
+    }
+    docs = {
+        "rmq": {"slots3h": [{"from": "2026-10-25T06:00:00Z"}, {"from": "2026-10-25T09:00:00Z"}]},
+        "hkg": {"slots3h": [{"from": "2026-10-25T09:00:00Z"}]},
+    }
+    airports = [
+        SimpleNamespace(icao="RCMQ", iata="RMQ"),
+        SimpleNamespace(icao="VHHH", iata="HKG"),
+        SimpleNamespace(icao="RCNN", iata="TNN"),  # 沒有檔
+    ]
+    stats = build.FlightStats(
+        status={"ok": True},
+        rows3h={"RCMQ": [row], "RCNN": [row]},
+        source={"RCMQ": "tdx", "RCNN": "tdx"},
+    )
+    build.flight_files(docs, airports, [None, stats])
+    assert "flights" not in docs["rmq"]["slots3h"][0]
+    got = docs["rmq"]["slots3h"][1]["flights"]
+    assert (got["total"], got["cancelled"], got["delayed"], got["source"]) == (5, 1, 1, "tdx")
+    assert "flights" not in docs["hkg"]["slots3h"][0]  # 這份統計沒有香港

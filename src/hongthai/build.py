@@ -26,7 +26,9 @@
   - `history/events/<id>/wn3/<起報時間>.json`：WeatherNext 3 每格的數字（HD15，`wn3report.py`）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
   `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
-  以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）
+  以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）與
+  機場頁的 3 小時時間軸 `airports/<iata 小寫>.json`（HD35，`airport_files`；只放這一報，不進
+  `data` 分支）
 
 失敗處理：單一來源失敗記在 `sources.<名稱>`，其他照出。整個流程失敗（例外沒接到）時不產生新的
 `latest.json`，改用上一份（先找 `--archive` 裡的，沒有就從 Pages 網址抓）重新發布，並回傳非 0。
@@ -74,6 +76,11 @@ GitHub 自己的 cron（備援）各觸發一次。`--trigger` 是 `cloudflare`�
 的 `generatedAt` ≥ 排定時間就跳過（`already_built`）：不產生、不發布，`timing/` 只記一行
 `source: "skip"`，回傳 0。`manual`（手動按的）一律照跑；讀不到上一份時照跑。
 
+機場頁的 3 小時時間軸（HD35，`airport_files`）：模式沿用之後、AI 對決之前，每個機場用同一套
+`assess.assess_slots` 以 3 小時窗再算 0–72 小時，和 `latest.json` 包住它的 6 小時格合併
+（`assess.merge_3h`）。純計算、不走預算執行緒；某個機場算不出來只 log、不出那個檔，不影響
+`latest.json`（不改它、也不加欄位）。
+
 估算陣風的係數（HD18）：模式都抓完、組 `latest.json` 之前，用這一報的 IFS、GFS 算樣本、寫進
 `history/gustfactor/`、讀 30 天窗算每個機場的 G（`gust_factors`），交給 `assess`。沿用 AIFS／AIGFS
 舊數字時，`_rescore` 用抄來的 `windKt` × 這一報的 G 重算估算陣風（`assess.refactor_estimated`）。
@@ -82,6 +89,7 @@ GitHub 自己的 cron（備援）各觸發一次。`--trigger` 是 `cloudflare`�
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import os
@@ -179,7 +187,9 @@ BUDGET_S: dict[str, float] = {
     "gfs": 180,
     "aifs": 180,  # HD14：ECMWF AIFS Single，鏡像切換同 ecmwf
     "aigfs": 120,  # HD14：NOAA AIGFS，只有 AWS
-    "openmeteo": 90,  # HD16：ICON、JMA GSM、WeatherNext 2 系集，兩個請求各 60 秒逾時、不重試
+    # HD16：ICON、JMA GSM、WeatherNext 2 系集，兩個請求各 60 秒逾時、不重試；HD33b 的三個旁觀模式
+    # 併在預報那個請求（請求數不變，回應約 0.6 → 1.6 MB）
+    "openmeteo": 90,
     # HD15：WeatherNext 3，BigQuery 一個查詢（失敗退 GCS Zarr）＋事件期間的海平面氣壓；核准前每報
     # 幾秒就 `http_403`。`report-only`（預設）只在 5 天前那一報落在事件期間時才跑
     "wn3": 120,
@@ -252,6 +262,20 @@ MODEL_RUN_KEYS = {
 }
 
 
+# 機場頁 3 小時格（HD35）：模式 id → 資料從哪個來源抓（`sources.<名稱>.ok`）。`three_hourly` 的模式
+# 只有這一報自己抓到（不是沿用的）才照 3 小時算；沒列的是 Open-Meteo 的模式
+MODEL_SOURCES = {
+    "ifs": "ecmwf",
+    "ifs-ens": "ecmwf",
+    "gfs": "gfs",
+    "aifs": "aifs",
+    "aigfs": "aigfs",
+    "wn3": "wn3",
+}
+AIRPORT_SCHEMA = 1  # `airports/<iata>.json` 的 `schema`（HD35；規則同 `latest.json`：只加欄位不升）
+AIRPORT_DIR = "airports"
+
+
 def model_runs(runs: dict) -> dict[str, str | None]:
     """頂層 `runs` → 各模式（`config.MODELS` 的 id）的時次。"""
     return {m.id: runs.get(MODEL_RUN_KEYS.get(m.id, m.id)) for m in MODELS}
@@ -279,12 +303,12 @@ def _dump(path: Path, obj: object, compact: bool = False) -> None:
     """`compact=True`：不縮排（`latest.json` 與 `history/<時間>.json`，HD14 起；每格多了 5 筆
     `models[]`，`indent=1` 時約 3.3 MB、不縮排約 1.9 MB）。原始快照照舊 `indent=1`。"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = (
-        json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
-        if compact
-        else json.dumps(obj, ensure_ascii=False, indent=1)
-    )
+    text = _compact(obj) if compact else json.dumps(obj, ensure_ascii=False, indent=1)
     path.write_text(text + "\n", encoding="utf-8")
+
+
+def _compact(obj: object) -> str:
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
 
 class Timing:
@@ -413,10 +437,13 @@ def _download_extra(g: gfs.GfsData | aifs.AifsData | aigfs.AigfsData) -> dict:
 
 
 def _openmeteo_extra(om: openmeteo.OpenMeteoData) -> dict:
-    """`sources.openmeteo`（HD16）：下載量、加權呼叫次數；起報時間問不到的模式記在 `runError`。"""
+    """`sources.openmeteo`（HD16）：下載量、加權呼叫次數；起報時間問不到的模式記在 `runError`；
+    HD33b：丟掉的旁觀模式記在 `modelError`（例如 `"cma:bad_units"`，其他模式照用）。"""
     d: dict[str, object] = {"bytes": om.bytes_downloaded, "calls": om.calls}
     if om.meta_errors:
         d["runError"] = ",".join(f"{k}:{v}" for k, v in om.meta_errors.items())
+    if om.model_errors:
+        d["modelError"] = ",".join(f"{k}:{v}" for k, v in om.model_errors.items())
     return d
 
 
@@ -467,34 +494,8 @@ def _rescore(
     runs: dict[str, str | None] | None = None,
     factor: assess.GustFactor | None = None,
 ) -> None:
-    """模式值換掉之後重算模式層等級、一致性、落差與整格等級（和 `assess.assess_slots` 同一套規則；
-    官方層與已確認不受模式影響，維持原樣）。抄來的是 HD2 以前的結果時，先用 m/s 欄位補節的欄位。
-    三類等級（HD8）照抄來的雨量重算；依據是模式層的格 `causes` 也重算（官方層的不動）。
-    HD14：`models[]` 重組（IFS、GFS、IFS 系集從 `ec`／`gfs`，AIFS、AIGFS 從原本那筆的數字）、
-    重新投票（`vote`、`level`）；`runs`（`model_runs` 的結果）沒給時 `models[].run` 維持原值。
-    HD18：給了 `factor`（這一報這個機場的 G）時，估算陣風的那幾筆用 `windKt` × G 重算
-    （`assess.refactor_estimated`；不沿用舊 G）。"""
-    m = slot["model"]
-    assess.fill_kt(m["ec"], m["gfs"])
-    assess.fill_model_wx(m["ec"], m["gfs"], th)
-    old = {e.get("id"): e for e in m.get("models") or [] if isinstance(e, dict)}
-    if factor is not None:
-        for mod in MODELS:
-            if mod.gust_estimated and mod.id in old:
-                assess.refactor_estimated(old[mod.id], factor)
-    if runs is None:
-        runs = {i: e.get("run") for i, e in old.items() if isinstance(i, str)}
-    m["models"] = assess.model_entries(m["ec"], m["gfs"], old, runs, th)
-    _, m["vote"] = assess.model_vote(m["models"])
-    m["level"] = m["vote"]["level"]
-    m["agreement"] = assess.agreement(m["ec"], m["gfs"], th)
-    if slot["basis"] in ("model", "none"):
-        slot["level"], slot["basis"] = (m["level"], "model") if m["level"] else ("unknown", "none")
-    off = slot["official"]
-    slot["gap"] = off is not None and m["level"] is not None and off["level"] != m["level"]
-    causes = assess.slot_causes(slot, th)
-    if causes is not None:
-        slot["causes"] = causes
+    """模式值換掉之後重算模式層與整格等級；HD35 起本體在 `assess.rescore`（3 小時格也用）。"""
+    assess.rescore(slot, th, runs, factor)
 
 
 def _run_time(doc: dict, run_key: str) -> datetime | None:
@@ -759,6 +760,49 @@ def confirmed_json(c: ConfirmedPeriod) -> dict:
     return {"from": iso(c.start), "to": iso(c.end), "note": c.note}
 
 
+def slot_inputs(
+    a: Airport,
+    now: datetime,
+    confirmed: list[ConfirmedPeriod],
+    by_model: dict[str, str | None],
+    src: dict,
+) -> dict:
+    """一個機場給 `assess.assess_slots` 的參數（`slots` 以外）；6 小時格（`assemble`）與機場頁的
+    3 小時格（`airport_files`，HD35）用同一份。`src` 是各來源的結果，鍵同 `assemble` 的參數
+    （`ec`、`gf`、`tf`……，失敗的是 None 或沒有）。"""
+    ec, gf, tf, af, ag = (src.get(k) for k in ("ec", "gf", "tf", "af", "ag"))
+    om, wn, cw = src.get("om"), src.get("wn"), src.get("cw")
+    taf_info = tf.tafs.get(a.icao) if tf else None
+    observe_wn3 = any(m.id == assess.WN3_ID for m in MODELS)
+    warns = collect_warnings(
+        a, src.get("hk"), cw, src.get("sm"), src.get("nw"), src.get("jm"), src.get("sw")
+    )
+    return {
+        "now": now,
+        "thresholds": a.thresholds,
+        "ec": ec.points.get(a.icao) if ec else None,
+        "gfs": gf.points.get(a.icao) if gf else None,
+        "taf_periods": taf_info.periods if taf_info else None,
+        "warnings": warns,
+        "confirmed": [c for c in confirmed if c.airport == a.icao],
+        "runways": a.runways,
+        "metar": station_metar(a, tf, cw),
+        "aifs": af.points.get(a.icao) if af else None,
+        "aigfs": ag.points.get(a.icao) if ag else None,
+        "runs": by_model,
+        "gust_factor": (src.get("factors") or {}).get(a.icao, assess.DEFAULT_GUST_FACTOR),
+        "icon": om.hourly["icon"].get(a.icao) if om else None,
+        "jma": om.hourly["jma"].get(a.icao) if om else None,
+        "wn2": om.ensemble.get(a.icao) if om else None,
+        # HD33b：三個旁觀模式
+        "om_hourly": {
+            mid: om.hourly.get(mid, {}).get(a.icao) if om else None
+            for mid in openmeteo.OBSERVER_MODELS
+        },
+        "wn3": wn.points.get(a.icao) if wn and observe_wn3 else None,
+    }
+
+
 def assemble(
     *,
     now: datetime,
@@ -789,6 +833,10 @@ def assemble(
     `slots[].flights`、`airports[].flightSources`。"""
     slots = slot_bounds(now)
     window_start, window_end = slots[0][0], slots[-1][1]
+    src = {
+        **{"ec": ec, "gf": gf, "tf": tf, "hk": hk, "cw": cw, "sm": sm, "nw": nw},
+        **{"af": af, "ag": ag, "factors": factors, "jm": jm, "om": om, "wn": wn, "sw": sw},
+    }
     runs = {
         "ecmwf": iso(ec.run) if ec else None,
         "ecmwfEns": iso(ec.ens_run) if ec else None,
@@ -798,8 +846,7 @@ def assemble(
         # HD16：Open-Meteo 的 metadata 給的最近一報（`sources/openmeteo.py`）
         **{mid: iso(om.runs.get(mid)) if om else None for mid in openmeteo.META_URLS},
     }
-    observe_wn3 = any(m.id == assess.WN3_ID for m in MODELS)
-    if observe_wn3:
+    if any(m.id == assess.WN3_ID for m in MODELS):
         runs[assess.WN3_ID] = iso(wn.run) if wn else None
     by_model = model_runs(runs)
     fl_rows: dict[str, list[dict]] = {}
@@ -810,30 +857,10 @@ def assemble(
             fl_source.update(f.source)
     out_airports = []
     for a in airports:
-        warns = collect_warnings(a, hk, cw, sm, nw, jm, sw)
-        mine = [c for c in confirmed if c.airport == a.icao]
+        inputs = slot_inputs(a, now, confirmed, by_model, src)
+        warns, mine, metar = inputs["warnings"], inputs["confirmed"], inputs["metar"]
         taf_info = tf.tafs.get(a.icao) if tf else None
-        metar = station_metar(a, tf, cw)
-        slot_list = assess.assess_slots(
-            now=now,
-            slots=slots,
-            thresholds=a.thresholds,
-            ec=ec.points.get(a.icao) if ec else None,
-            gfs=gf.points.get(a.icao) if gf else None,
-            taf_periods=taf_info.periods if taf_info else None,
-            warnings=warns,
-            confirmed=mine,
-            runways=a.runways,
-            metar=metar,
-            aifs=af.points.get(a.icao) if af else None,
-            aigfs=ag.points.get(a.icao) if ag else None,
-            runs=by_model,
-            gust_factor=(factors or {}).get(a.icao, assess.DEFAULT_GUST_FACTOR),
-            icon=om.hourly["icon"].get(a.icao) if om else None,
-            jma=om.hourly["jma"].get(a.icao) if om else None,
-            wn2=om.ensemble.get(a.icao) if om else None,
-            wn3=wn.points.get(a.icao) if wn and observe_wn3 else None,
-        )
+        slot_list = assess.assess_slots(slots=slots, **inputs)
         if a.icao in fl_source:
             slot_flights(slot_list, fl_rows.get(a.icao, []), fl_source[a.icao])
         out_airports.append(
@@ -896,6 +923,117 @@ def _window_days(now: datetime) -> set[str]:
     for start, end in slot_bounds(now):
         days |= {f"{start:%Y-%m-%d}", f"{end - timedelta(seconds=1):%Y-%m-%d}"}
     return days
+
+
+def native_3h(status: dict) -> frozenset[str]:
+    """這一報 0–72 小時真的有 3 小時資料的模式（HD35）：`Model.three_hourly`、而且它的來源
+    `sources.<名稱>.ok` 是 true（失敗、沿用舊資料的不算，那時用 6 小時格的值）。"""
+    return frozenset(
+        m.id
+        for m in MODELS
+        if m.three_hourly and (status.get(MODEL_SOURCES.get(m.id, "openmeteo")) or {}).get("ok")
+    )
+
+
+def airport_doc(
+    latest_airport: dict,
+    generated_at: str,
+    now: datetime,
+    a: Airport,
+    inputs: dict,
+    native: frozenset[str],
+) -> tuple[dict, list[dict]]:
+    """一個機場的 `airports/<iata>.json`（HD35）與 3 小時、6 小時等級不一致的格（只給 log）。
+
+    `slots3h`：0–72 小時每 3 小時一格（24 格），`assess.assess_slots` 用 3 小時窗算、再用
+    `latest.json` 那個機場包住它的 6 小時格合併（`assess.merge_3h`）；`slots6h`：72–120 小時那
+    8 格，直接用 `latest.json` 的。`latest_airport` 不會被改。"""
+    slot0 = floor_6h(now)
+    seam = iso(slot0 + timedelta(hours=assess.THREE_HOUR_SPAN_H))
+    slots6 = latest_airport["slots"]
+    out3 = assess.assess_slots(slots=assess.three_hour_bounds(slot0), **inputs)
+    for s in out3:
+        parent = next(p for p in slots6 if p["from"] <= s["from"] < p["to"])
+        assess.merge_3h(s, parent, a.thresholds, native)
+    doc = {
+        "schema": AIRPORT_SCHEMA,
+        "generatedAt": generated_at,
+        "icao": a.icao,
+        "iata": a.iata,
+        "slots3h": out3,
+        "slots6h": copy.deepcopy([p for p in slots6 if p["from"] >= seam]),
+    }
+    return doc, assess.level_mismatches(out3, [p for p in slots6 if p["from"] < seam])
+
+
+def airport_files(
+    latest: dict,
+    *,
+    now: datetime,
+    airports: list[Airport],
+    confirmed: list[ConfirmedPeriod],
+    timing: Timing | None = None,
+    **src: object,
+) -> dict[str, dict]:
+    """機場頁的 3 小時時間軸（HD35）：`{iata 小寫: airports/<iata>.json 的內容}`。`src` 是各來源的
+    結果（鍵同 `assemble` 的參數）。在模式沿用
+    （`reuse_models`）之後跑，所以 6 小時格是 `latest.json` 最後的樣子；`latest` 不會被改。
+
+    某個機場算不出來只 log、不出那個檔（網頁退回 6 小時）；整個壞掉回空的。3 小時與 6 小時等級
+    不一致的格只記 log（不改任何一邊）。寫一行耗時紀錄 `source: "airports3h"`（`files`、
+    `failed`、`mismatches`、`bytes`＝全部檔不縮排的大小）。"""
+    t0 = time.monotonic()
+    docs: dict[str, dict] = {}
+    failed: list[str] = []
+    mismatches = 0
+    try:
+        by_model = model_runs(latest["runs"])
+        native = native_3h(latest["sources"])
+        by_icao = {x["icao"]: x for x in latest["airports"]}
+        for a in airports:
+            try:
+                inputs = slot_inputs(a, now, confirmed, by_model, src)
+                doc, diff = airport_doc(
+                    by_icao[a.icao], latest["generatedAt"], now, a, inputs, native
+                )
+            except Exception:  # 保險：一個機場壞掉不影響其他機場與 latest.json
+                log.exception("機場頁 3 小時格 %s 算不出來，不出這個檔", a.iata)
+                failed.append(a.iata)
+                continue
+            for d in diff:
+                log.info(
+                    "3 小時與 6 小時等級不一致 %s %s：6 小時 %s、3 小時 %s",
+                    a.iata,
+                    d["from"],
+                    d["level6h"],
+                    "/".join(d["levels3h"]),
+                )
+            mismatches += len(diff)
+            docs[a.iata.lower()] = doc
+    except Exception:  # 保險：3 小時格不能讓 build 失敗
+        log.exception("機場頁 3 小時格整個算不出來")
+        failed.append("*")
+    size = sum(len(_compact(d).encode("utf-8")) + 1 for d in docs.values())
+    seconds = round(time.monotonic() - t0, 1)
+    log.info(
+        "機場頁 3 小時格：%d 個檔、共 %d bytes、%.1f 秒；不一致 %d 格；失敗 %s",
+        len(docs),
+        size,
+        seconds,
+        mismatches,
+        failed or "無",
+    )
+    if timing is not None:
+        timing.write(
+            source="airports3h",
+            ok=not failed,
+            error=",".join(failed) or None,
+            seconds=seconds,
+            bytes=size,
+            files=len(docs),
+            mismatches=mismatches,
+        )
+    return docs
 
 
 def flight_stats(
@@ -1027,6 +1165,20 @@ def slot_flights(slots: list[dict], rows: list[dict], source: str) -> None:
             s["flights"] = cancellations.slot_json(r, source)
 
 
+def flight_files(
+    docs: dict[str, dict], airports: list[Airport], stats: list[FlightStats | None]
+) -> None:
+    """HD38＋HD35：每機場檔（`airports/<iata>.json`）的 3 小時格也帶 `flights`，來源同 6 小時格
+    （`FlightStats.rows3h`、`slot_flights`）。沒有那個機場的檔或沒有航班資料就不動。"""
+    for f in stats:
+        if f is None:
+            continue
+        for a in airports:
+            doc = docs.get(a.iata.lower())
+            if doc is not None and a.icao in f.source:
+                slot_flights(doc["slots3h"], f.rows3h.get(a.icao, []), f.source[a.icao])
+
+
 def run(
     *,
     now: datetime,
@@ -1038,7 +1190,10 @@ def run(
     pages_url: str = PAGES_URL,
     timing: Timing | None = None,
     events_path: Path | None = None,
+    airport_out: dict[str, dict] | None = None,
 ) -> dict:
+    """抓、判讀、寫 `--archive`，回傳 `latest.json` 的內容。給了 `airport_out` 時把機場頁的 3 小時
+    格（HD35，`airport_files`）放進去（`{iata 小寫: 內容}`），由 `publish` 寫進 Pages。"""
     regions = load_regions(airports_path)
     airports = load_airports(airports_path)
     confirmed = load_confirmed(confirmed_path)
@@ -1139,26 +1294,29 @@ def run(
     )
 
     factors = gust_factors(ec, gf, airports, now, history)
+    inputs = {
+        "ec": ec,
+        "gf": gf,
+        "tf": tf,
+        "hk": hk,
+        "cw": cw,
+        "sm": sm,
+        "nw": nw,
+        "af": af,
+        "ag": ag,
+        "factors": factors,
+        "jm": jm,
+        "om": om,
+        "wn": wn,
+        "sw": sw,
+    }
     latest = assemble(
         now=now,
         regions=regions,
         airports=airports,
         confirmed=confirmed,
         status=status,
-        ec=ec,
-        gf=gf,
-        tf=tf,
-        hk=hk,
-        cw=cw,
-        sm=sm,
-        nw=nw,
-        af=af,
-        ag=ag,
-        factors=factors,
-        jm=jm,
-        om=om,
-        wn=wn,
-        sw=sw,
+        **inputs,
         fs=[fs, fs_tdx],  # type: ignore[list-item]
     )
     if wn is not None and wn_events:
@@ -1170,6 +1328,12 @@ def run(
             prev = previous_latest(archive, pages_url)  # archive 裡找不到的退回上一份（H7 的做法）
             sources = {n: d if d is not None else prev for n, d in sources.items()}
         reuse_models(latest, sources, failed, now, airports, factors)
+    if airport_out is not None:  # HD35：機場頁的 3 小時格，只進 Pages（publish），不進 archive
+        docs = airport_files(
+            latest, now=now, airports=airports, confirmed=confirmed, timing=timing, **inputs
+        )
+        flight_files(docs, airports, [fs, fs_tdx])  # HD38：3 小時格也帶 `flights`
+        airport_out.update(docs)
     run_ai(latest, previous_latest(archive, pages_url), now, history, timing)
 
     stamp = f"{now:%Y%m%dT%H%M}Z"
@@ -1347,16 +1511,34 @@ def run_ai(
         timing.source("ai", {**source, **extra}, budget.Context())
 
 
-def publish(out: Path, archive: Path, latest: dict | None, now: datetime) -> None:
+def publish(
+    out: Path,
+    archive: Path,
+    latest: dict | None,
+    now: datetime,
+    airport_docs: dict[str, dict] | None = None,
+) -> None:
     """把 latest 與最近 `PAGES_HISTORY_DAYS` 天的結果（`history/<時間>.json`，不含
     raw／cancellations）放進發布目錄。
 
     檔名的時間就是那一份的 `generatedAt`，所以用檔名判斷、不用打開約 500 KB 的檔。發布目錄裡已經有、
     但超過天數的舊檔刪掉。`data` 分支（`--archive`）照舊全部保留（H9）。
+
+    HD35：`airport_docs`（`airport_files` 的結果）寫成 `airports/<iata 小寫>.json`（不縮排），只放
+    這一報；這次沒有的機場檔（算不出來、改發布上一份時）刪掉，網頁退回 6 小時。不進 `history/`、
+    不進 `data` 分支。
     """
     out.mkdir(parents=True, exist_ok=True)
     if latest is not None:
         _dump(out / "latest.json", latest, compact=True)
+    docs = airport_docs or {}
+    ap_out = out / AIRPORT_DIR
+    ap_out.mkdir(parents=True, exist_ok=True)
+    for p in ap_out.glob("*.json"):
+        if p.stem not in docs:
+            p.unlink()
+    for code, doc in docs.items():
+        _dump(ap_out / f"{code}.json", doc, compact=True)
     hist_out = out / "history"
     hist_out.mkdir(parents=True, exist_ok=True)
     since = now - timedelta(days=PAGES_HISTORY_DAYS)
@@ -1469,6 +1651,7 @@ def main(argv: list[str] | None = None) -> int:
     commit = (os.environ.get("GITHUB_SHA") or "")[:7] or None
     timing.write(source="start", ok=True, seconds=0, commit=commit, **when)
     produced = False
+    airport_docs: dict[str, dict] = {}
     try:
         # 超時被放棄的來源執行緒可能還在往暫存目錄寫檔，清不乾淨就算了
         with tempfile.TemporaryDirectory(prefix="hongthai-", ignore_cleanup_errors=True) as tmp:
@@ -1482,9 +1665,10 @@ def main(argv: list[str] | None = None) -> int:
                 pages_url=args.pages_url,
                 timing=timing,
                 events_path=args.events,
+                airport_out=airport_docs,
             )
         produced = True
-        publish(args.out, args.archive, latest, now)
+        publish(args.out, args.archive, latest, now, airport_docs)
         draw_og(args.out, latest, timing)
         ok = {k: v.get("ok") for k, v in latest["sources"].items()}
         log.info("完成，%.1f 秒；來源：%s", time.monotonic() - t0, ok)
