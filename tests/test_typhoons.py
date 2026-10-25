@@ -52,7 +52,8 @@ def _snake(obj):
 
 def test_parse_cwa(cwa):
     champi, infa = cwa.storms
-    assert (champi.source, champi.key, champi.number) == ("cwa", "ty30", "2630")
+    # 氣象署的颱風編號不是國際編號（HD34b）：number 一律 None
+    assert (champi.source, champi.key, champi.number) == ("cwa", "ty30", None)
     assert (champi.name_zh, champi.name_en) == ("薔琵", "Champi")
     assert champi.issued_at == utc(2026, 10, 24, 18)  # 預報的 init_time
     # 過去路徑照定位時間排（原文順序亂的也排好），含目前那一點；座標是「經度,緯度」
@@ -87,7 +88,7 @@ def test_parse_cwa(cwa):
     assert champi.forecast[2]["radius15"] == []
     # 只有一筆定位時不是 list 也讀得到
     assert (infa.number, infa.name_en, infa.now["lon"], len(infa.past)) == (
-        "2631",
+        None,
         "In-Fa",
         165.3,
         1,
@@ -281,19 +282,21 @@ def _storm(source, key, number=None, en="", lat=20.0, lon=125.0, t="2026-10-24T1
 
 
 def test_same_storm_rules():
-    # 1. 編號：兩邊都有就只看編號（名字一樣、編號不同也不算）
-    assert typhoons.same_storm(_storm("cwa", "ty30", "2630"), _storm("jma", "TC2636", "2630"))
+    # 不比編號（HD34b：氣象署的 CwaTyNo 不是國際編號）：編號一樣、名字不同不算，反過來算
     assert not typhoons.same_storm(
-        _storm("cwa", "ty30", "2630", "X"), _storm("jma", "TC2636", "2631", "X")
+        _storm("cwa", "ty30", "2630", "IN-FA"), _storm("jma", "TC2636", "2630", "Champi")
     )
-    # 2. 英文名：不分大小寫、忽略連字號
+    assert typhoons.same_storm(
+        _storm("cwa", "ty29", "2629", "CHAMPI"), _storm("jma", "TC2636", "2630", "Champi")
+    )
+    # 1. 英文名：不分大小寫、忽略連字號
     assert typhoons.same_storm(
         _storm("cwa", "ty31", en="IN-FA"), _storm("jma", "TC2637", en="In-fa")
     )
     assert not typhoons.same_storm(
         _storm("cwa", "ty31", en="Kong-rey"), _storm("jma", "TC2637", en="In-fa")
     )
-    # 3. 位置：300 公里、6 小時內
+    # 2. 有一邊沒有英文名：位置 300 公里、6 小時內
     c = _storm("cwa", "td32")
     assert typhoons.same_storm(c, _storm("jma", "TC2639", lat=21.5, t="2026-10-24T15:00:00Z"))
     assert not typhoons.same_storm(c, _storm("jma", "TC2639", lat=23.0))  # 約 333 公里
@@ -391,14 +394,14 @@ def _pt(lat, lon, t=None):
 
 
 def _pair(past, now, issued=ISSUED):
-    """同一顆（編號 2640）的氣象署與 JMA 兩份；`past`／`now` 是 (緯, 經)。"""
+    """同一顆（國際編號 2640，只有 JMA 有）的氣象署與 JMA 兩份；`past`／`now` 是 (緯, 經)。"""
 
-    def one(source, key):
+    def one(source, key, number):
         n = {**_pt(*now, T0), "radius15": [], "radius25": []}
         pts = [_pt(lat, lon) for lat, lon in past] + [_pt(*now, T0)]
-        return Storm(source, key, "2640", "", "Test", issued, pts, n, [])
+        return Storm(source, key, number, "", "Test", issued, pts, n, [])
 
-    return one("cwa", "ty40"), one("jma", "TC2644")
+    return one("cwa", "ty40", None), one("jma", "TC2644", "2640")
 
 
 def _doc(c, j, previous=None, now=NOW, status=OK):
@@ -503,4 +506,139 @@ def test_previous_cwa_but_cwa_missing_this_run():
 
 def test_cwa_only_never_near_taiwan_still_drawn():
     c, _ = _pair([(14.0, 140.0)], (18.0, 133.0))
-    assert _src(_doc(c, None)) == [("2640", "cwa")]
+    assert _src(_doc(c, None)) == [("cwa-ty40", "cwa")]
+
+
+# ---- HD34b：2026-10-25 13:06Z 實抓的氣象署與日本氣象廳（fixtures/README.md 有裁法）----
+
+AT_1306 = utc(2026, 10, 25, 13, 6)
+
+
+def _real_1306():
+    cwa_raw = load_json("cwa_typhoon_1306z.json")
+    jma_raw = load_json("jma_typhoon_1306z.json")
+    jma_storms = [
+        typhoon.parse_jma(tc, v["specifications"], v["forecast"])
+        for tc, v in jma_raw.items()
+        if tc != "targetTc"
+    ]
+    return TyphoonData(typhoon.parse_cwa(cwa_raw), cwa_raw), TyphoonData(jma_storms, jma_raw)
+
+
+def test_parse_cwa_real_1306z():
+    """實際的鍵名（`DateTime`、`CoordinateLatitude`、`InitialTime`、`ForecastHour`、`Circle15ms`、
+    `Radius70PercentProbability`）讀得到位置與時間。"""
+    cwa, _ = _real_1306()
+    champi, infa = cwa.storms
+    assert (champi.key, champi.number, champi.name_zh, champi.name_en) == (
+        "ty29",
+        None,  # CwaTyNo 29 不是國際編號 2630
+        "薔琵",
+        "Champi",
+    )
+    assert (infa.key, infa.number, infa.name_zh, infa.name_en) == ("ty30", None, "煙花", "In-Fa")
+    assert champi.issued_at == utc(2026, 10, 25, 6)  # InitialTime 14:00+08:00
+    assert (len(champi.past), len(champi.forecast)) == (13, 4)
+    assert champi.past[0] == {"time": "2026-10-14T00:00:00Z", "lat": 9.5, "lon": 160.3}
+    assert champi.now == {
+        "time": "2026-10-25T06:00:00Z",
+        "lat": 30.1,
+        "lon": 125.4,
+        "radius15": [{"dir": "all", "km": 150}],  # Radius；四象限 QuadrantRadii 不轉
+        "radius25": [],  # 沒有 Circle25ms
+    }
+    assert champi.forecast[0] == {
+        "time": "2026-10-25T12:00:00Z",  # InitialTime＋ForecastHour 6
+        "lat": 30.6,
+        "lon": 126.5,
+        "radius15": [{"dir": "all", "km": 150}],
+        "radius25": [],
+        "leadHours": 6,
+        "probabilityRadius": {"km": 40},
+        "stormWarning": [],
+    }
+    assert champi.forecast[-1]["radius15"] == []  # 24 小時那點沒有 Circle15ms
+    assert (len(infa.past), len(infa.forecast)) == (10, 9)
+    assert infa.now["radius25"] == [{"dir": "all", "km": 40}]
+    assert (infa.forecast[-1]["leadHours"], infa.forecast[-1]["time"]) == (
+        120,
+        "2026-10-30T06:00:00Z",
+    )
+    assert infa.forecast[-1]["probabilityRadius"] == {"km": 460}
+
+
+def test_build_real_1306z():
+    """薔琵進過台灣附近 → 氣象署、`others` 是日本氣象廳薔琵；煙花沒進過 → 日本氣象廳、`others` 是
+    氣象署煙花。HD34 時氣象署煙花（ty30）被當成 2630 配給日本氣象廳薔琵。"""
+    cwa, jma = _real_1306()
+    doc = typhoons.build(cwa, jma, OK, AT_1306)
+    champi, infa = doc["storms"]
+    assert (doc["active"], doc["outOfRange"]) == (True, [])
+    assert (champi["id"], champi["source"], champi["sourceId"]) == ("2630", "cwa", "ty29")
+    assert champi["issuedAt"] == "2026-10-25T06:00:00Z" and champi["stale"] is False
+    assert champi["name"] == {"zh-TW": "薔琵", "zh-HK": "薔琵", "zh-CN": "Champi", "en": "Champi"}
+    assert champi["others"] == [
+        {
+            "source": "jma",
+            "id": "TC2636",
+            "issuedAt": "2026-10-25T12:45:00Z",
+            "url": typhoon.JMA_PAGE,
+        }
+    ]
+    assert (len(champi["past"]), len(champi["forecast"])) == (13, 4)
+    assert (infa["id"], infa["source"], infa["sourceId"]) == ("2631", "jma", "TC2637")
+    assert infa["issuedAt"] == "2026-10-25T10:10:00Z"
+    assert infa["others"] == [
+        {
+            "source": "cwa",
+            "id": "ty30",
+            "issuedAt": "2026-10-25T06:00:00Z",
+            "url": typhoon.CWA_PAGE,
+        }
+    ]
+    assert (len(infa["past"]), len(infa["forecast"])) == (21, 5)
+    # 上一份是 HD34 錯配的那份（薔琵 jma、others 是氣象署 ty30；outOfRange 有 cwa 2629）：結果一樣
+    prev = load_json("typhoons_1306z_mispaired.json")
+    assert prev["storms"][0]["others"][0]["id"] == "ty30"
+    assert typhoons.build(cwa, jma, OK, AT_1306, prev) == doc
+
+
+def test_previous_entry_named_ignores_others():
+    """上一份那筆的 `others` 配錯過也不會認錯顆：英文名都有時只比英文名、不看 `others`。"""
+    cwa, jma = _real_1306()
+    (c_champi, c_infa), (j_champi, j_infa) = cwa.storms, jma.storms
+    prev = load_json("typhoons_1306z_mispaired.json")["storms"]
+    assert typhoons._previous_entry(prev, c_infa, j_infa)["sourceId"] == "TC2637"
+    assert typhoons._previous_entry(prev, c_champi, j_champi)["sourceId"] == "TC2636"
+    assert typhoons._previous_entry(prev, c_infa, None)["id"] == "2631"
+    # 上一份薔琵是 cwa、others 錯配成日本氣象廳煙花：舊的認法會讓煙花沿用 cwa（中途不換）
+    sticky = [
+        {
+            **prev[0],
+            "source": "cwa",
+            "sourceId": "ty29",
+            "others": [{**prev[0]["others"][0], "source": "jma", "id": "TC2637"}],
+        }
+    ]
+    doc = typhoons.build(cwa, jma, OK, AT_1306, {"storms": sticky, "generatedAt": "x"})
+    assert [(s["id"], s["source"]) for s in doc["storms"]] == [("2630", "cwa"), ("2631", "jma")]
+
+
+def test_storm_id_rules():
+    """`id`：國際編號（日本氣象廳的）→ 上一份同一顆的國際編號 → `<來源>-<代號>`。"""
+    c, j = _pair([(20.0, 129.5)], (24.0, 127.0))
+    first = _doc(c, j)
+    assert _src(first) == [("2640", "cwa")]  # 用氣象署那份也拿日本氣象廳的國際編號
+    # 日本氣象廳不列這顆了、只剩氣象署：沿用上一份的國際編號，不變成 cwa-ty40
+    assert _src(_doc(c, None, first)) == [("2640", "cwa")]
+    assert _src(_doc(c, None)) == [("cwa-ty40", "cwa")]  # 沒有上一份
+    # 熱帶性低氣壓（沒有名字、沒有編號）→ 命名後拿到國際編號
+    td = _doc(_storm("cwa", "td35"), _storm("jma", "TC2639"))
+    assert _src(td) == [("cwa-td35", "cwa")]  # 20N 125E 在台灣附近
+    # 命名後氣象署代號變 ty31：上一份那筆沒有英文名，靠 others 的日本氣象廳代號認出來，維持 cwa
+    # （這一報氣象署的過去路徑沒有台灣附近那段）
+    c2 = _storm("cwa", "ty31", en="FUNG-WONG", lat=31.0, lon=131.0)
+    j2 = _storm("jma", "TC2639", "2632", "Fung-wong", lat=31.0, lon=131.0)
+    assert not typhoons.near_taiwan(c2)
+    assert _src(_doc(c2, j2, td)) == [("2632", "cwa")]
+    assert _src(_doc(c2, j2)) == [("2632", "jma")]

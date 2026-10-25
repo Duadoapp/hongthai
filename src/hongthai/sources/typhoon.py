@@ -4,23 +4,29 @@
 範圍與輸出在 `typhoons.py`。
 
 中央氣象署 `W-C0034-005`「颱風消息與警報-熱帶氣旋路徑」（`CWA_URL`，授權碼同 `CWA_API_KEY`、
-放 `Authorization` 標頭）。照平台 API 文件（`https://opendata.cwa.gov.tw/apidoc/v1`，只有參數）
-與資料說明（`https://opendata.cwa.gov.tw/opendatadoc/MFC/W-C0034-005.pdf`，XML 欄位與範例）寫，
-沒有授權碼不能實抓：
+放 `Authorization` 標頭）。照 2026-10-25 13:06Z 實抓的回應（`data` 分支
+`history/raw/2026-10-25/1306Z-cwa-typhoon.json`，裁過的是 `tests/fixtures/cwa_typhoon_1306z.json`）
+寫：
 - 有熱帶氣旋時每 6 小時更新、颱風警報期間每 3 小時；西北太平洋與南海**所有**活動中的熱帶氣旋
-- 每個熱帶氣旋：`year`、`typhoon_name`（英文）、`cwb_typhoon_name`（中文）、`cwb_td_no`
-  （熱帶性低氣壓編號）、`cwb_ty_no`（颱風編號，和國際編號同號）；`analysis_data.fix[]`
-  （過去與現在）：`fix_time`、`coordinate`（**「經度,緯度」**，範例 `124.90,12.30`）、
-  `circle_of_15ms.radius`（七級風暴風半徑，公里）、`circle_of_25ms.radius`（十級風暴風半徑，
-  公里）；`forecast_data.fix[]`：`init_time`、`tau`（預報時距，小時）、`coordinate`、兩個暴風
-  半徑、`radius_of_70percent_probability`（70% 機率圈半徑，公里）。`-99` 是沒有
-- JSON 版的鍵名文件沒寫（XML 是 snake_case、`cwb_`；平台其他資料集有 camelCase、PascalCase，
-  `cwb` 也陸續改 `cwa`），所以**比對鍵名時不分大小寫、忽略 `_` 與 `-`、`cwb` 當 `cwa`**
-  （`_get`）；只有一筆時可能不是 list（`_as_list`）；座標也接受分開的 `latitude`／`longitude`。
-  原始回應存 `history/raw/<日期>/<HHMM>Z-cwa-typhoon.json`，第一次實跑後對一次欄位名
-- 預報點的時間是 `init_time` ＋ `tau` 小時（原文兩個欄位照相加，不是推算）；`leadHours` 是 `tau`
-- 氣象署資料沒有每個颱風的發布時間：`issuedAt` 用最新定位時間（預報的 `init_time`，沒有預報就用
-  最後一個 `fix_time`）
+- `records.TropicalCyclones.TropicalCyclone[]`，每顆：`Year`、`TyphoonName`（英文大寫，`CHAMPI`、
+  `IN-FA`）、`CwaTyphoonName`（中文）、`CwaTdNo`（氣象署熱帶性低氣壓編號）、`CwaTyNo`（**氣象署自己的
+  颱風編號，不是國際編號**：薔琵氣象署 29、國際 2630）
+- `AnalysisData.Fix[]`（過去與現在的定位）：`DateTime`（`2026-10-25T14:00:00+08:00`）、
+  `CoordinateLongitude`、`CoordinateLatitude`、`MaxWindSpeed`、`MaxGustSpeed`、`Pressure`、
+  `MovingSpeed`、`MovingDirection`；最新那點另有 `Circle15ms`／`Circle25ms`（七級／十級風暴風半徑，
+  `{"Radius": 公里, "QuadrantRadii": 四象限}`，沒有就沒這個鍵）
+- `ForecastData.Fix[]`：`InitialTime`、`ForecastHour`（預報時距，小時）、兩個座標、`Circle15ms`／
+  `Circle25ms`（`{"Radius"}`）、`Radius70PercentProbability`（70% 機率圈半徑，公里）
+- 暴風半徑只取 `Radius`（整圈），四象限 `QuadrantRadii` 不轉；`-99` 當沒有（資料說明的寫法）
+- 鍵名比對不分大小寫、忽略 `_` 與 `-`、`cwb` 當 `cwa`（`_get`）；HD34 照 XML 資料說明猜的 snake_case
+  鍵名（`fix_time`、`coordinate`「經度,緯度」、`init_time`、`tau`、`circle_of_15ms`、
+  `radius_of_70percent_probability`）留著當別名。只有一筆時可能不是 list（`_as_list`）。原始回應存
+  `history/raw/<日期>/<HHMM>Z-cwa-typhoon.json`
+- 預報點的時間是 `InitialTime` ＋ `ForecastHour` 小時（原文兩個欄位照相加，不是推算）；
+  `leadHours` 是 `ForecastHour`
+- 氣象署資料沒有每個颱風的發布時間：`issuedAt` 用最新定位時間（預報的 `InitialTime`，沒有預報就用
+  最後一個 `DateTime`）
+- 氣象署沒有國際編號，`Storm.number` 一律 None（和日本氣象廳配對用英文名，見 `typhoons.same_storm`）
 
 日本氣象廳 bosai 的颱風 JSON（JMA 網頁自己用的，非正式介面、不用金鑰；`events.py` 每小時的
 現報也在用）：
@@ -96,8 +102,8 @@ class Storm:
     """一個來源的一顆熱帶氣旋（點的格式見模組說明）。"""
 
     source: str  # cwa／jma
-    key: str  # 來源自己的代號：氣象署 `ty30`／`td21`，JMA `TC2636`
-    number: str | None  # 國際編號 `2630`（熱帶性低氣壓沒有）
+    key: str  # 來源自己的代號：氣象署 `ty29`／`td33`（`CwaTyNo`／`CwaTdNo`），JMA `TC2636`
+    number: str | None  # 國際編號 `2630`：只有 JMA 有（熱帶性低氣壓沒有）；氣象署一律 None
     name_zh: str
     name_en: str
     issued_at: datetime | None
@@ -184,17 +190,20 @@ def _text(v: object) -> str:
 
 
 def _cwa_coord(fix: dict) -> tuple[float | None, float | None]:
-    """（緯, 經）。`coordinate` 是「經度,緯度」；沒有就找 `latitude`／`longitude`。"""
+    """（緯, 經）。`CoordinateLatitude`／`CoordinateLongitude`；別名 `coordinate`（「經度,緯度」）、
+    `latitude`／`longitude`。"""
     c = _scalar(_get(fix, "coordinate"))
     if isinstance(c, str) and "," in c:
         lon, _, lat = c.partition(",")
         return _num(lat.strip()), _num(lon.strip())
-    return _num(_get(fix, "latitude", "lat")), _num(_get(fix, "longitude", "lon"))
+    lat = _get(fix, "CoordinateLatitude", "latitude", "lat")
+    lon = _get(fix, "CoordinateLongitude", "longitude", "lon")
+    return _num(lat), _num(lon)
 
 
-def _cwa_radius(fix: dict, name: str) -> list[dict]:
-    """暴風半徑（公里）→ `[{"dir": "all", "km": …}]`；`-99` 或沒有是 `[]`。"""
-    circle = _get(fix, name)
+def _cwa_radius(fix: dict, *names: str) -> list[dict]:
+    """暴風半徑（`Radius`，公里）→ `[{"dir": "all", "km": …}]`；`-99` 或沒有是 `[]`。"""
+    circle = _get(fix, *names)
     km = _num(_get(circle, "radius") if isinstance(circle, dict) else circle)
     return [] if km is None else [{"dir": "all", "km": km}]
 
@@ -207,8 +216,8 @@ def _cwa_point(fix: dict, t: datetime | None) -> dict | None:
         "time": iso(t),
         "lat": lat,
         "lon": lon,
-        "radius15": _cwa_radius(fix, "circle_of_15ms"),
-        "radius25": _cwa_radius(fix, "circle_of_25ms"),
+        "radius15": _cwa_radius(fix, "Circle15ms", "circle_of_15ms"),
+        "radius25": _cwa_radius(fix, "Circle25ms", "circle_of_25ms"),
     }
 
 
@@ -228,8 +237,6 @@ def parse_cwa(data: object) -> list[Storm]:
         body = _get(tc, "dataset") if isinstance(_get(tc, "dataset"), dict) else tc
         ty_no = _int(_get(tc, "cwa_ty_no"))
         td_no = _int(_get(tc, "cwa_td_no"))
-        year = _int(_get(tc, "year"))
-        number = f"{year % 100:02d}{ty_no:02d}" if ty_no and year else None
         if ty_no:
             key = f"ty{ty_no:02d}"
         elif td_no:
@@ -240,7 +247,7 @@ def parse_cwa(data: object) -> list[Storm]:
         for fix in _as_list(_get(_get(body, "analysis_data"), "fix")):
             if not isinstance(fix, dict):
                 continue
-            t = _time(_get(fix, "fix_time"))
+            t = _time(_get(fix, "DateTime", "fix_time"))
             p = _cwa_point(fix, t)
             if p is not None and t is not None:
                 fixes.append((t, p))
@@ -250,15 +257,15 @@ def parse_cwa(data: object) -> list[Storm]:
         for fix in _as_list(_get(_get(body, "forecast_data"), "fix")):
             if not isinstance(fix, dict):
                 continue
-            init = _time(_get(fix, "init_time"))
-            tau = _num(_get(fix, "tau"))
+            init = _time(_get(fix, "InitialTime", "init_time"))
+            tau = _num(_get(fix, "ForecastHour", "tau"))
             if init is None or tau is None:
                 continue
             init_times.append(init)
             p = _cwa_point(fix, init + timedelta(hours=tau))
             if p is None:
                 continue
-            prob = _get(fix, "radius_of_70percent_probability")
+            prob = _get(fix, "Radius70PercentProbability", "radius_of_70percent_probability")
             prob_km = _num(_get(prob, "radius") if isinstance(prob, dict) else prob)
             p["leadHours"] = tau
             p["probabilityRadius"] = None if prob_km is None else {"km": prob_km}
@@ -270,7 +277,7 @@ def parse_cwa(data: object) -> list[Storm]:
             Storm(
                 source="cwa",
                 key=key,
-                number=number,
+                number=None,
                 name_zh=_text(_get(tc, "cwa_typhoon_name")),
                 name_en=_text(_get(tc, "typhoon_name")).title(),
                 issued_at=issued,

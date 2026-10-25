@@ -117,3 +117,15 @@ HD32（TDX 航空即時航班）：
   台中（已飛帶實際時間、取消、預計晚 75 分鐘的準時、貨機、延誤、跨 UTC 日的抵達）、金門（`CodeShare` 字串
   與掛名列、HD32 時對照表沒有的「加班機」（HD38 起算正常）、沒有表定時間的一筆）、桃園（`CodeShare` 物件陣列、帶 `+08:00` 的時間、
   班號已含航空公司代碼、只有英文狀態）、松山（「已到」只有預計時間）
+
+HD34b（颱風地圖：氣象署路徑的實際鍵名與配對）：
+- `cwa_typhoon_1306z.json`：`data` 分支 `history/raw/2026-10-25/1306Z-cwa-typhoon.json`（氣象署 `W-C0034-005`
+  的真實回應，115 KB）**裁過**：薔琵（CHAMPI，氣象署 `CwaTyNo` 29）的 `AnalysisData.Fix` 原本 92 點，只留每天
+  `08:00+08:00` 那點（10-14 到 10-25，倒數兩點以外）加最後兩點，共 13 點（10-21 起的幾點落在台灣附近）；
+  烟花（IN-FA，`CwaTyNo` 30）10 點、兩顆的 `ForecastData.Fix`（4、9 點）與 `result.fields` 都原樣；用
+  `indent=1` 重新寫出
+- `jma_typhoon_1306z.json`：同一報日本氣象廳的原始回應（`1306Z-jma-typhoon.json`，22 KB）原樣：TC2636（薔琵，
+  2630，已是 `LOW`、只有實況）、TC2637（インファ，2631）
+- `typhoons_1306z_mispaired.json`：同一報 HD34 輸出的 `typhoons.json`（`data` 分支根目錄，commit `1a30092`）：
+  氣象署每顆都解析不到位置、氣象署烟花（`ty30`）被當成 2630 配給日本氣象廳薔琵（`others`），`outOfRange` 有
+  氣象署薔琵（2629）。每顆的 `past` 只留頭兩點與最後一點
