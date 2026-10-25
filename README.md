@@ -1067,11 +1067,12 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
 
 - 每報抓（`build.py` 的來源 `cwaTyphoon`、`jmaTyphoon`，各自的時間預算 15、20 秒，失敗互不影響）：
   - 氣象署 `GET https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0034-005`（「颱風消息與警報-熱帶氣旋
-    路徑」，`CWA_API_KEY`）：西北太平洋與南海所有活動中的熱帶氣旋，過去與現在的定位（`analysis_data`）、
-    預報點（`forecast_data`）、七級／十級風暴風半徑、70% 機率圈半徑（公里）。JSON 的鍵名沒有文件，照
-    [資料說明](https://opendata.cwa.gov.tw/opendatadoc/MFC/W-C0034-005.pdf)的 XML 欄位寫、鍵名比對寬鬆
-    （`sources/typhoon.py` 開頭）；**還沒有授權碼實抓過**，原始回應存 `history/raw/<日期>/<HHMM>Z-cwa-typhoon.json`，
-    合併後第一報要對一次
+    路徑」，`CWA_API_KEY`）：西北太平洋與南海所有活動中的熱帶氣旋，過去與現在的定位（`AnalysisData.Fix`）、
+    預報點（`ForecastData.Fix`）、七級／十級風暴風半徑、70% 機率圈半徑（公里）。HD34 照
+    [資料說明](https://opendata.cwa.gov.tw/opendatadoc/MFC/W-C0034-005.pdf)的 XML 欄位猜的鍵名全對不上
+    （每顆都解析不到位置），HD34b 照 2026-10-25 13:06Z 實抓的回應改成實際的鍵名（`DateTime`、
+    `CoordinateLatitude`／`CoordinateLongitude`、`InitialTime`＋`ForecastHour`、`Circle15ms`、
+    `Radius70PercentProbability`，`sources/typhoon.py` 開頭）。原始回應存 `history/raw/<日期>/<HHMM>Z-cwa-typhoon.json`
   - 日本氣象廳 `https://www.jma.go.jp/bosai/typhoon/data/targetTc.json` → 每顆
     `…/<代號>/specifications.json`（實況、預報點、予報円、暴風警戒域、強風域、暴風域，公里與海浬）與
     `…/<代號>/forecast.json`（過去路徑與 JMA 畫圖用的幾何）。2026-10-25 00:45 JST 實抓：targetTc 211 bytes，
@@ -1086,51 +1087,57 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
     → 颱風結束，拿掉；氣象署回來了就用這一報的
   - 只有一邊有：只有日本氣象廳（例如氣象署失敗、上一份也不是 `cwa`）就用日本氣象廳；只有氣象署、從沒進過台灣
     附近就用氣象署（有官方資料就畫）
-  - 同一顆的判斷照順序：兩邊都有國際編號（氣象署 `year`＋颱風編號、JMA `typhoonNumber`，例如 `2630`）就比編號；
-    都有英文名就比名稱（不分大小寫、忽略連字號）；都沒有（熱帶性低氣壓）就看目前位置相距 300 公里內、定位時間
-    相差 6 小時內。上一份的同一顆用 `id`、`sourceId` 或 `others` 的代號認
+  - 同一顆的判斷（HD34b 改）：**不比編號**——氣象署的颱風編號（`CwaTyNo`）是氣象署自己的、和國際編號不同號
+    （2026-10-25 薔琵氣象署 29、國際 2630；HD34 當成同號，把氣象署煙花配給了日本氣象廳薔琵）。兩邊都有英文名就比
+    名稱（不分大小寫、忽略連字號）；有一邊沒有（熱帶性低氣壓）就看目前位置相距 300 公里內、定位時間相差 6 小時內。
+    上一份的同一顆：兩邊都有英文名時只比英文名；有一邊沒有才用 `id`、`sourceId` 或 `others` 的代號認
 - **範圍**：目前位置或任一預報點落在地圖框（51 個機場的經緯度外擴 5 度，往外取到 0.1 度：北緯 2.3–47.8、
   東經 98.9–149.8，`typhoons.BOUNDS`，`typhoons.json` 的 `bounds`）內才算；範圍外的只在 `outOfRange` 記編號
 - **原文照轉載**：不平滑、不內插、不延伸；數值與單位照原文（氣象署只有公里，JMA 公里與海浬都是原文，**沒有
-  換算**）。唯一的相加是氣象署預報點的時間＝`init_time`＋`tau`（原文兩個欄位）。`issuedAt` 超過 12 小時就
+  換算**）。唯一的相加是氣象署預報點的時間＝`InitialTime`＋`ForecastHour`（原文兩個欄位）。`issuedAt` 超過 12 小時就
   `stale: true`
 - 失敗只 log：兩個來源都失敗時沿用上一份的 `storms`（`stale` 重算、記 `reusedFrom`），沒有上一份就是沒有颱風；
   組不出來時 `data` 那份不動、Pages 照發上一份；整個 build 失敗改發布上一份時 `typhoons.json` 也一起發布
 
 `typhoons.json`（GitHub Pages，和 `latest.json` 同一層，只放最新一份；`data` 分支根目錄同一份），沒有颱風時
-`active: false`、`storms: []`（下面的數字是測試用的手造氣象署資料）：
+`active: false`、`storms: []`（下面是 2026-10-25 13:06Z 那報實抓的資料跑出來的，`tests/test_typhoons.py`）：
 
 ```json
 {
- "schema": 1, "generatedAt": "2026-10-24T20:25:00Z", "active": true,
+ "schema": 1, "generatedAt": "2026-10-25T13:06:00Z", "active": true,
  "bounds": {"south": 2.3, "north": 47.8, "west": 98.9, "east": 149.8},
  "sources": {"cwa": {"ok": true}, "jma": {"ok": true}},
  "storms": [
   {
    "id": "2630",
    "name": {"zh-TW": "薔琵", "zh-HK": "薔琵", "zh-CN": "Champi", "en": "Champi"},
-   "source": "cwa", "sourceId": "ty30", "issuedAt": "2026-10-24T18:00:00Z",
+   "source": "cwa", "sourceId": "ty29", "issuedAt": "2026-10-25T06:00:00Z",
    "url": "https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html", "stale": false,
-   "others": [{"source": "jma", "id": "TC2636", "issuedAt": "2026-10-24T15:45:00Z",
+   "others": [{"source": "jma", "id": "TC2636", "issuedAt": "2026-10-25T12:45:00Z",
                "url": "https://www.jma.go.jp/bosai/map.html#contents=typhoon"}],
-   "past": [{"time": "2026-10-24T12:00:00Z", "lat": 27.4, "lon": 123.2}, …],
-   "now": {"time": "2026-10-24T18:00:00Z", "lat": 27.9, "lon": 123.5,
-           "radius15": [{"dir": "all", "km": 250}], "radius25": []},
-   "forecast": [{"time": "2026-10-25T06:00:00Z", "leadHours": 12, "lat": 29.8, "lon": 124.9,
-                 "probabilityRadius": {"km": 60}, "radius15": [{"dir": "all", "km": 200}],
+   "past": […, {"time": "2026-10-25T00:00:00Z", "lat": 29, "lon": 124.7},
+            {"time": "2026-10-25T06:00:00Z", "lat": 30.1, "lon": 125.4}],
+   "now": {"time": "2026-10-25T06:00:00Z", "lat": 30.1, "lon": 125.4,
+           "radius15": [{"dir": "all", "km": 150}], "radius25": []},
+   "forecast": [{"time": "2026-10-25T12:00:00Z", "leadHours": 6, "lat": 30.6, "lon": 126.5,
+                 "probabilityRadius": {"km": 40}, "radius15": [{"dir": "all", "km": 150}],
                  "radius25": [], "stormWarning": []}, …]
-  }
+  },
+  {"id": "2631", "source": "jma", "sourceId": "TC2637", …,
+   "others": [{"source": "cwa", "id": "ty30", "issuedAt": "2026-10-25T06:00:00Z", …}], …}
  ],
- "outOfRange": [{"id": "2631", "source": "cwa"}]
+ "outOfRange": []
 }
 ```
 
-- `id`：國際編號；沒有編號的熱帶性低氣壓是 `cwa-td21`（氣象署熱帶性低氣壓編號）或 `jma-TC2638`（JMA 代號）
+- `id`（網頁拿來當鍵）：國際編號（`2630`，只有日本氣象廳的 `typhoonNumber` 有，用氣象署那份時也拿配到的日本氣象廳
+  那份的）；這一報沒有國際編號但上一份同一顆是國際編號就沿用；都沒有（熱帶性低氣壓）是 `cwa-td33`（氣象署熱帶性
+  低氣壓編號）或 `jma-TC2638`（JMA 代號），氣象署那份沒配到日本氣象廳的颱風是 `cwa-ty29`
 - `name`：照氣象署颱風警報的寫法，zh-TW／zh-HK 用氣象署的中文名、zh-CN 與 en 用英文名；JMA 只有英文名，
-  缺中文就用英文，都沒有就用 `TD21`／JMA 代號
+  缺中文就用英文，都沒有就用 `TD33`／JMA 代號
 - `source` 與 `url`：`cwa` 是氣象署颱風消息頁、`jma` 是日本氣象廳颱風資訊頁（網頁出處連這裡）；`sourceId`：
-  那個來源自己的代號（氣象署 `ty30`／`td21`、JMA `TC2636`）；`issuedAt`：
-  JMA 是發布時間，氣象署資料沒有發布時間，用最新定位時間（預報的 `init_time`）
+  那個來源自己的代號（氣象署 `ty29`／`td33`，`CwaTyNo`／`CwaTdNo`、JMA `TC2636`）；`issuedAt`：
+  JMA 是發布時間，氣象署資料沒有發布時間，用最新定位時間（預報的 `InitialTime`）
 - `past[]`：過去路徑（原文的點，最後一點通常就是 `now`）。氣象署每點有 `time`；JMA 的 `time` 是 null，
   另有 `stage`（`preTyphoon`＝熱帶低氣壓階段、`typhoon`）
 - `now`／`forecast[]`：`radius15`／`radius25` 是七級（15 m/s）／十級（25 m/s）風暴風半徑（JMA 的強風域／

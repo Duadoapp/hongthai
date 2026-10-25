@@ -15,13 +15,15 @@
     氣象署成功、兩邊都沒有這顆了才拿掉（颱風結束）
   - 只有一邊有的：只有日本氣象廳有（例如氣象署失敗、上一份也不是 `cwa`）就用日本氣象廳；只有氣象署
     有、從沒進過台灣附近（日本氣象廳沒發）就用氣象署——有官方資料就畫
-  - 怎麼找上一份的同一顆（`_previous_entry`）：`id` 相同，或上一份那筆的來源代號（`sourceId`）、
-    `others` 的代號和這一報任一邊的代號相同
-  怎麼算同一顆（`same_storm`，照順序）：
-  1. 兩邊都有國際編號（氣象署 `year`＋`cwb_ty_no`、JMA `typhoonNumber`，例如 `2630`）：
-     編號相同才算
-  2. 兩邊都有英文名：名稱相同（不分大小寫、忽略非英數字，`IN-FA` ＝ `In-fa`）才算
-  3. 其他（熱帶性低氣壓沒有編號也沒有名字）：目前位置相距 `MATCH_KM` 公里內、定位時間相差
+  - 怎麼找上一份的同一顆（`_previous_entry`，HD34b）：上一份那筆和這一報都有英文名時**只比
+    英文名**（不同就不是，`others` 不看：HD34 時氣象署編號被當國際編號，薔琵的 `others` 配成氣象署
+    煙花 `ty30`）；有一邊沒有英文名（熱帶性低氣壓）才看國際編號 `id` 相同，或上一份那筆的來源代號
+    （`sourceId`）、`others` 的代號和這一報任一邊相同（氣象署命名後代號從 `td33` 變 `ty29`，要靠
+    `others` 裡日本氣象廳的代號認）
+  怎麼算同一顆（`same_storm`，HD34b 改）：氣象署的 `CwaTyNo` 是氣象署自己的編號、和國際編號不同號
+  （2026-10-25 薔琵氣象署 29、國際 2630），所以**不比編號**：
+  1. 兩邊都有英文名：名稱相同（不分大小寫、忽略非英數字，`IN-FA` ＝ `In-fa`）才算
+  2. 其他（有一邊沒有英文名，例如熱帶性低氣壓）：目前位置相距 `MATCH_KM` 公里內、定位時間相差
      `MATCH_HOURS` 小時內才算（只拿來配對，不輸出）
 - **範圍**（`in_range`）：目前位置或任一預報點落在 `BOUNDS`（51 個機場的經緯度外擴 5 度，往外
   取到 0.1 度；`tests/test_typhoons.py` 檢查和 `airports.json` 一致）內才算；過去路徑不算。
@@ -39,11 +41,16 @@
 "source": "cwa"|"jma", "sourceId", "issuedAt", "url", "stale",
 "others": [{"source", "id", "issuedAt", "url"}], "past": [...], "now", "forecast": [...]
 [, "reusedFrom"]}`
-（點的格式見 `sources/typhoon.py`）。`id` 是國際編號（`2630`），沒有編號的是
-`cwa-td21`／`jma-TC2637`；`sourceId` 是那個來源自己的代號（氣象署 `ty30`／`td21`、JMA
-`TC2636`），下一報認上一份的同一顆用。`name`：氣象署給中文、英文，JMA 只給英文；照 `sources/cwa.py`
-颱風警報的寫法，zh-TW／zh-HK 用中文名、zh-CN 與 en 用英文名，缺中文用英文，都缺用 `TD21`
-（氣象署熱帶性低氣壓編號）或 JMA 代號。
+（點的格式見 `sources/typhoon.py`）。`id`（網頁 HW15 拿來當鍵，`storm_id`）照順序：
+1. 國際編號（`2630`）：只有日本氣象廳的 `typhoonNumber` 有；這顆用氣象署那份時也拿配到的日本
+   氣象廳那份的
+2. 這一報沒有國際編號（日本氣象廳沒列這顆或還沒編號）、上一份同一顆的 `id` 是國際編號：沿用
+   （編號不會收回）
+3. 都沒有：`<來源>-<代號>`，用的那份是氣象署就是 `cwa-ty29`／`cwa-td33`、日本氣象廳是
+   `jma-TC2637`
+`sourceId` 是那個來源自己的代號（氣象署 `ty29`／`td33`、JMA `TC2636`），下一報認上一份的同一顆
+用。`name`：氣象署給中文、英文，JMA 只給英文；照 `sources/cwa.py` 颱風警報的寫法，zh-TW／zh-HK
+用中文名、zh-CN 與 en 用英文名，缺中文用英文，都缺用 `TD33`（氣象署熱帶性低氣壓編號）或 JMA 代號。
 """
 
 from __future__ import annotations
@@ -104,9 +111,7 @@ def _km(a: dict, b: dict) -> float:
 
 
 def same_storm(c: Storm, j: Storm) -> bool:
-    """氣象署那顆 `c` 和日本氣象廳那顆 `j` 是不是同一顆（規則見模組說明）。"""
-    if c.number and j.number:
-        return c.number == j.number
+    """氣象署那顆 `c` 和日本氣象廳那顆 `j` 是不是同一顆（規則見模組說明；不比編號）。"""
     if _name_key(c.name_en) and _name_key(j.name_en):
         return _name_key(c.name_en) == _name_key(j.name_en)
     if not (c.now and j.now and c.now["time"] and j.now["time"]):
@@ -115,8 +120,21 @@ def same_storm(c: Storm, j: Storm) -> bool:
     return dt <= timedelta(hours=MATCH_HOURS) and _km(c.now, j.now) <= MATCH_KM
 
 
-def storm_id(s: Storm) -> str:
-    return s.number or f"{s.source}-{s.key}"
+def _is_number(v: object) -> bool:
+    return isinstance(v, str) and v.isdigit()
+
+
+def storm_id(s: Storm | dict, c: Storm | None, j: Storm | None, prev: dict | None) -> str:
+    """這顆的 `id`（規則見模組說明）：`s` 是用的那份（或要沿用的上一份那筆），`c`／`j` 是這一報
+    兩邊的，`prev` 是上一份的同一顆。"""
+    number = next((x.number for x in (j, c) if x is not None and x.number), None)
+    if number:
+        return number
+    if prev is not None and _is_number(prev.get("id")):
+        return prev["id"]
+    if isinstance(s, dict):
+        return str(s.get("id"))
+    return f"{s.source}-{s.key}"
 
 
 def names(s: Storm) -> dict[str, str]:
@@ -140,9 +158,9 @@ def _other(s: Storm) -> dict:
     }
 
 
-def storm_json(s: Storm, now: datetime, others: list[Storm]) -> dict:
+def storm_json(s: Storm, sid: str, now: datetime, others: list[Storm]) -> dict:
     return {
-        "id": storm_id(s),
+        "id": sid,
         "name": names(s),
         "source": s.source,
         "sourceId": s.key,
@@ -171,20 +189,32 @@ def pair_up(cwa: list[Storm], jma: list[Storm]) -> list[Pair]:
     return [(c, j) for c, j in out]
 
 
-def _codes(c: Storm | None, j: Storm | None) -> set[tuple[str, str]]:
-    return {(s.source, s.key) for s in (c, j) if s is not None}
+def _entry_name(e: dict) -> str:
+    """上一份那筆的英文名（`_name_key` 過）；`names` 沒英文名時補的 `TD33`／JMA 代號不算。"""
+    name = e.get("name")
+    en = name.get("en") if isinstance(name, dict) else None
+    sid = e.get("sourceId")
+    if not isinstance(en, str) or (isinstance(sid, str) and en in (sid, sid.upper())):
+        return ""
+    return _name_key(en)
 
 
 def _previous_entry(prev: list[dict], c: Storm | None, j: Storm | None) -> dict | None:
-    """上一份 `storms` 裡的同一顆（`id` 相同，或來源代號相同）。"""
-    ids = {storm_id(s) for s in (c, j) if s is not None}
-    codes = _codes(c, j)
+    """上一份 `storms` 裡的同一顆（規則見模組說明：英文名都有時只比英文名）。"""
+    name = next((_name_key(s.name_en) for s in (c, j) if s is not None and s.name_en), "")
+    numbers = {s.number for s in (c, j) if s is not None and s.number}
+    codes = {(s.source, s.key) for s in (c, j) if s is not None}
     for e in prev:
+        prev_name = _entry_name(e)
+        if name and prev_name:
+            if name == prev_name:
+                return e
+            continue
         mine = {(e.get("source"), e.get("sourceId"))}
         mine |= {
             (o.get("source"), o.get("id")) for o in e.get("others") or [] if isinstance(o, dict)
         }
-        if e.get("id") in ids or mine & codes:
+        if e.get("id") in numbers or mine & codes:
             return e
     return None
 
@@ -250,23 +280,27 @@ def build(
             doc["active"] = True
         return doc
     used: list[int] = []
-    picked: list[tuple[Storm | dict, list[Storm]]] = []
+    picked: list[tuple[Storm | dict, list[Storm], str]] = []
     for c, j in pair_up(cwa.storms if cwa else [], jma.storms if jma else []):
         prev = _previous_entry(prev_storms, c, j)
         if prev is not None:
             used.append(id(prev))
         res = choose(c, j, prev, cwa is not None)
         if res is not None:
-            picked.append(res)
+            picked.append((*res, storm_id(res[0], c, j, prev)))
     if cwa is None:  # 氣象署失敗、這一報兩邊都沒有的 `cwa` 那筆也沿用（不知道是不是結束了）
-        picked += [(e, []) for e in prev_storms if e.get("source") == "cwa" and id(e) not in used]
-    for s, others in picked:
+        picked += [
+            (e, [], str(e.get("id")))
+            for e in prev_storms
+            if e.get("source") == "cwa" and id(e) not in used
+        ]
+    for s, others, sid in picked:
         if isinstance(s, dict):
-            entry = _reuse(s, others, now, generated)
+            entry = {**_reuse(s, others, now, generated), "id": sid}
             ok = _in_range(entry.get("now"), entry.get("forecast") or [])
-            sid, src = entry.get("id"), entry.get("source")
+            src = entry.get("source")
         else:
-            entry, ok, sid, src = storm_json(s, now, others), in_range(s), storm_id(s), s.source
+            entry, ok, src = storm_json(s, sid, now, others), in_range(s), s.source
         if ok:
             doc["storms"].append(entry)
         else:
