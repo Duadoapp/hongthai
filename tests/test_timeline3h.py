@@ -32,7 +32,8 @@ workspace = test_build.workspace  # fixture
 TH = Thresholds()
 S0 = utc(2026, 10, 18, 6)  # NOW（08:10Z）所在的 6 小時格
 ALL_NATIVE = frozenset(m.id for m in MODELS if m.three_hourly)
-MAX_FILE_BYTES = 120_000  # 提示詞：每個檔目標 ≤ 120 KB
+# Shawn 2026-10-25：每個機場檔約 127 KB（壓縮後約 5 KB）可以接受；fixtures 的檔比實際小，留餘裕
+MAX_FILE_BYTES = 135_000
 
 
 def h(n: float):
@@ -209,10 +210,12 @@ def test_reused_model_falls_back_to_six_hour():
 
 def test_native_3h_from_sources():
     ok, bad = {"ok": True}, {"ok": False, "reusedFrom": "x"}
-    assert build.native_3h({"ecmwf": ok, "openmeteo": ok}) == {"ifs", "icon"}
-    assert build.native_3h({"ecmwf": bad, "openmeteo": ok}) == {"icon"}
+    om = {"icon", "gem", "arpege", "cma"}  # HD33b 的三個旁觀模式也有 3 小時資料
+    assert build.native_3h({"ecmwf": ok, "openmeteo": ok}) == {"ifs", *om}
+    assert build.native_3h({"ecmwf": bad, "openmeteo": ok}) == om
+    assert build.native_3h({"ecmwf": ok, "openmeteo": bad}) == {"ifs"}
     assert build.native_3h({}) == frozenset()
-    assert ALL_NATIVE == {"ifs", "icon"}
+    assert ALL_NATIVE == {"ifs", *om}
 
 
 def test_level_mismatches_logged_not_changed():
@@ -360,3 +363,21 @@ def test_ecmwf_hres_steps_are_three_hourly_to_72h():
     """`ifs` 標 `three_hourly` 的依據：0–72 小時（起報晚 12 小時也一樣）HRES 每 3 小時一筆。"""
     steps = ecmwf.hres_steps(12, 144)
     assert [s for s in steps if s <= 12 + 72] == list(range(15, 85, 3))
+
+
+def test_observer_models_three_hourly_but_not_voting():
+    """HD33b 的旁觀模式（GEM、ARPEGE、CMA）有 3 小時資料：照 3 小時窗算、`sixHourly: false`；
+    還是不投票（拿掉它們的 3 小時格和沒有它們時一樣）。"""
+    doc, _, _ = doc_for(om_hourly={"gem": icon_hours(), "arpege": None, "cma": None})
+    base, _, _ = doc_for()
+    s3a, s3b = doc["slots3h"][:2]
+    assert (entry(s3a, "gem")["gustKt"], entry(s3b, "gem")["gustKt"]) == (30.0, 40.0)
+    assert entry(s3a, "gem")["sixHourly"] is False
+    assert entry(s3a, "gem")["rain6hMm"] == 36.0  # 雨照樣用 6 小時格
+    assert entry(s3a, "arpege")["gustKt"] is None and entry(s3a, "arpege")["sixHourly"] is False
+    for s, b in zip(doc["slots3h"], base["slots3h"], strict=True):
+        assert (s["level"], s["model"]["vote"], s["causes"]) == (
+            b["level"],
+            b["model"]["vote"],
+            b["causes"],
+        )

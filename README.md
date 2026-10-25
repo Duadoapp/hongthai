@@ -316,10 +316,11 @@ Shawn 2026-10-23、2026-10-25 00:35 定案（Duado spec 第 16 節「颱風期�
   | `ifs-ens` | 24 小時窗的機率、每 12 小時一個窗 | `true`（窗的邊界是 12 小時的倍數，兩個 3 小時格本來就一樣） |
   | `aifs`、`aigfs` | 每 6 小時一個步長 | `true` |
   | `icon` | Open-Meteo 逐時，ICON global 0–78 小時原生 1 小時 | `false` |
-  | `jma` | Open-Meteo 逐時，但雨量是每 6 小時一個值平均攤到 6 個小時、風是內插的 | `true` |
+  | `jma` | Open-Meteo 逐時，但雨量是每 6 小時一個值平均攤到 6 個小時、風是內插的（metadata `jma_gsm` 的 `temporal_resolution_seconds` 21600） | `true` |
   | `wn2-ens` | Open-Meteo `temporal_resolution=native`，每 6 小時 | `true` |
   | `wn3`（`observe` 才有） | 只讀 6 小時整的步長（`wn3.STEP_H`） | `true` |
-  | `gem`、`arpege`、`cma`（HD33b 旁觀） | Open-Meteo 逐時（GEM、CMA 原生 3 小時，ARPEGE 前段 1 小時、約 102 小時後沒有） | `false` |
+  | `gem`、`arpege`（HD33b 旁觀） | Open-Meteo 逐時，原生 1 小時（metadata `cmc_gem_gdps_15km`、`meteofrance_arpege_world025` 的 `temporal_resolution_seconds` 3600；ARPEGE 約 102 小時後沒有） | `false` |
+  | `cma`（HD33b 旁觀） | Open-Meteo 逐時，原生 3 小時（metadata `cma_grapes_global` 10800；3 小時格各有一個原生值） | `false` |
 
   `three_hourly` 的模式這一報沒抓到（失敗、沿用舊資料，`sources.<名稱>.ok` 是 false）時也整筆用 6 小時格的、
   標 `sixHourly: true`（`build.native_3h`）；GFS 不是 3 小時，所以 `model.gfs` 整個用 6 小時格的
@@ -712,8 +713,8 @@ H10（2026-10-18）之後：
 - 最後一個 3 小時格的 `to` ＝ `slots6h` 第一格的 `from`
 - 大小（2026-10-24 17:02Z 雲端開發機實跑，8 個模式）：一個檔 96.8–99.6 KB（最大是濟州），51 個檔共
   5,019,288 bytes（約 4.8 MB；`latest.json` 同一報 3.08 MB）；gzip 後一個約 4.4 KB、全部約 190 KB（GitHub Pages
-  有壓縮）。目標每個檔 ≤ 120 KB；`models[]` 一筆約 285 bytes，每多一個模式一個檔多約 9 KB（32 格），
-  HD33b 的四個旁觀模式進來後約 136 KB
+  有壓縮）。`models[]` 一筆約 285 bytes，每多一個模式一個檔多約 9 KB（32 格）；HD33b 的三個旁觀模式進來後
+  約 127 KB。**目標：每個檔約 127 KB（壓縮後約 5 KB）可以接受**（Shawn 2026-10-25；提示詞原本是 ≤ 120 KB）
 
 第二階段（2026-10-18）加的欄位（規格 16 節已補；網頁之後顯示在依據區，現在忽略也不會壞）：
 

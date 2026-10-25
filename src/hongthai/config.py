@@ -180,7 +180,8 @@ MODELS: tuple[Model, ...] = (
         {"zh-TW": "日本 GSM", "zh-HK": "日本 GSM", "zh-CN": "日本 GSM", "en": "JMA GSM"},
         gust_estimated=True,
         # HD35：Open-Meteo 雖然逐時，雨量是每 6 小時一個值平均攤到 6 個小時、風是內插出來的
-        # （2026-10-24 13Z 那報實看），當 6 小時資料（`three_hourly` 不設）
+        # （2026-10-24 13Z 那報實看；metadata `jma_gsm` 的 `temporal_resolution_seconds` 是
+        # 21600），當 6 小時資料（`three_hourly` 不設）
     ),
     Model(
         "wn2-ens",
@@ -202,7 +203,8 @@ MODELS: tuple[Model, ...] = (
         {"zh-TW": "加拿大模式", "zh-HK": "加拿大模式", "zh-CN": "加拿大模式", "en": "Canada GEM"},
         voting=False,
         ai=False,
-        three_hourly=True,  # HD35：Open-Meteo 逐時（GEM、CMA 原生 3 小時，ARPEGE 前段 1 小時）
+        # HD35：metadata `cmc_gem_gdps_15km` 的 `temporal_resolution_seconds` 3600（逐時原生）
+        three_hourly=True,
     ),
     Model(
         "arpege",
@@ -214,14 +216,16 @@ MODELS: tuple[Model, ...] = (
         },
         voting=False,
         ai=False,
-        three_hourly=True,  # HD35：Open-Meteo 逐時（GEM、CMA 原生 3 小時，ARPEGE 前段 1 小時）
+        # HD35：metadata `meteofrance_arpege_world025` 3600（逐時原生，約 102 小時後沒有）
+        three_hourly=True,
     ),
     Model(
         "cma",
         {"zh-TW": "中國模式", "zh-HK": "中國模式", "zh-CN": "中国模式", "en": "CMA GRAPES"},
         voting=False,
         ai=False,
-        three_hourly=True,  # HD35：Open-Meteo 逐時（GEM、CMA 原生 3 小時，ARPEGE 前段 1 小時）
+        # HD35：metadata `cma_grapes_global` 10800（原生 3 小時，3 小時格各一個原生值）
+        three_hourly=True,
     ),
     *((WN3_MODEL,) if wn3_mode() == "observe" else ()),
 )
