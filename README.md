@@ -109,14 +109,17 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
   其他同 AIFS）；AIGFS 沒有型態、不投（雪的分母不算它）。不用 2 米溫度猜型態
 - 霧：只有 GFS 有能見度，**霧的分母永遠是 1**（GFS 說了算，最高到中，HD10）。Open-Meteo 的 ICON global、
   JMA GSM 能見度 2026-10-20 實抓全是 `null`（提示詞以為 ICON 有），所以 HD16 沒有改變霧的分母；哪天有值了
-  會自動投（最高到中）
+  會自動投（最高到中）。**旁觀模式不判霧**（HD33b，2026-10-25 主對話定案）：CMA GRAPES 有能見度，但旁觀模式的
+  `levels.fog` 一律 `null`，能見度只照存 `visibilityM`
 - **旁觀模式**（HD16，`Model.voting=False`）：照樣抓、照樣寫進 `models[]`（含 `levels`、`level`）與路徑檔，
   但**不算進任何一類的分母、不投票**（`vote.total` 不含它）；頂層 `models[].voting` 讓網頁標「旁觀，不投票」。
   HD16 的三票都投票，這個開關給 HD15 的 WeatherNext 3 與之後的新模式（先旁觀、累積紀錄再改成投票）
 - **HD33b 的三個旁觀模式**（`voting=False`）：`gem`（ECCC GEM）、`arpege`（Météo-France ARPEGE）、`cma`
   （CMA GRAPES），經 Open-Meteo，**併在 ICON／JMA 那個預報請求**（請求數不變）。接在 `wn2-ens` 後面（第 9–11
   筆），數字與 `levels` 同 ICON（逐時，陣風取格內「前一小時最大陣風」的最大、雨量加總、型態看降雪與天氣碼）；
-  三個都有自己的陣風（`gustEstimated: false`）；CMA 有能見度（霧照算，最高到中），GEM、ARPEGE 沒有。**UK Met Office 不放**：它在 Open-Meteo 是
+  三個都有自己的陣風（`gustEstimated: false`）；CMA 有能見度、GEM 和 ARPEGE 沒有。**旁觀模式不判霧**：等級只算風（陣風、側風）、雨、雪，
+  和「模式的濃霧只看 GFS 能見度」一致；CMA 的能見度照存 `visibilityM`，不進 `levels`、`level`、`causes`（2026-10-25
+  主對話定案）。**UK Met Office 不放**：它在 Open-Meteo 是
   **CC BY-SA 4.0**，ShareAlike 要求衍生資料用相同授權再發布，放進 `latest.json` 會牽動整份的授權（2026-10-25
   Shawn 定案），只在 HD33a 的 29W 報告比對（`data` 分支的回補檔）。**分母、票數、
   `level`、`vote.*`、`causes` 一律不變**；給 AI 的文字也不放它們（`Model.ai=False`，維持 8 個模式）。用 29W
@@ -873,7 +876,7 @@ HD33b（2026-10-25，Open-Meteo 的三個旁觀模式；`schema` 維持 `1`，**
   中國模式／中国模式／CMA GRAPES。網頁照 `models[]` 動態列、已會標「旁觀，不投票」（HW6），不用改程式。
   **沒有 UKMO**（CC BY-SA 4.0，見上面「多模式投票」）
 - `slots[].model.models[]` 每格 11 筆：三筆的欄位同 `icon`（`gustKt` 是自己的陣風、`gustEstimated: false`、
-  `windKt` 同一小時的平均風、有雨量與型態、`p49Kt` 是 `null`；`visibilityM` 只有 `cma` 有值）；`levels`、`level` 照算，
+  `windKt` 同一小時的平均風、有雨量與型態、`p49Kt` 是 `null`；`visibilityM` 只有 `cma` 有值）；`levels`、`level` 照算（`levels.fog` 永遠 `null`，旁觀不判霧），
   但 `vote`、`model.level`、`level`、`causes`、`gap` 和沒有它們時一模一樣。沒資料的那一報（或那幾格，例如
   ARPEGE 一報只到起報後約 102 小時、CMA 約 122 小時，最後幾格）數字與等級全 `null`
 - 頂層 `runs.gem`、`runs.arpege`、`runs.cma`（ISO 或 `null`；Open-Meteo metadata 的最近一報）

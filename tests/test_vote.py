@@ -368,6 +368,26 @@ def test_non_voting_model_listed_but_not_counted(monkeypatch):
     assert assess.non_voting() == {"icon", "gem", "arpege", "cma"}  # HD33b 的三個
 
 
+def test_observer_does_not_judge_fog_hd33b():
+    """HD33b：旁觀模式不判霧——CMA 能見度 200 公尺（投票模式會是霧「中」），那筆 `levels.fog` 還是
+    null、`level` 照風與雨算（低）；`visibilityM` 照存。投票模式（這裡把 ICON 給同樣的能見度）
+    照判。"""
+    low_vis = {"gustKt": 20.0, "crosswindKt": 5.0, "rain6hMm": 0.0, "ptype": "none"}
+    es = model_entries(
+        {},
+        {},
+        {"icon": {**low_vis, "visibilityM": 200.0}, "cma": {**low_vis, "visibilityM": 200.0}},
+        {},
+        TH,
+    )
+    by = {e["id"]: e for e in es}
+    assert by["icon"]["levels"]["fog"] == "medium"  # 投票模式照判（HD16 的規則不變）
+    cma = by["cma"]
+    assert cma["visibilityM"] == 200.0
+    assert cma["levels"] == {"wind": "low", "rain": "low", "snow": "low", "fog": None}
+    assert cma["level"] == "low"
+
+
 # ---- HD24：判中的分母 `mediumTotal` ----
 
 

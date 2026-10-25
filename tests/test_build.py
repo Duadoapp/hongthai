@@ -2228,13 +2228,13 @@ def test_rescore_keeps_this_runs_openmeteo_entries(airports):
 OBSERVERS = ("gem", "arpege", "cma")
 
 
-def with_observers(om, airports, gust=80.0, wind=50.0, rain=20.0):
+def with_observers(om, airports, gust=80.0, wind=50.0, rain=20.0, vis=None):
     """`sample_openmeteo` 再加三個旁觀模式（每小時陣風 80 節、雨 20 mm → 每格風、雨都是高）。"""
     t0 = utc(2026, 10, 18, 0)
     hours = [t0 + timedelta(hours=h) for h in range(144)]
     hourly = {
         mid: {
-            a.icao: [openmeteo.OmHour(t, wind, 90.0, gust, rain, 0.0, None, 63) for t in hours]
+            a.icao: [openmeteo.OmHour(t, wind, 90.0, gust, rain, 0.0, vis, 63) for t in hours]
             for a in airports
         }
         for mid in OBSERVERS
@@ -2290,6 +2290,22 @@ def test_observers_listed_but_do_not_change_level_or_vote(airports):
         "cma": "CMA GRAPES",
     }
     assert all(out["runs"][mid] == "2026-10-18T00:00:00Z" for mid in OBSERVERS)
+
+
+def test_observer_low_visibility_not_fog_hd33b(airports):
+    """CMA 能見度 150 公尺、風雨都小：旁觀那筆 `visibilityM` 照存，但 `levels.fog` 是 null、`level`
+    還是低（不因霧變中）；整格的等級、投票、`causes` 和沒有旁觀模式時一樣。"""
+    om = with_observers(
+        sample_openmeteo(airports), airports, gust=10.0, wind=5.0, rain=0.0, vis=150.0
+    )
+    out = _assemble(airports, om)
+    assert _strip(out) == _strip(_assemble(airports, sample_openmeteo(airports)))
+    for a in out["airports"]:
+        for s in a["slots"]:
+            for e in s["model"]["models"]:
+                if e["id"] in OBSERVERS:
+                    assert e["visibilityM"] == 150
+                    assert e["levels"]["fog"] is None and e["level"] == "low"
 
 
 def test_observers_missing_do_not_break_report(airports):

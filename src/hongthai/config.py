@@ -188,8 +188,8 @@ MODELS: tuple[Model, ...] = (
     ),
     # HD33b：Open-Meteo 的三個旁觀模式（不投票、不給 AI），用 29W 回補（HD33a）比過準確度後再
     # 決定投票或加權，不照解析度加權。三個都有陣風（2026-10-25 00:08Z 51 個機場實抓），CMA 還有
-    # 能見度（霧照算）。UKMO 是 CC BY-SA 4.0（ShareAlike），不進 `latest.json`，只在 HD33a 的
-    # 報告比對
+    # 能見度（照存，旁觀不判霧）。UKMO 是 CC BY-SA 4.0（ShareAlike），不進 `latest.json`，只在
+    # HD33a 的報告比對
     Model(
         "gem",
         {"zh-TW": "加拿大模式", "zh-HK": "加拿大模式", "zh-CN": "加拿大模式", "en": "Canada GEM"},

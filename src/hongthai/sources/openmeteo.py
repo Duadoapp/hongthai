@@ -48,7 +48,8 @@ HD33b 旁觀的三個模式（`OBSERVER_MODELS`，`config.MODELS` 是 `voting=Fa
   555,903 bytes，資料＋6 個 metadata 共 3.9 秒；三個都有陣風（`gustEstimated: false`）、雨量、降雪、
   天氣碼。GEM 144 小時全有；ARPEGE 一報只到起報後約 102 小時（後面的小時是 null，最後幾格這個
   模式沒有資料）；CMA 到起報後約 122 小時（10/24 18Z 那報到 10/29 20Z，最後一格沒有）。
-  **CMA 有能見度**（`m`，霧照 `fog_model_level` 算，只是旁觀），GEM、ARPEGE 沒有
+  **CMA 有能見度**（`m`，照存 `visibilityM`；旁觀模式不判霧，`assess.model_entry`），GEM、ARPEGE
+  沒有
 - 變數照 ICON／JMA 的 7 個（同一個請求裡每個模式拿到的變數一樣，不能分開要）
 - **三個出錯不連累 ICON、JMA 兩票**：某個旁觀模式的單位不對或整欄沒有 → 只丟掉那個模式
   （`OpenMeteoData.model_errors`，`sources.openmeteo.modelError`）；整個預報請求回 HTTP 400（模式名

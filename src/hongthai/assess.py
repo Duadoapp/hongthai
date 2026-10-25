@@ -142,7 +142,8 @@ Open-Meteo 三票與旁觀模式（HD16，Shawn 2026-10-20 19:04 定案）——
 HD33b 的三個旁觀模式（`gem` ECCC GEM、`arpege` Météo-France ARPEGE、`cma` CMA GRAPES，都經
 Open-Meteo、`voting=False`；UKMO 是 CC BY-SA 4.0，不放）：數字與 `levels` 同 ICON
 （`hourly_for_slot`，有陣風；`config` 標 `gust_estimated` 的才估算），`vote`／`level`／`causes`
-完全不受影響；不給 AI 短評（`ai_hidden`）
+完全不受影響；不給 AI 短評（`ai_hidden`）。**旁觀模式不判霧**：等級只算風（陣風、側風）、雨、雪；
+CMA 的能見度照存 `visibilityM`，不進 `levels.fog`／`level`（2026-10-25 主對話定案）
 
 WeatherNext 3（HD15，`wn3`）：只有 `config.WN3_MODE` 是 `observe` 時才在 `MODELS` 裡（預設
 `report-only`，`latest.json` 沒有它）。數字是逐時的成員中位數（p50）10 米風，同 JMA GSM 估算陣風
@@ -788,7 +789,7 @@ def model_entries(
     - 其他只投高的（WN2 系集，HD16）：`windKt`／`gustKt` 是中位數成員的（估算），`p49Kt` 是成員
       比例（`ensemble_for_slot`），`levels.wind` 同上、其他三類 null
     - 其他（AIFS、AIGFS、ICON、JMA GSM）：`gust_estimated` 的是估算陣風（`gustEstimated: true`）；
-      有降水型態才投雪
+      有降水型態才投雪；旁觀模式（`voting=False`，HD33b）不判霧（`levels.fog` 永遠 null）
     - `p49Kt`（HD16）：只有「IFS 系集以外、只投高」的那筆有值，其他 null
     - `windKtP90`（HD15）：只有 WeatherNext 3 那筆有這個鍵（`wn3_for_slot`）
     """
@@ -824,7 +825,10 @@ def model_entry(
         lv["rain"] = rain_model_level(nums["rain6hMm"], th)
         if nums["ptype"] is not None:
             lv["snow"] = snow_model_level(nums["rain6hMm"], nums["ptype"], th)
-        lv["fog"] = fog_model_level(nums["visibilityM"], th)
+        # 旁觀模式不判霧（HD33b，2026-10-25 主對話定案）：CMA 有能見度，數字照存 `visibilityM`，
+        # 但不進 `levels`／`level`，同「模式的濃霧只看 GFS 能見度」
+        if m.voting:
+            lv["fog"] = fog_model_level(nums["visibilityM"], th)
     if not m.votes_only_high:
         lv["wind"] = _wind_level(nums["gustKt"], nums["crosswindKt"], th)
     estimated = nums["gustKt"] is not None and m.gust_estimated
