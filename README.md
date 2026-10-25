@@ -446,7 +446,7 @@ H10（2026-10-18）之後：
 - 總和 1785 秒（29.75 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
   aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒、HD15 加 wn3 120 秒；
   HD29 加 swic 45 秒、HD38 加 tdx 45 秒、HD34 加 cwaTyphoon 15＋jmaTyphoon 20 秒，總和 1910 秒，約 31.8 分鐘），
-  Actions「產生 latest.json」那一步上限 32 分鐘、整個 job 42 分鐘（HD15 前 30／40、HD16 前 28／38、HD21 前
+  Actions「產生 latest.json」那一步上限 45 分鐘、整個 job 55 分鐘（2026-10-25 前 32／42：HD38＋HD34 後總和 1,910 秒逼近 32 分鐘，Shawn 同意放寬；HD15 前 30／40、HD16 前 28／38、HD21 前
   25／35、HD14 前是 20／30、HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
   多抓的海平面氣壓（每個步長約 1.0／1.0／0.5 MB，三個共約 52 MB）算在它們自己的預算裡
 - ECMWF：重試最多 3 次、每次間隔 10 秒、不照伺服器的 Retry-After（`ecmwf-opendata` 預設是每 120 秒

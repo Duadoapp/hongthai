@@ -562,7 +562,7 @@ def test_env_switches_at_import():
 def test_budget_and_workflow_timeout():
     """HD15 加 wn3 120 秒：總和 1785 秒；HD29 加 swic 45 秒，總和 1830 秒（30.5 分鐘）；HD38 加
     tdx 45 秒、HD34 加 cwaTyphoon 15＋jmaTyphoon 20 秒，總和 1910 秒（約 31.8 分鐘），
-    `build.yml` 那一步 32 分鐘、job 42 分鐘不用改。"""
+    `build.yml` 那一步 2026-10-25 起 45 分鐘、job 55 分鐘（之前 32／42，總和已逼近 32 分鐘）。"""
     from conftest import ROOT
 
     from hongthai import build
@@ -571,5 +571,5 @@ def test_budget_and_workflow_timeout():
     assert (build.BUDGET_S["cwaTyphoon"], build.BUDGET_S["jmaTyphoon"]) == (15, 20)
     assert sum(build.BUDGET_S.values()) == 1910
     yml = (ROOT / ".github" / "workflows" / "build.yml").read_text("utf-8")
-    assert "timeout-minutes: 32" in yml and "timeout-minutes: 42" in yml
-    assert sum(build.BUDGET_S.values()) / 60 < 32
+    assert "timeout-minutes: 45" in yml and "timeout-minutes: 55" in yml
+    assert sum(build.BUDGET_S.values()) / 60 < 45
