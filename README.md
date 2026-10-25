@@ -52,7 +52,7 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
-| 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14）；Open-Meteo 的 DWD ICON（陣風）、JMA GSM（10 米風）、Google WeatherNext 2 系集 64 個成員的 10 米風（HD16） | **八個模式投票**（HD14、HD16，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS、JMA GSM、WeatherNext 2 用平均風 × 機場的係數估算）≥ 48 節高、≥ 37 節中；兩個系集只投高（IFS 系集陣風 ≥ 49 節機率 ≥ 30%、WeatherNext 2 估算陣風 ≥ 48 節的成員 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
+| 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14）；Open-Meteo 的 DWD ICON（陣風）、JMA GSM（10 米風）、Google WeatherNext 2 系集 64 個成員的 10 米風（HD16）；HD33b 加 ECCC GEM、Météo-France ARPEGE、CMA GRAPES 三個**旁觀（不投票）**模式（Open-Meteo；UK Met Office 是 CC BY-SA 4.0，不放） | **八個模式投票**（HD14、HD16，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS、JMA GSM、WeatherNext 2 用平均風 × 機場的係數估算）≥ 48 節高、≥ 37 節中；兩個系集只投高（IFS 系集陣風 ≥ 49 節機率 ≥ 30%、WeatherNext 2 估算陣風 ≥ 48 節的成員 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
 | 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視、日本氣象廳（JMA）日本與沖繩的大雪警報（HD9）與暴風、大雨警報（HD27）、中央氣象署陸上強風特報（HD27）、經 WMO SWIC 的中國氣象局、韓國氣象廳、PAGASA 警報（HD29） | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、暴風雪警報低（只列出），算 `snow`；日本氣象廳暴風、大雨警報與氣象署陸上強風特報只列出（low，HD27）；中國氣象局、韓國氣象廳、PAGASA 的警報只列出（low，HD29）；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
 | 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS、ICON 的 10 米風向配各自的陣風；AIFS、AIGFS、JMA GSM 的 10 米風向配估算陣風（WeatherNext 2 系集不算側風） | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級**（模式層是每個模式各自取較高，再投票） |
 
@@ -109,10 +109,23 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
   其他同 AIFS）；AIGFS 沒有型態、不投（雪的分母不算它）。不用 2 米溫度猜型態
 - 霧：只有 GFS 有能見度，**霧的分母永遠是 1**（GFS 說了算，最高到中，HD10）。Open-Meteo 的 ICON global、
   JMA GSM 能見度 2026-10-20 實抓全是 `null`（提示詞以為 ICON 有），所以 HD16 沒有改變霧的分母；哪天有值了
-  會自動投（最高到中）
+  會自動投（最高到中）。**旁觀模式不判霧**（HD33b，2026-10-25 主對話定案）：CMA GRAPES 有能見度，但旁觀模式的
+  `levels.fog` 一律 `null`，能見度只照存 `visibilityM`
 - **旁觀模式**（HD16，`Model.voting=False`）：照樣抓、照樣寫進 `models[]`（含 `levels`、`level`）與路徑檔，
   但**不算進任何一類的分母、不投票**（`vote.total` 不含它）；頂層 `models[].voting` 讓網頁標「旁觀，不投票」。
   HD16 的三票都投票，這個開關給 HD15 的 WeatherNext 3 與之後的新模式（先旁觀、累積紀錄再改成投票）
+- **HD33b 的三個旁觀模式**（`voting=False`）：`gem`（ECCC GEM）、`arpege`（Météo-France ARPEGE）、`cma`
+  （CMA GRAPES），經 Open-Meteo，**併在 ICON／JMA 那個預報請求**（請求數不變）。接在 `wn2-ens` 後面（第 9–11
+  筆），數字與 `levels` 同 ICON（逐時，陣風取格內「前一小時最大陣風」的最大、雨量加總、型態看降雪與天氣碼）；
+  三個都有自己的陣風（`gustEstimated: false`）；CMA 有能見度、GEM 和 ARPEGE 沒有。**旁觀模式不判霧**：等級只算風（陣風、側風）、雨、雪，
+  和「模式的濃霧只看 GFS 能見度」一致；CMA 的能見度照存 `visibilityM`，不進 `levels`、`level`、`causes`（2026-10-25
+  主對話定案）。**UK Met Office 不放**：它在 Open-Meteo 是
+  **CC BY-SA 4.0**，ShareAlike 要求衍生資料用相同授權再發布，放進 `latest.json` 會牽動整份的授權（2026-10-25
+  Shawn 定案），只在 HD33a 的 29W 報告比對（`data` 分支的回補檔）。**分母、票數、
+  `level`、`vote.*`、`causes` 一律不變**；給 AI 的文字也不放它們（`Model.ai=False`，維持 8 個模式）。用 29W
+  回補（HD33a）比過準確度後再決定投票或加權，**不照解析度加權**。某個模式單位不對或整欄沒有只丟掉它（那幾筆
+  全 `null`、`sources.openmeteo.modelError`）；模式名失效（整個預報請求回 400）時只帶 ICON、JMA 再請求一次，
+  兩票照投。不沿用舊資料（同 ICON／JMA）
 - **WeatherNext 3**（HD15，`wn3`，`src/hongthai/sources/wn3.py`）：**預設不在 `latest.json`**——Google 的即時
   資料條款不准公開未修改的數字（下面「資料來源與授權」），所以 `WN3_MODE` 預設 `report-only`：只在事件期間
   抓 5 天前那一報（已經是 CC BY 4.0 的資料）寫 `history/events/<id>/wn3/` 與路徑檔，給颱風過後的報告。
@@ -357,7 +370,7 @@ H10（2026-10-18）之後：
 | gfs（AWS 鏡像，NOMADS 備援） | 180 | 約 110（NOMADS）|
 | aifs（ECMWF AIFS Single，HD14；鏡像同 ecmwf） | 180 | 55（2026-10-20，66 MB，從 ECMWF 入口；AWS 回 503） |
 | aigfs（NOAA AIGFS，HD14；只有 AWS） | 120 | 38（2026-10-20，51 MB） |
-| openmeteo（ICON、JMA GSM、WeatherNext 2 系集，HD16；兩個請求、各 60 秒逾時、不重試） | 90 | 約 2–3（2026-10-20 雲端開發機，預報 632 KB／1.0 秒、系集 3 個變數時 1.6 MB／1.2 秒；只抓風速約 560 KB） |
+| openmeteo（ICON、JMA GSM、WeatherNext 2 系集，HD16；HD33b 的三個旁觀模式併在預報那個請求；兩個請求、各 60 秒逾時、不重試） | 90 | 約 2–3（2026-10-20 雲端開發機，預報 632 KB／1.0 秒、系集 3 個變數時 1.6 MB／1.2 秒；只抓風速約 560 KB）。HD33b 後（2026-10-25 00:08Z 實抓）預報 1.4 MB、系集 0.56 MB，連 6 個 metadata 共 3.9 秒；旁觀模式的 metadata 在 60 秒後就不問（`runError` 記 `skipped`） |
 | wn3（Google WeatherNext 3，HD15；BigQuery 一個查詢，失敗退 GCS Zarr；事件期間加讀海平面氣壓） | 120 | 還沒核准、沒實測（核准前幾秒就 `http_403`） |
 | taf（含 METAR） | 45 | 幾秒 |
 | hko、smg | 各 30 | 幾秒 |
@@ -854,6 +867,26 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
   分母，目前是 `ifs-ens`、`wn2-ens`，其他 `false`。`slots[].model.models[]` 不加
 - 大小：Pages 上 2026-10-20 15:04Z 那報重算，`latest.json`（不縮排）3,178 KB → 3,195 KB（**多約 16 KB**，
   1,020 格 × `"mediumTotal":6,`）
+
+HD33b（2026-10-25，Open-Meteo 的三個旁觀模式；`schema` 維持 `1`，**只加值與一個新欄位，票數、等級、既有欄位
+不改名、不改型別**；要經 Shawn 轉給 Duado 總指揮）：
+
+- 頂層 `models[]` 多三筆（照順序接在 `wn2-ens` 後面，`voting: false`、`votesOnlyHigh: false`）：`gem` 加拿大模式／
+  加拿大模式／加拿大模式／Canada GEM、`arpege` 法國模式／法國模式／法国模式／Météo-France ARPEGE、`cma` 中國模式／
+  中國模式／中国模式／CMA GRAPES。網頁照 `models[]` 動態列、已會標「旁觀，不投票」（HW6），不用改程式。
+  **沒有 UKMO**（CC BY-SA 4.0，見上面「多模式投票」）
+- `slots[].model.models[]` 每格 11 筆：三筆的欄位同 `icon`（`gustKt` 是自己的陣風、`gustEstimated: false`、
+  `windKt` 同一小時的平均風、有雨量與型態、`p49Kt` 是 `null`；`visibilityM` 只有 `cma` 有值）；`levels`、`level` 照算（`levels.fog` 永遠 `null`，旁觀不判霧），
+  但 `vote`、`model.level`、`level`、`causes`、`gap` 和沒有它們時一模一樣。沒資料的那一報（或那幾格，例如
+  ARPEGE 一報只到起報後約 102 小時、CMA 約 122 小時，最後幾格）數字與等級全 `null`
+- 頂層 `runs.gem`、`runs.arpege`、`runs.cma`（ISO 或 `null`；Open-Meteo metadata 的最近一報）
+- `sources.openmeteo`：`calls` 51 個機場 504.9（HD16 是 397.8）；新欄位 `modelError`（只有出錯時才有，例如
+  `"cma:bad_units"`、`"gem:missing"`，三個都 `http_400` 時是模式名失效、已經只帶 ICON、JMA 重抓）；`runError`
+  多認得三個 id 與 `skipped`
+- 大小：用 `data` 分支 2026-10-24 13:06Z 那報加三筆（照 ICON 那筆的長度）重算，`latest.json`（不縮排）
+  3,118 KB → **3,980 KB（多約 861 KB）**；gzip 後 166 → 184 KB（2026-10-25 Shawn：可以接受）
+- 資料來源頁要標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2・ECCC・Météo-France・CMA」
+  （下面「資料來源與授權」）
 
 規格以外加的欄位與值（網頁可以忽略）：
 
@@ -1542,6 +1575,7 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | NOAA AIGFS（[AWS 開放資料 `noaa-nws-graphcastgfs-pds`](https://registry.opendata.aws/noaa-nws-graphcastgfs-pds/)；HD14） | AI 模式的 10 米風 `UGRD`／`VGRD`、6 小時降水 `APCP`、2 米溫度 `TMP` | 美國政府公有領域 |
 | [Open-Meteo](https://open-meteo.com/)（[預報 API](https://open-meteo.com/en/docs) `models=icon_global,jma_gsm`、[系集 API](https://open-meteo.com/en/docs/ensemble-api) `models=google_weathernext2_ensemble`；HD16） | DWD ICON global 與 JMA GSM 的逐時 10 米風、風向、陣風（ICON）、雨量、降雪、天氣碼；Google WeatherNext 2 系集 64 個成員的 10 米風（6 小時一點） | **CC BY 4.0**（Open-Meteo 的資料授權；原始模式 © DWD、JMA、Google）。**免費版只限非商業**、每日 10,000／每月 300,000 次（加權）：**一旦 HongThai 或 Duado 收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或拿掉這三個模式**。（贊助，2026-10-21 Shawn 定案）照 [Open-Meteo 條款](https://open-meteo.com/en/terms)，自願捐款（tip jar）屬於非商業：網頁頁尾連到 duado.app/support（Ko-fi，只收單次自由贊助）。**之後不能開 Ko-fi 的 Memberships 或月費、不能放廣告或贊助商 logo**，否則要改買 Open-Meteo 商業方案或拿掉這三個模式。網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2」。Google 對即時 WeatherNext 資料另有實驗條款，Open-Meteo 的授權來源查不到（上面「已知的保守假設」） |
 | [Open-Meteo](https://open-meteo.com/) [Previous Runs API](https://open-meteo.com/en/docs/previous-runs-api)（HD33a，**只存進 `data` 分支給驗證報告比，不進 `latest.json`**） | UK Met Office Global 10 km（`ukmo_global_deterministic_10km`）、ECCC GEM Global（`gem_global`；文件現在寫 `cmc_gem_gdps`，實測是同一份資料的別名）、Météo-France ARPEGE World（`meteofrance_arpege_world`）、CMA GRAPES Global（`cma_grapes_global`）提前 0–5 天的逐時 10 米風、風向、陣風、雨量 | Open-Meteo（CC BY 4.0）・UK Met Office・ECCC GEM・Météo-France ARPEGE・CMA GRAPES。Open-Meteo [授權頁](https://open-meteo.com/en/licence)列的原始資料條款：UK Met Office **[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.en)**（Open-Meteo UKMO 頁：衍生產品要用相同或相容的授權再散布，所以 `backfill/openmeteo-ukmo.jsonl` 與用到 UKMO 數字的報告標 CC BY-SA 4.0）、加拿大 CMC（[ECCC 開放資料授權](https://eccc-msc.github.io/open-data/licence/readme_en/)）、Météo-France（[開放資料授權](https://donneespubliques.meteofrance.fr/?fond=dossier&id_dossier=1)）、中國氣象局 CMA（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）。免費版只限非商業，條件同上一列 Open-Meteo |
+| [Open-Meteo](https://open-meteo.com/)（預報 API 同上一列的請求，HD33b 加 `cmc_gem_gdps`、`meteofrance_arpege_world`、`cma_grapes_global`） | 三個旁觀模式（不投票）的逐時 10 米風、風向、陣風、雨量、降雪、天氣碼 | Open-Meteo 的 [授權頁](https://open-meteo.com/en/licence) 逐一列原始資料的條款：Canadian Meteorological Centre（ECCC 開放資料授權）；Météo-France（Météo-France 公共資料授權）；China Meteorological Administration（CC BY 4.0）。非商業條款同上一列。網頁與資料來源標「Open-Meteo（CC BY 4.0）・ECCC・Météo-France・CMA」。**UK Met Office 不進 `latest.json`**：Open-Meteo 的 UKMO 資料是 **CC BY-SA 4.0**（UKMO 文件頁：衍生產品要用相同或相容的授權再發布），放進來整份 `latest.json` 與網頁都要跟著 ShareAlike；2026-10-25 Shawn 定案只用在 HD33a 的 29W 報告比對 |
 | [Google WeatherNext 3](https://developers.google.com/weathernext)（BigQuery `weathernext_3_0_0_0p1deg`，備援 GCS `gs://weathernext3_statistics_spatial/`；HD15，要 allowlist） | 64 成員統計（p50、平均、p90）的逐時 10 米風、平均 u／v、1 小時雨量、2 米溫度；平均海平面氣壓（颱風路徑） | **有效時間在 1 小時以前：CC BY 4.0**（© Google LLC）；**1 小時內或未來：[GDM Real-Time Weather Forecasting Experimental Data Terms of Use](https://storage.googleapis.com/weathernext-public/terms-of-use.pdf)**——不能公開未修改的數字、日本是限制國家（下面「WeatherNext 3 的條款」）。所以預設 `report-only`：只存 CC BY 4.0 那部分 |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
 | [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 46 個機場（H9 的 36 個、HD3 的 10 個）的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
@@ -1607,6 +1641,13 @@ HD16 Open-Meteo（2026-10-20 11:17Z 實抓，細節在 `src/hongthai/sources/ope
   每日 5,000，WeatherNext 2 也是 51 個機場全抓
 - JMA GSM 沒有陣風（`wind_gusts_10m_jma_gsm` 全是 `null`、單位 `undefined`）→ 估算；ICON global、JMA GSM 都沒有
   能見度。系集的成員 0 是不帶後綴的 `wind_speed_10m`，其他 `_member01`…`_member63`
+- HD33b 的三個旁觀模式（2026-10-25 00:08Z 開發機實抓，51 個機場、和 build 同一個請求；細節在
+  `openmeteo.py` 開頭）：預報 1,403,007 bytes、系集 555,903 bytes，資料＋metadata 共 3.9 秒。三個都有陣風、
+  雨量、降雪、天氣碼；**CMA 有能見度**，GEM、ARPEGE 沒有。GEM 144 小時全有，ARPEGE 只到起報後約 102 小時、
+  CMA 約 122 小時。GEM 的代號 `cmc_gem_gdps`（同 HD33a）和 `gem_global` 回的資料一樣（各 381 KB、7,344 筆
+  全有值）。metadata 的路徑和模式名不同：`cmc_gem_gdps_15km`（`cmc_gem_gdps` 的 metadata 停在 2026-05）、
+  `meteofrance_arpege_world025`、`cma_grapes_global`。預報 7 個變數 × 5 個模式 → 3.5 × 51 ＝ 178.5，
+  **一報 504.9**（< 每分鐘 600）、一天 4 報約 2,020
 - 起報時間用 metadata API（`api.open-meteo.com/data/dwd_icon/static/meta.json`、`…/jma_gsm/…`、
   `ensemble-api.open-meteo.com/data/google_weathernext2_ensemble/static/meta.json` 的
   `last_run_initialisation_time`）。11:21Z 查：ICON 06Z（09:26Z 上 API）、WeatherNext 2 00Z（11:02Z 上 API）

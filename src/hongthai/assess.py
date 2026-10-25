@@ -139,6 +139,12 @@ Open-Meteo 三票與旁觀模式（HD16，Shawn 2026-10-20 19:04 定案）——
   HD16 的三票都投票；這個開關給 HD15 的 WeatherNext 3 與之後的新模式
 - G 一律是 HD19 的（IFS 樣本）；新模式不進樣本（`gustfactor.py`）。這三個模式不沿用舊資料
 
+HD33b 的三個旁觀模式（`gem` ECCC GEM、`arpege` Météo-France ARPEGE、`cma` CMA GRAPES，都經
+Open-Meteo、`voting=False`；UKMO 是 CC BY-SA 4.0，不放）：數字與 `levels` 同 ICON
+（`hourly_for_slot`，有陣風；`config` 標 `gust_estimated` 的才估算），`vote`／`level`／`causes`
+完全不受影響；不給 AI 短評（`ai_hidden`）。**旁觀模式不判霧**：等級只算風（陣風、側風）、雨、雪；
+CMA 的能見度照存 `visibilityM`，不進 `levels.fog`／`level`（2026-10-25 主對話定案）
+
 WeatherNext 3（HD15，`wn3`）：只有 `config.WN3_MODE` 是 `observe` 時才在 `MODELS` 裡（預設
 `report-only`，`latest.json` 沒有它）。數字是逐時的成員中位數（p50）10 米風，同 JMA GSM 估算陣風
 （`wn3_for_slot`），雨量照投；沒有降水型態（不投雪）、沒有能見度。那筆多 `windKtP90`（格內最大的
@@ -147,7 +153,7 @@ p90 平均風，給報告看離散）。`voting` 預設 False（旁觀），環�
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import radians, sin
@@ -783,7 +789,7 @@ def model_entries(
     - 其他只投高的（WN2 系集，HD16）：`windKt`／`gustKt` 是中位數成員的（估算），`p49Kt` 是成員
       比例（`ensemble_for_slot`），`levels.wind` 同上、其他三類 null
     - 其他（AIFS、AIGFS、ICON、JMA GSM）：`gust_estimated` 的是估算陣風（`gustEstimated: true`）；
-      有降水型態才投雪
+      有降水型態才投雪；旁觀模式（`voting=False`，HD33b）不判霧（`levels.fog` 永遠 null）
     - `p49Kt`（HD16）：只有「IFS 系集以外、只投高」的那筆有值，其他 null
     - `windKtP90`（HD15）：只有 WeatherNext 3 那筆有這個鍵（`wn3_for_slot`）
     """
@@ -819,7 +825,10 @@ def model_entry(
         lv["rain"] = rain_model_level(nums["rain6hMm"], th)
         if nums["ptype"] is not None:
             lv["snow"] = snow_model_level(nums["rain6hMm"], nums["ptype"], th)
-        lv["fog"] = fog_model_level(nums["visibilityM"], th)
+        # 旁觀模式不判霧（HD33b，2026-10-25 主對話定案）：CMA 有能見度，數字照存 `visibilityM`，
+        # 但不進 `levels`／`level`，同「模式的濃霧只看 GFS 能見度」
+        if m.voting:
+            lv["fog"] = fog_model_level(nums["visibilityM"], th)
     if not m.votes_only_high:
         lv["wind"] = _wind_level(nums["gustKt"], nums["crosswindKt"], th)
     estimated = nums["gustKt"] is not None and m.gust_estimated
@@ -847,6 +856,11 @@ def model_entry(
 def non_voting() -> frozenset[str]:
     """旁觀模式（`Model.voting=False`，HD16）的 id；每次從 `MODELS` 算（測試可以換掉 `MODELS`）。"""
     return frozenset(m.id for m in MODELS if not m.voting)
+
+
+def ai_hidden() -> frozenset[str]:
+    """不給 AI 短評看的模式（`Model.ai=False`，HD33b 的三個旁觀模式）的 id；同 `non_voting`。"""
+    return frozenset(m.id for m in MODELS if not m.ai)
 
 
 def _flags(flags: Sequence[bool], n: int, default: bool) -> list[bool]:
@@ -986,12 +1000,15 @@ def assess_slots(
     jma: Sequence[OmHour] | None = None,
     wn2: Sequence[EnsStep] | None = None,
     wn3: Sequence[Wn3Hour] | None = None,
+    om_hourly: Mapping[str, Sequence[OmHour] | None] | None = None,
 ) -> list[dict]:
     """單一機場的所有格。`taf_periods`／`ec`／`gfs`／`metar`／`aifs`／`aigfs`／`icon`／`jma`／`wn2`
     是 None 代表該來源失敗或沒資料。`runs` 是各模式（`config.MODELS` 的 id）的時次，寫進
     `models[].run`；`gust_factor` 是這個機場估算陣風的係數（HD18）。`icon`／`jma`／`wn2` 是
     Open-Meteo 的 ICON、JMA GSM、WeatherNext 2 系集（HD16）；`wn3` 是 WeatherNext 3（HD15，只在
-    `MODELS` 有 `wn3`、也就是 `observe` 模式時才會進 `models[]`）。"""
+    `MODELS` 有 `wn3`、也就是 `observe` 模式時才會進 `models[]`）。`om_hourly` 是 Open-Meteo 其他
+    逐時模式（HD33b 的三個旁觀模式：`gem`、`arpege`、`cma`），id → 逐時（None 是沒資料），
+    算法同 ICON。"""
     official_until = now + timedelta(hours=OFFICIAL_HORIZON_H)
     warning_until = now + timedelta(hours=WARNING_HORIZON_H)
     metar_xw = metar_crosswind(metar, now, runways)
@@ -1010,7 +1027,7 @@ def assess_slots(
                 mid: hourly_for_slot(
                     hours, start, end, runways, gust_factor if mid in ESTIMATED else None
                 )
-                for mid, hours in (("icon", icon), ("jma", jma))
+                for mid, hours in (("icon", icon), ("jma", jma), *(om_hourly or {}).items())
             },
             "wn2-ens": ensemble_for_slot(wn2, start, end, thresholds, gust_factor),
             WN3_ID: wn3_for_slot(wn3, start, end, runways, gust_factor),  # HD15
