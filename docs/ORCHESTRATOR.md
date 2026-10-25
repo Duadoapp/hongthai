@@ -362,6 +362,11 @@
   自己累積（`data` 分支；H6 起只存每 6 小時格的取消／延誤統計，不存原始航班資料）
 - 保守假設都在 `assess.py` 與 `airports.json` 的門檻，改之前先跟 Shawn 確認；單位一律用節（HD2 起）
 - 隱私：這個 repo 不碰任何個資；公開 repo，程式裡不能有金鑰
+- **改名 HongTai＋獨立網域 `hongtai.app`（2026-10-25 21:56 Shawn 確認；Duado spec 第 16 節「改名與獨立網域」、Duado #468）**：
+  名稱 HongTai（T 大寫，四語同一個拉丁字，不附「風颱」）；副標題 能飛嗎？／飛唔飛到？／能飞吗？／Can I fly?；完全搬到 `hongtai.app`
+  （Cloudflare Pages 獨立專案、根目錄），`duado.app/hongthai/...` 301 永久轉過去、路徑照帶；**不改**：這個 repo 的名稱、
+  `hongthai.*` 鍵名、所有 JSON 欄位、資料源頭。**10/27 29W 報告定稿後才開工**（報告統一叫 HongThai），網域 Shawn 到時候自己買。
+  這邊要做的 HD：分享圖（og）上的名稱與網址改新的
 
 ## 合併（2026-10-25 01:04 Shawn 定案：主對話自己合併沒問題的 PR）
 
