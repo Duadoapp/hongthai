@@ -69,13 +69,15 @@ class Model:
     `votes_only_high`：只參加「高」的投票（判中時不算分母），IFS 系集與 WeatherNext 2 系集用；
     `gust_estimated`：沒有陣風、用平均風 × 機場的係數估算（HD18，`gustfactor.py`）；
     `voting`：`False` 是旁觀模式（HD16）——照樣抓、照樣寫進 `models[]` 與路徑檔，但不算進任何一類的
-    分母、不投票（`vote.total` 不含它），頂層 `models[].voting` 讓網頁標「旁觀，不投票」。"""
+    分母、不投票（`vote.total` 不含它），頂層 `models[].voting` 讓網頁標「旁觀，不投票」；
+    `ai`：`False` 的不放進給 AI 短評的文字（HD33b：三個旁觀模式不給，改 AI 提示要另外決定）。"""
 
     id: str
     name: dict[str, str]
     votes_only_high: bool = False
     gust_estimated: bool = False
     voting: bool = True
+    ai: bool = True
 
 
 # HD15：Google WeatherNext 3（`sources/wn3.py`）的兩個開關，環境變數可以覆寫（`build.yml` 不設就是
@@ -183,6 +185,33 @@ MODELS: tuple[Model, ...] = (
         },
         votes_only_high=True,
         gust_estimated=True,
+    ),
+    # HD33b：Open-Meteo 的三個旁觀模式（不投票、不給 AI），用 29W 回補（HD33a）比過準確度後再
+    # 決定投票或加權，不照解析度加權。三個都有陣風（2026-10-25 00:08Z 51 個機場實抓），CMA 還有
+    # 能見度（霧照算）。UKMO 是 CC BY-SA 4.0（ShareAlike），不進 `latest.json`，只在 HD33a 的
+    # 報告比對
+    Model(
+        "gem",
+        {"zh-TW": "加拿大模式", "zh-HK": "加拿大模式", "zh-CN": "加拿大模式", "en": "Canada GEM"},
+        voting=False,
+        ai=False,
+    ),
+    Model(
+        "arpege",
+        {
+            "zh-TW": "法國模式",
+            "zh-HK": "法國模式",
+            "zh-CN": "法国模式",
+            "en": "Météo-France ARPEGE",
+        },
+        voting=False,
+        ai=False,
+    ),
+    Model(
+        "cma",
+        {"zh-TW": "中國模式", "zh-HK": "中國模式", "zh-CN": "中国模式", "en": "CMA GRAPES"},
+        voting=False,
+        ai=False,
     ),
     *((WN3_MODEL,) if wn3_mode() == "observe" else ()),
 )
