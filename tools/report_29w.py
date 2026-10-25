@@ -809,6 +809,10 @@ def parse_report(
             gusts = []
             winds: dict[str, str] = {}
             for e in model_entries(model, doc.get("runs")):
+                # HD33b 起快照的 `models[]` 也有 gem／arpege／cma（旁觀）：這幾個的比對用回補檔，
+                # 快照那筆跳過，免得和回補的同一個 id 算進同一列
+                if e.get("id") in BACKFILL_ORDER:
+                    continue
                 if e.get("level") is not None and e.get("run"):
                     runs.setdefault(e["id"], e["run"])
                 g = _num(e.get("gustKt"))
