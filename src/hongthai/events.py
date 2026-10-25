@@ -41,7 +41,16 @@
   HD32：同一個檔另外存 TDX（交通部運輸資料流通服務平臺）的航空即時航班（`sources/tdx.py`），
   `airports.json` 地區 `taiwan` 的十個機場（事件的 `airports` 有的才寫）一次請求拿，`source: "tdx"`
   （`flights_log.tdx_rows`）；桃園、松山、高雄和原本的來源各存各的（去重鍵含 `source`）。要
-  `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`，沒設就跳過（記一行「TDX 未設定」）；沒有補過去的功能
+  `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`，沒設就跳過（記一行「TDX 未設定」）；沒有補過去的功能。
+  HD38：每次資料請求在 `history/tdx/calls-<YYYY-MM>.jsonl` 記一行，本月到 `tdx.MONTHLY_CALL_LIMIT`
+  （build＋事件保存合計）就跳過
+- `backfill/openmeteo-<模式>.jsonl`（HD33a，`sources/openmeteo_backfill.py`）：UKMO、GEM、
+  ARPEGE、CMA GRAPES 經 Open-Meteo Previous Runs API 回補事件期間的逐時預報（提前 0–5 天各一份），
+  只給報告比、不進 `latest.json`。
+  `python -m hongthai.events backfill-openmeteo --archive data --event 29W`
+  （`backfill_openmeteo`）：期間從 `from` 台灣 00:00 所在的 6 小時格起、到 `to` 隔天台灣 00:00
+  與現在早的那個；一個模式一個請求、全部機場一次帶，只追加（同一機場、`validAt`、`previousDay`
+  已有就跳過）
 
 來源（2026-10-20 實抓）：
 - METAR：AviationWeather `metar?ids=<25 站>&format=json&hours=6`（`hours` 讓半小時一報的
@@ -85,8 +94,8 @@ from zoneinfo import ZoneInfo
 
 from . import flights_log
 from .config import Airport, Event, load_airports, load_events
-from .sources import SourceError, cwa, flights, http_get, taf, tdx
-from .timeutil import iso, parse_time, utcnow
+from .sources import SourceError, cwa, flights, http_get, openmeteo_backfill, taf, tdx
+from .timeutil import floor_6h, iso, parse_time, utcnow
 
 log = logging.getLogger("hongthai")
 
@@ -671,7 +680,10 @@ def hourly(
 ) -> dict[str, dict[str, int | None]]:
     """期間內的每個事件做四件事，各自 try；回傳每件寫了幾行（失敗是 None；航班是五個機場的
     合計，個別機場失敗只 log）。有 `tdx_client`（HD32）時航班另外存 TDX，`tdx` 是 TDX 各機場的
-    合計（token 或請求失敗是 None，只 log）；沒有就沒有 `tdx` 這個鍵。"""
+    合計（token 或請求失敗是 None，只 log）；沒有就沒有 `tdx` 這個鍵。HD38：TDX 每次資料請求記進
+    `history/tdx/calls-<YYYY-MM>.jsonl`（`caller: "events"`），本月（build＋這裡）到
+    `tdx.MONTHLY_CALL_LIMIT` 就不請求（`tdx` 是 None）；平常每報的 build 在更早的
+    `BUILD_CALL_LIMIT` 就停，所以事件期間的每小時存檔最後才停。"""
     out: dict[str, dict[str, int | None]] = {}
     for e in active(events, now):
         d = event_dir(history, e)
@@ -697,6 +709,19 @@ def hourly(
             log.exception("事件 %s：航班失敗", e.id)
             res["flights"] = None
         if tdx_client is not None:
+            if tdx_client.log is None:  # HD38：每次資料請求記一行，build 與這裡都讀來計數
+                tdx_client.log = tdx.CallLog(history, "events")
+            used = tdx.month_calls(history, now)
+            if used >= tdx.MONTHLY_CALL_LIMIT:
+                log.warning(
+                    "事件 %s：TDX 本月已用 %d 次（上限 %d），這小時跳過",
+                    e.id,
+                    used,
+                    tdx.MONTHLY_CALL_LIMIT,
+                )
+                res["tdx"] = None
+                out[e.id] = res
+                continue
             try:
                 written = fetch_tdx_flights(e, airports, now, d, tdx_client)
                 res["tdx"] = sum(v or 0 for v in written.values())
@@ -752,11 +777,51 @@ def _backfill_tracks(
     return 0
 
 
+def backfill_openmeteo(
+    history: Path,
+    events: list[Event],
+    airports: list[Airport],
+    now: datetime,
+    event_id: str | None = None,
+    pause: Callable[[float], None] = time.sleep,
+) -> dict[str, dict[str, tuple[openmeteo_backfill.ModelResult, int]]]:
+    """`backfill-openmeteo`（HD33a）：`event_id` 那個事件（None＝全部）的機場，從 `from` 台灣 00:00
+    所在的 6 小時格起、到 `to` 隔天台灣 00:00 與現在（取整點）早的那個，四個模式各一個請求補進
+    `backfill/openmeteo-<模式>.jsonl`。還沒開始的事件跳過。"""
+    by_icao = {a.icao: a for a in airports}
+    out = {}
+    for e in events:
+        if event_id is not None and e.id != event_id:
+            continue
+        start = floor_6h(datetime.combine(e.start, datetime.min.time(), TAIPEI).astimezone(UTC))
+        end = min(
+            now.replace(minute=0, second=0, microsecond=0),
+            datetime.combine(e.end + timedelta(days=1), datetime.min.time(), TAIPEI).astimezone(
+                UTC
+            ),
+        )
+        if start >= end:
+            log.info("事件 %s 還沒開始，不回補", e.id)
+            continue
+        aps = [by_icao[i] for i in e.airports if i in by_icao]
+        out[e.id] = openmeteo_backfill.backfill(
+            event_dir(history, e), aps, start, end, now, pause=pause
+        )
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m hongthai.events", description=__doc__)
     ap.add_argument(
         "command",
-        choices=("hourly", "backfill", "backfill-tracks", "backfill-metar", "backfill-flights"),
+        choices=(
+            "hourly",
+            "backfill",
+            "backfill-tracks",
+            "backfill-metar",
+            "backfill-flights",
+            "backfill-openmeteo",
+        ),
     )
     ap.add_argument("--archive", type=Path, default=Path("data"))
     ap.add_argument(
@@ -766,6 +831,7 @@ def main(argv: list[str] | None = None) -> int:
         help="backfill-tracks：這個時間（UTC）以後的快照；backfill-metar：這個時間以後的觀測；"
         "backfill-flights：這一天（香港日期，只看前 10 個字）起",
     )
+    ap.add_argument("--event", help="backfill-openmeteo：只補這個事件 id（例如 29W）；不給＝全部")
     ap.add_argument("--events", type=Path, default=Path("events.json"))
     ap.add_argument("--airports", type=Path, default=Path("airports.json"))
     args = ap.parse_args(argv)
@@ -806,6 +872,24 @@ def main(argv: list[str] | None = None) -> int:
             )
             for day, v in days.items():
                 print(f"  {day}：" + ("失敗" if v is None else f"回應裡 {v} 班"))
+        return 0
+    if args.command == "backfill-openmeteo":
+        if args.event is not None and all(e.id != args.event for e in events):
+            print(f"{args.events} 沒有事件 {args.event}", file=sys.stderr)
+            return 1
+        om = backfill_openmeteo(history, events, load_airports(args.airports), utcnow(), args.event)
+        for eid, models in om.items():
+            for model, (res, written) in models.items():
+                code = openmeteo_backfill.MODELS[model]
+                if res.error:
+                    print(f"{eid} {model}（{code}）：失敗 {res.error}")
+                    continue
+                print(
+                    f"{eid} {model}（{code}）：{len(res.rows)} 行、寫了 {written}、"
+                    f"空的 {res.empty}；"
+                    f"陣風{'估算（全是 null）' if res.gust_estimated else '有'}；"
+                    f"{res.bytes:,} bytes、{res.seconds:.1f} 秒、加權 {res.calls:.1f} 次"
+                )
         return 0
     if args.command == "backfill":
         for eid, n in backfill(history, events).items():

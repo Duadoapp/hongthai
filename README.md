@@ -52,7 +52,7 @@ HD3 的 10 個是 2026-10-18 18Z 下載的，51 個都一致）。`latest.json` 
 
 | 層 | 資料 | 規則（初版，保守，之後用實際紀錄校準） |
 | --- | --- | --- |
-| 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14）；Open-Meteo 的 DWD ICON（陣風）、JMA GSM（10 米風）、Google WeatherNext 2 系集 64 個成員的 10 米風（HD16） | **八個模式投票**（HD14、HD16，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS、JMA GSM、WeatherNext 2 用平均風 × 機場的係數估算）≥ 48 節高、≥ 37 節中；兩個系集只投高（IFS 系集陣風 ≥ 49 節機率 ≥ 30%、WeatherNext 2 估算陣風 ≥ 48 節的成員 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
+| 模式（0–120 小時） | ECMWF HRES（IFS）10 米陣風與 10 米風（風只抓 6 小時整的時間點）、GFS 地面陣風與 10 米風、ECMWF 系集「10 米陣風 ≥ 10／15／25 m/s（≈ 19.4／29.2／48.6 節）機率」、ECMWF AIFS Single 與 NOAA AIGFS 的 10 米風（HD14）；Open-Meteo 的 DWD ICON（陣風）、JMA GSM（10 米風）、Google WeatherNext 2 系集 64 個成員的 10 米風（HD16）；HD33b 加 ECCC GEM、Météo-France ARPEGE、CMA GRAPES 三個**旁觀（不投票）**模式（Open-Meteo；UK Met Office 是 CC BY-SA 4.0，不放） | **八個模式投票**（HD14、HD16，下面「多模式投票」）：每個模式各自判——陣風（AIFS、AIGFS、JMA GSM、WeatherNext 2 用平均風 × 機場的係數估算）≥ 48 節高、≥ 37 節中；兩個系集只投高（IFS 系集陣風 ≥ 49 節機率 ≥ 30%、WeatherNext 2 估算陣風 ≥ 48 節的成員 ≥ 30% 投高、否則投低）。某一級的票（認為 ≥ 這一級的模式數）達到有資料模式數的一半就成立，取成立的最高 |
 | 官方（0–30 小時） | TAF、METAR、香港天文台與澳門地球物理氣象局（SMG）熱帶氣旋信號、中央氣象署颱風警報、美國國家氣象局（NWS）關島的颱風／熱帶風暴警報與守視、日本氣象廳（JMA）日本與沖繩的大雪警報（HD9）與暴風、大雨警報（HD27）、中央氣象署陸上強風特報（HD27）、經 WMO SWIC 的中國氣象局、韓國氣象廳、PAGASA 警報（HD29） | 天文台／SMG 8 號以上 → 高、3 號 → 中；氣象署陸上颱風警報且機場在警戒區 → 高、海上警報（或陸上但不在警戒區）→ 中；NWS Typhoon Warning、Tropical Storm Warning → 高，Typhoon Watch、Tropical Storm Watch → 中；JMA 大雪特別警報、暴風雪特別警報（HD16）→ 高、大雪警報 → 中、暴風雪警報低（只列出），算 `snow`；日本氣象廳暴風、大雨警報與氣象署陸上強風特報只列出（low，HD27）；中國氣象局、韓國氣象廳、PAGASA 的警報只列出（low，HD29）；TAF 陣風 ≥ 48 節（或平均風 ≥ 35 節）→ 高、陣風 ≥ 37 節 → 中；TAF **只算產出時間之後還有效的時段**（HD7，見下面）；**沒有 TAF 的機場第一格可由 METAR（含氣象署觀測）單獨撐起**（HD13，見下面） |
 | 側風（官方、模式各自） | TAF 各時段與 METAR 的風向風速；HRES、GFS、ICON 的 10 米風向配各自的陣風；AIFS、AIGFS、JMA GSM 的 10 米風向配估算陣風（WeatherNext 2 系集不算側風） | 含陣風側風 ≥ 33 節 → 高、≥ 27 節 → 中；和上面的陣風規則**取較高的等級**（模式層是每個模式各自取較高，再投票） |
 
@@ -109,10 +109,23 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
   其他同 AIFS）；AIGFS 沒有型態、不投（雪的分母不算它）。不用 2 米溫度猜型態
 - 霧：只有 GFS 有能見度，**霧的分母永遠是 1**（GFS 說了算，最高到中，HD10）。Open-Meteo 的 ICON global、
   JMA GSM 能見度 2026-10-20 實抓全是 `null`（提示詞以為 ICON 有），所以 HD16 沒有改變霧的分母；哪天有值了
-  會自動投（最高到中）
+  會自動投（最高到中）。**旁觀模式不判霧**（HD33b，2026-10-25 主對話定案）：CMA GRAPES 有能見度，但旁觀模式的
+  `levels.fog` 一律 `null`，能見度只照存 `visibilityM`
 - **旁觀模式**（HD16，`Model.voting=False`）：照樣抓、照樣寫進 `models[]`（含 `levels`、`level`）與路徑檔，
   但**不算進任何一類的分母、不投票**（`vote.total` 不含它）；頂層 `models[].voting` 讓網頁標「旁觀，不投票」。
   HD16 的三票都投票，這個開關給 HD15 的 WeatherNext 3 與之後的新模式（先旁觀、累積紀錄再改成投票）
+- **HD33b 的三個旁觀模式**（`voting=False`）：`gem`（ECCC GEM）、`arpege`（Météo-France ARPEGE）、`cma`
+  （CMA GRAPES），經 Open-Meteo，**併在 ICON／JMA 那個預報請求**（請求數不變）。接在 `wn2-ens` 後面（第 9–11
+  筆），數字與 `levels` 同 ICON（逐時，陣風取格內「前一小時最大陣風」的最大、雨量加總、型態看降雪與天氣碼）；
+  三個都有自己的陣風（`gustEstimated: false`）；CMA 有能見度、GEM 和 ARPEGE 沒有。**旁觀模式不判霧**：等級只算風（陣風、側風）、雨、雪，
+  和「模式的濃霧只看 GFS 能見度」一致；CMA 的能見度照存 `visibilityM`，不進 `levels`、`level`、`causes`（2026-10-25
+  主對話定案）。**UK Met Office 不放**：它在 Open-Meteo 是
+  **CC BY-SA 4.0**，ShareAlike 要求衍生資料用相同授權再發布，放進 `latest.json` 會牽動整份的授權（2026-10-25
+  Shawn 定案），只在 HD33a 的 29W 報告比對（`data` 分支的回補檔）。**分母、票數、
+  `level`、`vote.*`、`causes` 一律不變**；給 AI 的文字也不放它們（`Model.ai=False`，維持 8 個模式）。用 29W
+  回補（HD33a）比過準確度後再決定投票或加權，**不照解析度加權**。某個模式單位不對或整欄沒有只丟掉它（那幾筆
+  全 `null`、`sources.openmeteo.modelError`）；模式名失效（整個預報請求回 400）時只帶 ICON、JMA 再請求一次，
+  兩票照投。不沿用舊資料（同 ICON／JMA）
 - **WeatherNext 3**（HD15，`wn3`，`src/hongthai/sources/wn3.py`）：**預設不在 `latest.json`**——Google 的即時
   資料條款不准公開未修改的數字（下面「資料來源與授權」），所以 `WN3_MODE` 預設 `report-only`：只在事件期間
   抓 5 天前那一報（已經是 CC BY 4.0 的資料）寫 `history/events/<id>/wn3/` 與路徑檔，給颱風過後的報告。
@@ -279,6 +292,60 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
   `history/*.json` 既有的檔案不重算、不改，回看戰績（`history/ai/`、`history/cancellations/`）時 `run` 在
   HD7 合併之前（第一份套用 HD7 的 `generatedAt` 是 2026-10-19T05:25:00Z）的，第一格要打折看
 
+### 機場頁的 3 小時時間軸（HD35）
+
+Shawn 2026-10-23、2026-10-25 00:35 定案（Duado spec 第 16 節「颱風期間功能擴充計畫」的「時間軸」）：機場頁
+**0–72 小時每 3 小時一格**（24 格），72–120 小時維持 6 小時一格（8 格）；列表頁與 `latest.json` 維持 6 小時、
+**完全不變**。每個機場另外發一個檔 `airports/<iata 小寫>.json`（下面「輸出」），網頁進機場頁才載入，載不到就
+退回 `latest.json` 的 6 小時。每 1 小時要內插一半以上的模式，不做。
+
+- **怎麼算**：同一套 `assess.assess_slots` 用 3 小時窗（`assess.three_hour_bounds`，從 6 小時格的開頭
+  `floor_6h(現在)` 起）再跑一次，再用 `latest.json` 包住它的那個 6 小時格合併（`assess.merge_3h`）；投票、門檻、
+  官方層、`gap`、`causes` 都是 6 小時的規則（`assess.rescore`，模式沿用也是用它），不另寫一份
+- **陣風、平均風、側風**：有 3 小時資料的模式各自取 3 小時窗內的最大值（窗的定義同 6 小時：HRES 陣風取結束
+  時間落在 (from, to] 的區間，0–90 小時的 `10fg` 是「前 1 小時」最大陣風、每 3 小時一筆，所以一格就是結束在
+  `to` 那一筆；ICON 取 (from, to] 的小時）。風向照現在的做法：HRES 配區間結束時間往後最近的 6 小時步長
+- **只有 6 小時資料的模式**：同一個 6 小時的值（`latest.json` 那格的那一筆，整筆）放進兩個 3 小時格，那筆
+  `sixHourly: true`（網頁寫「6 小時資料」）。哪些模式有 3 小時資料是 `config.Model.three_hourly`，以實際資料為準
+  （2026-10-24 查）：
+
+  | 模式 | 0–72 小時的時間解析度 | `sixHourly` |
+  | --- | --- | --- |
+  | `ifs`（HRES） | 陣風每 3 小時（`10fg`，前 1 小時最大）；10 米風、雨量只抓 6 小時整的步長（H10） | `false`（雨量照下面用 6 小時） |
+  | `gfs` | 只抓 6 小時整的步長（`gfs.STEP_H`；GFS 本身有 3 小時，但要多抓一倍） | `true` |
+  | `ifs-ens` | 24 小時窗的機率、每 12 小時一個窗 | `true`（窗的邊界是 12 小時的倍數，兩個 3 小時格本來就一樣） |
+  | `aifs`、`aigfs` | 每 6 小時一個步長 | `true` |
+  | `icon` | Open-Meteo 逐時，ICON global 0–78 小時原生 1 小時 | `false` |
+  | `jma` | Open-Meteo 逐時，但雨量是每 6 小時一個值平均攤到 6 個小時、風是內插的（metadata `jma_gsm` 的 `temporal_resolution_seconds` 21600） | `true` |
+  | `wn2-ens` | Open-Meteo `temporal_resolution=native`，每 6 小時 | `true` |
+  | `wn3`（`observe` 才有） | 只讀 6 小時整的步長（`wn3.STEP_H`） | `true` |
+  | `gem`、`arpege`（HD33b 旁觀） | Open-Meteo 逐時，原生 1 小時（metadata `cmc_gem_gdps_15km`、`meteofrance_arpege_world025` 的 `temporal_resolution_seconds` 3600；ARPEGE 約 102 小時後沒有） | `false` |
+  | `cma`（HD33b 旁觀） | Open-Meteo 逐時，原生 3 小時（metadata `cma_grapes_global` 10800；3 小時格各有一個原生值） | `false` |
+
+  `three_hourly` 的模式這一報沒抓到（失敗、沿用舊資料，`sources.<名稱>.ok` 是 false）時也整筆用 6 小時格的、
+  標 `sixHourly: true`（`build.native_3h`）；GFS 不是 3 小時，所以 `model.gfs` 整個用 6 小時格的
+- **雨**：門檻是 6 小時累積，所以每個模式的 `rain6hMm`、`ptype`（IFS 還有 `temp2mC` 與系集機率）都用包住它的
+  6 小時格的（兩格一樣），雨、雪的等級與 `causes` 照算；系集機率（24 小時窗）同現在取包住的窗
+- **官方層（0–30 小時）**：TAF 依時段切到 3 小時格（和格重疊、`now` 之後還有效的時段，同 HD7）；警報同 6 小時
+  （同一個時刻有效就算，開始時間早於「現在 + 12 小時」的格）；METAR 只算進 `now` 所在的那個 3 小時格（第一格）；
+  官方層只到開始時間早於「現在 + 30 小時」的格，所以 3 小時格的官方層可能比 6 小時格早半格結束
+- **AI 不變**：還是讀 `latest.json` 的 6 小時格
+- **一致性**：每個 6 小時格對應的兩個 3 小時格，等級取最高（`unknown` < 低 < 中 < 高 < 已確認）和 6 小時格不同時
+  記 log（`assess.level_mismatches`，不改任何一邊；耗時紀錄的 `mismatches` 是格數）。可能不同的原因：
+  - 窗不同：6 小時格每個模式取 6 小時的最大值再投票，3 小時格是各自那 3 小時的最大值再投票。例如 IFS 在前 3 小時
+    到中、ICON 在後 3 小時到中，6 小時格兩票、3 小時格各一票，3 小時格可能兩格都不成立
+  - 投票分母不同：某個模式在 6 小時窗有資料、在某個 3 小時窗沒有（例如缺一個步長），那格的分母少一個
+  - 官方層的界線：官方層（開始時間早於現在 + 30 小時）與警報（早於現在 + 12 小時）用格的開始時間判斷，6 小時格
+    後半的 3 小時格可能已經過了界線、改由模式層決定；METAR 的側風只進第一個 3 小時格
+  - build 晚跑（現在已經在第一個 6 小時格的後半）時，第一個 3 小時格整個在過去：TAF 只算現在之後還有效的時段、
+    沒有 TAF 的機場 METAR 只撐現在所在的格，所以那格常常沒有官方層、改由模式層決定。四個排定時間（01:05、08:25、
+    13:05、20:25Z）都在第一個 3 小時格裡，晚 35 分鐘以上的 08:25／20:25 那報才會碰到（2026-10-24 17:02Z 本機實跑
+    的 2 格不一致——宮古、濟州的 12–15Z——都是這個）
+- **失敗**：某個機場的檔產生失敗只 log、不發那個檔（網頁退回 6 小時）；整步失敗也一樣，都不影響
+  `latest.json`、不讓 build 失敗。整個流程失敗改發布上一份 `latest.json` 時不發任何機場檔
+- **耗時**：純計算、不下載，不走來源的預算執行緒（`BUDGET_S` 不變、總和不變）；`history/timing/` 記一行
+  `source: "airports3h"`
+
 ## 怎麼跑
 
 需要 Python 3.12 以上。`eccodes` 的 pip 套件已附函式庫；Linux 也可以先裝 `libeccodes-dev`。
@@ -357,7 +424,7 @@ H10（2026-10-18）之後：
 | gfs（AWS 鏡像，NOMADS 備援） | 180 | 約 110（NOMADS）|
 | aifs（ECMWF AIFS Single，HD14；鏡像同 ecmwf） | 180 | 55（2026-10-20，66 MB，從 ECMWF 入口；AWS 回 503） |
 | aigfs（NOAA AIGFS，HD14；只有 AWS） | 120 | 38（2026-10-20，51 MB） |
-| openmeteo（ICON、JMA GSM、WeatherNext 2 系集，HD16；兩個請求、各 60 秒逾時、不重試） | 90 | 約 2–3（2026-10-20 雲端開發機，預報 632 KB／1.0 秒、系集 3 個變數時 1.6 MB／1.2 秒；只抓風速約 560 KB） |
+| openmeteo（ICON、JMA GSM、WeatherNext 2 系集，HD16；HD33b 的三個旁觀模式併在預報那個請求；兩個請求、各 60 秒逾時、不重試） | 90 | 約 2–3（2026-10-20 雲端開發機，預報 632 KB／1.0 秒、系集 3 個變數時 1.6 MB／1.2 秒；只抓風速約 560 KB）。HD33b 後（2026-10-25 00:08Z 實抓）預報 1.4 MB、系集 0.56 MB，連 6 個 metadata 共 3.9 秒；旁觀模式的 metadata 在 60 秒後就不問（`runError` 記 `skipped`） |
 | wn3（Google WeatherNext 3，HD15；BigQuery 一個查詢，失敗退 GCS Zarr；事件期間加讀海平面氣壓） | 120 | 還沒核准、沒實測（核准前幾秒就 `http_403`） |
 | taf（含 METAR） | 45 | 幾秒 |
 | hko、smg | 各 30 | 幾秒 |
@@ -367,16 +434,18 @@ H10（2026-10-18）之後：
 | cwaTyphoon（HD34，氣象署 `W-C0034-005` 一個請求） | 15 | 還沒有授權碼實測 |
 | jmaTyphoon（HD34，JMA targetTc＋每顆兩個請求） | 20 | 約 3（2026-10-25 雲端開發機，兩顆共 5 個請求，每個 0.4–0.9 秒） |
 | flights（抓＋統計＋寫檔） | 120 | 約 20 |
+| tdx（HD38，台灣十個機場一次請求：token＋資料，傳輸約 104 KB（解壓縮後約 1.7 MB）；沒設金鑰或本月到 1,700 次就不請求） | 45 | 還沒實測（事件保存那邊每小時一次） |
 | ai（AI 對決，HD5；兩個模型平行，每報最多 20 個機場） | 240（HD12；原 180） | 約 111–117，HD11 後第一報 178（單次請求逾時 60 秒） |
 | og（分享預覽圖 51 張，HD1；`publish()` 之後） | 60 | 約 3–6 |
 | tracks（颱風路徑，HD21；只在事件期間、四個模式抓完之後） | 150 | 約 5–10（ECMWF 路徑產品約 1.3 MB＋解析三個模式的氣壓場；2026-10-20 雲端開發機） |
+| airports3h（機場頁的 3 小時格，HD35；純計算，**不走預算執行緒、不在 `BUDGET_S`**） | — | 0.6（2026-10-24 17:02Z 雲端開發機，51 個機場；51 個檔共 5.02 MB） |
 
 - 超過預算就記 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`，不等它、
   繼續下一個來源。被放棄的執行緒在背景跑到下一個請求或解析前就自己結束（不再解析 GRIB；
   GRIB 解析有全域鎖），程式結束時不等它
 - 總和 1785 秒（29.75 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
   aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒、HD15 加 wn3 120 秒；
-  HD29 加 swic 45 秒到 1830 秒，HD34 加 cwaTyphoon 15＋jmaTyphoon 20 秒到 1865 秒，約 31.1 分鐘），
+  HD29 加 swic 45 秒、HD38 加 tdx 45 秒、HD34 加 cwaTyphoon 15＋jmaTyphoon 20 秒，總和 1910 秒，約 31.8 分鐘），
   Actions「產生 latest.json」那一步上限 32 分鐘、整個 job 42 分鐘（HD15 前 30／40、HD16 前 28／38、HD21 前
   25／35、HD14 前是 20／30、HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
   多抓的海平面氣壓（每個步長約 1.0／1.0／0.5 MB，三個共約 52 MB）算在它們自己的預算裡
@@ -477,7 +546,9 @@ H10（2026-10-18）之後：
 - GitHub Pages（`public/`）：`latest.json`、`history/<YYYYMMDDTHHMM>Z.json`（歷次結果，**只放最近 7 天**：
   H9 起一份約 515 KB、HD3 起約 642 KB（2026-10-18 實測），`publish()` 只複製檔名時間（＝`generatedAt`）在 7 天內的，Pages 上更舊的刪掉；
   `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，
-  每報重畫、不進 `data` 分支）；颱風地圖 `typhoons.json`（HD34，只放最新一份，下面「颱風地圖」）
+  每報重畫、不進 `data` 分支）；每個機場一個機場頁的 3 小時時間軸 `airports/<iata 小寫>.json`（HD35，上面
+  「機場頁的 3 小時時間軸」、格式在下面；只放這一報、不進 `history/`、不進 `data` 分支，事件保存的快照照舊只存
+  `latest.json`）；颱風地圖 `typhoons.json`（HD34，只放最新一份，下面「颱風地圖」）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws,jma,swic,openmeteo}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
   `/alerts/active` 的原始回應，HD3 起；JMA 是 `{office 代碼: 警報 JSON}`，HD9 起；SWIC 是
@@ -533,7 +604,9 @@ H10（2026-10-18）之後：
   `{"claude": 美元, "gemini": 美元}`，算不出來是 `null`；HD30 起多 `errorMessages`
   `{"claude": 字串或 null, "gemini": 字串或 null}`——各模型這一報**第一則**錯誤的訊息（同一報 20 個都一樣也只記
   一則；沒有 HTTP、逾時、網路錯誤是 `null`，AI 步驟整個壞掉時整欄是 `null`）；見「AI 對決」）、`og`（HD1 起，分享預覽圖；改發布上一份時
-  也有）、`done`（照執行順序）
+  也有）、`airports3h`（HD35，機場頁的 3 小時格；在 `flights` 之後、`ai` 之前；多 `files`（發了幾個機場檔）與
+  `mismatches`（3 小時與 6 小時等級不一致的格數），`bytes` 是全部機場檔不縮排的總大小，有機場算不出來時
+  `ok: false`、`error` 是那幾個 IATA 用 `,` 接，整步壞掉是 `*`）、`done`（照執行順序）
 - `error`：和 `sources.<名稱>.error` 同一套代碼，成功是 `null`（`og` 有幾張畫不出來時是
   `"<IATA>:<例外類別>"`，多個用 `,` 接）；`bytes`：下載量（逾時的是到那時為止，
   ecmwf 只算下載完的檔；`og` 是畫出來的圖的總大小）；
@@ -551,16 +624,18 @@ H10（2026-10-18）之後：
   "from": "2026-10-18T06:00:00Z",
   "to": "2026-10-18T12:00:00Z",
   "asOf": "2026-10-18T13:05:00Z",
-  "dep": { "total": 118, "cancelled": 2, "delayed": 7, "other": 0 },
-  "arr": { "total": 121, "cancelled": 1, "delayed": 9, "other": 0 }
+  "dep": { "total": 118, "cancelled": 2, "delayed": 7, "diverted": 0, "other": 0 },
+  "arr": { "total": 121, "cancelled": 1, "delayed": 9, "diverted": 1, "other": 0 }
 }
 ```
 
 - 依**表定**時間歸格（當地時間用 `airports.json` 的 `tz` 轉 UTC）；出發、抵達分開；不含貨機；
   共掛班號與重複的列只算一班
 - `cancelled`：狀態是取消；`delayed`：狀態是延誤，或預計／實際時間比表定晚 60 分鐘以上（取消的不重複算）；
-  `other`：看不懂的狀態（仍算進 `total`，log 印出字串，並記進 `unknown-statuses.json`）。三者互斥，
-  其餘是正常或還沒有狀態
+  `diverted`：狀態是轉降（HD38 起；之前算 `other`，舊列沒有這個鍵）；
+  `other`：看不懂的狀態（仍算進 `total`，log 印出字串，並記進 `unknown-statuses.json`）。四者互斥，
+  其餘是正常或還沒有狀態（HD38 起台灣來源的「加班」、`預計HH:MM到站` 是正常，後者的時間拿來算延誤）
+- 只有原本的五個來源（桃園、松山、高雄、香港、澳門）；TDX 的七個機場（HD38）不寫這裡，只進 `latest.json`
 - `asOf`：算出這筆的跑次時間
 - 合併：每次 build 把算出來的格合併進對應日期的檔（一次可能動到兩三個日期）。同 `airport`＋`from`
   已有紀錄時新的覆蓋舊的，但新的 `dep.total + arr.total` 比舊的少就留舊的（來源換日後看不到前一天的班機，
@@ -608,9 +683,11 @@ H10（2026-10-18）之後：
           "level": "medium", "basis": "official",
           "official": { "windKt": 25, "gustKt": 38, "kind": "tempo", "level": "medium", "crosswindKt": 21.4, "warnings": [] },
           "model": { "ec": { "p10": 0.92, "p15": 0.55, "p25": 0.08, "p29Kt": 0.55, "p37Kt": null, "p49Kt": 0.08, "hresGustMs": 19.4, "hresGustKt": 37.7, "crosswindKt": 26.1 }, "gfs": { "gustMs": 19.6, "gustKt": 38.1, "crosswindKt": 12.3 }, "level": "medium", "agreement": "agree" },
-          "gap": false
+          "gap": false,
+          "flights": { "total": 118, "cancelled": 2, "delayed": 7, "diverted": 0, "few": false, "source": "taoyuan-airport", "asOf": "2026-10-18T08:10:00Z", "dep": { "total": 60, "cancelled": 1, "delayed": 3, "diverted": 0 }, "arr": { "total": 58, "cancelled": 1, "delayed": 4, "diverted": 0 } }
         }
       ],
+      "flightSources": [ "taoyuan-airport" ],
       "confirmed": [ { "from": "…", "to": "…", "note": { "zh-TW": "…", "en": "…" } } ],
       "ai": {
         "evaluatedAt": "2026-10-18T08:10:00Z",
@@ -621,6 +698,35 @@ H10（2026-10-18）之後：
   ]
 }
 ```
+
+`airports/<iata 小寫>.json`（HD35，機場頁的 3 小時時間軸；不縮排）：
+
+```json
+{
+  "schema": 1,
+  "generatedAt": "2026-10-25T08:25:00Z",
+  "icao": "RCTP", "iata": "TPE",
+  "slots3h": [
+    { "from": "2026-10-25T06:00:00Z", "to": "2026-10-25T09:00:00Z", "level": "medium", "basis": "official", "causes": ["wind"], "official": { "…": "…" },
+      "model": { "ec": { "…": "…" }, "gfs": { "…": "…" }, "level": "medium", "agreement": "agree", "vote": { "…": "…" },
+        "models": [ { "id": "ifs", "gustKt": 41.2, "…": "…", "sixHourly": false }, { "id": "gfs", "…": "…", "sixHourly": true } ] },
+      "gap": false }
+  ],
+  "slots6h": [ { "from": "2026-10-28T06:00:00Z", "to": "2026-10-28T12:00:00Z", "…": "…" } ]
+}
+```
+
+- `schema`：這個檔自己的版本（`build.AIRPORT_SCHEMA`，規則同 `latest.json`：只加欄位不升）；`generatedAt` 和同一報的
+  `latest.json` 一樣（網頁可以用它確認兩個檔是同一報）
+- `slots3h`：0–72 小時、每 3 小時一格、24 格（第一格從 `latest.json` 第一格的 `from` 開始）；每格的欄位**和
+  `latest.json` 的 `slots[]` 同一套**（`from`、`to`、`level`、`basis`、`causes`、`official`、`model`、`gap`），
+  `model.models[]` 每筆多 `sixHourly`（布林；`true` 是那筆用包住它的 6 小時格的值，規則在上面）
+- `slots6h`：72–120 小時那 8 格，直接是 `latest.json` 那個機場 `slots[12:]` 的內容（沒有 `sixHourly`）
+- 最後一個 3 小時格的 `to` ＝ `slots6h` 第一格的 `from`
+- 大小（2026-10-24 17:02Z 雲端開發機實跑，8 個模式）：一個檔 96.8–99.6 KB（最大是濟州），51 個檔共
+  5,019,288 bytes（約 4.8 MB；`latest.json` 同一報 3.08 MB）；gzip 後一個約 4.4 KB、全部約 190 KB（GitHub Pages
+  有壓縮）。`models[]` 一筆約 285 bytes，每多一個模式一個檔多約 9 KB（32 格）；HD33b 的三個旁觀模式進來後
+  約 127 KB。**目標：每個檔約 127 KB（壓縮後約 5 KB）可以接受**（Shawn 2026-10-25；提示詞原本是 ≤ 120 KB）
 
 第二階段（2026-10-18）加的欄位（規格 16 節已補；網頁之後顯示在依據區，現在忽略也不會壞）：
 
@@ -862,6 +968,61 @@ HD24（2026-10-20，投票分母；`schema` 維持 `1`，**只加兩個欄位，
 - 大小：Pages 上 2026-10-20 15:04Z 那報重算，`latest.json`（不縮排）3,178 KB → 3,195 KB（**多約 16 KB**，
   1,020 格 × `"mediumTotal":6,`）
 
+HD33b（2026-10-25，Open-Meteo 的三個旁觀模式；`schema` 維持 `1`，**只加值與一個新欄位，票數、等級、既有欄位
+不改名、不改型別**；要經 Shawn 轉給 Duado 總指揮）：
+
+- 頂層 `models[]` 多三筆（照順序接在 `wn2-ens` 後面，`voting: false`、`votesOnlyHigh: false`）：`gem` 加拿大模式／
+  加拿大模式／加拿大模式／Canada GEM、`arpege` 法國模式／法國模式／法国模式／Météo-France ARPEGE、`cma` 中國模式／
+  中國模式／中国模式／CMA GRAPES。網頁照 `models[]` 動態列、已會標「旁觀，不投票」（HW6），不用改程式。
+  **沒有 UKMO**（CC BY-SA 4.0，見上面「多模式投票」）
+- `slots[].model.models[]` 每格 11 筆：三筆的欄位同 `icon`（`gustKt` 是自己的陣風、`gustEstimated: false`、
+  `windKt` 同一小時的平均風、有雨量與型態、`p49Kt` 是 `null`；`visibilityM` 只有 `cma` 有值）；`levels`、`level` 照算（`levels.fog` 永遠 `null`，旁觀不判霧），
+  但 `vote`、`model.level`、`level`、`causes`、`gap` 和沒有它們時一模一樣。沒資料的那一報（或那幾格，例如
+  ARPEGE 一報只到起報後約 102 小時、CMA 約 122 小時，最後幾格）數字與等級全 `null`
+- 頂層 `runs.gem`、`runs.arpege`、`runs.cma`（ISO 或 `null`；Open-Meteo metadata 的最近一報）
+- `sources.openmeteo`：`calls` 51 個機場 504.9（HD16 是 397.8）；新欄位 `modelError`（只有出錯時才有，例如
+  `"cma:bad_units"`、`"gem:missing"`，三個都 `http_400` 時是模式名失效、已經只帶 ICON、JMA 重抓）；`runError`
+  多認得三個 id 與 `skipped`
+- 大小：用 `data` 分支 2026-10-24 13:06Z 那報加三筆（照 ICON 那筆的長度）重算，`latest.json`（不縮排）
+  3,118 KB → **3,980 KB（多約 861 KB）**；gzip 後 166 → 184 KB（2026-10-25 Shawn：可以接受）
+- 資料來源頁要標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2・ECCC・Météo-France・CMA」
+  （下面「資料來源與授權」）
+
+HD38（2026-10-25，航班取消、延誤數上網頁；`schema` 維持 `1`，**只加欄位，既有欄位不改名、不改型別**；網頁是
+Duado HW14）：
+
+- `slots[].flights`（新，物件）：這格（依**表定**時間歸格，和 `history/cancellations/` 同一套，
+  `cancellations.py`）的航班統計，**出發＋抵達合計**：
+  - `total`（表定班數，不含貨機，共掛算一班）、`cancelled`、`delayed`（狀態延誤，或預計／實際比表定晚
+    60 分鐘以上）、`diverted`（轉降，不算取消）：整數；對照表沒列的狀態只算在 `total`，不另列
+  - `few`：布林，`total` 少於 4 班（`cancellations.FEW_FLIGHTS`，HD37 報告工具的「班次少」同一個門檻）。
+    規則照判，只是標出來（網頁加小字「這段時間班次少，一兩班取消比例就很高」）
+  - `source`：這格用哪個來源（同 `flightSources`）；`asOf`：統計的時間（這一報的 `generatedAt`；原本五個
+    來源照 `history/cancellations/` 的合併規則留了舊列時是那一報的時間）
+  - `dep`、`arr`：出發、抵達各自的 `total`／`cancelled`／`delayed`／`diverted`（`few`、`source`、`asOf`
+    只在外層）
+  - **沒有航班資料的機場、那格沒有任何班機的格都不寫這個鍵**（不寫 `total: 0`，免得和「沒有資料」混在一起）。
+    已經過去、但還在 `slots` 裡的那格（現在那格）照算
+  - 原本五個來源：這一報統計和 `history/cancellations/` 已有的同一格照存檔的規則合併（新的班數比舊的少就留
+    舊的），網頁看到的和存檔一致
+- `airports[].flightSources`（新，字串陣列）：這一報航班統計用的來源，`taoyuan-airport`（桃園機場）、`tsa`
+  （松山機場）、`kia`（高雄機場）、`hongkongairport`（香港機場管理局）、`aacm`（澳門民航局）、`tdx`（交通部
+  運輸資料流通服務平臺，台中、台南、花蓮、台東、澎湖、金門、馬祖南竿）；和逐班紀錄的 `source` 同一套。這一報
+  抓不到或算不出來、或沒有航班來源的機場是 `[]`
+- `sources.tdx`（新）：`{"ok", "seconds", "calls", "monthCalls"}`；`calls` 是這一報送出的 TDX 資料請求數、
+  `monthCalls` 是含這一報的本月合計（build＋事件保存，下面「TDX 用量」）；`error` 多 `not_configured`（沒設
+  金鑰）、`monthly_limit`（本月到 1,700 次，不請求）；有機場沒回或算不出來時 `statsError`（`"<機場>:<訊息>"`）
+- 分類新增（`cancellations.py`，台灣三個來源與 TDX；新存的資料才套）：開頭「加班」→ 正常；開頭「轉降」→
+  `diverted`（`history/cancellations/` 的 `dep`／`arr` 多 `diverted`，HD38 以前的列沒有，當 0）；
+  `預計HH:MM到站`／`離站`／`出發`（可帶月日）→ 正常、時間當預計時間算延誤。逐班紀錄的 `class` 多
+  `diverted`
+- 不寫 `history/cancellations/` 的只有 TDX 的七個機場（每 6 小時的統計在 `history/<時間>.json` 的
+  `slots[].flights` 裡；HD37 報告工具的停飛實測照舊讀事件保存的逐班紀錄）
+- 3 小時格：同一批航班另外依表定歸 3 小時格（`cancellations.slot_stats(..., hours=3)`、`build.slot_flights`），
+  給 HD35 的每機場檔 `slots3h[].flights`（同欄位）
+- 大小：`data` 分支 2026-10-24 13:06Z 那報的 `latest.json`（不縮排）加上 17:07Z 實抓的五個來源與事件逐班紀錄
+  重建的 TDX 七個機場，3,194 KB → 3,205 KB（**多約 11 KB**；有航班的格 41 格，每格約 260 bytes）
+
 規格以外加的欄位與值（網頁可以忽略）：
 
 - HD2（2026-10-19）加的節欄位（要進 Duado spec 第 16 節；舊欄位全部照出、型別不變）：
@@ -1047,8 +1208,11 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
      - `estUtc`／`actUtc`：取消統計算延誤用的那個時間；狀態表示已起飛／已降落（桃園「出發」「已到」、松山
        「已飛」「已到」、高雄「離站」「抵達」、香港 `Dep`／`At gate`／`Landed`、澳門 `TOOK OFF AT`／`LANDED AT`／
        「著陸」「起飛」）放 `actUtc`，其他放 `estUtc`；沒有就是 `null`
-     - `class`：`cancelled`／`delayed`（狀態延誤，或預計／實際比表定晚 60 分鐘以上）／`other`（對照表沒列的
-       狀態）／`normal`，和 `history/cancellations/` 的統計同一套
+     - `class`：`cancelled`／`diverted`（轉降，HD38 起；之前是 `other`）／`delayed`（狀態延誤，或預計／實際比表定晚
+       60 分鐘以上）／`other`（對照表沒列的狀態）／`normal`，和 `history/cancellations/` 的統計同一套。HD38 起台灣
+       來源與 TDX 的「加班」是 `normal`、`預計HH:MM到站／離站` 是 `normal`（狀態裡的時間放 `estUtc`，晚 60 分鐘以上
+       是 `delayed`）；分類改了的班機在 HD38 上線後第一次抓到時會多寫一行（狀態沒變、`class`／`estUtc` 變了），
+       之前的行不改寫
      - `source`：`taoyuan-airport`／`tsa`／`kia`／`hongkongairport`／`aacm`；HD32 起多 `tdx`（下面）
      - **只在有變化時寫**：同一個 `source`＋`airport`＋`dir`＋`flight`＋`schedUtc`，`status`、`class`、`estUtc`、
        `actUtc` 任一個和檔裡最後一行不同才寫，第一次看到也寫（`t` 不同不算；`source` HD32 起算在鍵裡）
@@ -1068,11 +1232,40 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
        不寫進檔案、log 不印；**沒設就整件事跳過**（log 一行「TDX 未設定」），其他照跑；token 或請求失敗只記 log
      - 端點：`GET https://tdx.transportdata.tw/api/basic/v2/Air/FIDS/Airport?$filter=AirportID eq 'TPE' or …&$top=10&$format=JSON`
        （基礎服務「公共運輸-航空」v2「取得機場的即時航班資料」，一次拿全部要的機場的出發與抵達），
-       `Accept-Encoding: gzip`。**每小時 2 個請求**（token＋資料），一個月約 1,488 個
+       `Accept-Encoding: gzip`。事件期間**每小時 2 個請求**（token＋資料）；HD38 起 build 每一報也各 2 個（下面
+       「TDX 用量」）
      - 頻率限制（2026-10-23 讀 TDX 訂閱收費頁與 swagger 說明，原文）：基礎會員「TWD 0 元/月| 虛擬點數：3 點/月|
        存取頻率：5 次/分/金鑰」；「計次：1,500次/1點」「計量：150MB/1點」，次數與資料量**合併計算**；超過頻率
-       「API將回傳錯誤訊息(error code) 429」；點數用到 105% 當月停用。每小時一次資料請求一個月約 744 次（約 0.5 點），
-       資料量還沒實測（設好 secret 後看【會員中心 > 資料服務 > 使用統計】補上）
+       「API將回傳錯誤訊息(error code) 429」；點數用到 105% 當月停用（這句 2026-10-25 沒再找到原文）
+
+     **TDX 用量**（HD38 改寫；Shawn 2026-10-25 看【會員中心 > 資料服務 > 使用統計】實測）：
+     - 計費：**照壓縮後的傳輸量計**。10/24 一天呼叫 17 次、資料量 1,764.611 KB、點數 0 → 每次約 **104 KB**
+       （解壓縮後約 1.68 MB；回應有要求 gzip）。一般會員每月免費 3 點、每金鑰每分鐘 5 次；1 點＝150 MB 或
+       1,500 次 → 每月約 **4,400 次**（兩種換算在這個用量下差不多；就算次數與資料量相加計算，2,000 次也只約
+       1.33＋1.39 ≈ 2.7 點，還在 3 點內）
+     - 誰在抓：**平常（沒有颱風事件）build 每一報抓一次**（一天 4 報，一個月約 124 次，約 13 MB）；
+       **颱風事件期間**事件保存照舊每小時一次（`events.py`，一天 24 次），build 那 4 次照抓（沒有改成讀逐班
+       紀錄）。整個月都是事件期間也只約 870 次（約 0.6 點）
+     - 計數：每次真的送出資料請求（`Air/FIDS/Airport`；**token 請求不算**；失敗重試的那次也算）就在 `data`
+       分支 `history/tdx/calls-<YYYY-MM>.jsonl`（UTC 月份）追加一行，build 和 events 都讀這個檔的行數計數
+       （`tdx.month_calls`）：
+
+       ```json
+       {"t": "2026-10-25T08:25:41Z", "caller": "build", "bytes": 104611}
+       ```
+
+       `caller` 是 `build`／`events`；`bytes` 是回應的 `Content-Length`（壓縮後的傳輸量；沒有這個標頭時是解壓
+       縮後的長度），請求失敗是 `null`。build 和 events 可能同時往同一個檔追加，所以同目錄放
+       `.gitattributes`（`*.jsonl merge=union`，第一次寫時自動建），`tools/push_data.sh` 的 rebase 兩邊的行
+       都留下、不衝突。兩邊同時在跑時各自讀到的是自己取出時的檔，可能少算幾次
+     - 上限（`sources/tdx.py`；Shawn 2026-10-25 定案＝免費額度的一半）：**每月 2,000 次**（`MONTHLY_CALL_LIMIT`，
+       build＋events 合計）。快到上限時**先停平常每報的**：build 到 **1,700 次**（`BUILD_CALL_LIMIT`）就不抓，
+       `sources.tdx` 是 `{"ok": false, "error": "monthly_limit"}`；事件期間的每小時存檔到 2,000 次才停（log
+       一行「TDX 本月已用 … 次，這小時跳過」，那小時的 `tdx` 是失敗）
+     - 超過時的處理：build 停了以後當月剩下的報，台灣其他 7 個機場沒有航班數（網頁什麼都不顯示，`flightSources`
+       是 `[]`），其他照出；events 停了以後逐班紀錄只剩原本五個來源。下個月 1 日（UTC）起換新的檔，自動恢復
+       （`sources.tdx.monthCalls` 看得到本月用了幾次）。萬一已經被停用，`sources.tdx` 是 token 或資料請求的錯誤代碼，
+       一樣不影響整報
      - 欄位對照：`FlightNumber` 不含航空公司代碼，`flight` 是 `AirlineID`＋`FlightNumber`；`peer` 是對方機場 IATA
        （出發看 `ArrivalAirportID`、抵達看 `DepartureAirportID`）；表定／預計／實際時間是當地時間、帶日期，
        `actUtc` 是 `Actual…Time`（沒有實際、但狀態已起飛／已降落時放預計），其他放 `Estimated…Time`
@@ -1170,10 +1363,39 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
   `observe` 時 `license` 是條款網址、`attribution` 是條款要的那段固定標註。**補報**：`events` workflow 勾
   `backfill-tracks` 時接著補 WN3（`--from` 以後、事件期間、起報 ≤ 現在 − 121 小時的主報，沒有事件檔或路徑檔
   的才抓；用 Actions 的服務帳號，還沒核准時第一報 403 就停）。G 用 `history/gustfactor/latest.json` 的
+- **新模式回補**（HD33a，`src/hongthai/sources/openmeteo_backfill.py`）`backfill/openmeteo-<模式>.jsonl`：
+  UKMO（`ukmo`）、GEM（`gem`）、ARPEGE（`arpege`）、CMA GRAPES（`cma`）經 Open-Meteo
+  [Previous Runs API](https://open-meteo.com/en/docs/previous-runs-api) 回補事件期間的逐時預報，**只給報告比**：
+  不進 `latest.json`、`models[]`、等級、投票、AI、網頁（Duado spec 第 16 節「新模式」：先旁觀、不投票，比過準確度
+  再決定投票或加權；旁觀進 `latest.json` 是 HD33b）。Actions 手動跑 `events` workflow、`backfill-openmeteo` 填
+  事件 id（例如 `29W`；本機 `python -m hongthai.events backfill-openmeteo --archive data --event 29W`）：
+  - 期間：`from` 台灣 00:00 所在的 6 小時格（29W 是 10/18 12Z）到 `to` 隔天台灣 00:00 與現在（取整點）早的那個
+  - 一個模式一個請求（模式代號不對或沒存只壞那一個）、每個請求一次帶事件的全部機場：`models=<代號>`、
+    `hourly=` 四個變數 `wind_speed_10m`、`wind_direction_10m`、`wind_gusts_10m`、`precipitation` 各接
+    `_previous_day0`…`_previous_day5`（24 個）、`start_date`／`end_date`（UTC 日期）、`wind_speed_unit=kn`、
+    `timezone=UTC`；模式之間停 2 秒。加權呼叫次數一個模式 2.4 × 26 ＝ 62.4、四個 249.6（< 每分鐘 600）
+  - `_previous_dayN` 是提前 N 天的那一報對同一個時間的預報（文件：day1 是 valid time 前 24 小時預報的值，
+    最多到 day 7；day0 是最新一報）。一行一個機場、一個小時、一個 N，**只追加**（同一個 `icao`、`validAt`、
+    `previousDay` 已經有就跳過，值不一樣也不覆蓋）；風速、陣風、雨量都是 `null` 的行不寫，之後重跑還能補：
+
+    ```json
+    {"t": "2026-10-25T01:00:00Z", "icao": "RCTP", "validAt": "2026-10-21T06:00:00Z", "previousDay": 1,
+     "windKt": 28.4, "windDir": 52.0, "gustKt": 41.2, "gustEstimated": false, "precipMm": 0.6}
+    ```
+
+    `gustKt` 是前一小時最大陣風、`precipMm` 前一小時雨量（同 HD16）；某個模式的陣風在整個回應裡全是 `null`
+    → 那個模式每行 `gustEstimated: true`、`gustKt: null`，報告用平均風 × 機場的估算係數 G
+  - **實測**（2026-10-25 00:10Z，雲端開發機）：四個模式都有陣風；有值的提前天數 UKMO 0–6、GEM 0–7、CMA 0–4、
+    **ARPEGE 0–3**（報告的 96–120 段沒有 ARPEGE），10/18 起的都在。四個請求各約 663–693 KB、14–45 秒（開發機 TLS
+    常被斷、有重試），共 2 分 17 秒；10/18 12Z～10/25 00Z 寫了 UKMO、GEM 各 24,492 行、CMA 20,410、ARPEGE 16,328。
+    `_previous_day0` 的鍵回來時不帶後綴（`wind_speed_10m`）。`gem_global` 和文件現在寫的 `cmc_gem_gdps` 回的值逐點一樣。
+    Single Runs API 對照 GEM：`_previous_day1` 等於提前 24–47 小時的那一報
+  - 合併後 Shawn 手動跑一次、10/27 定稿前再跑一次（第二次只補新的小時）。**`openmeteo-ukmo.jsonl` 是 CC BY-SA 4.0**
+    （UK Met Office 的條款，下面「資料來源與授權」），用到 UKMO 數字的報告也要同樣標
 - **推 `data` 分支**：每小時和每天四次的主 build 可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
   `git pull --rebase origin data` 再推，失敗重試 3 次（間隔 20 秒）。兩邊寫的檔不重疊，不會衝突
 - 實際停飛照舊用 `history/cancellations/`（不用另外存）
-- **驗證報告**（HD22，`tools/report_29w.py`；只讀上面這些檔與 `history/cancellations/`、`history/ai/`，不改任何
+- **驗證報告**（HD22，`tools/report_29w.py`；只讀上面這些檔（含 `flights/`）與 `history/cancellations/`、`history/ai/`，不改任何
   輸出、只用標準函式庫）。在 repo 根目錄、`data` 是 `data` 分支的 checkout：
 
   ```
@@ -1204,6 +1426,25 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
     `asOf` 的還沒有結果。「判中或高」與「判高」各一組，印 TP／FP／FN／TN、精確率、召回率。**每格**只有規則燈；
     AI 的燈是整個機場 5 天一個等級，所以另算**每報每機場**（0–120 小時內任一格停飛；規則燈取同範圍最高等級
     一起比），提前段只印召回率（依第一個停飛格的提前時間）
+  - **停飛實測加讀逐班航班**（HD37，Shawn 2026-10-25 定案）：
+    - 來源依機場選：`history/cancellations/` 有的機場（桃園、松山、高雄、香港、澳門）照舊用它；沒有的機場用逐班
+      紀錄 `flights/`（`source: tdx`，29W 是台中、台南、花蓮、台東、澎湖、金門、馬祖南竿）。同一班（`airport`、
+      `dir`、`flight`、`schedUtc`、`source`）取 `t` 最新的一行，依表定時間歸格，停飛規則和取消統計完全一樣；那格
+      沒有航班不算。(b) 的範圍因此變大，摘要寫明哪些機場用哪個來源
+    - 實測的最後時間每個機場各一個：資料最新的時間和 `--truth-until` 早的那個。取消統計是那個機場的 `asOf`；
+      逐班是**整批最新的 `t`**（所有 `source: tdx` 的行裡最大的，十個機場是同一個請求抓的）——逐班只在有變化時寫，
+      班次很少的機場自己最新的 `t` 會停在很早（主對話 2026-10-25 審查 #106）
+    - **班次少**：那格表定（出發＋抵達）少於 4 班（`FEW_FLIGHTS`），取消統計的機場也照同一個標準。規則照判（一班
+      取消就可能過 30%），只是另外列：每格表與每報每機場表的每一列下面多一列「其中班次少」——每格是那些格的子集，
+      每報每機場是結果靠班次少的格決定的窗（有停飛時停飛的格全是班次少；沒停飛時有實測的格全是班次少）
+    - 窗裡的格都沒有航班列（例如逐班紀錄開始之前的報）不當成「沒停飛」，另計（跳過的表）
+    - **狀態重新分類**（只在報告裡，不改存檔）：`class: other` 的 `加班` → 正常；`轉降` → 新類「轉降」（不算取消，
+      另外計數）；`預計HH:MM到站／離站／出發`（可帶日期）→ 預計比表定晚 60 分鐘以上算延誤、否則正常（沒寫日期照
+      `cancellations.py` 的規則推）；其他照舊 `other`，列出前 10 種與次數
+    - (b) 開頭多一段「停飛實測」：每個機場的來源、資料最新的時間、實測算到哪裡、格數、班次少的格數、取消／延誤／
+      轉降班數（只算實測算到之前結束的格）。JSON 的 `levels` 多 `fewFlights`、`slotFew`、`windowFew`、
+      `windowCompleteFew`、`truthSources`、`flightClasses`、`reclassified`、`unknownStatuses`，`skipped` 可能多
+      `windowNoFlights`（原有欄位不改名）；沒有 `flights/` 時原有欄位的數字和 HD37 前一樣
   - **(c) 路徑**：`tracks/` 每個點對真相線性內插到同一 `validAt`（相隔超過 12 小時不內插）的大圓距離；IFS 用
     HRES、系集用中位數位置，系集另印成員誤差與離散（成員到中位數）。`--jtwc`（ATCF b-deck）、`--jma`
     （`bst_all.txt` 依名稱 `CHAMPI` 挑，或 `--jma-id` 指定；單一颱風的檔直接用）給了哪份比哪份、並列；
@@ -1224,6 +1465,22 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
       JSON 多 `until`、`untilHasNext`、`lastReport`、`excludedByUntil`、`truthUntil`、`truthUntilDefault`、
       `gust.pastTruth`、`levels.truthLast`、`levels.windowComplete`、`levels.skipped` 的 `slotPastTruth`／
       `windowTruncated`／`windowNoTruth`、`tracks[].pastTruth`（原有欄位不改名）
+  - **旁觀・回補**（HD33a）：事件目錄有 `backfill/openmeteo-*.jsonl` 時多算這四個模式，**沒有這個目錄時報告與
+    JSON 和以前一字不差**。`--airports`（預設 repo 的 `airports.json`）給門檻與跑道，只在有回補檔時讀
+    - **提前時間**：起報當成「格開始時間減 `previousDay` 天那一天的 00Z」（一格裡的小時用同一個起報），提前時間＝
+      格的 `from` − 起報＝24N＋0／6／12／18 小時，照上面的切法：`previousDay` 0 → 0–24、1 → 24–48 … 4 → 96–120；
+      5 是 120 小時以後，不算（檔裡照存）。同一個（模式, 起報）的格合成一報，像 WN3 事件檔一樣比
+    - **一格的預測**照 `assess.hourly_for_slot`（ICON／JMA 那套）：有陣風取 (from, to] 小時的最大陣風、側風每小時
+      用陣風與風向算再取大；估算的取 [from, to] 最大平均風 × G（快照裡同一機場估算陣風那幾筆的 `gustFactor`，起報
+      當時或之前最近的一報，之前沒有用最早有的那報，都沒有 1.4），側風用每小時平均風 × G。(from, to] 6 個小時都有
+      的格才算（資料頭尾的半格不算）
+    - **模式等級**：單一模式的陣風（≥ 37 中、≥ 48 高）與側風（≥ 27 中、≥ 33 高）取較高，門檻照 `airports.json`
+    - `--until`：起報 ≤ 留下的最後一報的 `generatedAt` 才算；`--truth-until` 同 (a)、(b) 每格
+    - (a) 三張表最後多四列，標「（旁觀・回補）」（估算陣風一樣標 `*`）；(b) 多一張**每格各模式的風等級**對停飛實測：
+      快照 8 個模式各自的 `levels.wind` 和回補四個並列（之後決定投票或加權的依據；不分版本；停飛實測同 HD37，
+      含逐班紀錄的機場，表上方另寫算進來的格次裡班次少的有幾個）；摘要多一行回補的行數
+      與起報範圍。JSON 多 `backfill`（`rows`、`gustEstimated`、`runs`、`excludedRunsByUntil`、`gust`、`modelLevels`、
+      `modelLevelsSkipped`），原有欄位不變
   - 最後是資料完整度（每天幾報、每報 8 個模式有幾個、METAR 每站幾小時有觀測、跳過的格與超過實測截止的、路徑
     每報每模式追到幾步與停止原因）與每報一行的附錄
 
@@ -1535,9 +1792,9 @@ HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**�
    - 服務帳號在那個專案要有 BigQuery Job User（跑查詢）；讀 GCS 統計 Zarr 要 allowlist 有含這個服務帳號
    - 開關（Variables，不是 secret）：`WN3_MODE`（`report-only`／`observe`，沒設＝`report-only`）、
      `WN3_VOTING`（`1` 投票，沒設＝旁觀）
-5. TDX（HD32，事件保存的台灣機場航班）：在 <https://tdx.transportdata.tw/> 註冊會員（基礎會員免費），
+5. TDX（HD32，事件保存的台灣機場航班；HD38 起 build 也用）：在 <https://tdx.transportdata.tw/> 註冊會員（基礎會員免費），
    【會員中心 > 資料服務 > API金鑰】取得 Client Id 與 Client Secret，新增兩個 secret：`TDX_CLIENT_ID`、
-   `TDX_CLIENT_SECRET`。沒設時 `events` 只是跳過 TDX，其他照跑
+   `TDX_CLIENT_SECRET`。沒設時 `events` 與 `build` 只是跳過 TDX，其他照跑（`events.yml`、`build.yml` 都讀這兩個）
 6. **Actions → build → Run workflow** 手動跑一次，然後開
    <https://duadoapp.github.io/hongthai/latest.json> 確認
 
@@ -1574,6 +1831,8 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | [ECMWF AIFS Single](https://www.ecmwf.int/en/forecasts/datasets/open-data)（ECMWF 開放資料，經 AWS／Google 鏡像；HD14） | AI 模式的 10 米風 `10u`／`10v`、總降水 `tp`、降雪 `sf`、2 米溫度 `2t`（每 6 小時） | CC BY 4.0，© ECMWF |
 | NOAA AIGFS（[AWS 開放資料 `noaa-nws-graphcastgfs-pds`](https://registry.opendata.aws/noaa-nws-graphcastgfs-pds/)；HD14） | AI 模式的 10 米風 `UGRD`／`VGRD`、6 小時降水 `APCP`、2 米溫度 `TMP` | 美國政府公有領域 |
 | [Open-Meteo](https://open-meteo.com/)（[預報 API](https://open-meteo.com/en/docs) `models=icon_global,jma_gsm`、[系集 API](https://open-meteo.com/en/docs/ensemble-api) `models=google_weathernext2_ensemble`；HD16） | DWD ICON global 與 JMA GSM 的逐時 10 米風、風向、陣風（ICON）、雨量、降雪、天氣碼；Google WeatherNext 2 系集 64 個成員的 10 米風（6 小時一點） | **CC BY 4.0**（Open-Meteo 的資料授權；原始模式 © DWD、JMA、Google）。**免費版只限非商業**、每日 10,000／每月 300,000 次（加權）：**一旦 HongThai 或 Duado 收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或拿掉這三個模式**。（贊助，2026-10-21 Shawn 定案）照 [Open-Meteo 條款](https://open-meteo.com/en/terms)，自願捐款（tip jar）屬於非商業：網頁頁尾連到 duado.app/support（Ko-fi，只收單次自由贊助）。**之後不能開 Ko-fi 的 Memberships 或月費、不能放廣告或贊助商 logo**，否則要改買 Open-Meteo 商業方案或拿掉這三個模式。網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2」。Google 對即時 WeatherNext 資料另有實驗條款，Open-Meteo 的授權來源查不到（上面「已知的保守假設」） |
+| [Open-Meteo](https://open-meteo.com/) [Previous Runs API](https://open-meteo.com/en/docs/previous-runs-api)（HD33a，**只存進 `data` 分支給驗證報告比，不進 `latest.json`**） | UK Met Office Global 10 km（`ukmo_global_deterministic_10km`）、ECCC GEM Global（`gem_global`；文件現在寫 `cmc_gem_gdps`，實測是同一份資料的別名）、Météo-France ARPEGE World（`meteofrance_arpege_world`）、CMA GRAPES Global（`cma_grapes_global`）提前 0–5 天的逐時 10 米風、風向、陣風、雨量 | Open-Meteo（CC BY 4.0）・UK Met Office・ECCC GEM・Météo-France ARPEGE・CMA GRAPES。Open-Meteo [授權頁](https://open-meteo.com/en/licence)列的原始資料條款：UK Met Office **[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.en)**（Open-Meteo UKMO 頁：衍生產品要用相同或相容的授權再散布，所以 `backfill/openmeteo-ukmo.jsonl` 與用到 UKMO 數字的報告標 CC BY-SA 4.0）、加拿大 CMC（[ECCC 開放資料授權](https://eccc-msc.github.io/open-data/licence/readme_en/)）、Météo-France（[開放資料授權](https://donneespubliques.meteofrance.fr/?fond=dossier&id_dossier=1)）、中國氣象局 CMA（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）。免費版只限非商業，條件同上一列 Open-Meteo |
+| [Open-Meteo](https://open-meteo.com/)（預報 API 同上一列的請求，HD33b 加 `cmc_gem_gdps`、`meteofrance_arpege_world`、`cma_grapes_global`） | 三個旁觀模式（不投票）的逐時 10 米風、風向、陣風、雨量、降雪、天氣碼 | Open-Meteo 的 [授權頁](https://open-meteo.com/en/licence) 逐一列原始資料的條款：Canadian Meteorological Centre（ECCC 開放資料授權）；Météo-France（Météo-France 公共資料授權）；China Meteorological Administration（CC BY 4.0）。非商業條款同上一列。網頁與資料來源標「Open-Meteo（CC BY 4.0）・ECCC・Météo-France・CMA」。**UK Met Office 不進 `latest.json`**：Open-Meteo 的 UKMO 資料是 **CC BY-SA 4.0**（UKMO 文件頁：衍生產品要用相同或相容的授權再發布），放進來整份 `latest.json` 與網頁都要跟著 ShareAlike；2026-10-25 Shawn 定案只用在 HD33a 的 29W 報告比對 |
 | [Google WeatherNext 3](https://developers.google.com/weathernext)（BigQuery `weathernext_3_0_0_0p1deg`，備援 GCS `gs://weathernext3_statistics_spatial/`；HD15，要 allowlist） | 64 成員統計（p50、平均、p90）的逐時 10 米風、平均 u／v、1 小時雨量、2 米溫度；平均海平面氣壓（颱風路徑） | **有效時間在 1 小時以前：CC BY 4.0**（© Google LLC）；**1 小時內或未來：[GDM Real-Time Weather Forecasting Experimental Data Terms of Use](https://storage.googleapis.com/weathernext-public/terms-of-use.pdf)**——不能公開未修改的數字、日本是限制國家（下面「WeatherNext 3 的條款」）。所以預設 `report-only`：只存 CC BY 4.0 那部分 |
 | [AviationWeather.gov Data API](https://aviationweather.gov/data/api/) | TAF、METAR | 美國政府公有領域 |
 | [OurAirports](https://ourairports.com/data/)（`airports.csv`、`runways.csv`） | 新增 46 個機場（H9 的 36 個、HD3 的 10 個）的座標與跑道真北方位、ICAO／IATA 核對 | 公有領域（Unlicense） |
@@ -1590,7 +1849,7 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 松山機場即時航班（data.gov.tw [37242](https://data.gov.tw/dataset/37242)／[37248](https://data.gov.tw/dataset/37248)／[37317](https://data.gov.tw/dataset/37317)／[37319](https://data.gov.tw/dataset/37319)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
 | 高雄機場即時航班（data.gov.tw [33656](https://data.gov.tw/dataset/33656)／[33655](https://data.gov.tw/dataset/33655)／[33651](https://data.gov.tw/dataset/33651)／[33649](https://data.gov.tw/dataset/33649)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
-| [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)（交通部；基礎服務「公共運輸-航空」v2 `Air/FIDS/Airport`；HD32） | 台灣十個機場的逐班航班狀態，存事件保存的 `flights/`（`source: "tdx"`，不存原始回應、不進 `latest.json`） | 政府資料開放授權條款（平臺[資料授權利用條款](https://tdx.transportdata.tw/term)）：公開發行或展示時須標示資料來源為「交通部運輸資料流通服務平臺」或其資料來源單位（例如「資料來源：交通部運輸資料流通服務平臺（TDX）」） |
+| [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)（交通部；基礎服務「公共運輸-航空」v2 `Air/FIDS/Airport`；HD32） | 台灣十個機場的逐班航班狀態，存事件保存的 `flights/`（`source: "tdx"`，不存原始回應）；HD38 起台中、台南、花蓮、台東、澎湖、金門、馬祖南竿的每 6 小時取消／延誤數進 `latest.json`（`slots[].flights`，`source: "tdx"`） | 政府資料開放授權條款（平臺[資料授權利用條款](https://tdx.transportdata.tw/term)）：公開發行或展示時須標示資料來源為「交通部運輸資料流通服務平臺」或其資料來源單位（例如「資料來源：交通部運輸資料流通服務平臺（TDX）」） |
 | 澳門民航局航班資訊（data.gov.mo [離港（英文）](https://data.gov.mo/Detail?id=f910cf2e-5e30-45c3-9e62-3eb6bf912db3)／[抵港（英文）](https://data.gov.mo/Detail?id=44b62bd1-6c84-421f-b571-52ab184c7df3)） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 澳門政府數據開放平台使用條款 |
 | [芫荽 Iansui](https://github.com/ButTaiwan/iansui)（子集，`assets/fonts/`；HD1） | 分享預覽圖的中文字 | [SIL OFL 1.1](assets/fonts/OFL-Iansui.txt) |
 | [Fraunces](https://github.com/undercasetype/Fraunces)（SOFT 100、wght 600 靜態檔的子集；HD1） | 分享預覽圖的英文與數字 | [SIL OFL 1.1](assets/fonts/OFL-Fraunces.txt) |
@@ -1641,6 +1900,13 @@ HD16 Open-Meteo（2026-10-20 11:17Z 實抓，細節在 `src/hongthai/sources/ope
   每日 5,000，WeatherNext 2 也是 51 個機場全抓
 - JMA GSM 沒有陣風（`wind_gusts_10m_jma_gsm` 全是 `null`、單位 `undefined`）→ 估算；ICON global、JMA GSM 都沒有
   能見度。系集的成員 0 是不帶後綴的 `wind_speed_10m`，其他 `_member01`…`_member63`
+- HD33b 的三個旁觀模式（2026-10-25 00:08Z 開發機實抓，51 個機場、和 build 同一個請求；細節在
+  `openmeteo.py` 開頭）：預報 1,403,007 bytes、系集 555,903 bytes，資料＋metadata 共 3.9 秒。三個都有陣風、
+  雨量、降雪、天氣碼；**CMA 有能見度**，GEM、ARPEGE 沒有。GEM 144 小時全有，ARPEGE 只到起報後約 102 小時、
+  CMA 約 122 小時。GEM 的代號 `cmc_gem_gdps`（同 HD33a）和 `gem_global` 回的資料一樣（各 381 KB、7,344 筆
+  全有值）。metadata 的路徑和模式名不同：`cmc_gem_gdps_15km`（`cmc_gem_gdps` 的 metadata 停在 2026-05）、
+  `meteofrance_arpege_world025`、`cma_grapes_global`。預報 7 個變數 × 5 個模式 → 3.5 × 51 ＝ 178.5，
+  **一報 504.9**（< 每分鐘 600）、一天 4 報約 2,020
 - 起報時間用 metadata API（`api.open-meteo.com/data/dwd_icon/static/meta.json`、`…/jma_gsm/…`、
   `ensemble-api.open-meteo.com/data/google_weathernext2_ensemble/static/meta.json` 的
   `last_run_initialisation_time`）。11:21Z 查：ICON 06Z（09:26Z 上 API）、WeatherNext 2 00Z（11:02Z 上 API）

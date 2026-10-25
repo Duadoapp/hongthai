@@ -57,6 +57,45 @@
   預測仍取整個 0–120 小時的最高等級（和 AI 的 5 天燈同一範圍）。另算一份「只算完整窗」
   （沒有格被丟掉的）當對照；(c) 真相只用 `validAt` ≤ `T` 的點，模式路徑 `validAt` > `T`
   的點不算
+
+停飛實測加讀逐班航班（HD37，Shawn 2026-10-25 定案，
+`docs/prompts/2026-10-25-HD37-report-flights-truth.md`）：
+
+- 來源依機場選：`history/cancellations/` 有的機場照舊用它；沒有的機場用 `events/<id>/flights/`
+  的逐班紀錄（`source: tdx`）。同一班（`airport`、`dir`、`flight`、`schedUtc`、`source`）取 `t`
+  最新的一行，表定時間落在格內的算進那格，停飛規則和 `cancellations/` 完全一樣；那格沒有航班不算
+- 實測的最後時間每個機場各一個：資料最新的時間（`cancellations/` 是那個機場的 `asOf`；逐班是
+  整批最新的 `t`，所有 `source: tdx` 的行裡最大的）和 `--truth-until` 早的那個。
+  `levels.truthLast` 是各機場裡最晚的
+- 班次少：那格表定（出發＋抵達）少於 `FEW_FLIGHTS`（4）班，`cancellations/` 的機場也照同一個
+  標準（用那格的 `total`）。規則照判，只是另外列：每格是「其中班次少」的子集；每報每機場是結果
+  靠班次少的格決定的窗（有停飛時停飛的格全是班次少、沒停飛時有實測的格全是班次少；`few_window`）
+- 窗裡的格都沒有航班列（逐班紀錄開始之前的報）不當成「沒停飛」，計 `windowNoFlights`
+- 狀態重新分類（只在報告裡，不改存檔；`reclassify`）：`class: other` 的 `加班` → 正常、`轉降` →
+  轉降（不算取消，另外計數）、`預計HH:MM到站／離站／出發`（可帶 `MM/DD` 或 `YYYY/MM/DD`）→ 預計
+  比表定晚 60 分鐘以上算延誤、否則正常（沒寫日期照 `cancellations.py` 放在表定前 6 小時到後
+  18 小時之間）；其他照舊 `other`，列出前 10 種
+
+旁觀・回補（HD33a，`docs/prompts/2026-10-25-HD33a-new-models-backfill.md`）：事件目錄有
+`backfill/openmeteo-<模式>.jsonl`（`python -m hongthai.events backfill-openmeteo`，UKMO、GEM、
+ARPEGE、CMA GRAPES 經 Open-Meteo Previous Runs API）時多算這四個模式；沒有這個目錄時報告與 JSON
+和以前一樣。
+
+- 提前時間：Open-Meteo 的 `previousDay` N＝提前 24N 起、不到 24(N+1) 小時的那一報（文件：day1 是
+  valid time 前 24 小時的預報）。照提示詞把「起報」當成**格開始時間減 N 天那一天的 00Z**（一格裡的
+  小時都用同一個起報），提前時間＝格的 `from` − 起報＝24N＋0／6／12／18，照 HD22 的切法落在第 N 段：
+  N＝0 → 0–24、1 → 24–48 … 4 → 96–120；N＝5 是 120 小時以後，不算（檔裡照存）。同一個起報的格合成
+  一報（`BackfillRun`），像 WN3 事件檔一樣算。格內 (from, to] 6 個小時都有才算（資料頭尾的半格不算）
+- 一格的預測照 `assess.hourly_for_slot`（ICON／JMA 那套）：有陣風的模式取 (from, to] 小時裡前一小時
+  最大陣風的最大，側風每小時用陣風與風向算再取大；陣風全是 null 的模式（`gustEstimated`）取
+  [from, to] 小時裡最大的平均風 × 機場的係數 G，側風用每小時的平均風 × G。G 用快照裡同一機場
+  估算陣風那幾筆的 `gustFactor`（起報當時或之前最近的一報；之前沒有就用最早有的那報），都沒有用 1.4
+- 模式等級：單一模式的陣風（≥ 37 中、≥ 48 高）與側風（≥ 27 中、≥ 33 高）取較高，門檻照
+  `airports.json`（同 `assess.gust_level`／`crosswind_level`；`assess` 要 numpy，這裡照抄不載入）
+- `--until`：起報 ≤ 留下的最後一報的 `generatedAt`（沒有快照時用 `--until` 本身）的才算；
+  `--truth-until` 和 (a)、(b) 每格同一套
+- (a) 陣風：四列接在各表最後，標「（旁觀・回補）」；(b) 多一張「每格各模式的風等級」對停飛實測：快照
+  8 個模式各自的 `levels.wind` 與回補四個並列（之後決定投票或加權用）
 """
 
 from __future__ import annotations
@@ -78,8 +117,17 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from hongthai.config import Event, load_events  # noqa: E402
-from hongthai.timeutil import iso, parse_time  # noqa: E402
+from hongthai import cancellations  # noqa: E402
+from hongthai.config import (  # noqa: E402
+    GUST_FACTOR_DEFAULT,
+    Airport,
+    Event,
+    Runway,
+    Thresholds,
+    load_airports,
+    load_events,
+)
+from hongthai.timeutil import floor_6h, iso, parse_time  # noqa: E402
 from hongthai.units import KT_PER_MS  # noqa: E402
 
 TAIPEI = ZoneInfo("Asia/Taipei")
@@ -100,9 +148,27 @@ LEVELS = ("low", *RISKY)
 GUST_THRESHOLDS = (37, 48)
 MIN_WIND_KT = 10
 MAX_GAP_H = 12
+# 停飛實測的來源（HD37）
+CANCELLATIONS, FLIGHTS = "cancellations", "flights"
+FLIGHT_SOURCE = "tdx"
+FLIGHT_CLASSES = ("normal", "cancelled", "delayed", "diverted", "other")
+FLIGHT_CLASS_NAMES = {
+    "normal": "正常",
+    "cancelled": "取消",
+    "delayed": "延誤",
+    "diverted": "轉降",
+    "other": "other",
+}
+FEW_FLIGHTS = 4  # 一格表定（出發＋抵達）少於這麼多班標「班次少」（Shawn 2026-10-25）
 _STAMP = "%Y%m%dT%H%MZ"
 _TRACK_FILE = re.compile(r"^(\d{8}T\d{4}Z)-(.+)\.json$")
 _NAME = re.compile(r"[A-Za-z][A-Za-z' -]*[A-Za-z]")
+# HD33a：Open-Meteo Previous Runs 回補的旁觀模式（只在報告裡比）
+BACKFILL_ORDER = ("ukmo", "gem", "arpege", "cma")
+BACKFILL_LABEL = "（旁觀・回補）"
+BACKFILL_MAX_DAY = 4  # previousDay 5 是提前 120 小時以後
+_BACKFILL_FILE = re.compile(r"^openmeteo-(.+)\.jsonl$")
+WIND_LEVELS = ("low", "medium", "high")
 
 
 # ---- 小工具 ----
@@ -239,21 +305,60 @@ def slot_obs(obs: list[Obs], start: datetime, end: datetime) -> tuple[float, flo
 
 
 @dataclass
+class AirportTruth:
+    """一個機場的停飛實測：每個 UTC 6 小時格一列（`cancellations/` 的列，或逐班彙整成同樣的形狀
+    `{"dep": {"total", "cancelled", "delayed", "diverted", "other"}, "arr": {…}}`）。"""
+
+    source: str  # CANCELLATIONS／FLIGHTS
+    rows: dict[datetime, dict]  # 格的 `from` → 列
+    last: (
+        datetime | None
+    )  # 資料最新的時間（`cancellations/` 是這個機場的 `asOf`、逐班是整批的 `t`）
+
+
+@dataclass
 class Cancellations:
-    rows: dict[tuple[str, datetime], dict]
-    as_of: datetime | None
-    airports: frozenset[str]
+    """停飛實測（HD37）：`cancellations/` 有的機場用它，其他機場用逐班紀錄。"""
+
+    by_airport: dict[str, AirportTruth]
+    # 逐班重新分類（只算實測算到之前結束的格）：類別 → 班數、規則 → 班數、看不懂的狀態 → 班數
+    classes: Counter[str] = field(default_factory=Counter)
+    reclassified: Counter[str] = field(default_factory=Counter)
+    unknown: Counter[str] = field(default_factory=Counter)
+
+    @property
+    def airports(self) -> frozenset[str]:
+        return frozenset(self.by_airport)
+
+    @property
+    def as_of(self) -> datetime | None:
+        """`cancellations/` 最新的 `asOf`（定版以來的「航班資料到」）。"""
+        ts = [a.last for a in self.by_airport.values() if a.source == CANCELLATIONS and a.last]
+        return max(ts, default=None)
+
+    def last(self, airport: str, until: datetime | None) -> datetime | None:
+        """這個機場實測的最後時間＝min(`until`, 資料最新的時間)。"""
+        a = self.by_airport.get(airport)
+        if a is None or a.last is None:
+            return None
+        return a.last if until is None else min(until, a.last)
 
     def stopped(
         self, airport: str, start: datetime, end: datetime, rate: float, count: int
-    ) -> bool | None:
-        """那格停飛了沒；還沒結束或沒有那格的列回 None。"""
-        if self.as_of is None or end > self.as_of:
-            return None
-        row = self.rows.get((airport, start))
+    ) -> tuple[bool | None, bool]:
+        """（那格停飛了沒, 班次少）；還沒結束或沒有那格的列回 （None, False）。"""
+        a = self.by_airport.get(airport)
+        if a is None or a.last is None or end > a.last:
+            return None, False
+        row = a.rows.get(start)
         if row is None:
-            return None
-        return is_stopped(row, rate, count)
+            return None, False
+        actual = is_stopped(row, rate, count)
+        return actual, actual is not None and row_total(row) < FEW_FLIGHTS
+
+
+def row_total(row: dict) -> int:
+    return sum(int((row.get(k) or {}).get("total") or 0) for k in ("dep", "arr"))
 
 
 def is_stopped(row: dict, rate: float, count: int) -> bool | None:
@@ -268,8 +373,7 @@ def is_stopped(row: dict, rate: float, count: int) -> bool | None:
 
 
 def load_cancellations(history: Path) -> Cancellations:
-    rows: dict[tuple[str, datetime], dict] = {}
-    as_of = None
+    by_airport: dict[str, AirportTruth] = {}
     for p in sorted((history / "cancellations").glob("????-??-??.json")):
         doc = _read_json(p)
         for r in doc if isinstance(doc, list) else []:
@@ -278,10 +382,176 @@ def load_cancellations(history: Path) -> Cancellations:
             start, t = parse_time(r.get("from")), parse_time(r.get("asOf"))
             if not isinstance(r.get("airport"), str) or start is None:
                 continue
-            rows[(r["airport"], start)] = r
-            if t is not None and (as_of is None or t > as_of):
-                as_of = t
-    return Cancellations(rows, as_of, frozenset(a for a, _ in rows))
+            a = by_airport.setdefault(r["airport"], AirportTruth(CANCELLATIONS, {}, None))
+            a.rows[start] = r
+            if t is not None and (a.last is None or t > a.last):
+                a.last = t
+    return Cancellations(by_airport)
+
+
+# ---- 真相：逐班航班（HD37） ----
+
+_EST = re.compile(
+    r"預計\s*(?:(?:(\d{4})[/-])?(\d{1,2})[/-](\d{1,2})\s*)?(\d{1,2}:\d{2})\s*(?:到站|離站|出發|抵達|起飛)?"
+)
+
+
+def reclassify(row: dict, tz: ZoneInfo) -> tuple[str, str | None]:
+    """逐班一行的 `class` → 報告用的類別（`normal`／`cancelled`／`delayed`／`diverted`／`other`）與
+    套到的規則（沒套到回 None）。只動 `class: other` 的：`加班` → 正常；`轉降` → 轉降；
+    `預計HH:MM到站／離站`（可帶 `MM/DD` 或 `YYYY/MM/DD`）→ 預計時間比表定晚 60 分鐘以上算延誤，
+    否則正常（沒寫日期照 `cancellations.py` 放在表定前 6 小時到後 18 小時之間）。"""
+    cls = row.get("class")
+    if cls in ("normal", "cancelled", "delayed"):
+        return str(cls), None
+    status = str(row.get("status") or "").strip()
+    compact = re.sub(r"\s+", "", status)
+    if compact.startswith("加班"):
+        return "normal", "extra"
+    if compact.startswith("轉降"):
+        return "diverted", "diverted"
+    m = _EST.fullmatch(status)
+    sched = parse_time(row.get("schedUtc"))
+    clock = cancellations._clock(m[4]) if m else None
+    if m and sched is not None and clock is not None:
+        local = sched.astimezone(tz)
+        if m[2]:
+            try:
+                day = (
+                    date(int(m[1]), int(m[2]), int(m[3]))
+                    if m[1]
+                    else cancellations._nearest_year(int(m[2]), int(m[3]), local.date())
+                )
+            except ValueError:
+                return "other", None
+            est = datetime.combine(day, clock, tzinfo=tz)
+        else:
+            est = cancellations._near(local, clock)
+        if est is not None:
+            late = est - local >= timedelta(minutes=cancellations.DELAY_MINUTES)
+            return ("delayed", "estDelayed") if late else ("normal", "estOnTime")
+    return "other", None
+
+
+def _zero_counts() -> dict[str, int]:
+    return {"total": 0, **dict.fromkeys(FLIGHT_CLASSES[1:], 0)}
+
+
+def load_flights(
+    d: Path,
+    truth: Cancellations,
+    airports: Iterable[str],
+    tz: dict[str, str],
+    until: datetime | None = None,
+) -> None:
+    """`flights/*.jsonl`（`source: tdx`）→ 補進 `truth`：只補 `airports` 裡 `cancellations/` 沒有的
+    機場。同一班（`airport`、`dir`、`flight`、`schedUtc`、`source`）取 `t` 最新的一行（同 `t` 取檔裡
+    後面的），依表定時間歸格。逐班機場的 `last` 是整批最新的 `t`（所有 `source: tdx` 的行，
+    十個機場是同一個請求抓的；逐班只在有變化時寫，班次少的機場自己最新的 `t` 會停在很早）。
+    重新分類的次數只算實測的最後時間（min(`until`, `last`)）之前結束的格。"""
+    want = set(airports) - truth.airports
+    latest: dict[tuple, tuple[datetime, dict]] = {}
+    last: datetime | None = None
+    for r in _jsonl(sorted((d / "flights").glob("*.jsonl"))):
+        airport, t = r.get("airport"), parse_time(r.get("t"))
+        if r.get("source") != FLIGHT_SOURCE or t is None:
+            continue
+        last = t if last is None else max(last, t)
+        if airport not in want:
+            continue
+        key = (airport, r.get("dir"), r.get("flight"), r.get("schedUtc"), r.get("source"))
+        if key not in latest or t >= latest[key][0]:
+            latest[key] = (t, r)
+    step = timedelta(hours=6)
+    for (airport, direction, *_), (_, r) in latest.items():
+        sched = parse_time(r.get("schedUtc"))
+        if direction not in ("dep", "arr") or sched is None:
+            continue
+        zone = ZoneInfo(tz.get(airport, "Asia/Taipei"))
+        cls, rule = reclassify(r, zone)
+        a = truth.by_airport.setdefault(airport, AirportTruth(FLIGHTS, {}, last))
+        start = floor_6h(sched)
+        row = a.rows.setdefault(start, {"dep": _zero_counts(), "arr": _zero_counts()})
+        row[direction]["total"] += 1
+        if cls != "normal":
+            row[direction][cls] += 1
+        end_ok = (lt := truth.last(airport, until)) is not None and start + step <= lt
+        if end_ok:
+            truth.classes[cls] += 1
+            if rule:
+                truth.reclassified[rule] += 1
+            if cls == "other":
+                truth.unknown[str(r.get("status") or "").strip()] += 1
+
+
+def airport_tz(path: Path) -> dict[str, str]:
+    doc = _read_json(path)
+    rows = doc.get("airports") if isinstance(doc, dict) else None
+    return {
+        a["icao"]: a["tz"]
+        for a in rows or []
+        if isinstance(a, dict) and isinstance(a.get("icao"), str) and isinstance(a.get("tz"), str)
+    }
+
+
+@dataclass
+class TruthSource:
+    """報告「停飛實測」表的一列。"""
+
+    source: str
+    last: datetime | None  # 資料最新的時間
+    used: datetime | None  # 實測的最後時間＝min(實測截止, last)
+    slots: int  # 實測的最後時間之前結束、有航班的格
+    few: int  # 其中班次少的
+    flights: int
+    cancelled: int
+    delayed: int
+    diverted: int | None  # `cancellations/` 沒有這一類
+
+    def summary(self) -> dict:
+        return {
+            "source": self.source,
+            "last": iso(self.last),
+            "truthLast": iso(self.used),
+            "slots": self.slots,
+            "fewSlots": self.few,
+            "flights": self.flights,
+            "cancelled": self.cancelled,
+            "delayed": self.delayed,
+            "diverted": self.diverted,
+        }
+
+
+def truth_sources(
+    truth: Cancellations, airports: Iterable[str], until: datetime | None
+) -> dict[str, TruthSource]:
+    out = {}
+    for icao in airports:
+        a = truth.by_airport.get(icao)
+        if a is None:
+            continue
+        used = truth.last(icao, until)
+        rows = [
+            r
+            for start, r in a.rows.items()
+            if used is not None and start + timedelta(hours=6) <= used and row_total(r) > 0
+        ]
+
+        def total(k: str, rows: list[dict] = rows) -> int:
+            return sum(int((r.get(d) or {}).get(k) or 0) for r in rows for d in ("dep", "arr"))
+
+        out[icao] = TruthSource(
+            a.source,
+            a.last,
+            used,
+            len(rows),
+            sum(row_total(r) < FEW_FLIGHTS for r in rows),
+            total("total"),
+            total("cancelled"),
+            total("delayed"),
+            total("diverted") if a.source == FLIGHTS else None,
+        )
+    return out
 
 
 # ---- 真相：颱風位置 ----
@@ -439,6 +709,7 @@ class Slot:
     end: datetime
     level: str | None
     gusts: list[ModelGust]
+    winds: dict[str, str] = field(default_factory=dict)  # 模式 → 自己的風等級（`levels.wind`）
 
 
 @dataclass
@@ -446,6 +717,7 @@ class AirportReport:
     icao: str
     slots: list[Slot]
     ai: dict[str, str | None]  # claude／gemini → `status: ok` 的等級，其他 None
+    gust_factor: float | None = None  # 估算陣風那幾筆的 `gustFactor`（HD33a 回補估算用）
 
 
 @dataclass
@@ -525,6 +797,7 @@ def parse_report(
         for k in AI_KEYS:
             ai_ok[k] += levels[k] is not None
         slots = []
+        factor: float | None = None
         for s in a.get("slots") or []:
             start, end = parse_time(s.get("from")), parse_time(s.get("to"))
             if start is None or end is None:
@@ -534,16 +807,26 @@ def parse_report(
             if total is not None:
                 votes = max(votes or 0, int(total))
             gusts = []
+            winds: dict[str, str] = {}
             for e in model_entries(model, doc.get("runs")):
+                # HD33b 起快照的 `models[]` 也有 gem／arpege／cma（旁觀）：這幾個的比對用回補檔，
+                # 快照那筆跳過，免得和回補的同一個 id 算進同一列
+                if e.get("id") in BACKFILL_ORDER:
+                    continue
                 if e.get("level") is not None and e.get("run"):
                     runs.setdefault(e["id"], e["run"])
                 g = _num(e.get("gustKt"))
                 if g is not None:
                     gusts.append(ModelGust(e["id"], g, bool(e.get("gustEstimated"))))
+                wind = (e.get("levels") or {}).get("wind")
+                if wind in WIND_LEVELS:
+                    winds[e["id"]] = wind
+                if factor is None and e.get("gustEstimated"):
+                    factor = _num(e.get("gustFactor"))
             lv = s.get("level")
-            slots.append(Slot(start, end, lv if lv in LEVELS else None, gusts))
+            slots.append(Slot(start, end, lv if lv in LEVELS else None, gusts, winds))
         if a.get("icao") in want:
-            out[a["icao"]] = AirportReport(a["icao"], slots, levels)
+            out[a["icao"]] = AirportReport(a["icao"], slots, levels, factor)
     return Report(generated, path, votes, runs, ai_ok, out)
 
 
@@ -597,6 +880,199 @@ def load_wn3(d: Path, airports: Iterable[str]) -> list[Wn3Run]:
             aps[icao] = rows
         out.append(Wn3Run(run, aps))
     return out
+
+
+# ---- 旁觀・回補（HD33a） ----
+
+
+@dataclass
+class BfHour:
+    valid: datetime
+    wind: float | None
+    wdir: float | None
+    gust: float | None
+
+
+@dataclass
+class BackfillData:
+    """`backfill/openmeteo-<模式>.jsonl`：模式 →（機場, previousDay）→ 有效時間 → 那個小時。"""
+
+    hours: dict[str, dict[tuple[str, int], dict[datetime, BfHour]]]
+    estimated: dict[str, bool]  # 模式 → 陣風是不是估算（任一行 `gustEstimated`）
+    rows: dict[str, int]  # 模式 → 行數（去重後）
+
+
+@dataclass
+class BackfillRun:
+    """同一個（模式, 起報）的格（起報＝格開始時間減 previousDay 天那一天的 00Z）。"""
+
+    model: str
+    run: datetime
+    airports: dict[str, list[Slot]]
+
+
+def load_backfill(d: Path, airports: Iterable[str]) -> BackfillData | None:
+    """`backfill/openmeteo-*.jsonl` → 回補資料；沒有這個目錄或檔回 None。同一個（機場、`validAt`、
+    `previousDay`）只留第一行。"""
+    files = sorted(
+        p for p in (d / "backfill").glob("openmeteo-*.jsonl") if _BACKFILL_FILE.match(p.name)
+    )
+    if not files:
+        return None
+    want = set(airports)
+    out = BackfillData({}, {}, {})
+    for p in files:
+        m = _BACKFILL_FILE.match(p.name)
+        assert m
+        model = m.group(1)
+        hours = out.hours.setdefault(model, {})
+        out.estimated.setdefault(model, False)
+        out.rows.setdefault(model, 0)
+        for r in _jsonl([p]):
+            icao, t, day = r.get("icao"), parse_time(r.get("validAt")), r.get("previousDay")
+            if icao not in want or t is None or not isinstance(day, int) or isinstance(day, bool):
+                continue
+            by_t = hours.setdefault((icao, day), {})
+            if t in by_t:
+                continue
+            by_t[t] = BfHour(
+                t, _num(r.get("windKt")), _num(r.get("windDir")), _num(r.get("gustKt"))
+            )
+            out.rows[model] += 1
+            if r.get("gustEstimated") is True:
+                out.estimated[model] = True
+    return out
+
+
+def _round1(v: float | None) -> float | None:
+    return None if v is None else round(v, 1)
+
+
+def crosswind_kt(
+    speed: float | None, wdir: float | None, runways: Iterable[Runway]
+) -> float | None:
+    """同 `assess.crosswind_kt`：所有跑道（每條兩個方向）裡最小的側風分量；沒有風向時＝風速。"""
+    runways = tuple(runways)
+    if speed is None or not runways:
+        return None
+    if wdir is None:
+        return float(speed)
+    return min(speed * abs(sin(radians(wdir - h))) for r in runways for h in r.headings)
+
+
+def wind_level(gust: float | None, crosswind: float | None, th: Thresholds) -> str | None:
+    """同 `assess._wind_level`：陣風（≥ 中／高門檻）與側風取較高；兩個都沒有回 None。"""
+    levels = []
+    if gust is not None:
+        levels.append(
+            2 if gust >= th.model_high_gust_kt else 1 if gust >= th.model_medium_gust_kt else 0
+        )
+    if crosswind is not None:
+        levels.append(
+            2
+            if crosswind >= th.crosswind_high_kt
+            else 1
+            if crosswind >= th.crosswind_medium_kt
+            else 0
+        )
+    return WIND_LEVELS[max(levels)] if levels else None
+
+
+def backfill_slot(
+    hours: dict[datetime, BfHour],
+    start: datetime,
+    end: datetime,
+    estimated: bool,
+    runways: Iterable[Runway],
+    g: float,
+) -> tuple[float | None, float | None]:
+    """一格的（陣風, 側風），同 `assess.hourly_for_slot`（見開頭「旁觀・回補」）。"""
+    runways = tuple(runways)
+    step = timedelta(hours=1)
+    n = int(lead_hours(end, start))
+    if estimated:
+        inst = [hours[t] for t in (start + i * step for i in range(n + 1)) if t in hours]
+        winds = [(h.wind, h.wdir) for h in inst if h.wind is not None]
+        if not winds:
+            return None, None
+        wind = round(max(w for w, _ in winds), 1)
+        xw = [crosswind_kt(w * g, wd, runways) for w, wd in winds]
+        return round(wind * g, 1), _round1(max((x for x in xw if x is not None), default=None))
+    prev = [hours[t] for t in (start + i * step for i in range(1, n + 1)) if t in hours]
+    hits = [h for h in prev if h.gust is not None]
+    if not hits:
+        return None, None
+    top = max(h.gust for h in hits if h.gust is not None)
+    xw = [crosswind_kt(h.gust, h.wdir, runways) for h in hits]
+    return round(top, 1), _round1(max((x for x in xw if x is not None), default=None))
+
+
+def gust_factor_at(reports: list[Report], icao: str, t: datetime) -> float:
+    """`t` 當時或之前最近一報那個機場的 G；之前沒有用最早有的那報；都沒有 1.4。"""
+    have = [
+        (r.generated, f) for r in reports if (a := r.airports.get(icao)) and (f := a.gust_factor)
+    ]
+    if not have:
+        return GUST_FACTOR_DEFAULT
+    before = [f for at, f in have if at <= t]
+    return before[-1] if before else have[0][1]
+
+
+def backfill_runs(
+    data: BackfillData, sites: dict[str, Airport], reports: list[Report]
+) -> list[BackfillRun]:
+    """回補資料 → 每個（模式, 起報）一報、每個機場每格一個 `Slot`（`gusts` 一筆、`winds` 一筆）。
+    `previousDay` 0–4 才算；格見 `full_slots`。"""
+    runs: dict[tuple[str, datetime], dict[str, list[Slot]]] = {}
+    for model, by_key in data.hours.items():
+        est = data.estimated.get(model, False)
+        for (icao, day), hours in by_key.items():
+            if not 0 <= day <= BACKFILL_MAX_DAY or icao not in sites:
+                continue
+            site = sites[icao]
+            for start in full_slots(hours):
+                end = start + timedelta(hours=6)
+                run = datetime.combine(
+                    (start - timedelta(days=day)).date(), datetime.min.time(), UTC
+                )
+                g = gust_factor_at(reports, icao, run) if est else 1.0
+                gust, xw = backfill_slot(hours, start, end, est, site.runways, g)
+                lv = wind_level(gust, xw, site.thresholds)
+                if gust is None and lv is None:
+                    continue
+                slot = Slot(
+                    start,
+                    end,
+                    None,
+                    [ModelGust(model, gust, est)] if gust is not None else [],
+                    {model: lv} if lv is not None else {},
+                )
+                runs.setdefault((model, run), {}).setdefault(icao, []).append(slot)
+    return [
+        BackfillRun(m, run, {k: sorted(v, key=lambda s: s.start) for k, v in aps.items()})
+        for (m, run), aps in sorted(runs.items(), key=lambda x: (x[0][1], x[0][0]))
+    ]
+
+
+def full_slots(hours: dict[datetime, BfHour]) -> list[datetime]:
+    """(from, to] 6 個小時都有的 6 小時格（UTC 00／06／12／18 起）的開始時間；資料頭尾只有幾個小時
+    的格不算（不然最大值偏低）。"""
+    step = timedelta(hours=1)
+    starts = set()
+    for t in hours:
+        u = t - step
+        starts.add(u.replace(hour=u.hour - u.hour % 6, minute=0, second=0, microsecond=0))
+    return sorted(s for s in starts if all(s + i * step in hours for i in range(1, 7)))
+
+
+def backfill_until(
+    runs: list[BackfillRun], reports: list[Report], until: datetime | None
+) -> list[BackfillRun]:
+    """`--until`：起報 ≤ 留下的最後一報的 `generatedAt`（沒有快照用 `until`）。"""
+    if until is None:
+        return runs
+    last = reports[-1].generated if reports else until
+    return [r for r in runs if r.run <= last]
 
 
 # ---- (a) 陣風 ----
@@ -680,6 +1156,17 @@ def gust_stats(
     return res
 
 
+def backfill_gust_stats(
+    runs: list[BackfillRun], metars: dict[str, list[Obs]], until: datetime | None = None
+) -> GustResult:
+    """回補四個模式的 (a)：同 `gust_stats`，參考時間是起報（同 WN3 事件檔）。"""
+    res = GustResult({}, {}, set())
+    for r in runs:
+        for icao, slots in r.airports.items():
+            _gust_slots(slots, r.run, metars.get(icao, []), res, until)
+    return res
+
+
 # ---- (b) 等級 ----
 
 
@@ -757,12 +1244,28 @@ class LevelResult:
     slot: dict[str, dict[str, list[Confusion]]]  # 版本 → risky／high → 每段
     window: dict[str, WindowStats]  # 「規則燈（定版前）」等 → 統計（窗截到實測截止）
     window_full: dict[str, WindowStats]  # 同上，只算完整窗（沒有格超過實測截止的）
-    truth_last: datetime | None = None  # 實測的最後時間＝min(實測截止, 航班 `asOf`)
+    truth_last: datetime | None = None  # 實測的最後時間＝min(實測截止, 各機場資料最新的時間)
     counts: Counter[str] = field(default_factory=Counter)
+    # HD37：班次少的格與窗（上面的子集，另外列）、每個機場的實測來源
+    slot_few: dict[str, dict[str, list[Confusion]]] = field(default_factory=dict)
+    window_few: dict[str, WindowStats] = field(default_factory=dict)
+    window_full_few: dict[str, WindowStats] = field(default_factory=dict)
+    sources: dict[str, TruthSource] = field(default_factory=dict)
+    classes: Counter[str] = field(default_factory=Counter)  # 逐班重新分類後各類班數
+    reclassified: Counter[str] = field(default_factory=Counter)  # 套到各規則的班數
+    unknown: Counter[str] = field(default_factory=Counter)  # 看不懂、照舊 other 的狀態
 
 
 def rule_key(version: str) -> str:
     return f"rule:{version}"
+
+
+def few_window(window: list[tuple[int, bool | None, bool]]) -> bool:
+    """窗的結果是不是靠班次少的格決定：有停飛時停飛的格全是班次少；沒停飛時有實測的格全是班次少
+    （拿掉班次少的格，結果會變或沒有實測）。"""
+    stopped = [few for _, x, few in window if x]
+    judged = [few for _, x, few in window if x is not None]
+    return all(stopped) if stopped else bool(judged) and all(judged)
 
 
 def level_stats(
@@ -774,18 +1277,27 @@ def level_stats(
     count: int,
     until: datetime | None = None,
 ) -> LevelResult:
-    """`until` 是實測截止；實測的最後時間取它和航班 `asOf` 早的那個，晚於它結束的格不算
-    （每格計 `slotPastTruth`；每報每機場的窗丟掉那些格，計 `windowTruncated`，一格不剩再計
-    `windowNoTruth`）。"""
+    """`until` 是實測截止；每個機場實測的最後時間取它和那個機場資料最新的時間（`cancellations/`
+    的 `asOf`、逐班的 `t`）早的那個，晚於它結束的格不算（每格計 `slotPastTruth`；每報每機場的窗
+    丟掉那些格，計 `windowTruncated`，一格不剩再計 `windowNoTruth`）。班次少的格與窗另外再記一份
+    （`slot_few`、`window_few`）。"""
     scope = sorted(set(airports) & canc.airports)
     keys = (rule_key(BEFORE), rule_key(AFTER), *AI_KEYS)
-    last = canc.as_of if until is None or canc.as_of is None else min(until, canc.as_of)
+    lasts = {icao: canc.last(icao, until) for icao in scope}
+    known = [t for t in lasts.values() if t is not None]
     res = LevelResult(
         scope,
         {BEFORE: _confusions(), AFTER: _confusions()},
         {k: WindowStats() for k in keys},
         {k: WindowStats() for k in keys},
-        last,
+        max(known) if known else None,
+        slot_few={BEFORE: _confusions(), AFTER: _confusions()},
+        window_few={k: WindowStats() for k in keys},
+        window_full_few={k: WindowStats() for k in keys},
+        sources=truth_sources(canc, scope, until),
+        classes=canc.classes,
+        reclassified=canc.reclassified,
+        unknown=canc.unknown,
     )
     for r in reports:
         ver = version_of(r.generated, cutoff)
@@ -793,7 +1305,8 @@ def level_stats(
             a = r.airports.get(icao)
             if a is None:
                 continue
-            window: list[tuple[int, bool | None]] = []
+            last = lasts[icao]
+            window: list[tuple[int, bool | None, bool]] = []
             dropped = 0
             best: str | None = None
             for s in a.slots:
@@ -810,24 +1323,32 @@ def level_stats(
                     dropped += 1
                     res.counts["slotPastTruth"] += 1
                     continue
-                actual = canc.stopped(icao, s.start, s.end, rate, count)
-                window.append((b, actual))
+                actual, few = canc.stopped(icao, s.start, s.end, rate, count)
+                window.append((b, actual, few))
                 if actual is None:
                     res.counts["slotNoTruth"] += 1
                     continue
                 if s.level is None:
                     res.counts["slotNoLevel"] += 1
                     continue
-                res.slot[ver]["risky"][b].add(s.level in RISKY, actual)
-                res.slot[ver]["high"][b].add(s.level in HIGH, actual)
+                slots = [res.slot, res.slot_few] if few else [res.slot]
+                for stats in slots:
+                    stats[ver]["risky"][b].add(s.level in RISKY, actual)
+                    stats[ver]["high"][b].add(s.level in HIGH, actual)
             if dropped:
                 res.counts["windowTruncated"] += 1
             if not window:
                 res.counts["windowNoTruth"] += 1
                 continue
-            actual_any = any(x for _, x in window)
-            first = next((b for b, x in window if x), None)
+            if all(x is None for _, x, _ in window):
+                # 窗裡的格都沒有航班列（例如逐班紀錄開始之前的報）：不當成「沒停飛」
+                res.counts["windowNoFlights"] += 1
+                continue
+            actual_any = any(x for _, x, _ in window)
+            first = next((b for b, x, _ in window if x), None)
             targets = [res.window] if dropped else [res.window, res.window_full]
+            if few_window(window):
+                targets += [res.window_few] if dropped else [res.window_few, res.window_full_few]
             for stats in targets:
                 if best is not None:
                     stats[rule_key(ver)].add(best, actual_any, first)
@@ -838,6 +1359,73 @@ def level_stats(
                 if a.ai[k] is None:
                     res.counts[f"{k}NotOk"] += 1
     return res
+
+
+@dataclass
+class ModelLevelResult:
+    """每格各模式自己的風等級對停飛（HD33a）：模式 → risky／high → 每段。"""
+
+    models: dict[str, dict[str, list[Confusion]]]
+    counts: Counter[str] = field(default_factory=Counter)
+
+
+def model_level_stats(
+    reports: list[Report],
+    runs: list[BackfillRun],
+    canc: Cancellations,
+    airports: Iterable[str],
+    rate: float,
+    count: int,
+    until: datetime | None = None,
+) -> ModelLevelResult:
+    """快照每格 `models[].levels.wind`（8 個模式）與回補四個模式的等級，對同一套停飛實測（每格，
+    同 `level_stats` 的每格：每個機場實測的最後時間＝min(`until`, 那個機場資料最新的時間)，晚於它
+    結束的格不算；HD37 的逐班實測與班次少照用，班次少的格另計 `slotFew`）。"""
+    scope = sorted(set(airports) & canc.airports)
+    lasts = {icao: canc.last(icao, until) for icao in scope}
+    res = ModelLevelResult({})
+    sources: list[tuple[datetime, str, list[Slot]]] = [
+        (r.generated, icao, r.airports[icao].slots)
+        for r in reports
+        for icao in scope
+        if icao in r.airports
+    ]
+    sources += [
+        (r.run, icao, r.airports[icao]) for r in runs for icao in scope if icao in r.airports
+    ]
+    for ref, icao, slots in sources:
+        for s in slots:
+            if s.end <= ref or not s.winds:
+                continue
+            b = bucket(lead_hours(s.start, ref))
+            if b is None:
+                continue
+            last = lasts[icao]
+            if last is None or s.end > last:
+                res.counts["slotPastTruth"] += 1
+                continue
+            actual, few = canc.stopped(icao, s.start, s.end, rate, count)
+            if actual is None:
+                res.counts["slotNoTruth"] += 1
+                continue
+            res.counts["slotFew"] += few
+            for m, lv in s.winds.items():
+                cs = res.models.setdefault(m, _confusions())
+                cs["risky"][b].add(lv in RISKY, actual)
+                cs["high"][b].add(lv in HIGH, actual)
+    return res
+
+
+@dataclass
+class BackfillResult:
+    """HD33a 回補的部分；`Result.backfill` 是 None（沒有回補檔）時報告和以前一樣。"""
+
+    rows: dict[str, int]
+    estimated: dict[str, bool]
+    runs: list[BackfillRun]
+    gust: GustResult
+    levels: ModelLevelResult
+    excluded_runs: int = 0  # `--until` 排除的（模式, 起報）
 
 
 # ---- (c) 路徑 ----
@@ -1092,6 +1680,76 @@ class Result:
     until: str | None = None  # `--until` 原值
     until_has_next: bool = False  # `--until` 之後有沒有報（有的話已經多算了那一報）
     excluded: dict[str, int] = field(default_factory=dict)  # `--until` 排除的：報、WN3、路徑
+    backfill: BackfillResult | None = None  # HD33a 回補（沒有回補檔時 None）
+
+
+def _gust_rows(
+    res: Result, data: dict[str, list[GustCell]], backfill: dict[str, list[GustCell]]
+) -> list[tuple[str, list[GustCell], str]]:
+    """(a) 各表的列：快照與 WN3 的模式，再接回補的（標「（旁觀・回補）」）；估算陣風標 *。"""
+    out = [
+        (m, data[m], f"{m}{'*' if m in res.gust.estimated else ''}")
+        for m in _ordered(data, MODEL_ORDER)
+    ]
+    if res.backfill is not None:
+        est = res.backfill.gust.estimated
+        out += [
+            (m, backfill[m], f"{m}{'*' if m in est else ''}{BACKFILL_LABEL}")
+            for m in _ordered(backfill, BACKFILL_ORDER)
+        ]
+    return out
+
+
+def model_level_lines(res: Result) -> list[str]:
+    """(b) 每格各模式的風等級（HD33a，有回補檔才印）。"""
+    bf = res.backfill
+    assert bf is not None
+    c = bf.levels.counts
+    L = [
+        "",
+        "### 每格各模式的風等級（陣風與側風）vs 實際停飛",
+        "",
+        "每個模式自己的風等級（單一模式的陣風 ≥ 37／48 節、側風 ≥ 27／33 節取較高；"
+        "系集只有高或低），"
+        "快照 8 個模式用 `models[].levels.wind`、回補的照同一套門檻算；不分版本。每格 "
+        "`精確率／召回率（TP/FP/FN/TN）`。晚於實測的最後時間結束的格不算"
+        f"（{c['slotPastTruth']} 格次）、結束了但沒有航班的不算（{c['slotNoTruth']} 格次）；"
+        f"實測同上（含逐班），算進來的格次裡班次少（< {FEW_FLIGHTS} 班）的 {c['slotFew']} 個。",
+        "",
+    ]
+    rows = []
+    models = bf.levels.models
+    order = [m for m in _ordered(models, (*MODEL_ORDER, *BACKFILL_ORDER))]
+    for kind, name in (("risky", "判中或高"), ("high", "判高")):
+        for m in order:
+            label = f"{m}{BACKFILL_LABEL}" if m in bf.rows else m
+            rows.append(
+                [f"{label}{name}"]
+                + [
+                    f"{_f(x.precision, 2)}／{_f(x.recall, 2)}（{x.tp}/{x.fp}/{x.fn}/{x.tn}）"
+                    if x.tp + x.fp + x.fn + x.tn
+                    else "-"
+                    for x in models[m][kind]
+                ]
+            )
+    L += md_table(["模式", *[f"{b} h" for b in BUCKET_LABELS]], rows) if rows else ["（沒有資料）"]
+    return L
+
+
+def backfill_lines(res: Result) -> list[str]:
+    """摘要裡回補的那一行（HD33a，有回補檔才印）。"""
+    bf = res.backfill
+    assert bf is not None
+    parts = [
+        f"{m}{'（估算陣風）' if bf.estimated.get(m) else ''} {bf.rows[m]} 行"
+        for m in _ordered(bf.rows, BACKFILL_ORDER)
+    ]
+    runs = sorted({r.run for r in bf.runs})
+    span = f"{iso(runs[0])} – {iso(runs[-1])}" if runs else "沒有"
+    return [
+        f"- 旁觀・回補（Open-Meteo Previous Runs）：{'、'.join(parts)}；起報（格開始時間減 "
+        f"`previousDay` 天的 00Z）{span}，`--until` 排除了 {bf.excluded_runs} 個（模式, 起報）"
+    ]
 
 
 def render(res: Result) -> str:
@@ -1104,17 +1762,24 @@ def render(res: Result) -> str:
         "沒有用平均風）。標 * 的是估算陣風（平均風 × 係數）；系集沒有陣風不列。",
         "",
     ]
-    for title, data in (
-        (f"格內最大平均風 ≥ {MIN_WIND_KT} 節", res.gust.windy),
-        ("全部的格", res.gust.all),
+    bf = res.backfill
+    if bf is not None:
+        L += [
+            "標「（旁觀・回補）」的是 Open-Meteo Previous Runs 回補的模式（HD33a）："
+            "起報當成格開始時間減 `previousDay` 天那一天的 00Z，提前時間＝格的 `from` − 起報"
+            "（`previousDay` 0–4 → 0–24…96–120）。",
+            "",
+        ]
+    for title, data, bdata in (
+        (f"格內最大平均風 ≥ {MIN_WIND_KT} 節", res.gust.windy, bf.gust.windy if bf else {}),
+        ("全部的格", res.gust.all, bf.gust.all if bf else {}),
     ):
         L += [f"### {title}", ""]
         rows = []
-        for m in _ordered(data, MODEL_ORDER):
-            star = "*" if m in res.gust.estimated else ""
-            cells = [c.summary() for c in data[m]]
+        for _, cells_, label in _gust_rows(res, data, bdata):
+            cells = [c.summary() for c in cells_]
             rows.append(
-                [f"{m}{star}"]
+                [label]
                 + [f"{_f(c['mae'])}／{_f(c['bias'])}（{c['n']}）" if c["n"] else "-" for c in cells]
             )
         L += (
@@ -1130,9 +1795,9 @@ def render(res: Result) -> str:
         "",
     ]
     rows = []
-    for m in _ordered(res.gust.all, MODEL_ORDER):
+    for _, cells_, label in _gust_rows(res, res.gust.all, bf.gust.all if bf else {}):
         cells = []
-        for c in res.gust.all[m]:
+        for c in cells_:
             s = c.summary()
             parts = [
                 f"≥{th}：{s[f'ge{th}']['hit']}/{s[f'ge{th}']['hit'] + s[f'ge{th}']['miss']}"
@@ -1140,7 +1805,7 @@ def render(res: Result) -> str:
                 for th in GUST_THRESHOLDS
             ]
             cells.append("、".join(parts) if s["n"] else "-")
-        rows.append([f"{m}{'*' if m in res.gust.estimated else ''}", *cells])
+        rows.append([label, *cells])
     L += md_table(["模式", *[f"{b} h" for b in BUCKET_LABELS]], rows) if rows else ["（沒有資料）"]
     L += ["", "## (b) 等級：判中或高 vs 實際停飛", ""]
     lv = res.levels
@@ -1149,44 +1814,56 @@ def render(res: Result) -> str:
         f"機場：{'、'.join(lv.airports) or '（沒有航班資料）'}。航班資料到 "
         f"{iso(res.cancel_as_of) or '-'}，之後結束的格還沒有結果。",
         "",
+    ]
+    L += truth_source_lines(lv)
+    L += [
+        "",
         "### 每格（規則燈）",
         "",
-        "每格 `精確率／召回率（TP/FP/FN/TN）`。",
+        "每格 `精確率／召回率（TP/FP/FN/TN）`。「其中班次少」是同一列裡那格表定（出發＋抵達）"
+        f"少於 {FEW_FLIGHTS} 班的子集（規則照判，只是另外列）。",
         "",
     ]
     rows = []
     for kind, name in (("risky", "判中或高"), ("high", "判高")):
         for ver in (BEFORE, AFTER):
-            cs = lv.slot[ver][kind]
-            rows.append(
-                [f"規則燈（{ver}）{name}"]
-                + [
-                    f"{_f(c.precision, 2)}／{_f(c.recall, 2)}（{c.tp}/{c.fp}/{c.fn}/{c.tn}）"
-                    if c.tp + c.fp + c.fn + c.tn
-                    else "-"
-                    for c in cs
-                ]
-            )
+            for data, suffix in ((lv.slot, ""), (lv.slot_few, "（其中班次少）")):
+                rows.append(
+                    [f"規則燈（{ver}）{name}{suffix}"]
+                    + [
+                        f"{_f(c.precision, 2)}／{_f(c.recall, 2)}（{c.tp}/{c.fp}/{c.fn}/{c.tn}）"
+                        if c.tp + c.fp + c.fn + c.tn
+                        else "-"
+                        for c in data[ver][kind]
+                    ]
+                )
     L += md_table(["系統", *[f"{b} h" for b in BUCKET_LABELS]], rows)
     c = lv.counts
+    per_airport = (
+        "；每個機場各自算，見「停飛實測」"
+        if any(v.source == FLIGHTS for v in lv.sources.values())
+        else ""
+    )
     L += [
         "",
         "### 每報每機場（0–120 小時內任一格停飛；AI 的燈是整個機場 5 天一個等級；窗截到實測截止）",
         "",
         "規則燈取這報 0–120 小時的最高等級。提前段的欄是召回率，依窗裡第一個停飛格的提前時間分。"
         f"窗裡結束時間晚於實測的最後時間（{iso(lv.truth_last) or '-'}，實測截止與航班資料"
-        f"早的那個）的格丟掉，截短 {c['windowTruncated']} 個窗（其中一格不剩、不算的 "
+        f"早的那個{per_airport}）的格丟掉，截短 {c['windowTruncated']} 個窗（其中一格不剩、不算的 "
         f"{c['windowNoTruth']} 個）；"
         "截短後任一格停飛＝有停飛。",
         "",
     ]
-    L += window_table(lv.window)
+    L += window_table(lv.window, lv.window_few)
     L += [
         "",
         "#### 對照：只算完整窗（窗裡沒有任何格超過實測截止）",
         "",
     ]
-    L += window_table(lv.window_full)
+    L += window_table(lv.window_full, lv.window_full_few)
+    if bf is not None:
+        L += model_level_lines(res)
     L += ["", "## (c) 路徑：距離誤差（公里）", ""]
     L += ["每格 `平均／中位數（n）`；提前時間＝`validAt` − 起報。系集是中位數位置。", ""]
     for tr in res.tracks:
@@ -1252,30 +1929,88 @@ def render(res: Result) -> str:
     return "\n".join(L) + "\n"
 
 
-def window_table(stats: dict[str, WindowStats]) -> list[str]:
+def window_table(
+    stats: dict[str, WindowStats], few: dict[str, WindowStats] | None = None
+) -> list[str]:
+    """`few` 給了就在每列下面加一列「其中班次少」（結果靠班次少的格決定的窗，見 `few_window`）。"""
     rows = []
     for kind, name in (("risky", "判中或高"), ("high", "判高")):
         for key in (rule_key(BEFORE), rule_key(AFTER), *AI_KEYS):
-            w = stats[key]
-            c = w.risky if kind == "risky" else w.high
-            by = w.recall_risky if kind == "risky" else w.recall_high
             label = AI_NAMES.get(key) or f"規則燈（{key.split(':')[1]}）"
-            rows.append(
-                [
-                    f"{label}{name}",
-                    str(c.tp),
-                    str(c.fp),
-                    str(c.fn),
-                    str(c.tn),
-                    _f(c.precision, 2),
-                    _f(c.recall, 2),
-                    *[_f(x.recall, 2) for x in by],
-                ]
-            )
+            for data, suffix in ((stats, ""), (few, "（其中班次少）")):
+                if data is not None:
+                    rows.append(_window_row(data[key], kind, f"{label}{name}{suffix}"))
     return md_table(
         ["系統", "TP", "FP", "FN", "TN", "精確率", "召回率", *[f"{b} h" for b in BUCKET_LABELS]],
         rows,
     )
+
+
+def _window_row(w: WindowStats, kind: str, label: str) -> list[str]:
+    c = w.risky if kind == "risky" else w.high
+    by = w.recall_risky if kind == "risky" else w.recall_high
+    return [
+        label,
+        str(c.tp),
+        str(c.fp),
+        str(c.fn),
+        str(c.tn),
+        _f(c.precision, 2),
+        _f(c.recall, 2),
+        *[_f(x.recall, 2) for x in by],
+    ]
+
+
+def truth_source_lines(lv: LevelResult) -> list[str]:
+    """(b) 的「停飛實測」：每個機場用哪個來源、算到哪裡、格數與各類班數；逐班的重新分類。"""
+    flights = [k for k, v in lv.sources.items() if v.source == FLIGHTS]
+    L = [
+        "### 停飛實測",
+        "",
+        "`cancellations/` 有的機場用它（每 6 小時的取消統計，和定版以來一致）；沒有的機場用逐班紀錄"
+        f"`flights/`（`source: {FLIGHT_SOURCE}`，同一班取最新一行、依表定時間歸格，停飛規則一樣）。"
+        "每個機場實測的最後時間是資料最新的時間（統計是那個機場的 `asOf`、"
+        "逐班是整批 TDX 最新的 `t`）和實測截止早的那個。"
+        f"格數、班數只算那之前結束的格；班次少＝表定（出發＋抵達）少於 {FEW_FLIGHTS} 班。",
+        "",
+    ]
+    rows = []
+    for icao, v in lv.sources.items():
+        name = "取消統計" if v.source == CANCELLATIONS else f"逐班（{FLIGHT_SOURCE}）"
+        rows.append(
+            [
+                icao,
+                name,
+                iso(v.last) or "-",
+                iso(v.used) or "-",
+                str(v.slots),
+                str(v.few),
+                str(v.flights),
+                str(v.cancelled),
+                str(v.delayed),
+                "-" if v.diverted is None else str(v.diverted),
+            ]
+        )
+    L += md_table(
+        ["機場", "來源", "資料最新", "實測算到", "格數", "班次少", "班數", "取消", "延誤", "轉降"],
+        rows,
+    )
+    if not flights:
+        return L
+    rc, cl = lv.reclassified, lv.classes
+    L += [
+        "",
+        f"逐班重新分類（只在報告裡，不改存檔；{'、'.join(flights)}）：原本 `class: other` 的"
+        f"`加班` → 正常 {rc['extra']} 班、`轉降` → 轉降 {rc['diverted']} 班（不算取消）、"
+        f"`預計HH:MM到站／離站` → 延誤 {rc['estDelayed']}／正常 {rc['estOnTime']} 班（預計比表定晚 "
+        f"{cancellations.DELAY_MINUTES} 分鐘以上算延誤）。各類："
+        + "、".join(f"{FLIGHT_CLASS_NAMES[k]} {cl[k]}" for k in FLIGHT_CLASSES)
+        + " 班。",
+    ]
+    if lv.unknown:
+        top = "、".join(f"`{k or '（空白）'}` {n}" for k, n in lv.unknown.most_common(10))
+        L += ["", f"看不懂、照舊 other 的狀態（前 10 種）：{top}。"]
+    return L
 
 
 def cutoff_lines(res: Result) -> list[str]:
@@ -1296,7 +2031,12 @@ def cutoff_lines(res: Result) -> list[str]:
         f"`--until` 排除了 {ex.get('reports', 0)} 報、WN3 {ex.get('wn3', 0)} 報、"
         f"路徑 {ex.get('tracks', 0)} 份",
         f"- 實測到：{iso(t)}（台北 {_tw(t)}；{how}）；航班資料到 {iso(res.cancel_as_of) or '-'}，"
-        f"(b) 實際算到 {iso(res.levels.truth_last) or '-'}",
+        f"(b) 實際算到 {iso(res.levels.truth_last) or '-'}"
+        + (
+            "（每個機場各自算到哪裡見 (b)「停飛實測」）"
+            if any(v.source == FLIGHTS for v in res.levels.sources.values())
+            else ""
+        ),
         f"- 超過實測截止、仍然沒有實測的（不算命中也不算誤報）：(a) 陣風 {res.gust.past_truth} 格、"
         f"(b) 每格 {c['slotPastTruth']} 格、每報每機場截短 {c['windowTruncated']} 個窗"
         f"（截短後沒有實測 {c['windowNoTruth']} 筆）、(c) 路徑 {past_track} 點",
@@ -1318,7 +2058,23 @@ def summary_lines(res: Result) -> list[str]:
         f"定版後 {versions[AFTER]} 報",
         f"- 路徑真相：{truth}",
         f"- 停飛定義：取消率 ≥ {res.rate:.0%} 或取消 ≥ {res.count} 班",
+        scope_line(res.levels),
+        *(backfill_lines(res) if res.backfill is not None else []),
     ]
+
+
+def scope_line(lv: LevelResult) -> str:
+    """(b) 的範圍：哪些機場、各用哪個來源（HD37 起沒有取消統計的機場用逐班紀錄）。"""
+    by: dict[str, list[str]] = defaultdict(list)
+    for icao, v in lv.sources.items():
+        by[v.source].append(icao)
+    parts = [f"取消統計 {'、'.join(by[CANCELLATIONS]) or '沒有'}"]
+    if by[FLIGHTS]:
+        parts.append(f"逐班（{FLIGHT_SOURCE}）{'、'.join(by[FLIGHTS])}")
+    return (
+        f"- (b) 停飛實測的範圍：{len(lv.airports)} 個機場（{'；'.join(parts)}）；"
+        f"表定少於 {FEW_FLIGHTS} 班的格標「班次少」另外列"
+    )
 
 
 def completeness_lines(res: Result) -> list[str]:
@@ -1362,7 +2118,12 @@ def completeness_lines(res: Result) -> list[str]:
         [
             "(b) 每報每機場",
             f"AI 不是 ok（skipped／error／沒有）：Claude {c['claudeNotOk']}、"
-            f"Gemini {c['geminiNotOk']} 筆",
+            f"Gemini {c['geminiNotOk']} 筆"
+            + (
+                f"；窗裡的格都沒有航班列（逐班紀錄開始之前的報）{c['windowNoFlights']} 個"
+                if c["windowNoFlights"]
+                else ""
+            ),
             "（見截短）",
             f"{c['windowTruncated']} 個",
             f"{c['windowNoTruth']} 筆",
@@ -1406,7 +2167,7 @@ def to_json(res: Result) -> dict:
         return {m: [c.summary() for c in cells] for m, cells in data.items()}
 
     lv = res.levels
-    return {
+    out = {
         "event": {"id": res.event.id, "name": res.event.name, "airports": list(res.event.airports)},
         "buckets": list(BUCKET_LABELS),
         "cutoff": iso(res.cutoff),
@@ -1436,6 +2197,19 @@ def to_json(res: Result) -> dict:
             "windowComplete": {k: w.summary() for k, w in lv.window_full.items()},
             "skipped": {"slotPastTruth": 0, "windowTruncated": 0, "windowNoTruth": 0}
             | dict(lv.counts),
+            "fewFlights": FEW_FLIGHTS,
+            "slotFew": {
+                ver: {k: [c.summary() for c in cs] for k, cs in v.items()}
+                for ver, v in lv.slot_few.items()
+            },
+            "windowFew": {k: w.summary() for k, w in lv.window_few.items()},
+            "windowCompleteFew": {k: w.summary() for k, w in lv.window_full_few.items()},
+            "truthSources": {k: v.summary() for k, v in lv.sources.items()},
+            "flightClasses": {k: lv.classes[k] for k in FLIGHT_CLASSES},
+            "reclassified": {
+                k: lv.reclassified[k] for k in ("extra", "diverted", "estDelayed", "estOnTime")
+            },
+            "unknownStatuses": [[k, n] for k, n in lv.unknown.most_common()],
         },
         "tracks": [
             {
@@ -1466,6 +2240,27 @@ def to_json(res: Result) -> dict:
             for r in res.reports
         ],
     }
+    if (bf := res.backfill) is not None:
+        out["backfill"] = {
+            "source": "open-meteo-previous-runs",
+            "rows": bf.rows,
+            "gustEstimated": bf.estimated,
+            "runs": sorted({iso(r.run) for r in bf.runs}),
+            "excludedRunsByUntil": bf.excluded_runs,
+            "gust": {
+                "estimated": sorted(bf.gust.estimated),
+                "all": gust(bf.gust.all),
+                f"windGe{MIN_WIND_KT}": gust(bf.gust.windy),
+                "noMetar": bf.gust.no_metar,
+                "pastTruth": bf.gust.past_truth,
+            },
+            "modelLevels": {
+                m: {k: [c.summary() for c in cs] for k, cs in v.items()}
+                for m, v in bf.levels.models.items()
+            },
+            "modelLevelsSkipped": dict(bf.levels.counts),
+        }
+    return out
 
 
 def build_result(
@@ -1479,9 +2274,10 @@ def build_result(
     jma_id: str | None = None,
     until: str | None = None,
     truth_until: datetime | None = None,
+    airports_path: Path = ROOT / "airports.json",
 ) -> Result:
     """`until` 是 `--until` 原值（`parse_cli_time` 看得懂的）；`truth_until` 不給＝`events.json` 的
-    `to` 隔天 00:00（台灣）。"""
+    `to` 隔天 00:00（台灣）。`airports_path` 只在有回補檔時讀（門檻與跑道，HD33a）。"""
     history = archive / "history"
     d = history / "events" / event.id
     until_at = parse_cli_time(until) if until is not None else None
@@ -1492,10 +2288,25 @@ def build_result(
     wn3, _ = select_until(all_wn3, lambda w: w.run, until_at)
     metars = load_metars(d, t_until)
     canc = load_cancellations(history)
+    load_flights(d, canc, event.airports, airport_tz(ROOT / "airports.json"), t_until)
     all_tracks = load_tracks(d)
     track_runs = tracks_until(all_tracks, reports, until_at)
     span, hours = metar_hours(metars, event.airports)
     truth_list = truths(d, event, jtwc, jma, jma_id, t_until)
+    backfill = None
+    if (bf_data := load_backfill(d, event.airports)) is not None:
+        sites = {a.icao: a for a in load_airports(airports_path)}
+        all_runs = backfill_runs(bf_data, sites, all_reports)
+        bf_runs = backfill_until(all_runs, reports, until_at)
+        backfill = BackfillResult(
+            rows=bf_data.rows,
+            estimated=bf_data.estimated,
+            runs=bf_runs,
+            gust=backfill_gust_stats(bf_runs, metars, t_until),
+            levels=model_level_stats(reports, bf_runs, canc, event.airports, rate, count, t_until),
+            excluded_runs=len({(r.model, r.run) for r in all_runs})
+            - len({(r.model, r.run) for r in bf_runs}),
+        )
     return Result(
         event=event,
         reports=reports,
@@ -1518,6 +2329,7 @@ def build_result(
             "wn3": len(all_wn3) - len(wn3),
             "tracks": len(all_tracks) - len(track_runs),
         },
+        backfill=backfill,
     )
 
 
@@ -1540,6 +2352,12 @@ def main(argv: list[str] | None = None) -> int:
         "--truth-until",
         help="實測只用到這個時間（例如 2026-10-26T24:00+08:00）；"
         "不給＝events.json 的 to 隔天 00:00（台灣）",
+    )
+    ap.add_argument(
+        "--airports",
+        type=Path,
+        default=ROOT / "airports.json",
+        help="門檻與跑道（只在有回補檔 backfill/openmeteo-*.jsonl 時用，HD33a）",
     )
     ap.add_argument("--cancel-rate", type=float, default=0.3)
     ap.add_argument("--cancel-count", type=int, default=10)
@@ -1576,6 +2394,7 @@ def main(argv: list[str] | None = None) -> int:
             args.jma_id,
             args.until,
             truth_until,
+            args.airports,
         )
     except ValueError as ex:
         print(ex, file=sys.stderr)

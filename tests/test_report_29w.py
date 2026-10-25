@@ -357,6 +357,28 @@ def test_ai_falls_back_to_history_records(archive):
     assert r.airports["ROAH"].ai == {"claude": "medium", "gemini": None}
 
 
+def test_snapshot_observers_skipped_hd33b():
+    """HD33b 起快照的 `models[]` 有 gem／arpege／cma（旁觀）：報告跳過（這幾個用回補檔比），
+    不會和回補的同一個 id 混在一起；其他模式照讀。"""
+    slot = _slot(A, "low", {"ifs": 24.0})
+    for mid in ("gem", "arpege", "cma"):
+        slot["model"]["models"].append(
+            {
+                "id": mid,
+                "run": "2026-10-24T12:00:00Z",
+                "gustKt": 60.0,
+                "gustEstimated": False,
+                "levels": {"wind": "high"},
+                "level": "high",
+            }
+        )
+    r = rpt.parse_report(_snapshot(R1, [slot], []), "x", ["RCTP"], {})
+    s = r.airports["RCTP"].slots[0]
+    assert [g.model for g in s.gusts] == ["ifs"]
+    assert not set(s.winds) & {"gem", "arpege", "cma"}
+    assert not set(r.model_runs) & {"gem", "arpege", "cma"}
+
+
 def test_legacy_snapshot_model_entries():
     model = {"ec": {"p10": 0.5, "hresGustMs": 10.0}, "gfs": {"gustKt": 20.0}}
     runs = {"ecmwf": "2026-10-18T06:00:00Z", "ecmwfEns": "2026-10-18T00:00:00Z", "gfs": "x"}
@@ -622,7 +644,9 @@ def test_truth_until_levels_truncate_windows(archive):
     assert (lv.counts["windowTruncated"], lv.counts["windowNoTruth"]) == (4, 0)
     claude = lv.window["claude"].summary()
     # 桃園：R1 截短後只剩 A（沒停飛）→ 判高誤報；R2 剩 D（停飛）→ 命中，first＝D 的 0–24
-    assert (claude["risky"]["tp"], claude["risky"]["fp"], claude["risky"]["tn"]) == (1, 1, 2)
+    # 香港：截短後剩的 A／D 都沒有航班列，HD37 起不當成「沒停飛」（以前算兩個 TN）
+    assert (claude["risky"]["tp"], claude["risky"]["fp"], claude["risky"]["tn"]) == (1, 1, 0)
+    assert lv.counts["windowNoFlights"] == 2
     assert claude["recallByFirstStop"]["risky"][0] == 1.0
     # 規則燈的預測仍取整個 0–120 小時：R1 桃園最高是 B 的 high → 誤報
     assert lv.window[rpt.rule_key(rpt.BEFORE)].high.fp == 1
@@ -665,9 +689,40 @@ def test_truth_clipped_to_truth_until(archive):
     assert [len(t.points) for t in prov.tracks] == [2, 1]  # JTWC 00、06Z；JMA 只剩 00Z
 
 
-def _old_fields(doc: dict) -> dict:
-    """HD36 加的欄位拿掉，剩下的要和 HD36 前一模一樣。"""
+HD37_LEVEL_FIELDS = (
+    "fewFlights",
+    "slotFew",
+    "windowFew",
+    "windowCompleteFew",
+    "truthSources",
+    "flightClasses",
+    "reclassified",
+    "unknownStatuses",
+)
+
+
+def _hd36_fields(doc: dict) -> dict:
+    """HD37 加的欄位拿掉，剩下的要和 HD37 前一模一樣。"""
     doc = json.loads(json.dumps(doc))
+    for k in HD37_LEVEL_FIELDS:
+        doc["levels"].pop(k)
+    return doc
+
+
+def _digest(doc: dict) -> str:
+    import hashlib
+
+    return hashlib.sha256(json.dumps(doc, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
+# HD37 前的程式（HD36）對同一個 fixture 的 `to_json`（sort_keys 後的 sha256）
+HD36_DIGEST_BOTH = "576d040a4fb143f1efa2005311157adc38990aa962702b7b3eeae475d78b94f1"
+HD36_DIGEST_PLAIN = "ccc142b005e0db03688150f4f3702a1fb87c6234a0aec99ac242c57adac01fff"
+
+
+def _old_fields(doc: dict) -> dict:
+    """HD36、HD37 加的欄位拿掉，剩下的要和 HD36 前一模一樣。"""
+    doc = _hd36_fields(doc)
     for k in (
         "until",
         "untilHasNext",
@@ -746,3 +801,492 @@ def test_main_bad_time(archive, capsys, flag):
     )
     assert code == 1
     assert flag in capsys.readouterr().err
+
+
+# ---- HD37：逐班航班補停飛實測、班次少、狀態重新分類 ----
+
+
+def _flight(airport, direction, flight, sched, cls, status="", t=None, source="tdx"):
+    return {
+        "t": iso(t or _t(24, 0)),
+        "airport": airport,
+        "dir": direction,
+        "flight": flight,
+        "codeshares": [],
+        "peer": "TPE",
+        "schedUtc": iso(sched),
+        "estUtc": None,
+        "actUtc": None,
+        "status": status,
+        "class": cls,
+        "source": source,
+    }
+
+
+def _add_roah(archive, rows=None):
+    """ROAH（`cancellations/` 沒有）補逐班紀錄與兩報的格：B 3 班取消 1（停飛、班次少）、
+    D 4 班取消 1（沒停飛、不算班次少）、C 1 班轉降（沒停飛、班次少）。"""
+    d = archive / "data" / "history" / "events" / "29W"
+    if rows is None:
+        rows = [
+            _flight("ROAH", "dep", "NH1", _t(22, 7), "cancelled", "取消"),
+            _flight("ROAH", "arr", "NH2", _t(22, 8), "normal"),
+            _flight("ROAH", "arr", "NH3", _t(22, 11, 59), "normal"),
+            *[_flight("ROAH", "dep", f"JL{i}", _t(22, i), "normal") for i in (1, 2, 3)],
+            _flight("ROAH", "arr", "JL9", _t(22, 5), "cancelled", "取消"),
+            _flight("ROAH", "arr", "NU1", _t(23, 7), "other", "轉降"),
+        ]
+    _jsonl(d / "flights" / "2026-10-22.jsonl", rows)
+    levels = {
+        R1: [(A, "low"), (B, "medium"), (C, "low")],
+        R2: [(D, "medium"), (B, "high"), (C, "low")],
+    }
+    for at, spans in levels.items():
+        p = d / f"{at:%Y%m%dT%H%MZ}.json"
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        for a in doc["airports"]:
+            if a["icao"] == "ROAH":
+                a["slots"] = [_slot(span, lv) for span, lv in spans]
+        _write(p, doc)
+
+
+def _truth(archive, until=None):
+    history = archive / "data" / "history"
+    canc = rpt.load_cancellations(history)
+    tz = rpt.airport_tz(ROOT / "airports.json")
+    rpt.load_flights(history / "events" / "29W", canc, ["RCTP", "VHHH", "ROAH"], tz, until)
+    return canc
+
+
+def test_flights_latest_row_per_flight(archive):
+    _add_roah(
+        archive,
+        [
+            _flight("ROAH", "dep", "NH1", _t(22, 7), "normal", t=_t(22, 1)),
+            _flight("ROAH", "dep", "NH1", _t(22, 7), "cancelled", "取消", t=_t(22, 6)),
+            # 同 `t`：取檔裡後面的那行
+            _flight("ROAH", "arr", "NH2", _t(22, 8), "cancelled", "取消", t=_t(22, 6)),
+            _flight("ROAH", "arr", "NH2", _t(22, 8), "normal", t=_t(22, 6)),
+            # 不同 `source` 算不同班；只讀 `tdx`
+            _flight("ROAH", "arr", "NH2", _t(22, 8), "cancelled", source="other", t=_t(22, 9)),
+        ],
+    )
+    a = _truth(archive).by_airport["ROAH"]
+    assert a.source == rpt.FLIGHTS
+    assert a.last == _t(22, 6)  # 只看 tdx 的行
+    row = a.rows[B[0]]
+    assert (row["dep"]["total"], row["dep"]["cancelled"]) == (1, 1)
+    assert (row["arr"]["total"], row["arr"]["cancelled"]) == (1, 0)
+
+
+def test_flights_slot_by_schedule(archive):
+    _add_roah(
+        archive,
+        [
+            _flight("ROAH", "dep", "A1", _t(22, 5, 59), "cancelled"),
+            _flight("ROAH", "dep", "A2", _t(22, 6), "normal"),
+        ],
+    )
+    a = _truth(archive).by_airport["ROAH"]
+    assert sorted(a.rows) == [D[0], B[0]]
+    assert a.rows[D[0]]["dep"]["cancelled"] == 1 and a.rows[B[0]]["dep"]["cancelled"] == 0
+
+
+def test_few_flights_boundary(archive):
+    _add_roah(archive)
+    canc = _truth(archive)
+    # B 3 班取消 1：33% ≥ 30% 停飛，班次少；D 4 班取消 1：25% 沒停飛，不算班次少
+    assert canc.stopped("ROAH", *B, 0.3, 10) == (True, True)
+    assert canc.stopped("ROAH", *D, 0.3, 10) == (False, False)
+    assert canc.stopped("ROAH", *A, 0.3, 10) == (None, False)  # 那格沒有航班
+    # `cancellations/` 的機場用同一個標準：C 20 班不算班次少
+    assert canc.stopped("RCTP", *C, 0.3, 10) == (False, False)
+    assert rpt.FEW_FLIGHTS == 4
+
+
+@pytest.mark.parametrize(
+    ("status", "cls", "want"),
+    [
+        ("加班", "other", ("normal", "extra")),
+        ("加班Extra", "other", ("normal", "extra")),
+        ("轉降", "other", ("diverted", "diverted")),
+        ("轉降桃園DivertTPE", "other", ("diverted", "diverted")),
+        # 表定 10/23 08:30（東京）
+        ("預計09:30到站", "other", ("delayed", "estDelayed")),  # 晚 60 分鐘
+        ("預計09:29離站", "other", ("normal", "estOnTime")),
+        ("預計08:00出發", "other", ("normal", "estOnTime")),
+        ("預計10/23 09:45到站", "other", ("delayed", "estDelayed")),
+        ("預計2026/10/23 08:40到站", "other", ("normal", "estOnTime")),
+        ("預計10/24 08:00到站", "other", ("delayed", "estDelayed")),  # 有日期：隔天
+        ("檢查", "other", ("other", None)),
+        ("預計13/40 09:00到站", "other", ("other", None)),  # 日期不對
+        ("取消", "cancelled", ("cancelled", None)),
+        ("", "normal", ("normal", None)),
+    ],
+)
+def test_reclassify(status, cls, want):
+    from zoneinfo import ZoneInfo
+
+    row = _flight("ROAH", "arr", "X1", _t(22, 23, 30), cls, status)
+    assert rpt.reclassify(row, ZoneInfo("Asia/Tokyo")) == want
+
+
+def test_reclassify_estimate_without_date_crosses_midnight():
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Asia/Taipei")
+    row = _flight("RCMQ", "arr", "X1", _t(23, 15, 30), "other", "預計00:40到站")  # 表定 23:30
+    assert rpt.reclassify(row, tz) == ("delayed", "estDelayed")  # 隔天 00:40，晚 70 分鐘
+    row = _flight("RCMQ", "arr", "X1", _t(23, 16, 30), "other", "預計23:50到站")  # 表定隔天 00:30
+    assert rpt.reclassify(row, tz) == ("normal", "estOnTime")  # 前一天 23:50（提早）
+
+
+def test_flights_reclassified_counts(archive):
+    _add_roah(
+        archive,
+        [
+            _flight("ROAH", "arr", "A1", _t(22, 7), "other", "轉降"),
+            _flight("ROAH", "arr", "A2", _t(22, 7), "other", "加班"),
+            _flight("ROAH", "arr", "A3", _t(22, 7), "other", "預計18:00到站"),  # 表定 16:00
+            _flight("ROAH", "arr", "A4", _t(22, 7), "other", "檢查"),
+            _flight("ROAH", "arr", "A5", _t(22, 8), "other", "檢查"),
+            _flight("ROAH", "arr", "A6", _t(22, 8), "cancelled", "取消"),
+            _flight("ROAH", "arr", "A7", _t(25, 8), "other", "回航"),  # 實測截止之後結束
+        ],
+    )
+    canc = _truth(archive)
+    row = canc.by_airport["ROAH"].rows[B[0]]["arr"]
+    assert row == {"total": 6, "cancelled": 1, "delayed": 1, "diverted": 1, "other": 2}
+    assert rpt.is_stopped({"arr": row}, 0.3, 10) is False  # 轉降不算取消（1/6）
+    assert dict(canc.classes) == {
+        "diverted": 1,
+        "normal": 1,
+        "delayed": 1,
+        "other": 2,
+        "cancelled": 1,
+    }
+    assert dict(canc.reclassified) == {"diverted": 1, "extra": 1, "estDelayed": 1}
+    assert canc.unknown.most_common() == [("檢查", 2)]
+
+
+def test_per_airport_truth_last_and_truth_until(archive):
+    rows = [
+        _flight("ROAH", "dep", "NH1", _t(22, 7), "cancelled", t=_t(22, 1)),
+        _flight("ROAH", "dep", "NH2", _t(22, 8), "normal", t=_t(22, 13)),
+        _flight("ROAH", "dep", "NH3", _t(23, 7), "cancelled", t=_t(22, 2)),
+    ]
+    _add_roah(archive, rows)
+    canc = _truth(archive)
+    assert canc.by_airport["ROAH"].last == _t(22, 13)  # 整批 tdx 最新的 t（不是桃園的 asOf）
+    assert canc.last("ROAH", None) == _t(22, 13)
+    assert canc.last("ROAH", _t(22, 10)) == _t(22, 10)
+    assert canc.last("RCTP", None) == utc(2026, 10, 24)
+    assert canc.stopped("ROAH", *C, 0.3, 10) == (None, False)  # C 在 ROAH 的最後時間之後結束
+    lv = _result(archive).levels
+    src = lv.sources["ROAH"]
+    assert (src.source, src.last, src.used, src.slots) == ("flights", _t(22, 13), _t(22, 13), 1)
+    assert lv.sources["RCTP"].used == utc(2026, 10, 24)
+    assert lv.truth_last == utc(2026, 10, 24)  # 各機場最晚的
+    lv = _result(archive, truth_until=_t(22, 10)).levels
+    assert lv.sources["ROAH"].used == _t(22, 10) and lv.sources["ROAH"].slots == 0
+
+
+def test_flights_truth_last_is_batch_latest_t(archive):
+    # ROAH 最後一行很早（10/22 01Z），但同一批 TDX 有更新的 t：桃園（取消統計的機場、逐班不用）
+    # 與不在事件裡的綠島 → ROAH 的最後時間是整批最新的 10/22 13Z，B（06–12Z）照算
+    rows = [
+        _flight("ROAH", "dep", "NH1", _t(22, 7), "cancelled", t=_t(22, 1)),
+        _flight("ROAH", "arr", "NH2", _t(22, 8), "normal", t=_t(22, 1)),
+        _flight("RCTP", "dep", "CI1", _t(22, 9), "normal", t=_t(22, 12)),
+        _flight("RCGI", "dep", "B71", _t(22, 9), "normal", t=_t(22, 13)),
+        _flight("RCGI", "dep", "B72", _t(22, 9), "normal", t=_t(23, 1), source="other"),
+    ]
+    _add_roah(archive, rows)
+    canc = _truth(archive)
+    assert canc.by_airport["ROAH"].last == _t(22, 13)
+    assert canc.stopped("ROAH", *B, 0.3, 10) == (True, True)
+    assert canc.stopped("ROAH", *C, 0.3, 10) == (None, False)  # 10/23 12Z 才結束
+    assert set(canc.by_airport) == {"RCTP", "VHHH", "ROAH"}  # 綠島不在事件裡，只用來算 t
+    assert canc.last("RCTP", None) == utc(2026, 10, 24)  # 取消統計照舊用 asOf
+    src = _result(archive, truth_until=_t(22, 12)).levels.sources["ROAH"]
+    assert (src.last, src.used, src.slots) == (_t(22, 13), _t(22, 12), 1)
+
+
+def test_cancellations_preferred_over_flights(archive):
+    # 桃園兩種都有：照舊用 `cancellations/`，逐班的不看；數字和 HD37 前一樣
+    _add_roah(archive, [_flight("RCTP", "dep", f"CI{i}", _t(22, 7), "cancelled") for i in range(9)])
+    canc = _truth(archive)
+    assert canc.by_airport["RCTP"].source == rpt.CANCELLATIONS
+    assert "ROAH" not in canc.by_airport
+    assert canc.by_airport["RCTP"].rows[B[0]]["dep"]["total"] == 50
+    assert _digest(_hd36_fields(rpt.to_json(_result(archive)))) == HD36_DIGEST_PLAIN
+
+
+def test_levels_with_flights_and_few(archive):
+    _add_roah(archive)
+    lv = _result(archive).levels
+    assert lv.airports == ["RCTP", "ROAH", "VHHH"]
+    few_before, few_after = lv.slot_few[rpt.BEFORE]["risky"], lv.slot_few[rpt.AFTER]["risky"]
+    # R1：B 判中、停飛、班次少 → 24–48 TP；C 判低、沒停飛（轉降 1 班）、班次少 → 48–72 TN
+    assert (few_before[1].tp, few_before[2].tn) == (1, 1)
+    # R2：B 判高、停飛 → 0–24 TP；C → 24–48 TN；D 4 班不算班次少
+    assert (few_after[0].tp, few_after[0].fp, few_after[1].tn) == (1, 0, 1)
+    assert lv.slot[rpt.AFTER]["risky"][0].fp == 1  # D：判中、沒停飛（只在主表）
+    # 每報每機場：ROAH 兩報的窗停飛都只靠 B（班次少）→ 列進班次少
+    assert lv.window_few[rpt.rule_key(rpt.BEFORE)].risky.tp == 1
+    assert lv.window_few[rpt.rule_key(rpt.AFTER)].high.tp == 1
+    assert lv.window_few["claude"].risky.tp == 0  # ROAH 沒有 AI
+    assert lv.counts["windowNoFlights"] == 0
+
+
+def test_few_window_rule():
+    assert rpt.few_window([(0, False, False), (1, True, True)]) is True
+    assert rpt.few_window([(0, True, False), (1, True, True)]) is False
+    assert rpt.few_window([(0, False, True), (1, None, False)]) is True
+    assert rpt.few_window([(0, False, True), (1, False, False)]) is False
+    assert rpt.few_window([(0, None, False)]) is False
+
+
+def test_window_without_any_flights_not_counted(archive):
+    # ROAH 只有 10/25 的航班：兩報的窗（A–C、D–C）都沒有航班列 → 不當成「沒停飛」
+    _add_roah(archive, [_flight("ROAH", "dep", "NH1", _t(25, 7), "cancelled")])
+    lv = _result(archive).levels
+    assert lv.counts["windowNoFlights"] == 2
+    assert lv.window[rpt.rule_key(rpt.BEFORE)].risky.fp == 0
+
+
+def test_render_and_json_with_flights(archive):
+    _add_roah(archive)
+    res = _result(archive)
+    md = rpt.render(res)
+    assert "### 停飛實測" in md
+    last = "2026-10-24T00:00:00Z"
+    assert f"| ROAH | 逐班（tdx） | {last} | {last} | 3 | 2 | 8 | 2 | 0 | 1 |" in md
+    assert "| RCTP | 取消統計 |" in md and "| 0 | 270 | 54 | 0 | - |" in md
+    assert "（其中班次少）" in md
+    assert "`轉降` → 轉降 1 班" in md
+    assert "逐班（tdx）ROAH" in "\n".join(rpt.summary_lines(res))
+    doc = rpt.to_json(res)["levels"]
+    assert doc["fewFlights"] == 4
+    assert doc["truthSources"]["ROAH"]["fewSlots"] == 2
+    assert doc["truthSources"]["RCTP"]["diverted"] is None
+    assert doc["flightClasses"] == {
+        "normal": 5,
+        "cancelled": 2,
+        "delayed": 0,
+        "diverted": 1,
+        "other": 0,
+    }
+    assert doc["slotFew"][rpt.BEFORE]["risky"][1]["tp"] == 1
+    assert doc["windowFew"][rpt.rule_key(rpt.BEFORE)]["risky"]["tp"] == 1
+
+
+def test_no_flights_same_as_hd36(archive):
+    """沒有 `flights/`：拿掉 HD37 加的欄位，JSON 和 HD37 前的程式一模一樣。"""
+    both = _result(
+        archive, jtwc=FIXTURES / "bwp292026_sample.dat", jma=FIXTURES / "jma_bst_sample.txt"
+    )
+    assert _digest(_hd36_fields(rpt.to_json(both))) == HD36_DIGEST_BOTH
+    assert _digest(_hd36_fields(rpt.to_json(_result(archive)))) == HD36_DIGEST_PLAIN
+
+
+# ---- HD33a：旁觀・回補 ----
+
+
+def _bf(icao, at, day, wind, gust=None, wdir=49.1, estimated=False):
+    return {
+        "icao": icao,
+        "validAt": iso(at),
+        "previousDay": day,
+        "windKt": wind,
+        "windDir": wdir,
+        "gustKt": None if estimated else gust,
+        "gustEstimated": estimated,
+        "precipMm": 0.0,
+    }
+
+
+def _hours(span):
+    """格的 (from, to] 小時（前一小時的值）＋ from 那個小時（估算的平均風看 [from, to]）。"""
+    from datetime import timedelta
+
+    return [span[0] + timedelta(hours=h) for h in range(7)]
+
+
+def _add_backfill(archive, g=None, levels=False):
+    """RCTP 的格 B（10/22 06–12Z，實際停飛、METAR 最大 45 節）：ukmo 提前 1 天陣風 50（高）、
+    提前 0 天 30（低）、提前 5 天 60（120 小時以後，不算）；cma 是估算陣風（平均風 30）。
+    `g`：R1 快照 aifs 那幾筆的 `gustFactor`；`levels`：快照每筆補 `levels.wind`。"""
+    d = archive / "data" / "history" / "events" / "29W"
+    ukmo = []
+    for i, t in enumerate(_hours(B)):
+        ukmo.append(_bf("RCTP", t, 1, 30, 40 + 10 * (i == 3)))
+        ukmo.append(_bf("RCTP", t, 0, 20, 30))
+        ukmo.append(_bf("RCTP", t, 5, 40, 60))
+    ukmo.append(_bf("RCTP", B[0], 1, 1, 1))  # 重複的鍵：留第一行
+    ukmo.append(_bf("RJCC", B[1], 1, 99, 99))  # 不在事件機場
+    _jsonl(d / "backfill" / "openmeteo-ukmo.jsonl", ukmo)
+    cma = [_bf("RCTP", t, 1, 20 + 10 * (i == 0), estimated=True) for i, t in enumerate(_hours(B))]
+    _jsonl(d / "backfill" / "openmeteo-cma.jsonl", cma)
+    if g is None and not levels:
+        return
+    for p in sorted(d.glob("2026*.json")):
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        for a in doc["airports"]:
+            for s in a["slots"]:
+                for e in s["model"]["models"]:
+                    if g is not None and p.stem.startswith("20261021") and e["id"] == "aifs":
+                        e["gustFactor"] = g
+                    gust = e.get("gustKt")
+                    if levels and gust is not None:
+                        e["levels"] = {"wind": "high" if gust >= 48 else "low"}
+        _write(p, doc)
+
+
+def test_no_backfill_files_no_change(archive):
+    res = _result(archive)
+    assert res.backfill is None
+    assert "旁觀" not in rpt.render(res)
+    assert "backfill" not in rpt.to_json(res)
+
+
+def test_backfill_json_keeps_old_fields(archive):
+    before = rpt.to_json(_result(archive))
+    _add_backfill(archive)
+    after = rpt.to_json(_result(archive))
+    assert after.pop("backfill")["rows"] == {"ukmo": 21, "cma": 7}
+    assert after == before
+
+
+def test_backfill_lead_from_previous_day(archive):
+    _add_backfill(archive)
+    bf = _result(archive).backfill
+    assert bf is not None
+    runs = {(r.model, iso(r.run)): r for r in bf.runs}
+    # 起報＝格開始時間減 previousDay 天那一天的 00Z；previousDay 5 不算
+    assert set(runs) == {
+        ("ukmo", "2026-10-21T00:00:00Z"),
+        ("ukmo", "2026-10-22T00:00:00Z"),
+        ("cma", "2026-10-21T00:00:00Z"),
+    }
+    # 提前 1 天：格 B 的提前時間 30 小時 → 24–48；提前 0 天：6 小時 → 0–24
+    ukmo = bf.gust.all["ukmo"]
+    assert [c.pairs for c in ukmo] == [[(30.0, 45.0)], [(50.0, 45.0)], [], [], []]
+    assert bf.gust.estimated == {"cma"}
+
+
+def test_backfill_slot_hours_and_estimated_gust(archive):
+    _add_backfill(archive)
+    bf = _result(archive).backfill
+    assert bf is not None
+    run = next(r for r in bf.runs if r.model == "cma")
+    (slot,) = run.airports["RCTP"]
+    # 估算：[from, to] 最大平均風 30（from 那個小時）× G（快照沒有 gustFactor → 1.4）
+    assert (slot.start, slot.end) == B
+    assert slot.gusts[0].gust == 42.0 and slot.gusts[0].estimated
+    assert slot.winds == {"cma": "medium"}
+    # 有陣風：只看 (from, to]；from 那個小時屬於前一格，前一格只有這一個小時 → 不算
+    ukmo = next(r for r in bf.runs if r.model == "ukmo" and r.run == utc(2026, 10, 21))
+    assert [s.start for s in ukmo.airports["RCTP"]] == [B[0]]
+
+
+def test_backfill_gust_factor_from_snapshot(archive):
+    _add_backfill(archive, g=1.6)
+    bf = _result(archive).backfill
+    assert bf is not None
+    run = next(r for r in bf.runs if r.model == "cma")
+    # 起報 10/21 00Z 之前沒有快照 → 用最早有 G 的那報（R1）
+    assert run.airports["RCTP"][0].gusts[0].gust == 48.0
+
+
+def test_backfill_gust_rows_in_markdown(archive):
+    _add_backfill(archive)
+    res = _result(archive)
+    md = rpt.render(res)
+    assert "| ukmo（旁觀・回補） |" in md and "| cma*（旁觀・回補） |" in md
+    assert "旁觀・回補（Open-Meteo Previous Runs）：ukmo 21 行、cma（估算陣風） 7 行" in md
+    # 門檻命中：ukmo 24–48 段預測 50、實測 45 → ≥37 命中 1/1、≥48 誤報 1
+    line = next(x for x in md.splitlines() if x.startswith("| ukmo（旁觀・回補） | ≥37"))
+    # 0–24 段預測 30 → ≥37 漏報；24–48 段預測 50、實測 45 → ≥37 命中、≥48 誤報
+    assert line.split(" | ")[1:3] == [
+        "≥37：0/1（0）、≥48：0/0（0）",
+        "≥37：1/1（0）、≥48：0/0（1）",
+    ]
+    doc = rpt.to_json(res)["backfill"]
+    assert doc["gust"]["all"]["ukmo"][1]["ge48"]["false"] == 1
+    assert doc["gustEstimated"] == {"ukmo": False, "cma": True}
+
+
+def test_backfill_model_levels_vs_stops(archive):
+    _add_backfill(archive, levels=True)
+    res = _result(archive)
+    bf = res.backfill
+    assert bf is not None
+    lv = bf.levels.models
+    # 格 B 實際停飛：ukmo 提前 1 天判高（TP）、提前 0 天判低（FN）
+    assert (lv["ukmo"]["high"][1].tp, lv["ukmo"]["high"][0].fn) == (1, 1)
+    assert lv["cma"]["risky"][1].tp == 1 and lv["cma"]["high"][1].fn == 1
+    # 快照的模式照 `levels.wind` 一起比：R1 的 IFS 在格 B 陣風 50（高，24–48）；R2 在格 B 44、
+    # 所在的格 D 10（都低，0–24），兩格都停飛
+    assert lv["ifs"]["high"][1].tp == 1 and lv["ifs"]["high"][0].fn == 2
+    md = rpt.render(res)
+    assert "### 每格各模式的風等級（陣風與側風）vs 實際停飛" in md
+    assert "| ukmo（旁觀・回補）判高 |" in md and "| ifs判高 |" in md
+    assert "modelLevels" in rpt.to_json(res)["backfill"]
+
+
+def test_backfill_until_and_truth_until(archive):
+    _add_backfill(archive)
+    # `--until` 10/21 00Z → 留 R1（之後的第一報，10/21 01Z）→ 起報 ≤ R1 的才算
+    bf = _result(archive, until="2026-10-21T00:00Z").backfill
+    assert bf is not None
+    assert {(r.model, r.run) for r in bf.runs} == {
+        ("ukmo", utc(2026, 10, 21)),
+        ("cma", utc(2026, 10, 21)),
+    }
+    assert bf.excluded_runs == 1
+    # 實測截止在格 B 結束前 → 不算命中也不算誤報
+    bf = _result(archive, truth_until=utc(2026, 10, 22, 11)).backfill
+    assert bf is not None
+    assert all(not c.pairs for cells in bf.gust.all.values() for c in cells)
+    assert bf.gust.past_truth > 0
+
+
+def test_backfill_slot_matches_assess():
+    """報告照抄的換算要和 `assess.hourly_for_slot`（ICON／JMA）一樣。"""
+    from datetime import timedelta
+
+    from hongthai import assess
+    from hongthai.assess import GustFactor
+    from hongthai.config import Runway
+    from hongthai.sources.openmeteo import OmHour
+
+    runways = (Runway("05/23", (49.1, 229.1)),)
+    start = utc(2026, 10, 22, 6)
+    rows = [
+        (start + timedelta(hours=h), 10.0 + 3 * h, (40 + 37 * h) % 360, 18.0 + 5 * (h % 4))
+        for h in range(-1, 8)
+    ]
+    om = [OmHour(t, w, d, g, None, None, None, None) for t, w, d, g in rows]
+    bf = {t: rpt.BfHour(t, w, d, g) for t, w, d, g in rows}
+    end = start + timedelta(hours=6)
+    want = assess.hourly_for_slot(om, start, end, runways)
+    assert rpt.backfill_slot(bf, start, end, False, runways, 1.0) == (
+        want["gustKt"],
+        want["crosswindKt"],
+    )
+    want = assess.hourly_for_slot(om, start, end, runways, GustFactor(1.55, "airport30d"))
+    assert rpt.backfill_slot(bf, start, end, True, runways, 1.55) == (
+        want["gustKt"],
+        want["crosswindKt"],
+    )
+
+
+def test_wind_level_matches_assess():
+    from hongthai import assess
+    from hongthai.config import Thresholds
+
+    th = Thresholds()
+    for gust in (None, 10.0, 37.0, 47.9, 48.0):
+        for xw in (None, 5.0, 27.0, 33.0):
+            assert rpt.wind_level(gust, xw, th) == assess._wind_level(gust, xw, th)

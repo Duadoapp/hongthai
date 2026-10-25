@@ -359,6 +359,19 @@
 - 保守假設都在 `assess.py` 與 `airports.json` 的門檻，改之前先跟 Shawn 確認；單位一律用節（HD2 起）
 - 隱私：這個 repo 不碰任何個資；公開 repo，程式裡不能有金鑰
 
+## 合併（2026-10-25 01:04 Shawn 定案：主對話自己合併沒問題的 PR）
+
+- 範圍：hongthai 全部 PR、Duado 裡 HongThai 的 HW PR；Duado 總指揮的 PR 不碰
+- 只合主對話審過、判「可以合併」的；要改的照舊給 Shawn 貼給雲端的文字，改好重審再合；主對話自己開的文件 PR 審完也合
+- 方法：CI 還在跑 → 開 auto-merge（`PUT /repos/{owner}/{repo}/pulls/{n}/ccr/auto_merge`，`merge_method: squash`），GitHub 等必要檢查（hongthai `ci`；
+  Duado `check`、`db`、`admin`、`worker`）綠了才合；CI 已綠（`mergeable_state: clean`）→ 直接 `PUT .../pulls/{n}/merge`（squash）
+- **檢查衝突**（兩個 repo 的規則集都**沒有**要求分支是最新的，所以 CI 各自綠、合在一起仍可能壞）：
+  - 合之前看 `mergeable_state`：`dirty`（有衝突）不合，請雲端 rebase
+  - 看 `compare main...head` 的 `behind_by`：main 在這支開出來之後有合進**改到同一批檔案**的 PR（文件以外）→ 先請雲端 rebase、等新的 CI 綠才合
+  - 每合一支，回頭看其他開著的 PR：變 `dirty` 或和剛合的改到同一批檔案、又已開 auto-merge 的 → 先關掉 auto-merge（`DELETE .../ccr/auto_merge`），請雲端 rebase
+  - B 組（動資料流程的）一次只合一支、照順序，前一支合併後下一支 rebase、CI 綠再合
+- 每合一支（或開 auto-merge）就跟 Shawn 說：編號、一句結論；Shawn 隨時可以在 GitHub 取消
+
 ## 29W 驗證期凍結（2026-10-22 12:00 台灣時間起；2026-10-20 19:04 Shawn 改定起點）
 
 - **10/22 12:00 系統定版**，之後只修 bug，直到 29W 離開所有範圍機場（或轉溫帶氣旋）後 24 小時、初版報告出來為止；
@@ -376,6 +389,13 @@
     「窗還沒結束」，現在照 min(T, asOf) 截短
   - AI 兩燈每報每機場的窗截到實測截止（截止前任一格停飛＝有停飛、都沒有＝沒停飛），報告寫明截短幾個窗、附「只算完整窗」對照；
     規則燈每格照舊（提示詞 `docs/prompts/2026-10-24-HD36-report-until.md`）
+  - 報告工具 **HD37**（只改報告工具，凍結期間可以合併）：(b) 的停飛實測，`cancellations/` 沒有的機場改用 TDX 逐班紀錄
+    （`flights/`，29W 多台中、台南、花蓮、台東、澎湖、金門、馬祖南竿）；實測的最後時間每個機場各一個（逐班機場用
+    TDX 整批最新的 `t`，審查 #106 改）；表定少於 4 班的格
+    標「班次少」另外列（Shawn 2026-10-25 00:35 定案，規則照判）；`加班`／`轉降`／`預計HH:MM到站` 在報告裡重新分類
+    （不改存檔）。**已實作**（README「事件保存 › 驗證報告」）；和提示詞不一樣的地方：窗裡的格都沒有航班列（逐班紀錄
+    開始之前的報）不當成「沒停飛」、另計 `windowNoFlights`；每報每機場的「班次少」定義成結果靠班次少的格決定的窗；
+    `預計HH:MM出發` 也算（資料裡有）（提示詞 `docs/prompts/2026-10-25-HD37-report-flights-truth.md`）
   - 時程：10/25 16:25 那報出來後 Shawn 附 JTWC `bwp292026.dat`（即時版）→ 初版先用到 10/25 為止的實測跑 →
     **初版出來就解除凍結**（約 10/25 晚上～10/26，不等定稿）→ 10/27 用補齊到 10/26 的實測重跑定稿
 - 定版前（10/20–10/22 中午）排進去的：HD9（JMA 大雪警報，10/20 上線）、HD16（Open-Meteo ICON＋JMA＋WeatherNext 2 系集，8 票，
@@ -404,6 +424,19 @@
   `source: "tdx"`；桃園、松山、高雄和原本的來源各存各的（去重鍵含 `source`），之後比對兩邊一致性。要 Actions secrets
   `TDX_CLIENT_ID`／`TDX_CLIENT_SECRET`（Shawn 註冊 TDX 基礎會員後設；沒設就跳過，log 記「TDX 未設定」）。基礎會員
   每月 3 點、每金鑰每分鐘 5 次；資料量設好 secret 後實測補進 README。只多存資料，凍結期間可以合併
+- **HD33a 新模式回補（只存資料＋報告工具，凍結期間可以合併）**：UKMO、GEM、ARPEGE、CMA GRAPES 經 Open-Meteo
+  Previous Runs API 回補 29W 期間的逐時預報到 `history/events/29W/backfill/openmeteo-<模式>.jsonl`（`events` workflow 的
+  `backfill-openmeteo` 填事件 id；合併後 Shawn 手動跑一次、10/27 定稿前再跑一次），`tools/report_29w.py` 有回補檔時
+  (a) 多四列「（旁觀・回補）」、(b) 多一張每格各模式的風等級（快照 8 個模式的 `levels.wind` 與回補四個並列）對停飛實測；
+  沒有回補檔時報告與 JSON 一字不差。不改 `latest.json`、等級、投票、AI、網頁（旁觀進 `latest.json` 是 HD33b）。
+  和提示詞不一樣的地方：(a) GEM Global 用 `gem_global`（文件現在寫 `cmc_gem_gdps`，10/25 實測 Previous Runs 兩個都收、
+  值逐點一樣；和 HD33b 一致用 `gem_global`）；可用天數 UKMO 0–6、GEM 0–7、CMA 0–4、**ARPEGE 只有 0–3**（96–120 段空的），
+  四個都有陣風；(b) Open-Meteo 的
+  `previous_dayN` 是提前 24N～24N+23 小時，照提示詞「起報＝validAt 減 N 天的 00Z」對 HD22 的切法落在第 N 段
+  （day1 → 24–48，不是 0–24），所以多存 `previous_day0` 給 0–24 段，day5（120 小時以後）照存不算；起報用格開始時間減
+  N 天（一格裡的小時同一個起報）；(c) (from, to] 6 個小時都有的格才算；(d) `events.yml` 沒有 `task` 選項，加的是
+  字串輸入 `backfill-openmeteo`（空白＝不跑）；(e) **UKMO 是 CC BY-SA 4.0**（衍生產品要相同授權），回補檔與用到 UKMO
+  數字的報告要標，HD33b 把 UKMO 放進 `latest.json` 前要先決定怎麼標
 - 排程（**HD25**）只動排程與資料保存，**不改規則**：Cloudflare 排程 Worker（`cloudflare/trigger/`）當主鬧鐘、GitHub
   cron 留著當備援，build 同時段已出過就跳過（`timing/` 記 `skip`）；`events` 的 METAR 往回 6 小時、`backfill-metar`
   補 10-19 起的缺口（AviationWeather，金門、馬祖補不到）。等級規則、投票、門檻、`latest.json` 欄位都沒動，
