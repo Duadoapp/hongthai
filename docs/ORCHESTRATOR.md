@@ -424,6 +424,19 @@
   `source: "tdx"`；桃園、松山、高雄和原本的來源各存各的（去重鍵含 `source`），之後比對兩邊一致性。要 Actions secrets
   `TDX_CLIENT_ID`／`TDX_CLIENT_SECRET`（Shawn 註冊 TDX 基礎會員後設；沒設就跳過，log 記「TDX 未設定」）。基礎會員
   每月 3 點、每金鑰每分鐘 5 次；資料量設好 secret 後實測補進 README。只多存資料，凍結期間可以合併
+- **HD33a 新模式回補（只存資料＋報告工具，凍結期間可以合併）**：UKMO、GEM、ARPEGE、CMA GRAPES 經 Open-Meteo
+  Previous Runs API 回補 29W 期間的逐時預報到 `history/events/29W/backfill/openmeteo-<模式>.jsonl`（`events` workflow 的
+  `backfill-openmeteo` 填事件 id；合併後 Shawn 手動跑一次、10/27 定稿前再跑一次），`tools/report_29w.py` 有回補檔時
+  (a) 多四列「（旁觀・回補）」、(b) 多一張每格各模式的風等級（快照 8 個模式的 `levels.wind` 與回補四個並列）對停飛實測；
+  沒有回補檔時報告與 JSON 一字不差。不改 `latest.json`、等級、投票、AI、網頁（旁觀進 `latest.json` 是 HD33b）。
+  和提示詞不一樣的地方：(a) GEM Global 用 `gem_global`（文件現在寫 `cmc_gem_gdps`，10/25 實測 Previous Runs 兩個都收、
+  值逐點一樣；和 HD33b 一致用 `gem_global`）；可用天數 UKMO 0–6、GEM 0–7、CMA 0–4、**ARPEGE 只有 0–3**（96–120 段空的），
+  四個都有陣風；(b) Open-Meteo 的
+  `previous_dayN` 是提前 24N～24N+23 小時，照提示詞「起報＝validAt 減 N 天的 00Z」對 HD22 的切法落在第 N 段
+  （day1 → 24–48，不是 0–24），所以多存 `previous_day0` 給 0–24 段，day5（120 小時以後）照存不算；起報用格開始時間減
+  N 天（一格裡的小時同一個起報）；(c) (from, to] 6 個小時都有的格才算；(d) `events.yml` 沒有 `task` 選項，加的是
+  字串輸入 `backfill-openmeteo`（空白＝不跑）；(e) **UKMO 是 CC BY-SA 4.0**（衍生產品要相同授權），回補檔與用到 UKMO
+  數字的報告要標，HD33b 把 UKMO 放進 `latest.json` 前要先決定怎麼標
 - 排程（**HD25**）只動排程與資料保存，**不改規則**：Cloudflare 排程 Worker（`cloudflare/trigger/`）當主鬧鐘、GitHub
   cron 留著當備援，build 同時段已出過就跳過（`timing/` 記 `skip`）；`events` 的 METAR 往回 6 小時、`backfill-metar`
   補 10-19 起的缺口（AviationWeather，金門、馬祖補不到）。等級規則、投票、門檻、`latest.json` 欄位都沒動，

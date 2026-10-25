@@ -98,6 +98,11 @@ HD16（Open-Meteo）：
 - `openmeteo_ensemble_3x8.json`：`ensemble-api.open-meteo.com/v1/ensemble` 同時間的真實回應
   （`models=google_weathernext2_ensemble`、`temporal_resolution=native`），同樣三個機場、只留成員 0
   （不帶後綴的鍵）到 `member07` 共 8 個成員
+- `openmeteo_previous_runs_2.json`、`openmeteo_previous_runs_2_nogust.json`（HD33a，**手造**，照 Previous Runs API
+  的格式）：桃園、香港兩個地點，2026-10-21 00–12Z 逐時，4 個變數 × `_previous_day0`…`5`（風速 kn；day0 的鍵和
+  實際回應一樣不帶後綴，2026-10-25 實測）；`day5`
+  最後 3 個小時全是 null（那一報還沒有），桃園 `day0` 03Z 風速、陣風、雨量都是 null（只有風向）。`_nogust`
+  那份陣風全是 null、單位 `undefined`（像 JMA GSM 那種沒有陣風的模式）
 
 HD22（29W 驗證報告）：
 - `bwp292026_sample.dat`：**合成樣本**，JTWC ATCF b-deck 的格式（逗號分隔；`YYYYMMDDHH`、`BEST`、緯經十分之一度
