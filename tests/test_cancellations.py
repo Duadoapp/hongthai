@@ -15,8 +15,14 @@ NOW = utc(2026, 10, 18, 8, 55)
 TPE_TZ = "Asia/Taipei"
 
 
-def counts(total=0, cancelled=0, delayed=0, other=0):
-    return {"total": total, "cancelled": cancelled, "delayed": delayed, "other": other}
+def counts(total=0, cancelled=0, delayed=0, other=0, diverted=0):
+    return {
+        "total": total,
+        "cancelled": cancelled,
+        "delayed": delayed,
+        "diverted": diverted,
+        "other": other,
+    }
 
 
 def by_slot(stats):

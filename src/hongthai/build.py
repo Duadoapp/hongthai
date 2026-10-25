@@ -98,12 +98,23 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import requests
 
-from . import assess, budget, cancellations, events, gustfactor, og, tracks, wn3report
+from . import (
+    assess,
+    budget,
+    cancellations,
+    events,
+    flights_log,
+    gustfactor,
+    og,
+    tracks,
+    wn3report,
+)
 from .ai import run as ai
 from .config import (
     MODELS,
@@ -119,6 +130,7 @@ from .config import (
     wn3_mode,
 )
 from .sources import (
+    SourceError,
     aifs,
     aigfs,
     cwa,
@@ -132,6 +144,7 @@ from .sources import (
     smg,
     swic,
     taf,
+    tdx,
     wn3,
 )
 from .timeutil import floor_6h, iso, parse_time, slot_bounds, utcnow
@@ -191,6 +204,9 @@ BUDGET_S: dict[str, float] = {
     # CAP 原文每則 0.6–1 秒、4 條平行；平時幾則、颱風期間估 10–40 則
     "swic": 45,
     "flights": 120,  # 抓＋統計＋寫檔
+    # HD38：TDX 台灣十個機場一次請求（token＋資料，傳輸約 104 KB）；總和 1875 秒（31.25 分鐘），
+    # 還在 `build.yml` 那一步的 32 分鐘內
+    "tdx": 45,
     "ai": 240,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒；HD12 180 → 240
     "og": 60,  # HD1：51 張分享預覽圖，publish() 之後畫（本機約 3 秒）
 }
@@ -351,7 +367,7 @@ class Timing:
             fields["usage"] = st.get("usage")  # HD26
             fields["costUsd"] = st.get("costUsd")
             fields["errorMessages"] = st.get("errorMessages")  # HD30
-        if name == "openmeteo":
+        if name in ("openmeteo", "tdx"):  # tdx：HD38（每月計數看 `history/tdx/`，不看這裡）
             fields["calls"] = st.get("calls")
         if name == "wn3":  # HD15
             for k in ("mode", "via", "estimateBytes", "bytesBilled"):
@@ -808,11 +824,13 @@ def assemble(
     om: openmeteo.OpenMeteoData | None = None,
     wn: wn3.Wn3Data | None = None,
     sw: swic.SwicData | None = None,
+    fs: list[FlightStats | None] | None = None,
 ) -> dict:
     """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。`factors` 是每個機場估算陣風的
     係數（HD18；沒有的機場用 1.4、`default`）。`om` 是 Open-Meteo 的三個模式（HD16）。`wn` 是
     WeatherNext 3（HD15）：只有 `MODELS` 裡有 `wn3`（`observe` 模式）才寫進 `runs` 與
-    `models[]`。"""
+    `models[]`。`fs` 是航班統計（HD38：`flight_stats`、`tdx_stats`，失敗的是 None）：有資料的機場
+    `slots[].flights`、`airports[].flightSources`。"""
     slots = slot_bounds(now)
     window_start, window_end = slots[0][0], slots[-1][1]
     src = {
@@ -831,12 +849,20 @@ def assemble(
     if any(m.id == assess.WN3_ID for m in MODELS):
         runs[assess.WN3_ID] = iso(wn.run) if wn else None
     by_model = model_runs(runs)
+    fl_rows: dict[str, list[dict]] = {}
+    fl_source: dict[str, str] = {}
+    for f in fs or []:
+        if f is not None:
+            fl_rows.update(f.rows)
+            fl_source.update(f.source)
     out_airports = []
     for a in airports:
         inputs = slot_inputs(a, now, confirmed, by_model, src)
         warns, mine, metar = inputs["warnings"], inputs["confirmed"], inputs["metar"]
         taf_info = tf.tafs.get(a.icao) if tf else None
         slot_list = assess.assess_slots(slots=slots, **inputs)
+        if a.icao in fl_source:
+            slot_flights(slot_list, fl_rows.get(a.icao, []), fl_source[a.icao])
         out_airports.append(
             {
                 "icao": a.icao,
@@ -848,6 +874,8 @@ def assemble(
                 "official": {"warnings": bool(a.warning_sources)},
                 # 接了哪些官方警報來源（HD29）：cwa／hko／smg／nws／jma／cma／kma／pagasa，沒接是 []
                 "warningSources": list(a.warning_sources),
+                # 航班統計用哪個來源（HD38）：`flights_log.SOURCES` 的 id 或 `tdx`；這一報沒有是 []
+                "flightSources": [fl_source[a.icao]] if a.icao in fl_source else [],
                 "warnings": [warning_json(w) for w in warns],
                 "metar": metar_json(metar),
                 "taf": taf_json(taf_info, now),
@@ -874,6 +902,27 @@ def assemble(
         ],
         "airports": out_airports,
     }
+
+
+@dataclass
+class FlightStats:
+    """`flight_stats`／`tdx_stats` 的結果（HD38）。`status` 是 `sources.flights`／`sources.tdx`；
+    `rows` 是每個機場要放進 `latest.json` 的 6 小時格統計（`cancellations.slot_stats` 的格式），
+    `rows3h` 是同一批航班依表定歸 3 小時格的（給 HD35 的每機場檔）；`source` 是機場 → 來源 id
+    （`flights_log.SOURCES` 或 `tdx`）。"""
+
+    status: dict
+    rows: dict[str, list[dict]] = field(default_factory=dict)
+    rows3h: dict[str, list[dict]] = field(default_factory=dict)
+    source: dict[str, str] = field(default_factory=dict)
+
+
+def _window_days(now: datetime) -> set[str]:
+    """`latest.json` 的 20 格碰到的 UTC 日期。"""
+    days: set[str] = set()
+    for start, end in slot_bounds(now):
+        days |= {f"{start:%Y-%m-%d}", f"{end - timedelta(seconds=1):%Y-%m-%d}"}
+    return days
 
 
 def native_3h(status: dict) -> frozenset[str]:
@@ -964,6 +1013,10 @@ def airport_files(
     except Exception:  # 保險：3 小時格不能讓 build 失敗
         log.exception("機場頁 3 小時格整個算不出來")
         failed.append("*")
+    try:  # HD38：3 小時格也帶 `flights`（`src["fs"]`，同 6 小時格的來源）；算大小之前放進去
+        flight_files(docs, airports, list(src.get("fs") or []))  # type: ignore[arg-type]
+    except Exception:  # 保險：航班放不進去不影響機場檔
+        log.exception("機場頁 3 小時格的航班放不進去")
     size = sum(len(_compact(d).encode("utf-8")) + 1 for d in docs.values())
     seconds = round(time.monotonic() - t0, 1)
     log.info(
@@ -989,29 +1042,43 @@ def airport_files(
 
 def flight_stats(
     fl: flights.FlightsData, airports: list[Airport], now: datetime, history: Path
-) -> dict:
+) -> FlightStats:
     """航班 → 每 6 小時格的取消／延誤統計，合併寫進 `history/cancellations/`；看不懂的狀態字串
     合併進 `history/cancellations/unknown-statuses.json`。
 
-    回傳 `sources.flights`：抓不到的機場照舊記在 `error`；統計或寫檔失敗只 log、記在
-    `statsError`，不讓 build 失敗。
+    `status`（`sources.flights`）：抓不到的機場照舊記在 `error`；統計或寫檔失敗只 log、記在
+    `statsError`，不讓 build 失敗。`rows`（HD38，進 `latest.json`）：這一報統計成功的機場，
+    和 `history/cancellations/` 已有的列照 `cancellations.merge` 的規則合併（同一格新的班數比舊的
+    少就留舊的，和存檔一致）。
     """
     out: dict[str, object] = {"ok": True}
     if fl.errors:
         out = {"ok": False, "error": ",".join(f"{k}:{v}" for k, v in fl.errors.items())}
     tz = {a.icao: a.tz for a in airports}
     stats: list[dict] = []
+    result = FlightStats(out)
     unknown = {}
     errors: dict[str, str] = {}
     for icao, payload in fl.snapshots.items():
         try:
             parsed = cancellations.flights_of(icao, payload, tz[icao], now)
-            stats += cancellations.slot_stats(icao, parsed, now)
+            rows = cancellations.slot_stats(icao, parsed, now)
+            result.rows3h[icao] = cancellations.slot_stats(icao, parsed, now, 3, log_unknown=False)
+            stats += rows
             unknown[icao] = cancellations.unknown_statuses(parsed)
+            result.source[icao] = flights_log.SOURCES.get(icao, icao.lower())
         except Exception as e:  # 某個機場格式突然變了，其他照算
             log.warning("航班統計 %s 失敗：%s", icao, e, exc_info=True)
             errors[icao] = f"{e.__class__.__name__}: {e}"[:120]
     budget.check_cancelled()  # 超過預算被放棄了就不寫檔
+    try:
+        stored = cancellations.load(history, _window_days(now))
+    except (OSError, ValueError) as e:
+        log.warning("航班統計讀舊檔失敗：%s", e)
+        stored = []
+    merged = cancellations.merge([r for r in stored if r.get("airport") in result.source], stats)
+    for r in merged:
+        result.rows.setdefault(r["airport"], []).append(r)
     try:
         for p in cancellations.store(history, stats):
             log.info("航班統計 → %s", p)
@@ -1021,7 +1088,99 @@ def flight_stats(
         errors["store"] = f"{e.__class__.__name__}: {e}"[:120]
     if errors:
         out["statsError"] = "; ".join(f"{k}:{v}" for k, v in errors.items())
-    return out
+    return result
+
+
+TDX = flights_log.TDX
+
+
+def tdx_airports(airports: list[Airport]) -> tuple[list[Airport], list[Airport]]:
+    """（TDX 要請求的機場, 其中統計用 TDX 的機場）。請求和事件保存一樣是地區 `taiwan` 的十個
+    （HD32），統計只用原本來源（`cancellations.PARSERS`：桃園、松山、高雄）以外的七個，不重複。"""
+    want = [a for a in airports if a.region == events.TDX_REGION]
+    return want, [a for a in want if a.icao not in cancellations.PARSERS]
+
+
+def tdx_stats(
+    client: tdx.Client | None, airports: list[Airport], now: datetime, history: Path
+) -> FlightStats:
+    """HD38：TDX 一次請求拿台灣十個機場，原本來源以外的七個算每 6 小時格的統計（只進
+    `latest.json`，不寫 `history/cancellations/`；看不懂的狀態照樣合併進 `unknown-statuses.json`）。
+
+    每次資料請求記進 `history/tdx/calls-<YYYY-MM>.jsonl`（`caller: "build"`）；本月（build＋事件
+    保存）到 `tdx.BUILD_CALL_LIMIT` 就不請求，留給事件期間的每小時存檔（那邊到
+    `MONTHLY_CALL_LIMIT` 才停）。
+
+    `status`（`sources.tdx`）：`calls` 是這一報送出的資料請求數、`monthCalls` 是含這一報的本月
+    合計；沒設金鑰是 `not_configured`、本月到上限是 `monthly_limit`（都不請求）、token 或請求失敗
+    是 `TdxError` 的代碼。都不影響整報。"""
+    want, fill = tdx_airports(airports)
+    if client is None:
+        return FlightStats({"ok": False, "error": "not_configured", "calls": 0})
+    used = tdx.month_calls(history, now)
+    if used >= tdx.BUILD_CALL_LIMIT:
+        log.warning("TDX 本月已用 %d 次（每報的上限 %d），這一報跳過", used, tdx.BUILD_CALL_LIMIT)
+        return FlightStats({"ok": False, "error": "monthly_limit", "calls": 0, "monthCalls": used})
+    if client.log is None:
+        client.log = tdx.CallLog(history, "build")
+    try:
+        data = client.fids(a.iata for a in want)
+    except SourceError as e:
+        log.warning("TDX 航班失敗：%s", e)
+        return FlightStats(
+            {"ok": False, "error": e.code, "calls": client.calls, "monthCalls": used + client.calls}
+        )
+    result = FlightStats({"ok": True, "calls": client.calls, "monthCalls": used + client.calls})
+    unknown = {}
+    errors: dict[str, str] = {}
+    for a in fill:
+        if a.iata not in data:
+            errors[a.icao] = "missing"
+            continue
+        try:
+            parsed = flights_log.tdx_flights(data[a.iata], a.tz)
+            result.rows[a.icao] = cancellations.slot_stats(a.icao, parsed, now)
+            result.rows3h[a.icao] = cancellations.slot_stats(
+                a.icao, parsed, now, 3, log_unknown=False
+            )
+            result.source[a.icao] = TDX
+            unknown[a.icao] = cancellations.unknown_statuses(parsed)
+        except Exception as e:  # 一個機場的格式怪不擋其他機場
+            log.warning("TDX 航班統計 %s 失敗：%s", a.icao, e, exc_info=True)
+            errors[a.icao] = f"{e.__class__.__name__}: {e}"[:120]
+    budget.check_cancelled()
+    try:
+        cancellations.store_unknown(history, unknown, now)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        log.warning("TDX 看不懂的狀態寫檔失敗：%s", e, exc_info=True)
+        errors["store"] = f"{e.__class__.__name__}: {e}"[:120]
+    if errors:
+        result.status["statsError"] = "; ".join(f"{k}:{v}" for k, v in errors.items())
+    return result
+
+
+def slot_flights(slots: list[dict], rows: list[dict], source: str) -> None:
+    """把一個機場的格統計放進同一個 `from` 的格（`flights`，HD38）；那格沒有航班就不寫這個鍵。
+    6 小時（`latest.json` 的 `slots`）和 3 小時（HD35 每機場檔的 `slots3h`）共用。"""
+    by_from = {r["from"]: r for r in rows}
+    for s in slots:
+        r = by_from.get(s.get("from"))
+        if r is not None and r["dep"]["total"] + r["arr"]["total"] > 0:
+            s["flights"] = cancellations.slot_json(r, source)
+
+
+def flight_files(
+    docs: dict[str, dict], airports: list[Airport], stats: list[FlightStats | None]
+) -> None:
+    """HD38＋HD35：每機場檔（`airports/<iata>.json`）的 3 小時格也帶 `flights`，來源同 6 小時格
+    （`FlightStats.rows3h`、`slot_flights`）。沒有那個機場的檔或沒有航班資料就不動。"""
+    for f in stats:
+        if f is None:
+            continue
+        for a in airports:
+            doc = docs.get(a.iata.lower())
+            if doc is not None and a.icao in f.source:
+                slot_flights(doc["slots3h"], f.rows3h.get(a.icao, []), f.source[a.icao])
 
 
 def run(
@@ -1121,12 +1280,21 @@ def run(
     jm = _call("jma", lambda: jma.fetch(jma_areas), status, timing)
     swic_airports = [a for a in airports if swic.SOURCES & set(a.warning_sources)]
     sw = _call("swic", lambda: swic.fetch(swic_airports, now), status, timing, _swic_extra)
-    _call(
+    fs = _call(
         "flights",
         lambda: flight_stats(flights.fetch(now), airports, now, history),
         status,
         timing,
-        lambda r: r,
+        lambda r: r.status,
+    )
+    # HD38：沒設金鑰是 None（記 log），`sources.tdx` 記 not_configured
+    tdx_client = tdx.Client.from_env()
+    fs_tdx = _call(
+        "tdx",
+        lambda: tdx_stats(tdx_client, airports, now, history),
+        status,
+        timing,
+        lambda r: r.status,
     )
 
     factors = gust_factors(ec, gf, airports, now, history)
@@ -1153,6 +1321,7 @@ def run(
         confirmed=confirmed,
         status=status,
         **inputs,
+        fs=[fs, fs_tdx],  # type: ignore[list-item]
     )
     if wn is not None and wn_events:
         wn3_files(history, wn_events, wn, airports, factors, wn_mode, workdir / "wn3")
@@ -1166,7 +1335,13 @@ def run(
     if airport_out is not None:  # HD35：機場頁的 3 小時格，只進 Pages（publish），不進 archive
         airport_out.update(
             airport_files(
-                latest, now=now, airports=airports, confirmed=confirmed, timing=timing, **inputs
+                latest,
+                now=now,
+                airports=airports,
+                confirmed=confirmed,
+                timing=timing,
+                fs=[fs, fs_tdx],  # HD38：3 小時格也帶 `flights`
+                **inputs,
             )
         )
     run_ai(latest, previous_latest(archive, pages_url), now, history, timing)

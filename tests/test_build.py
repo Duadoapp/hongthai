@@ -818,6 +818,8 @@ def workspace(tmp_path, monkeypatch):
 
     monkeypatch.setattr(build.requests, "get", no_network)
     monkeypatch.delenv("JOB_STARTED_AT", raising=False)  # HD25：build.yml 才有
+    for k in (build.tdx.ENV_ID, build.tdx.ENV_SECRET):  # HD38：TDX 不連網
+        monkeypatch.delenv(k, raising=False)
     for k in (k for keys in ai_config.ENV.values() for k in keys):  # AI 對決（HD5）不呼叫
         monkeypatch.delenv(k, raising=False)
     # 預覽圖（HD1）在 test_og.py 測；這裡不畫，build 的測試才不會每個多幾秒
@@ -843,7 +845,7 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
     assert build.main([]) == 0
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     assert {
-        k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "ai")
+        k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "tdx", "ai")
     } == dict.fromkeys(build.SOURCE_NAMES, False)
     assert out["sources"]["cwa"]["error"] == "no_api_key"
     assert out["runs"] == {
@@ -904,7 +906,10 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
         a.jma_area.class20 for a in airports if a.icao in JMA_ICAOS
     )
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
-    assert all(s["ok"] for k, s in out["sources"].items())
+    # HD38：TDX 沒設金鑰（測試不連網）是 not_configured，其他都成功
+    tdx_status = out["sources"]["tdx"]
+    assert tdx_status == {"ok": False, "error": "not_configured", "calls": 0, "seconds": 0.0}
+    assert all(s["ok"] for k, s in out["sources"].items() if k != "tdx")
     assert [a["icao"] for a in out["airports"]] == ICAOS
     assert all(len(a["slots"]) == 20 for a in out["airports"])
     assert {a["icao"] for a in out["airports"] if a["taf"]} == TAF_ICAOS
@@ -1446,6 +1451,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "jma",
         "swic",  # HD29
         "flights",
+        "tdx",  # HD38
         "airports3h",  # HD35
         "ai",
         "og",
@@ -1477,12 +1483,15 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     om_line = lines[5]  # HD16：openmeteo 記加權呼叫次數（失敗是 null）
     assert set(om_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert (om_line["ok"], om_line["calls"]) == (False, None)
-    ap_line = lines[14]  # HD35：機場頁的 3 小時格
+    tdx_line = lines[14]  # HD38：tdx 記資料請求數（沒設金鑰是 0），每月上限從這裡數
+    assert set(tdx_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
+    assert (tdx_line["error"], tdx_line["calls"]) == ("not_configured", 0)
+    ap_line = lines[15]  # HD35：機場頁的 3 小時格
     assert set(ap_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "files", "mismatches"),
     }
     assert (ap_line["ok"], ap_line["error"], ap_line["files"]) == (True, None, 51)
-    ai_line = lines[15]
+    ai_line = lines[16]
     assert set(ai_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "calls"),
         *("usage", "costUsd"),  # HD26
