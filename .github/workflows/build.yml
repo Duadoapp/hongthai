@@ -34,7 +34,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04 # ubuntu-latest 2026-10-19 起換成 26.04；eccodes 與 Python 套件在新版確認過再換
-    timeout-minutes: 42 # 「產生 latest.json」32 分鐘＋其他步驟（HD15 前 40、HD16 前 38、HD21 前 35、HD14 前 30、HD12 前 28）；排程間隔至少 4.5 小時，不會重疊
+    timeout-minutes: 55 # 「產生 latest.json」45 分鐘＋其他步驟（2026-10-25 前 42、HD15 前 40、HD16 前 38、HD21 前 35、HD14 前 30、HD12 前 28）；排程間隔至少 4.5 小時，不會重疊
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -74,7 +74,7 @@ jobs:
         # 120 秒），超時的來源記 ok:false 繼續跑；這裡是整步的保險（總和 1785 秒＋2.25 分鐘餘裕，HD15 前 30 分鐘、HD16 前
         # 28 分鐘、HD21 前 25 分鐘、HD14 前 20 分鐘、HD12 前 18 分鐘）。
         # 被砍時已寫的 history/timing/ 照樣推上去
-        timeout-minutes: 32
+        timeout-minutes: 45 # 2026-10-25 由 32 放寬：預算總和 1,910 秒已逼近 32 分鐘（README「時間預算」）
         env:
           CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
           # AI 對決（HD5）；GOOGLE_SERVICE_ACCOUNT_JSON 是服務帳號金鑰 JSON 整份原文
