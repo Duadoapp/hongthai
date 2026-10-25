@@ -22,6 +22,7 @@
   - 同一班出現兩次時留最嚴重的分類
 - 分類（互斥，一班只進一類，`total` 包含全部）：
   - `cancelled`：狀態表示取消
+  - `diverted`：狀態表示轉降（HD38；以前算 `other`，舊檔沒有這個鍵，讀的時候當 0）
   - `delayed`：狀態表示延誤，**或**預計／實際時間比表定時間晚 60 分鐘以上（取消的不重複算）
   - `other`：對照表沒列的狀態（仍算進 `total`；每種字串在 log 印一次，並合併進
     `history/cancellations/unknown-statuses.json`，見 `store_unknown`）
@@ -34,8 +35,18 @@
 狀態對照表：從 `data` 分支 2026-10-18 05:06Z 的快照整理（`git fetch origin data` 後
 `git show data:history/flights/2026-10-18/<機場>-0506.json.gz | gunzip`），
 2026-10-18 08:5xZ 實際抓一次補上新看到的用語。比對前去掉空白、轉大寫。
-標「＊」的是兩次都沒看到、依同一來源的用語預先列入的。台灣三個來源另有通用規則：
-開頭是「取消」→ 取消，開頭是「延遲」「延誤」→ 延誤。
+標「＊」的是兩次都沒看到、依同一來源的用語預先列入的。台灣三個來源（和 TDX，`flights_log.py`）
+另有通用規則：開頭是「取消」→ 取消，開頭是「延遲」「延誤」→ 延誤；HD38 補上 TDX 2026-10-22～24
+實際看到、HD37 報告工具先補的三種（以前都是 `other`；新存的資料才套，舊檔不改寫）：
+- 開頭是「加班」（加班機）→ 正常
+- 開頭是「轉降」→ `diverted`（不算取消，另外計數）
+- `預計HH:MM到站`／`預計HH:MM離站`／`預計HH:MM出發`（也接 `抵達`、`到達`、`起飛`、沒有結尾字的，
+  和帶 `MM/DD` 或 `YYYY/MM/DD` 的，同 HD37 報告工具）→ 正常，狀態裡的時間當預計時間（來源本身
+  沒有預計／實際時間時才用），晚 60 分鐘以上照上面的規則算延誤；沒寫日期的照「沒有日期的預計／
+  實際時間」的規則放（`tw_expected`）
+
+每格表定（出發＋抵達）少於 `FEW_FLIGHTS`（4）班的，`latest.json` 標 `few: true`（`slot_json`；
+HD37 報告工具的「班次少」用同一個門檻）。
 
 - 桃園 `status`
   - 取消：取消CANCELLED
@@ -81,17 +92,18 @@ import re
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from .timeutil import SLOT_HOURS, floor_6h, iso
+from .timeutil import SLOT_HOURS, iso
 
 log = logging.getLogger("hongthai")
 
-OK, OTHER, DELAYED, CANCELLED = "ok", "other", "delayed", "cancelled"
-SEVERITY = {OK: 0, OTHER: 1, DELAYED: 2, CANCELLED: 3}
+OK, OTHER, DELAYED, DIVERTED, CANCELLED = "ok", "other", "delayed", "diverted", "cancelled"
+SEVERITY = {OK: 0, OTHER: 1, DELAYED: 2, DIVERTED: 3, CANCELLED: 4}
 DELAY_MINUTES = 60
+FEW_FLIGHTS = 4  # 一格表定少於這個班數標「班次少」（HD37、HD38）
 CARGO_TYPES = {"CGO", "CARGO", "FRT"}
 
 
@@ -180,8 +192,15 @@ MFM_KEYWORDS = [
 MFM_DONE = r"(?:TOOK OFF|LANDED) AT "
 
 
+# `預計HH:MM到站` 之類（`_norm` 後），和 HD37 報告工具（`tools/report_29w.py` 的 `_EST`）同一套：
+# 可帶 `MM/DD` 或 `YYYY/MM/DD`，結尾的「到站」之類可省。群組：年、月、日（都可省）、時間
+TW_EXPECTED = re.compile(
+    r"預計(?:(?:(\d{4})[/-])?(\d{1,2})[/-](\d{1,2}))?(\d{1,2}:\d{2})(?:到站|離站|出發|抵達|到達|起飛)?"
+)
+
+
 def _lookup(table: dict[str, str], status: object) -> str:
-    """台灣三個來源：先查表，查不到再看開頭的中文。"""
+    """台灣三個來源（和 TDX）：先查表，查不到再看開頭的中文、`預計HH:MM到站` 這類。"""
     s = _norm(status)
     if s in table:
         return table[s]
@@ -189,7 +208,30 @@ def _lookup(table: dict[str, str], status: object) -> str:
         return CANCELLED
     if s.startswith(("延遲", "延誤")):
         return DELAYED
+    if s.startswith("轉降"):
+        return DIVERTED
+    if s.startswith("加班") or TW_EXPECTED.fullmatch(s):
+        return OK
     return OTHER
+
+
+def tw_expected(status: object, sched: datetime) -> datetime | None:
+    """`預計HH:MM到站` 這類狀態裡的預計時間（帶表定時間的時區）；不是這類回 None。沒寫日期的
+    放在表定時間前 6 小時到後 18 小時之間（`_near`），只寫月日的取最接近表定日期的那一年。"""
+    m = TW_EXPECTED.fullmatch(_norm(status))
+    if not m:
+        return None
+    clock = _clock(m[4])
+    if not m[2]:
+        return _near(sched, clock)
+    try:
+        if m[1]:
+            day = date(int(m[1]), int(m[2]), int(m[3]))
+        else:
+            day = _nearest_year(int(m[2]), int(m[3]), sched.date())
+    except ValueError:
+        return None
+    return _at(day, clock, sched.tzinfo)  # type: ignore[arg-type]
 
 
 def _match(rules: list, status: str) -> tuple[str, str | None, date | None]:
@@ -308,6 +350,7 @@ def _tpe(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
         except ValueError:
             pass
         status = str(r.get("status") or "")
+        actual = actual or tw_expected(status, sched)
         cat = _category(_lookup(TPE_STATUS, status), sched, actual)
         flight_no = no_of(r)
         yield Flight(
@@ -361,8 +404,8 @@ def _tsa(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
             if sched is None:
                 yield None
                 continue
-            actual = _near(sched, _clock(r.get(f"Real{field}Time")))
             status = str(r.get("AirFlyStatus") or "")
+            actual = _near(sched, _clock(r.get(f"Real{field}Time"))) or tw_expected(status, sched)
             cat = _category(_lookup(TSA_STATUS, status), sched, actual)
             flight_no = no_of(r)
             yield Flight(
@@ -403,8 +446,8 @@ def _khh(payload: dict, tz: ZoneInfo, now: datetime) -> Iterator[Flight | None]:
             if sched is None:
                 yield None
                 continue
-            actual = _near(sched, _clock(r.get("realTime")))
             status = str(r.get("airFlyStatus") or "")
+            actual = _near(sched, _clock(r.get("realTime"))) or tw_expected(status, sched)
             cat = _category(_lookup(KHH_STATUS, status), sched, actual)
             flight_no = str(r.get("airLineNum") or "").strip()
             yield Flight(
@@ -560,7 +603,7 @@ def flights_of(airport: str, payload: dict, tz: str, now: datetime) -> list[Flig
 
 
 def _zero() -> dict[str, int]:
-    return {"total": 0, CANCELLED: 0, DELAYED: 0, OTHER: 0}
+    return {"total": 0, CANCELLED: 0, DELAYED: 0, DIVERTED: 0, OTHER: 0}
 
 
 def unknown_statuses(flights: Iterable[Flight]) -> Counter[str]:
@@ -573,19 +616,33 @@ def airport_stats(airport: str, payload: dict, tz: str, now: datetime) -> list[d
     return slot_stats(airport, flights_of(airport, payload, tz, now), now)
 
 
-def slot_stats(airport: str, flights: list[Flight], now: datetime) -> list[dict]:
-    """解析好的航班 → 每格一筆統計（`airport_stats` 的後半）。"""
-    for status, n in sorted(unknown_statuses(flights).items()):
-        log.warning("航班 %s 看不懂的狀態 %r（%d 班，算進 other）", airport, status, n)
+def _floor(t: datetime, hours: int) -> datetime:
+    """往前取整到 `hours` 小時一格（UTC 00Z 起算；6 就是 `timeutil.floor_6h`）。"""
+    t = t.astimezone(UTC)
+    return t.replace(hour=t.hour - t.hour % hours, minute=0, second=0, microsecond=0)
+
+
+def slot_stats(
+    airport: str,
+    flights: list[Flight],
+    now: datetime,
+    hours: int = SLOT_HOURS,
+    log_unknown: bool = True,
+) -> list[dict]:
+    """解析好的航班 → 每格一筆統計（`airport_stats` 的後半）。`hours` 是格長（HD38：3 小時格
+    用 3，依表定歸格的規則一樣）；`log_unknown=False` 不再印看不懂的狀態（同一批算第二次時）。"""
+    if log_unknown:
+        for status, n in sorted(unknown_statuses(flights).items()):
+            log.warning("航班 %s 看不懂的狀態 %r（%d 班，算進 other）", airport, status, n)
     slots: dict[datetime, dict[str, dict[str, int]]] = defaultdict(
         lambda: {"dep": _zero(), "arr": _zero()}
     )
     for f in flights:
-        counts = slots[floor_6h(f.scheduled)][f.direction]
+        counts = slots[_floor(f.scheduled, hours)][f.direction]
         counts["total"] += 1
         if f.category != OK:
             counts[f.category] += 1
-    step = timedelta(hours=SLOT_HOURS)
+    step = timedelta(hours=hours)
     return [
         {
             "airport": airport,
@@ -611,6 +668,38 @@ def merge(existing: list[dict], new: list[dict]) -> list[dict]:
         if key not in rows or _total(r) >= _total(rows[key]):
             rows[key] = r
     return sorted(rows.values(), key=lambda r: (r["airport"], r["from"]))
+
+
+COUNT_KEYS = ("total", CANCELLED, DELAYED, DIVERTED)
+
+
+def slot_json(row: dict, source: str) -> dict:
+    """一筆格的統計 → `latest.json` 的 `slots[].flights`（HD38）：出發＋抵達合計的
+    `total`／`cancelled`／`delayed`／`diverted`、`few`（表定少於 `FEW_FLIGHTS` 班）、`source`、
+    `asOf`，另附 `dep`／`arr` 各自的四個數。`other` 不另列（算在 `total` 裡）；HD38 以前存的列
+    沒有 `diverted`，當 0。"""
+    parts = {
+        d: {k: int((row.get(d) or {}).get(k) or 0) for k in COUNT_KEYS} for d in ("dep", "arr")
+    }
+    total = {k: parts["dep"][k] + parts["arr"][k] for k in COUNT_KEYS}
+    return {
+        **total,
+        "few": total["total"] < FEW_FLIGHTS,
+        "source": source,
+        "asOf": row.get("asOf"),
+        **parts,
+    }
+
+
+def load(history: Path, days: Iterable[str]) -> list[dict]:
+    """讀 `history/cancellations/<日期>.json`（這幾天的；沒有的檔跳過）。"""
+    rows: list[dict] = []
+    for day in sorted(set(days)):
+        path = history / "cancellations" / f"{day}.json"
+        if path.exists():
+            body = json.loads(path.read_text(encoding="utf-8"))
+            rows += [r for r in body if isinstance(r, dict)] if isinstance(body, list) else []
+    return rows
 
 
 def store(history: Path, stats: list[dict]) -> list[Path]:

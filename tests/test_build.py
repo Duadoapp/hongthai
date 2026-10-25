@@ -314,10 +314,14 @@ def test_top_level(latest):
         "icon",
         "jma",
         "wn2-ens",
+        "gem",  # HD33b：旁觀
+        "arpege",
+        "cma",
     ]
     for m in latest["models"]:
         assert set(m) == {"id", "name", "voting", "votesOnlyHigh"} and set(m["name"]) == LANGS
-        assert m["voting"] is True  # HD16：三票都投票（旁觀模式之後才有）
+        # HD16：三票都投票；HD33b 的三個是旁觀
+        assert m["voting"] is (m["id"] not in ("gem", "arpege", "cma"))
         # HD24：只投高或低的系集（判中時不算分母）
         assert m["votesOnlyHigh"] is (m["id"] in ("ifs-ens", "wn2-ens"))
     assert latest["models"][3]["name"] == {
@@ -511,6 +515,9 @@ def test_slot_shape(latest):
                 "icon",
                 "jma",
                 "wn2-ens",
+                "gem",  # HD33b：旁觀
+                "arpege",
+                "cma",
             ]
             for e in m["models"]:
                 assert set(e) == MODEL_ENTRY_KEYS
@@ -802,6 +809,9 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(build.nws, "fetch", lambda zones: build.nws.NwsData([], {}))
     monkeypatch.setattr(build.jma, "fetch", lambda areas: build.jma.JmaData({}, {}))
     monkeypatch.setattr(build.swic, "fetch", lambda airports, now: build.swic.SwicData([], {}, 0))
+    # HD34：颱風地圖的兩個來源預設沒有颱風（測試不連網）
+    monkeypatch.setattr(build.typhoon, "fetch_cwa", lambda key: build.typhoon.TyphoonData([], {}))
+    monkeypatch.setattr(build.typhoon, "fetch_jma", lambda: build.typhoon.TyphoonData([], {}))
     # HD14 的兩個模式、HD16 的 Open-Meteo、HD15 的 WeatherNext 3 預設失敗（測試不連網）
     for mod in (build.aifs, build.aigfs, build.openmeteo, build.wn3):
         monkeypatch.setattr(mod, "fetch", _boom)
@@ -811,6 +821,8 @@ def workspace(tmp_path, monkeypatch):
 
     monkeypatch.setattr(build.requests, "get", no_network)
     monkeypatch.delenv("JOB_STARTED_AT", raising=False)  # HD25：build.yml 才有
+    for k in (build.tdx.ENV_ID, build.tdx.ENV_SECRET):  # HD38：TDX 不連網
+        monkeypatch.delenv(k, raising=False)
     for k in (k for keys in ai_config.ENV.values() for k in keys):  # AI 對決（HD5）不呼叫
         monkeypatch.delenv(k, raising=False)
     # 預覽圖（HD1）在 test_og.py 測；這裡不畫，build 的測試才不會每個多幾秒
@@ -818,6 +830,59 @@ def workspace(tmp_path, monkeypatch):
         build.og, "render_all", lambda latest, out_dir: {"ok": True, "count": 0, "bytes": 0}
     )
     return tmp_path
+
+
+REAL_FETCH_CWA = build.typhoon.fetch_cwa  # workspace 換掉之前的（HD34）
+
+
+def sample_typhoons():
+    """HD34 的手造氣象署回應與 JMA 實抓＋手造 TD（`tests/test_typhoons.py` 同一份）。"""
+    t = build.typhoon
+    raw = load_json("jma_typhoon.json")
+    jma = [
+        t.parse_jma(tc, raw[tc]["specifications"], raw[tc]["forecast"])
+        for tc in raw
+        if tc != "targetTc"
+    ]
+    cwa_raw = load_json("cwa_typhoon_track.json")
+    return t.TyphoonData(t.parse_cwa(cwa_raw), cwa_raw), t.TyphoonData(jma, raw)
+
+
+def test_typhoon_failures_do_not_touch_latest(workspace, monkeypatch, airports):
+    """HD34：颱風來源失敗、或 typhoons.json 組不出來，latest.json 照出、只多 sources 兩筆。"""
+    monkeypatch.setattr(build.typhoon, "fetch_jma", _boom)
+    monkeypatch.setattr(build, "utcnow", lambda: NOW)
+    assert build.main([]) == 0
+    out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out["sources"]["jmaTyphoon"] == {
+        "ok": False,
+        "error": "timeout",
+        "seconds": out["sources"]["jmaTyphoon"]["seconds"],
+    }
+    assert out["sources"]["cwaTyphoon"]["ok"] is True
+    assert "typhoons" not in out
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert (ty["active"], ty["sources"]["jma"]["error"]) == (False, "timeout")
+
+    def broken(*a, **k):
+        raise KeyError("bug")
+
+    monkeypatch.setattr(build.typhoons, "build", broken)
+    monkeypatch.setattr(build, "utcnow", lambda: NOW + timedelta(hours=6))
+    assert build.main([]) == 0
+    out2 = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
+    assert out2["generatedAt"] != out["generatedAt"]
+    # 組不出來時 data 裡那份沒動，Pages 照舊發布上一份
+    assert json.loads((workspace / "public" / "typhoons.json").read_text("utf-8")) == ty
+
+
+def test_pipeline_crash_republishes_previous_typhoons(workspace, monkeypatch):
+    (workspace / "data").mkdir()
+    (workspace / "data" / "latest.json").write_text('{"schema": 1, "airports": []}', "utf-8")
+    (workspace / "data" / "typhoons.json").write_text('{"active": false}', "utf-8")
+    monkeypatch.setattr(build, "run", lambda **kw: (_ for _ in ()).throw(RuntimeError("bug")))
+    assert build.main([]) == 1
+    assert (workspace / "public" / "typhoons.json").read_text("utf-8") == '{"active": false}'
 
 
 def _airport(out, icao):
@@ -832,12 +897,22 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
     mods = (build.ecmwf, build.gfs, build.taf, build.hko, build.smg, build.nws, build.jma)
     for mod in (*mods, build.swic):
         monkeypatch.setattr(mod, "fetch", _boom)
+    monkeypatch.setattr(build.typhoon, "fetch_cwa", REAL_FETCH_CWA)  # 沒設授權碼
+    monkeypatch.setattr(build.typhoon, "fetch_jma", _boom)
     monkeypatch.delenv("CWA_API_KEY", raising=False)
     assert build.main([]) == 0
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     assert {
-        k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "ai")
-    } == dict.fromkeys(build.SOURCE_NAMES, False)
+        k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "tdx", "ai")
+    } == dict.fromkeys((*build.SOURCE_NAMES, "cwaTyphoon", "jmaTyphoon"), False)
+    assert out["sources"]["cwaTyphoon"]["error"] == "no_api_key"
+    # HD34：兩個都失敗、沒有上一份 → 沒有颱風（網頁不畫）
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert (ty["active"], ty["storms"], ty["sources"]["jma"]) == (
+        False,
+        [],
+        {"ok": False, "error": "timeout"},
+    )
     assert out["sources"]["cwa"]["error"] == "no_api_key"
     assert out["runs"] == {
         "ecmwf": None,
@@ -848,6 +923,9 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
         "icon": None,  # HD16
         "jma": None,
         "wn2-ens": None,
+        "gem": None,  # HD33b
+        "arpege": None,
+        "cma": None,
     }
     assert all(s["level"] == "unknown" for a in out["airports"] for s in a["slots"])
     # 沒有上一份、全部 unknown → 沒有機場要評；沒設金鑰照樣記 no_api_key
@@ -885,6 +963,9 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     monkeypatch.setattr(build.swic, "fetch", lambda aps, now: swic_asked.extend(aps) or sw)
     om = sample_openmeteo(airports)
     monkeypatch.setattr(build.openmeteo, "fetch", lambda *a, **k: om)
+    ct, jt = sample_typhoons()
+    monkeypatch.setattr(build.typhoon, "fetch_cwa", lambda key: ct)
+    monkeypatch.setattr(build.typhoon, "fetch_jma", lambda: jt)
     monkeypatch.setattr(build, "utcnow", lambda: NOW)
     monkeypatch.setattr(build.ai, "EVALUATORS", {"claude": fake_ai("high"), "gemini": fake_ai()})
     assert build.main([]) == 0
@@ -894,7 +975,10 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
         a.jma_area.class20 for a in airports if a.icao in JMA_ICAOS
     )
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
-    assert all(s["ok"] for k, s in out["sources"].items())
+    # HD38：TDX 沒設金鑰（測試不連網）是 not_configured，其他都成功
+    tdx_status = out["sources"]["tdx"]
+    assert tdx_status == {"ok": False, "error": "not_configured", "calls": 0, "seconds": 0.0}
+    assert all(s["ok"] for k, s in out["sources"].items() if k != "tdx")
     assert [a["icao"] for a in out["airports"]] == ICAOS
     assert all(len(a["slots"]) == 20 for a in out["airports"])
     assert {a["icao"] for a in out["airports"] if a["taf"]} == TAF_ICAOS
@@ -903,8 +987,33 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     raw = workspace / "data" / "history" / "raw" / "2026-10-18"
     assert sorted(p.name for p in raw.iterdir()) == [
         f"0810Z-{n}.json"
-        for n in ("cwa", "hko", "jma", "metar", "nws", "openmeteo", "smg", "swic", "taf")
+        for n in (
+            "cwa-typhoon",  # HD34（排序 `-` 在 `.` 前面）
+            "cwa",
+            "hko",
+            "jma-typhoon",
+            "jma",
+            "metar",
+            "nws",
+            "openmeteo",
+            "smg",
+            "swic",
+            "taf",
+        )
     ]
+    # HD34：typhoons.json 在 data 根目錄與 Pages（只放最新一份）；latest.json 只多兩個 sources
+    assert json.loads((raw / "0810Z-jma-typhoon.json").read_text("utf-8")) == jt.raw
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert ty == json.loads((workspace / "data" / "typhoons.json").read_text("utf-8"))
+    assert ty["generatedAt"] == out["generatedAt"] and ty["active"] is True
+    assert [(s["id"], s["source"]) for s in ty["storms"]] == [
+        ("2630", "cwa"),
+        ("jma-TC2638", "jma"),
+    ]
+    assert {k: out["sources"][k]["storms"] for k in ("cwaTyphoon", "jmaTyphoon")} == {
+        "cwaTyphoon": 2,
+        "jmaTyphoon": 3,
+    }
     assert json.loads((raw / "0810Z-swic.json").read_text("utf-8")) == sw.raw
     assert out["sources"]["swic"]["caps"] == 1 and "capErrors" not in out["sources"]["swic"]
     wnz = _airport(out, "ZSWZ")
@@ -1218,6 +1327,9 @@ def test_ecmwf_failure_reuses_previous_model(workspace, monkeypatch):
         "icon": None,  # HD16
         "jma": None,
         "wn2-ens": None,
+        "gem": None,  # HD33b
+        "arpege": None,
+        "cma": None,
     }
     # gfs 也失敗了，但上一份的 runs.gfs 是 null → 不沿用
     assert "reusedFrom" not in out["sources"]["gfs"]
@@ -1273,6 +1385,9 @@ def test_reuse_expires_after_24h(workspace, monkeypatch):
         "icon": None,  # HD16
         "jma": None,
         "wn2-ens": None,
+        "gem": None,  # HD33b
+        "arpege": None,
+        "cma": None,
     }
     s0 = _airport(out, "VHHH")["slots"][0]
     assert s0["model"]["ec"]["hresGustMs"] is None
@@ -1428,8 +1543,12 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "smg",
         "nws",
         "jma",
+        "cwaTyphoon",  # HD34
+        "jmaTyphoon",
         "swic",  # HD29
         "flights",
+        "tdx",  # HD38
+        "airports3h",  # HD35
         "ai",
         "og",
         "done",
@@ -1460,7 +1579,19 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     om_line = lines[5]  # HD16：openmeteo 記加權呼叫次數（失敗是 null）
     assert set(om_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert (om_line["ok"], om_line["calls"]) == (False, None)
-    ai_line = lines[14]
+    assert [(r["source"], r["ok"]) for r in lines[12:14]] == [
+        ("cwaTyphoon", True),
+        ("jmaTyphoon", True),
+    ]
+    tdx_line = lines[16]  # HD38：tdx 記資料請求數（沒設金鑰是 0），每月上限從這裡數
+    assert set(tdx_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
+    assert (tdx_line["error"], tdx_line["calls"]) == ("not_configured", 0)
+    ap_line = lines[17]  # HD35：機場頁的 3 小時格
+    assert set(ap_line) == {
+        *("run", "source", "ok", "error", "seconds", "bytes", "files", "mismatches"),
+    }
+    assert (ap_line["ok"], ap_line["error"], ap_line["files"]) == (True, None, 51)
+    ai_line = lines[18]  # HD34 在 jma 後面多 cwaTyphoon、jmaTyphoon
     assert set(ai_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "calls"),
         *("usage", "costUsd"),  # HD26
@@ -1953,10 +2084,13 @@ def test_rescore_revotes_models():
         "icon",
         "jma",
         "wn2-ens",
+        "gem",  # HD33b：旁觀
+        "arpege",
+        "cma",
     ]
     assert m["models"][3]["run"] == "2026-10-18T00:00:00Z"  # 沒給 runs 時維持原值
     winds = [e["levels"]["wind"] for e in m["models"]]
-    assert winds == ["high", "medium", "high", "medium", None, None, None, None]
+    assert winds == ["high", "medium", "high", "medium", *[None] * 7]
     # 高 2 × 2 ≥ 4（IFS、系集）→ 高
     assert m["vote"] == {
         "total": 4,
@@ -1969,7 +2103,7 @@ def test_rescore_revotes_models():
     }
     assert (m["level"], slot["level"], slot["causes"]) == ("high", "high", ["wind"])
     build._rescore(slot, Thresholds(), {"ifs": "2026-10-18T06:00:00Z"})
-    assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z"] + [None] * 7
+    assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z"] + [None] * 10
 
 
 # ---- 估算陣風的係數（HD18）----
@@ -2139,7 +2273,7 @@ def test_openmeteo_three_votes_in_output(airports):
     # 高 1 × 2 < 4；中那一輪兩個系集不算，ICON、JMA 都低 → 低
     assert v["level"] == s["model"]["level"] == "low"
     assert out["runs"]["wn2-ens"] is None and wn2["run"] is None
-    assert [m["voting"] for m in out["models"]] == [True] * 8
+    assert [m["voting"] for m in out["models"]] == [True] * 8 + [False] * 3  # HD33b
 
 
 def test_openmeteo_failure_drops_three_votes(airports):
@@ -2202,6 +2336,112 @@ def test_rescore_keeps_this_runs_openmeteo_entries(airports):
     after = s["model"]["models"]
     assert after[5:] == before[5:]
     assert s["model"]["vote"]["total"] == 4
+
+
+# ---- HD33b：Open-Meteo 的三個旁觀模式（UKMO 是 CC BY-SA 4.0，不放） ----
+
+OBSERVERS = ("gem", "arpege", "cma")
+
+
+def with_observers(om, airports, gust=80.0, wind=50.0, rain=20.0, vis=None):
+    """`sample_openmeteo` 再加三個旁觀模式（每小時陣風 80 節、雨 20 mm → 每格風、雨都是高）。"""
+    t0 = utc(2026, 10, 18, 0)
+    hours = [t0 + timedelta(hours=h) for h in range(144)]
+    hourly = {
+        mid: {
+            a.icao: [openmeteo.OmHour(t, wind, 90.0, gust, rain, 0.0, vis, 63) for t in hours]
+            for a in airports
+        }
+        for mid in OBSERVERS
+    }
+    runs = {mid: utc(2026, 10, 18, 0) for mid in OBSERVERS}
+    return replace(om, hourly={**om.hourly, **hourly}, runs={**om.runs, **runs})
+
+
+def _strip(out, ids=OBSERVERS):
+    """拿掉 `models[]` 裡旁觀模式那幾筆，其他（等級、投票、`causes`、`gap`）整格比。"""
+    slots = []
+    for a in out["airports"]:
+        for s in a["slots"]:
+            s = json.loads(json.dumps(s))
+            s["model"]["models"] = [e for e in s["model"]["models"] if e["id"] not in ids]
+            slots.append(s)
+    return slots
+
+
+def test_observers_listed_but_do_not_change_level_or_vote(airports):
+    """三個旁觀模式每格都判高，但 `level`、`vote`、`model.level`、`causes`、`gap` 和沒有它們時
+    一模一樣；`models[]` 那三筆照寫（數字、`levels`、`level`、`run`），頂層 `models[]` 三筆
+    `voting: false`。"""
+    base = _assemble(airports, sample_openmeteo(airports))
+    out = _assemble(airports, with_observers(sample_openmeteo(airports), airports))
+    assert _strip(out) == _strip(base)
+    s = _airport(out, "RJCC")["slots"][1]
+    by = {e["id"]: e for e in s["model"]["models"]}
+    for mid in OBSERVERS:
+        e = by[mid]
+        assert (e["gustKt"], e["windKt"], e["gustEstimated"], e["gustFactor"]) == (
+            80.0,
+            50.0,
+            False,
+            None,
+        )
+        assert (e["rain6hMm"], e["ptype"], e["p49Kt"]) == (120.0, "rain", None)
+        assert e["levels"]["wind"] == e["levels"]["rain"] == e["level"] == "high"
+        assert e["run"] == "2026-10-18T00:00:00Z"
+    assert s["model"]["vote"]["total"] == 4 and s["model"]["level"] == "low"
+    assert [m["id"] for m in out["models"]][8:] == list(OBSERVERS)
+    assert all(m["voting"] is False and m["votesOnlyHigh"] is False for m in out["models"][8:])
+    assert out["models"][10]["name"] == {
+        "zh-TW": "中國模式",
+        "zh-HK": "中國模式",
+        "zh-CN": "中国模式",
+        "en": "CMA GRAPES",
+    }
+    assert "ukmo" not in out["runs"]  # UKMO 不進 latest.json（ShareAlike）
+    assert {m["id"]: m["name"]["en"] for m in out["models"][8:]} == {
+        "gem": "Canada GEM",
+        "arpege": "Météo-France ARPEGE",
+        "cma": "CMA GRAPES",
+    }
+    assert all(out["runs"][mid] == "2026-10-18T00:00:00Z" for mid in OBSERVERS)
+
+
+def test_observer_low_visibility_not_fog_hd33b(airports):
+    """CMA 能見度 150 公尺、風雨都小：旁觀那筆 `visibilityM` 照存，但 `levels.fog` 是 null、`level`
+    還是低（不因霧變中）；整格的等級、投票、`causes` 和沒有旁觀模式時一樣。"""
+    om = with_observers(
+        sample_openmeteo(airports), airports, gust=10.0, wind=5.0, rain=0.0, vis=150.0
+    )
+    out = _assemble(airports, om)
+    assert _strip(out) == _strip(_assemble(airports, sample_openmeteo(airports)))
+    for a in out["airports"]:
+        for s in a["slots"]:
+            for e in s["model"]["models"]:
+                if e["id"] in OBSERVERS:
+                    assert e["visibilityM"] == 150
+                    assert e["levels"]["fog"] is None and e["level"] == "low"
+
+
+def test_observers_missing_do_not_break_report(airports):
+    """三個旁觀模式都沒資料（例如被 `parse_forecast` 丟掉）：那三筆全 null、整報照出、其他不變。"""
+    om = sample_openmeteo(airports)
+    om = replace(
+        om,
+        hourly={**om.hourly, **{mid: {} for mid in OBSERVERS}},
+        model_errors=dict.fromkeys(OBSERVERS, "missing"),
+    )
+    status = {"openmeteo": {"ok": True, "seconds": 2.0, **build._openmeteo_extra(om)}}
+    out = _assemble(airports, om, status)
+    assert _strip(out) == _strip(_assemble(airports, sample_openmeteo(airports)))
+    assert out["sources"]["openmeteo"]["modelError"] == ("gem:missing,arpege:missing,cma:missing")
+    for a in out["airports"]:
+        for s in a["slots"]:
+            for e in s["model"]["models"]:
+                if e["id"] in OBSERVERS:
+                    assert e["level"] is None and e["gustKt"] is None and e["windKt"] is None
+    # 有資料時沒有 `modelError`
+    assert "modelError" not in build._openmeteo_extra(sample_openmeteo(airports))
 
 
 # ---- HD15：WeatherNext 3 ----

@@ -5,7 +5,7 @@
 
     {"t": 抓的時間, "airport": ICAO, "dir": "dep"|"arr", "flight": 營運班號,
      "codeshares": [掛名班號…], "peer": 對方機場（IATA 或原文）, "schedUtc", "estUtc", "actUtc",
-     "status": 原始狀態文字, "class": "cancelled"|"delayed"|"other"|"normal", "source"}
+     "status": 原始狀態文字, "class": "cancelled"|"diverted"|"delayed"|"other"|"normal", "source"}
 
 解析、共掛合成一班、去重、分類、沒有日期的時間、高雄換日全部用 `cancellations.flights_of`
 （和取消統計同一套）。`estUtc`／`actUtc` 是 `cancellations` 算延誤用的那個時間：狀態表示已起飛／
@@ -27,9 +27,11 @@ HD32：TDX 的 `/v2/Air/FIDS/Airport`（`sources/tdx.py`）一個機場那筆 �
 `actUtc` 是實際時間（沒有實際、但狀態已起飛／已降落時放預計），其他放預計；延誤看實際，沒有實際
 看預計。狀態用中文 `…Remark`（空的才用 `…RemarkEn`），照 `cancellations.py` 的台灣規則分類
 （`TDX_STATUS`：台灣三個來源的對照表合起來，加 TDX 可能用的單一中文或英文；查不到時開頭「取消」→
-取消、「延誤／延遲」→ 延誤），對照表沒列的記 log。貨機（`IsCargo`）不存；共掛：某一列的班號列在
-同方向、同表定時間另一列的 `CodeShare` 裡，就是掛名列，不另成一班；同一班號＋表定時間重複時留
-最嚴重的。
+取消、「延誤／延遲」→ 延誤，HD38 起「加班」→ 正常、「轉降」→ `diverted`、`預計HH:MM到站／離站` →
+正常且時間當預計，見 `cancellations.py`），對照表沒列的記 log。TDX 沒有預計／實際時間、狀態是
+`預計HH:MM到站` 這類時，用狀態裡的時間（`cancellations.tw_expected`）。貨機（`IsCargo`）不存；
+共掛：某一列的班號列在同方向、同表定時間另一列的 `CodeShare` 裡，就是掛名列，不另成一班；同一
+班號＋表定時間重複時留最嚴重的。
 """
 
 from __future__ import annotations
@@ -51,6 +53,7 @@ CLASS = {
     cancellations.OK: "normal",
     cancellations.OTHER: "other",
     cancellations.DELAYED: "delayed",
+    cancellations.DIVERTED: "diverted",  # HD38
     cancellations.CANCELLED: "cancelled",
 }
 SOURCES = {
@@ -250,7 +253,7 @@ def tdx_flights(airport_fids: dict, tz: str) -> list[Flight]:
             en = str(r.get(f"{field}RemarkEn") or "").strip()
             actual = _tdx_time(r.get(f"Actual{field}Time"), zone)
             estimated = _tdx_time(r.get(f"Estimated{field}Time"), zone)
-            when = actual or estimated
+            when = actual or estimated or cancellations.tw_expected(zh or en, sched)
             done = actual is not None or cancellations._norm(zh or en) in TDX_DONE
             out.append(
                 Flight(

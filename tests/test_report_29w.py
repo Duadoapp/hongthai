@@ -357,6 +357,28 @@ def test_ai_falls_back_to_history_records(archive):
     assert r.airports["ROAH"].ai == {"claude": "medium", "gemini": None}
 
 
+def test_snapshot_observers_skipped_hd33b():
+    """HD33b 起快照的 `models[]` 有 gem／arpege／cma（旁觀）：報告跳過（這幾個用回補檔比），
+    不會和回補的同一個 id 混在一起；其他模式照讀。"""
+    slot = _slot(A, "low", {"ifs": 24.0})
+    for mid in ("gem", "arpege", "cma"):
+        slot["model"]["models"].append(
+            {
+                "id": mid,
+                "run": "2026-10-24T12:00:00Z",
+                "gustKt": 60.0,
+                "gustEstimated": False,
+                "levels": {"wind": "high"},
+                "level": "high",
+            }
+        )
+    r = rpt.parse_report(_snapshot(R1, [slot], []), "x", ["RCTP"], {})
+    s = r.airports["RCTP"].slots[0]
+    assert [g.model for g in s.gusts] == ["ifs"]
+    assert not set(s.winds) & {"gem", "arpege", "cma"}
+    assert not set(r.model_runs) & {"gem", "arpege", "cma"}
+
+
 def test_legacy_snapshot_model_entries():
     model = {"ec": {"p10": 0.5, "hresGustMs": 10.0}, "gfs": {"gustKt": 20.0}}
     runs = {"ecmwf": "2026-10-18T06:00:00Z", "ecmwfEns": "2026-10-18T00:00:00Z", "gfs": "x"}

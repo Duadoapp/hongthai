@@ -12,6 +12,7 @@ import threading
 import time
 from dataclasses import replace
 from datetime import timedelta
+from itertools import takewhile
 from types import SimpleNamespace
 
 import anthropic
@@ -1762,6 +1763,35 @@ def test_airport_text_openmeteo_hd16(monkeypatch):
     lines = prompt.airport_text(ap, RUN).splitlines()
     assert "投票（強風）：5 個模式中 3 個認為高 → high" in lines[i]
     assert lines[i + 6].startswith("  - 德國模式（旁觀，不投票）：陣風 50.7 節")
+
+
+def test_airport_text_hides_observers_hd33b():
+    """HD33b：三個旁觀模式（加拿大、法國、中國模式）不給 AI——它們有資料、判高，給模型的文字
+    還是和沒有它們時一字不差（維持 8 個模式；改 AI 提示要另外決定）。"""
+    ap = airport("RCTP", lv(2, "medium"))
+    m = ap["slots"][0]["model"]
+    m["gfs"].update(gustKt=49.0)
+    others = {
+        "icon": {"gustKt": 50.7, "crosswindKt": 13.1, "rain6hMm": 1.2, "ptype": "rain"},
+        "jma": {"gustKt": 51.4, "rain6hMm": 2.4, "ptype": "rain"},
+        "wn2-ens": {"windKt": 40.5, "gustKt": 48.6, "p49Kt": 0.62},
+    }
+    _with_models(m, others)
+    base = prompt.airport_text(ap, RUN)
+    observers = ("gem", "arpege", "cma")
+    loud = {"gustKt": 80.0, "crosswindKt": 40.0, "rain6hMm": 90.0, "ptype": "rain"}
+    _with_models(m, {**others, **dict.fromkeys(observers, loud)})
+    assert [e["id"] for e in m["models"]][8:] == list(observers)
+    assert all(e["level"] == "high" for e in m["models"][8:])
+    text = prompt.airport_text(ap, RUN)
+    assert text == base
+    for name in ("加拿大模式", "法國模式", "中國模式", "Canada GEM", "ARPEGE", "GRAPES"):
+        assert name not in text, name
+    lines = text.splitlines()
+    i = next(i for i, ln in enumerate(lines) if ln.startswith("1. "))
+    rows = list(takewhile(lambda ln: ln.startswith("  - "), lines[i + 1 :]))
+    assert len(rows) == 8 and rows[-1].startswith("  - Google 的 AI 系集")
+    assert assess.ai_hidden() == set(observers)
 
 
 @pytest.mark.parametrize(
