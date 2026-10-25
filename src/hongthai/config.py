@@ -71,7 +71,8 @@ class Model:
     `voting`：`False` 是旁觀模式（HD16）——照樣抓、照樣寫進 `models[]` 與路徑檔，但不算進任何一類的
     分母、不投票（`vote.total` 不含它），頂層 `models[].voting` 讓網頁標「旁觀，不投票」；
     `three_hourly`：0–72 小時有 3 小時（或更細）的風（HD35，機場頁的 3 小時格各自算）；`False` 的
-    模式在 3 小時格用包住它的 6 小時格的值、標 `sixHourly`（`assess.merge_3h`）。"""
+    模式在 3 小時格用包住它的 6 小時格的值、標 `sixHourly`（`assess.merge_3h`）；
+    `ai`：`False` 的不放進給 AI 短評的文字（HD33b：三個旁觀模式不給，改 AI 提示要另外決定）。"""
 
     id: str
     name: dict[str, str]
@@ -79,6 +80,7 @@ class Model:
     gust_estimated: bool = False
     voting: bool = True
     three_hourly: bool = False
+    ai: bool = True
 
 
 # HD15：Google WeatherNext 3（`sources/wn3.py`）的兩個開關，環境變數可以覆寫（`build.yml` 不設就是
@@ -190,6 +192,36 @@ MODELS: tuple[Model, ...] = (
         },
         votes_only_high=True,
         gust_estimated=True,
+    ),
+    # HD33b：Open-Meteo 的三個旁觀模式（不投票、不給 AI），用 29W 回補（HD33a）比過準確度後再
+    # 決定投票或加權，不照解析度加權。三個都有陣風（2026-10-25 00:08Z 51 個機場實抓），CMA 還有
+    # 能見度（照存，旁觀不判霧）。UKMO 是 CC BY-SA 4.0（ShareAlike），不進 `latest.json`，只在
+    # HD33a 的報告比對
+    Model(
+        "gem",
+        {"zh-TW": "加拿大模式", "zh-HK": "加拿大模式", "zh-CN": "加拿大模式", "en": "Canada GEM"},
+        voting=False,
+        ai=False,
+        three_hourly=True,  # HD35：Open-Meteo 逐時（GEM、CMA 原生 3 小時，ARPEGE 前段 1 小時）
+    ),
+    Model(
+        "arpege",
+        {
+            "zh-TW": "法國模式",
+            "zh-HK": "法國模式",
+            "zh-CN": "法国模式",
+            "en": "Météo-France ARPEGE",
+        },
+        voting=False,
+        ai=False,
+        three_hourly=True,  # HD35：Open-Meteo 逐時（GEM、CMA 原生 3 小時，ARPEGE 前段 1 小時）
+    ),
+    Model(
+        "cma",
+        {"zh-TW": "中國模式", "zh-HK": "中國模式", "zh-CN": "中国模式", "en": "CMA GRAPES"},
+        voting=False,
+        ai=False,
+        three_hourly=True,  # HD35：Open-Meteo 逐時（GEM、CMA 原生 3 小時，ARPEGE 前段 1 小時）
     ),
     *((WN3_MODEL,) if wn3_mode() == "observe" else ()),
 )

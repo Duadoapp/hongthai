@@ -357,6 +357,28 @@ def test_ai_falls_back_to_history_records(archive):
     assert r.airports["ROAH"].ai == {"claude": "medium", "gemini": None}
 
 
+def test_snapshot_observers_skipped_hd33b():
+    """HD33b 起快照的 `models[]` 有 gem／arpege／cma（旁觀）：報告跳過（這幾個用回補檔比），
+    不會和回補的同一個 id 混在一起；其他模式照讀。"""
+    slot = _slot(A, "low", {"ifs": 24.0})
+    for mid in ("gem", "arpege", "cma"):
+        slot["model"]["models"].append(
+            {
+                "id": mid,
+                "run": "2026-10-24T12:00:00Z",
+                "gustKt": 60.0,
+                "gustEstimated": False,
+                "levels": {"wind": "high"},
+                "level": "high",
+            }
+        )
+    r = rpt.parse_report(_snapshot(R1, [slot], []), "x", ["RCTP"], {})
+    s = r.airports["RCTP"].slots[0]
+    assert [g.model for g in s.gusts] == ["ifs"]
+    assert not set(s.winds) & {"gem", "arpege", "cma"}
+    assert not set(r.model_runs) & {"gem", "arpege", "cma"}
+
+
 def test_legacy_snapshot_model_entries():
     model = {"ec": {"p10": 0.5, "hresGustMs": 10.0}, "gfs": {"gustKt": 20.0}}
     runs = {"ecmwf": "2026-10-18T06:00:00Z", "ecmwfEns": "2026-10-18T00:00:00Z", "gfs": "x"}
@@ -1066,3 +1088,205 @@ def test_no_flights_same_as_hd36(archive):
     )
     assert _digest(_hd36_fields(rpt.to_json(both))) == HD36_DIGEST_BOTH
     assert _digest(_hd36_fields(rpt.to_json(_result(archive)))) == HD36_DIGEST_PLAIN
+
+
+# ---- HD33a：旁觀・回補 ----
+
+
+def _bf(icao, at, day, wind, gust=None, wdir=49.1, estimated=False):
+    return {
+        "icao": icao,
+        "validAt": iso(at),
+        "previousDay": day,
+        "windKt": wind,
+        "windDir": wdir,
+        "gustKt": None if estimated else gust,
+        "gustEstimated": estimated,
+        "precipMm": 0.0,
+    }
+
+
+def _hours(span):
+    """格的 (from, to] 小時（前一小時的值）＋ from 那個小時（估算的平均風看 [from, to]）。"""
+    from datetime import timedelta
+
+    return [span[0] + timedelta(hours=h) for h in range(7)]
+
+
+def _add_backfill(archive, g=None, levels=False):
+    """RCTP 的格 B（10/22 06–12Z，實際停飛、METAR 最大 45 節）：ukmo 提前 1 天陣風 50（高）、
+    提前 0 天 30（低）、提前 5 天 60（120 小時以後，不算）；cma 是估算陣風（平均風 30）。
+    `g`：R1 快照 aifs 那幾筆的 `gustFactor`；`levels`：快照每筆補 `levels.wind`。"""
+    d = archive / "data" / "history" / "events" / "29W"
+    ukmo = []
+    for i, t in enumerate(_hours(B)):
+        ukmo.append(_bf("RCTP", t, 1, 30, 40 + 10 * (i == 3)))
+        ukmo.append(_bf("RCTP", t, 0, 20, 30))
+        ukmo.append(_bf("RCTP", t, 5, 40, 60))
+    ukmo.append(_bf("RCTP", B[0], 1, 1, 1))  # 重複的鍵：留第一行
+    ukmo.append(_bf("RJCC", B[1], 1, 99, 99))  # 不在事件機場
+    _jsonl(d / "backfill" / "openmeteo-ukmo.jsonl", ukmo)
+    cma = [_bf("RCTP", t, 1, 20 + 10 * (i == 0), estimated=True) for i, t in enumerate(_hours(B))]
+    _jsonl(d / "backfill" / "openmeteo-cma.jsonl", cma)
+    if g is None and not levels:
+        return
+    for p in sorted(d.glob("2026*.json")):
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        for a in doc["airports"]:
+            for s in a["slots"]:
+                for e in s["model"]["models"]:
+                    if g is not None and p.stem.startswith("20261021") and e["id"] == "aifs":
+                        e["gustFactor"] = g
+                    gust = e.get("gustKt")
+                    if levels and gust is not None:
+                        e["levels"] = {"wind": "high" if gust >= 48 else "low"}
+        _write(p, doc)
+
+
+def test_no_backfill_files_no_change(archive):
+    res = _result(archive)
+    assert res.backfill is None
+    assert "旁觀" not in rpt.render(res)
+    assert "backfill" not in rpt.to_json(res)
+
+
+def test_backfill_json_keeps_old_fields(archive):
+    before = rpt.to_json(_result(archive))
+    _add_backfill(archive)
+    after = rpt.to_json(_result(archive))
+    assert after.pop("backfill")["rows"] == {"ukmo": 21, "cma": 7}
+    assert after == before
+
+
+def test_backfill_lead_from_previous_day(archive):
+    _add_backfill(archive)
+    bf = _result(archive).backfill
+    assert bf is not None
+    runs = {(r.model, iso(r.run)): r for r in bf.runs}
+    # 起報＝格開始時間減 previousDay 天那一天的 00Z；previousDay 5 不算
+    assert set(runs) == {
+        ("ukmo", "2026-10-21T00:00:00Z"),
+        ("ukmo", "2026-10-22T00:00:00Z"),
+        ("cma", "2026-10-21T00:00:00Z"),
+    }
+    # 提前 1 天：格 B 的提前時間 30 小時 → 24–48；提前 0 天：6 小時 → 0–24
+    ukmo = bf.gust.all["ukmo"]
+    assert [c.pairs for c in ukmo] == [[(30.0, 45.0)], [(50.0, 45.0)], [], [], []]
+    assert bf.gust.estimated == {"cma"}
+
+
+def test_backfill_slot_hours_and_estimated_gust(archive):
+    _add_backfill(archive)
+    bf = _result(archive).backfill
+    assert bf is not None
+    run = next(r for r in bf.runs if r.model == "cma")
+    (slot,) = run.airports["RCTP"]
+    # 估算：[from, to] 最大平均風 30（from 那個小時）× G（快照沒有 gustFactor → 1.4）
+    assert (slot.start, slot.end) == B
+    assert slot.gusts[0].gust == 42.0 and slot.gusts[0].estimated
+    assert slot.winds == {"cma": "medium"}
+    # 有陣風：只看 (from, to]；from 那個小時屬於前一格，前一格只有這一個小時 → 不算
+    ukmo = next(r for r in bf.runs if r.model == "ukmo" and r.run == utc(2026, 10, 21))
+    assert [s.start for s in ukmo.airports["RCTP"]] == [B[0]]
+
+
+def test_backfill_gust_factor_from_snapshot(archive):
+    _add_backfill(archive, g=1.6)
+    bf = _result(archive).backfill
+    assert bf is not None
+    run = next(r for r in bf.runs if r.model == "cma")
+    # 起報 10/21 00Z 之前沒有快照 → 用最早有 G 的那報（R1）
+    assert run.airports["RCTP"][0].gusts[0].gust == 48.0
+
+
+def test_backfill_gust_rows_in_markdown(archive):
+    _add_backfill(archive)
+    res = _result(archive)
+    md = rpt.render(res)
+    assert "| ukmo（旁觀・回補） |" in md and "| cma*（旁觀・回補） |" in md
+    assert "旁觀・回補（Open-Meteo Previous Runs）：ukmo 21 行、cma（估算陣風） 7 行" in md
+    # 門檻命中：ukmo 24–48 段預測 50、實測 45 → ≥37 命中 1/1、≥48 誤報 1
+    line = next(x for x in md.splitlines() if x.startswith("| ukmo（旁觀・回補） | ≥37"))
+    # 0–24 段預測 30 → ≥37 漏報；24–48 段預測 50、實測 45 → ≥37 命中、≥48 誤報
+    assert line.split(" | ")[1:3] == [
+        "≥37：0/1（0）、≥48：0/0（0）",
+        "≥37：1/1（0）、≥48：0/0（1）",
+    ]
+    doc = rpt.to_json(res)["backfill"]
+    assert doc["gust"]["all"]["ukmo"][1]["ge48"]["false"] == 1
+    assert doc["gustEstimated"] == {"ukmo": False, "cma": True}
+
+
+def test_backfill_model_levels_vs_stops(archive):
+    _add_backfill(archive, levels=True)
+    res = _result(archive)
+    bf = res.backfill
+    assert bf is not None
+    lv = bf.levels.models
+    # 格 B 實際停飛：ukmo 提前 1 天判高（TP）、提前 0 天判低（FN）
+    assert (lv["ukmo"]["high"][1].tp, lv["ukmo"]["high"][0].fn) == (1, 1)
+    assert lv["cma"]["risky"][1].tp == 1 and lv["cma"]["high"][1].fn == 1
+    # 快照的模式照 `levels.wind` 一起比：R1 的 IFS 在格 B 陣風 50（高，24–48）；R2 在格 B 44、
+    # 所在的格 D 10（都低，0–24），兩格都停飛
+    assert lv["ifs"]["high"][1].tp == 1 and lv["ifs"]["high"][0].fn == 2
+    md = rpt.render(res)
+    assert "### 每格各模式的風等級（陣風與側風）vs 實際停飛" in md
+    assert "| ukmo（旁觀・回補）判高 |" in md and "| ifs判高 |" in md
+    assert "modelLevels" in rpt.to_json(res)["backfill"]
+
+
+def test_backfill_until_and_truth_until(archive):
+    _add_backfill(archive)
+    # `--until` 10/21 00Z → 留 R1（之後的第一報，10/21 01Z）→ 起報 ≤ R1 的才算
+    bf = _result(archive, until="2026-10-21T00:00Z").backfill
+    assert bf is not None
+    assert {(r.model, r.run) for r in bf.runs} == {
+        ("ukmo", utc(2026, 10, 21)),
+        ("cma", utc(2026, 10, 21)),
+    }
+    assert bf.excluded_runs == 1
+    # 實測截止在格 B 結束前 → 不算命中也不算誤報
+    bf = _result(archive, truth_until=utc(2026, 10, 22, 11)).backfill
+    assert bf is not None
+    assert all(not c.pairs for cells in bf.gust.all.values() for c in cells)
+    assert bf.gust.past_truth > 0
+
+
+def test_backfill_slot_matches_assess():
+    """報告照抄的換算要和 `assess.hourly_for_slot`（ICON／JMA）一樣。"""
+    from datetime import timedelta
+
+    from hongthai import assess
+    from hongthai.assess import GustFactor
+    from hongthai.config import Runway
+    from hongthai.sources.openmeteo import OmHour
+
+    runways = (Runway("05/23", (49.1, 229.1)),)
+    start = utc(2026, 10, 22, 6)
+    rows = [
+        (start + timedelta(hours=h), 10.0 + 3 * h, (40 + 37 * h) % 360, 18.0 + 5 * (h % 4))
+        for h in range(-1, 8)
+    ]
+    om = [OmHour(t, w, d, g, None, None, None, None) for t, w, d, g in rows]
+    bf = {t: rpt.BfHour(t, w, d, g) for t, w, d, g in rows}
+    end = start + timedelta(hours=6)
+    want = assess.hourly_for_slot(om, start, end, runways)
+    assert rpt.backfill_slot(bf, start, end, False, runways, 1.0) == (
+        want["gustKt"],
+        want["crosswindKt"],
+    )
+    want = assess.hourly_for_slot(om, start, end, runways, GustFactor(1.55, "airport30d"))
+    assert rpt.backfill_slot(bf, start, end, True, runways, 1.55) == (
+        want["gustKt"],
+        want["crosswindKt"],
+    )
+
+
+def test_wind_level_matches_assess():
+    from hongthai import assess
+    from hongthai.config import Thresholds
+
+    th = Thresholds()
+    for gust in (None, 10.0, 37.0, 47.9, 48.0):
+        for xw in (None, 5.0, 27.0, 33.0):
+            assert rpt.wind_level(gust, xw, th) == assess._wind_level(gust, xw, th)
