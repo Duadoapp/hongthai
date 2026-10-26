@@ -29,6 +29,15 @@
   取到 0.1 度；`tests/test_typhoons.py` 檢查和 `airports.json` 一致）內才算；過去路徑不算。
   範圍外的不放進 `storms`，只在 `outOfRange` 記編號與來源
 - **資料舊**：`issuedAt` 早於產生時間 `STALE_HOURS`（12）小時就 `stale: true`
+- **減弱或結束的拿掉**（HD34c，Shawn 2026-10-26，`ended_reason`）：任一來源說這顆已經減弱或結束，
+  整顆從 `storms` 拿掉（不畫、不列圖例），記在 `ended`（`id`、`source`、原因）；不沿用上一份那筆
+  （`reusedFrom`），之後另一邊又重新發報（再增強）就照一般規則回來。原因：
+  - `jma_low`：日本氣象廳 title 的 `category` 是 `LOW`（温帯低気圧，最後一報；`targetTc` 之後還會
+    留著它）
+  - `cwa_td`：氣象署命名過的颱風（有 `CwaTyNo`）最新定位的 `MaxWindSpeed` 低於 `CWA_TY_MIN_MS`
+    （17.2 m/s，氣象署輕度颱風的下限）＝減弱為熱帶性低氣壓。從沒命名過的熱帶性低氣壓（只有
+    `CwaTdNo`）照舊顯示
+  - 日本氣象廳 `TD`（台風から変わった熱帯低気圧）先不拿掉（等 Shawn 決定）
 - 兩個來源都失敗時沿用上一份的 `storms`（`stale` 照這一報的時間重算，另記 `reusedFrom`）；
   沒有上一份就是 `active: false`、`storms: []`。只有一個失敗時照另一個出（上一份是 `cwa` 的照上面
   的規則沿用）
@@ -37,7 +46,8 @@
 格式（`schema` 1）：`{"schema", "generatedAt", "active",
 "bounds": {"south", "north", "west", "east"},
 "sources": {"cwa": {"ok"[, "error"]}, "jma": {"ok"[, "error"]}}, "storms": [...],
-"outOfRange": [{"id", "source"}][, "reusedFrom"]}`；每顆 `{"id", "name": {四語},
+"outOfRange": [{"id", "source"}], "ended": [{"id", "source", "reason"}][, "reusedFrom"]}`；
+每顆 `{"id", "name": {四語},
 "source": "cwa"|"jma", "sourceId", "issuedAt", "url", "stale",
 "others": [{"source", "id", "issuedAt", "url"}], "past": [...], "now", "forecast": [...]
 [, "reusedFrom"]}`
@@ -52,6 +62,12 @@
 用。`name`：氣象署給中文、英文，JMA 只給英文；照 `sources/cwa.py` 颱風警報的寫法，zh-TW／zh-HK
 用中文名、zh-CN 與 en 用英文名，缺中文用英文，都缺用 `TD33`（氣象署熱帶性低氣壓編號）或 JMA 代號。
 用日本氣象廳那份時，`others` 裡配到的氣象署那份有中文名就借來給 zh-TW／zh-HK（2026-10-26）。
+HD34c 起中文名先查颱風名稱對照表 `typhoon_names.json`（`airports.json` 旁邊，`load_names`；140 個
+名字，zh-TW 照中央氣象署、zh-HK 照香港天文台、zh-CN 照中國氣象局的官方名單，來源網址與抓取時間在
+檔案的 `sources`）：zh-TW／zh-HK 是 對照表 → 氣象署這一報給的中文名（含借來的）→ 英文名，zh-CN 是
+對照表 → 英文名（氣象署的是台灣譯名），en 一律英文名。英文名照 `_name_key` 比對；對照表查不到的
+（新增或除名替補沒收到）照舊退回，`build` 寫一行 log（英文名與編號）。沿用上一份的那筆也照對照表
+重算中文名。
 """
 
 from __future__ import annotations
@@ -79,6 +95,12 @@ STALE_HOURS = 12
 MATCH_KM = 300
 MATCH_HOURS = 6
 PAGES = {"cwa": CWA_PAGE, "jma": JMA_PAGE}
+NAMES_FILENAME = "typhoon_names.json"
+ZH = ("zh-TW", "zh-HK", "zh-CN")
+# 氣象署輕度颱風的下限（m/s）：命名過的颱風最新定位低於這個＝減弱為熱帶性低氣壓
+CWA_TY_MIN_MS = 17.2
+
+NameTable = dict[str, dict[str, str]]  # `_name_key(英文名)` → 三個中文欄（空的不放）
 
 
 def in_bounds(lat: float, lon: float, box: dict = BOUNDS) -> bool:
@@ -138,14 +160,46 @@ def storm_id(s: Storm | dict, c: Storm | None, j: Storm | None, prev: dict | Non
     return f"{s.source}-{s.key}"
 
 
-def names(s: Storm, others: list[Storm] | tuple[Storm, ...] = ()) -> dict[str, str]:
-    """四語名稱。用日本氣象廳那份（只有英文名）時，配到的氣象署那份有中文名就借來給 zh-TW／zh-HK
-    （Shawn 2026-10-26：只借名字，路徑、暴風圈、`source` 照用日本氣象廳的）。"""
+def load_names(path: Path) -> NameTable:
+    """颱風名稱對照表（格式見 `typhoon_names.json` 的 `about`）。"""
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    out: NameTable = {}
+    for row in doc["names"]:
+        out[_name_key(row["en"])] = {k: row[k] for k in ZH if row.get(k)}
+    return out
+
+
+def names(
+    s: Storm, others: list[Storm] | tuple[Storm, ...] = (), table: NameTable | None = None
+) -> dict[str, str]:
+    """四語名稱（優先順序見模組說明）。用日本氣象廳那份（只有英文名）時，配到的氣象署那份有中文名就
+    借來給 zh-TW／zh-HK（Shawn 2026-10-26：只借名字，路徑、暴風圈、`source` 照用日本氣象廳的）。"""
     fallback = s.key.upper() if s.source == "cwa" else s.key
     en = s.name_en or fallback
     borrowed = next((o.name_zh for o in others if o.source == "cwa" and o.name_zh), "")
     zh = s.name_zh or borrowed or en
-    return {"zh-TW": zh, "zh-HK": zh, "zh-CN": en, "en": en}
+    row = (table or {}).get(_name_key(s.name_en)) if s.name_en else None
+    row = row or {}
+    return {
+        "zh-TW": row.get("zh-TW") or zh,
+        "zh-HK": row.get("zh-HK") or zh,
+        "zh-CN": row.get("zh-CN") or en,
+        "en": en,
+    }
+
+
+def ended_reason(s: Storm) -> str | None:
+    """這一份說這顆已經減弱或結束的原因代碼（`jma_low`／`cwa_td`，見模組說明）；沒有回 None。"""
+    if s.source == "jma" and s.category == "LOW":
+        return "jma_low"
+    if (
+        s.source == "cwa"
+        and s.key.startswith("ty")
+        and s.max_wind is not None
+        and s.max_wind < CWA_TY_MIN_MS
+    ):
+        return "cwa_td"
+    return None
 
 
 def _stale(issued: str | None, now: datetime) -> bool:
@@ -162,10 +216,12 @@ def _other(s: Storm) -> dict:
     }
 
 
-def storm_json(s: Storm, sid: str, now: datetime, others: list[Storm]) -> dict:
+def storm_json(
+    s: Storm, sid: str, now: datetime, others: list[Storm], table: NameTable | None = None
+) -> dict:
     return {
         "id": sid,
-        "name": names(s, others),
+        "name": names(s, others, table),
         "source": s.source,
         "sourceId": s.key,
         "issuedAt": iso(s.issued_at),
@@ -238,10 +294,25 @@ def choose(
     return None
 
 
-def _reuse(entry: dict, others: list[Storm], now: datetime, generated: object) -> dict:
+def _renamed(entry: dict, table: NameTable | None) -> dict:
+    """上一份那筆的 `name`，對照表有這個英文名就換成對照表的中文名。"""
+    name = entry.get("name")
+    row = (table or {}).get(_entry_name(entry))
+    if not isinstance(name, dict) or not row:
+        return entry
+    return {**entry, "name": {**name, **row}}
+
+
+def _reuse(
+    entry: dict,
+    others: list[Storm],
+    now: datetime,
+    generated: object,
+    table: NameTable | None = None,
+) -> dict:
     """上一份那筆照原樣沿用：`stale` 重算、`others` 換成這一報的、記 `reusedFrom`。"""
     return {
-        **entry,
+        **_renamed(entry, table),
         "stale": _stale(entry.get("issuedAt"), now),
         "others": [_other(o) for o in others],
         "reusedFrom": entry.get("reusedFrom") or generated,
@@ -254,9 +325,11 @@ def build(
     status: dict[str, dict],
     now: datetime,
     previous: dict | None = None,
+    table: NameTable | None = None,
 ) -> dict:
     """組 `typhoons.json`。`cwa`／`jma` 是 None 表示那個來源失敗（原因在 `status`，`build._call` 的
-    `sources.cwaTyphoon`／`jmaTyphoon`）。`previous` 是上一份 `typhoons.json`（沒有是 None）。"""
+    `sources.cwaTyphoon`／`jmaTyphoon`）。`previous` 是上一份 `typhoons.json`（沒有是 None）。
+    `table` 是颱風名稱對照表（`load_names`；None 就只用來源給的名字）。"""
     sources = {}
     for name, key in (("cwa", "cwaTyphoon"), ("jma", "jmaTyphoon")):
         st = status.get(key) or {"ok": False, "error": "skipped"}
@@ -271,6 +344,7 @@ def build(
         "sources": sources,
         "storms": [],
         "outOfRange": [],
+        "ended": [],
     }
     prev_storms = previous.get("storms") if isinstance(previous, dict) else None
     prev_storms = (
@@ -279,7 +353,9 @@ def build(
     generated = previous.get("generatedAt") if isinstance(previous, dict) else None
     if cwa is None and jma is None:
         if prev_storms:
-            doc["storms"] = [{**e, "stale": _stale(e.get("issuedAt"), now)} for e in prev_storms]
+            doc["storms"] = [
+                {**_renamed(e, table), "stale": _stale(e.get("issuedAt"), now)} for e in prev_storms
+            ]
             doc["reusedFrom"] = generated
             doc["active"] = True
         return doc
@@ -289,6 +365,14 @@ def build(
         prev = _previous_entry(prev_storms, c, j)
         if prev is not None:
             used.append(id(prev))
+        gone = next(
+            ((x, r) for x in (j, c) if x is not None and (r := ended_reason(x)) is not None), None
+        )
+        if gone is not None:  # 任一來源說減弱或結束：整顆拿掉，不沿用上一份
+            doc["ended"].append(
+                {"id": storm_id(gone[0], c, j, prev), "source": gone[0].source, "reason": gone[1]}
+            )
+            continue
         res = choose(c, j, prev, cwa is not None)
         if res is not None:
             picked.append((*res, storm_id(res[0], c, j, prev)))
@@ -300,11 +384,15 @@ def build(
         ]
     for s, others, sid in picked:
         if isinstance(s, dict):
-            entry = {**_reuse(s, others, now, generated), "id": sid}
+            entry = {**_reuse(s, others, now, generated, table), "id": sid}
             ok = _in_range(entry.get("now"), entry.get("forecast") or [])
             src = entry.get("source")
         else:
-            entry, ok, src = storm_json(s, sid, now, others), in_range(s), s.source
+            entry, ok, src = storm_json(s, sid, now, others, table), in_range(s), s.source
+            if table is not None and s.name_en and _name_key(s.name_en) not in table:
+                log.warning(
+                    "颱風名稱對照表沒有 %s（%s），中文名退回氣象署的或英文名", s.name_en, sid
+                )
         if ok:
             doc["storms"].append(entry)
         else:

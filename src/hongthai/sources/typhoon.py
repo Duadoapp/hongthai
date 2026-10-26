@@ -27,6 +27,8 @@
 - 氣象署資料沒有每個颱風的發布時間：`issuedAt` 用最新定位時間（預報的 `InitialTime`，沒有預報就用
   最後一個 `DateTime`）
 - 氣象署沒有國際編號，`Storm.number` 一律 None（和日本氣象廳配對用英文名，見 `typhoons.same_storm`）
+- 最新定位的 `MaxWindSpeed`（m/s，原文）記在 `Storm.max_wind`（HD34c）：`typhoons.ended_reason`
+  拿來判斷命名過的颱風減弱成熱帶性低氣壓（低於 `typhoons.CWA_TY_MIN_MS`）
 
 日本氣象廳 bosai 的颱風 JSON（JMA 網頁自己用的，非正式介面、不用金鑰；`events.py` 每小時的
 現報也在用）：
@@ -43,6 +45,9 @@
   （`preTyphoon`／`typhoon` 等，[緯, 經] 的串，沒有時間）＝過去路徑；每筆的
   `galeWarningArea`（偏心圓 `center`＋`radius` 公尺）、`stormWarningArea`（`arc`／`line`）、
   `probabilityCircle` 照原樣放進那個點的 `jmaShapes`
+- title 的 `category.en` 記在 `Storm.category`（HD34c）：`LOW`（温帯低気圧）是最後一報，
+  `targetTc` 之後還會留著它一段時間（2026-10-25 21:45 JST 的 TC2636 到 10-26 08:26Z 還在），
+  `typhoons.ended_reason` 拿來拿掉
 - 2026-10-25 00:45 JST 那報實抓：targetTc 211 bytes；TC2636（29W 薔琵）specifications 2351、
   forecast 2827 bytes；TC2637（インファ）3945、3051 bytes。原始回應存
   `history/raw/<日期>/<HHMM>Z-jma-typhoon.json`
@@ -110,6 +115,8 @@ class Storm:
     past: list[dict] = field(default_factory=list)
     now: dict | None = None
     forecast: list[dict] = field(default_factory=list)
+    category: str | None = None  # JMA title 的 `category.en`（TD／TS／STS／TY／LOW）；氣象署 None
+    max_wind: int | float | None = None  # 氣象署最新定位的 `MaxWindSpeed`（m/s）；JMA None
 
 
 @dataclass
@@ -250,7 +257,7 @@ def parse_cwa(data: object) -> list[Storm]:
             t = _time(_get(fix, "DateTime", "fix_time"))
             p = _cwa_point(fix, t)
             if p is not None and t is not None:
-                fixes.append((t, p))
+                fixes.append((t, p, _num(_get(fix, "MaxWindSpeed", "max_wind_speed"))))
         fixes.sort(key=lambda x: x[0])
         forecast = []
         init_times = []
@@ -281,9 +288,10 @@ def parse_cwa(data: object) -> list[Storm]:
                 name_zh=_text(_get(tc, "cwa_typhoon_name")),
                 name_en=_text(_get(tc, "typhoon_name")).title(),
                 issued_at=issued,
-                past=[{"time": p["time"], "lat": p["lat"], "lon": p["lon"]} for _, p in fixes],
+                past=[{"time": p["time"], "lat": p["lat"], "lon": p["lon"]} for _, p, _ in fixes],
                 now=fixes[-1][1] if fixes else None,
                 forecast=forecast,
+                max_wind=fixes[-1][2] if fixes else None,
             )
         )
     return out
@@ -402,6 +410,7 @@ def parse_jma(tc: str, spec: object, forecast: object = None) -> Storm | None:
     now = max(now_cands, key=lambda q: q["time"] or "") if now_cands else None
     name = title.get("name") if isinstance(title.get("name"), dict) else {}
     number = title.get("typhoonNumber")
+    cat = title.get("category")
     return Storm(
         source="jma",
         key=tc,
@@ -412,6 +421,7 @@ def parse_jma(tc: str, spec: object, forecast: object = None) -> Storm | None:
         past=past,
         now=now,
         forecast=sorted(fc, key=lambda q: q["leadHours"]),
+        category=(_text(cat.get("en")) or None) if isinstance(cat, dict) else None,
     )
 
 

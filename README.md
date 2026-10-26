@@ -1098,6 +1098,15 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
     上一份的同一顆：兩邊都有英文名時只比英文名；有一邊沒有才用 `id`、`sourceId` 或 `others` 的代號認
 - **範圍**：目前位置或任一預報點落在地圖框（51 個機場的經緯度外擴 5 度，往外取到 0.1 度：北緯 2.3–47.8、
   東經 98.9–149.8，`typhoons.BOUNDS`，`typhoons.json` 的 `bounds`）內才算；範圍外的只在 `outOfRange` 記編號
+- **減弱或結束的拿掉**（HD34c，Shawn 2026-10-26 定案，`typhoons.ended_reason`）：任一來源說這顆已經減弱或結束，
+  整顆從 `storms` 拿掉（不畫、不列圖例），記在 `ended`（`{"id", "source", "reason"}`，範圍內外都記）；
+  **不沿用上一份那筆**（上一份是 `cwa` 也一樣），之後另一邊又重新發報（再增強）就照一般規則回來。原因碼：
+  - `jma_low`：日本氣象廳 `specifications.json` title 的 `category.en` 是 `LOW`（温帯低気圧，最後一報）。
+    `targetTc` 之後還會留著它：TC2636（薔琵）2026-10-25 21:45 JST 標 `LOW`，到 10-26 08:26Z 還在、13:06Z 才不列
+  - `cwa_td`：氣象署命名過的颱風（有 `CwaTyNo`）最新定位的 `MaxWindSpeed` 低於 17.2 m/s（氣象署輕度颱風的下限，
+    `typhoons.CWA_TY_MIN_MS`）＝減弱為熱帶性低氣壓。從沒命名過的熱帶性低氣壓（只有 `CwaTdNo`）照舊顯示
+  - 日本氣象廳 `TD`（台風から変わった熱帯低気圧）先不拿掉（等 Shawn 決定）
+- **名稱**（HD34c）：中文名先查颱風名稱對照表 `typhoon_names.json`（`airports.json` 旁邊；下面「颱風名稱對照表」）
 - **原文照轉載**：不平滑、不內插、不延伸；數值與單位照原文（氣象署只有公里，JMA 公里與海浬都是原文，**沒有
   換算**）。唯一的相加是氣象署預報點的時間＝`InitialTime`＋`ForecastHour`（原文兩個欄位）。`issuedAt` 超過 12 小時就
   `stale: true`
@@ -1105,7 +1114,8 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
   組不出來時 `data` 那份不動、Pages 照發上一份；整個 build 失敗改發布上一份時 `typhoons.json` 也一起發布
 
 `typhoons.json`（GitHub Pages，和 `latest.json` 同一層，只放最新一份；`data` 分支根目錄同一份），沒有颱風時
-`active: false`、`storms: []`（下面是 2026-10-25 13:06Z 那報實抓的資料跑出來的，`tests/test_typhoons.py`）：
+`active: false`、`storms: []`（下面是 2026-10-25 13:06Z 那報實抓的資料在 HD34b 跑出來的，`tests/test_typhoons.py`；
+HD34c 起那報日本氣象廳的薔琵已是 `LOW`，會從 `storms` 移到 `ended`，名稱照對照表）：
 
 ```json
 {
@@ -1131,15 +1141,19 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
   {"id": "2631", "source": "jma", "sourceId": "TC2637", …,
    "others": [{"source": "cwa", "id": "ty30", "issuedAt": "2026-10-25T06:00:00Z", …}], …}
  ],
- "outOfRange": []
+ "outOfRange": [],
+ "ended": []
 }
 ```
 
 - `id`（網頁拿來當鍵）：國際編號（`2630`，只有日本氣象廳的 `typhoonNumber` 有，用氣象署那份時也拿配到的日本氣象廳
   那份的）；這一報沒有國際編號但上一份同一顆是國際編號就沿用；都沒有（熱帶性低氣壓）是 `cwa-td33`（氣象署熱帶性
   低氣壓編號）或 `jma-TC2638`（JMA 代號），氣象署那份沒配到日本氣象廳的颱風是 `cwa-ty29`
-- `name`：照氣象署颱風警報的寫法，zh-TW／zh-HK 用氣象署的中文名、zh-CN 與 en 用英文名；JMA 只有英文名，
-  缺中文就用英文，都沒有就用 `TD33`／JMA 代號
+- `name`：HD34c 起 zh-TW／zh-HK 是 對照表 → 氣象署這一報給的中文名（用日本氣象廳那份時借配到的氣象署那份的）
+  → 英文名，zh-CN 是 對照表 → 英文名（氣象署的是台灣譯名，不給 zh-CN），en 一律來源的英文名；英文名都沒有
+  （熱帶性低氣壓）就用 `TD33`／JMA 代號、不查表。對照表查不到的（新增或除名替補沒收到）照舊退回，build 寫一行
+  warning log（英文名與 `id`）；沿用上一份的那筆也照對照表重算中文名
+- `ended[]`：這一報說已經減弱或結束而拿掉的（見上面），`reason` 是 `jma_low`／`cwa_td`，`source` 是說的那一邊
 - `source` 與 `url`：`cwa` 是氣象署颱風消息頁、`jma` 是日本氣象廳颱風資訊頁（網頁出處連這裡）；`sourceId`：
   那個來源自己的代號（氣象署 `ty29`／`td33`，`CwaTyNo`／`CwaTdNo`、JMA `TC2636`）；`issuedAt`：
   JMA 是發布時間，氣象署資料沒有發布時間，用最新定位時間（預報的 `InitialTime`）
@@ -1155,6 +1169,26 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
 - `stale`：`issuedAt` 超過 12 小時；`reusedFrom`：沿用上一份時那份的 `generatedAt`——兩個來源都失敗時在最上層，
   上一份是 `cwa`、這一報氣象署沒有這顆時在那一顆（連續沿用時是第一次沿用的那份）
 - `sources.cwa`／`jma`：這報兩個來源有沒有抓到（`error` 同 `latest.json` 的 `sources.cwaTyphoon`／`jmaTyphoon`）
+
+### 颱風名稱對照表（HD34c）
+
+`typhoon_names.json`（`airports.json` 旁邊，build 用 `--airports` 那個檔的同一個目錄；讀不了只 log、名稱照來源給的）：
+西北太平洋及南海的 **140 個名字**（WMO 颱風委員會的固定輪替，照第 1 組到第 5 組、每組 28 個的順序），每筆
+`{"en", "zh-TW", "zh-HK", "zh-CN"}`。**三個中文欄一律照各機關的官方名單原樣抄，不自己翻、不用二手來源**；
+`sources` 記每一欄的機關、頁面標題、網址與抓取時間（UTC）：
+
+| 欄位 | 機關 | 網址（2026-10-26 抓） |
+| --- | --- | --- |
+| `zh-TW` | 中央氣象署「表2-1 西北太平洋及南海颱風中文譯名及國際命名對照表(2026年6月更新)」 | <https://www.cwa.gov.tw/V8/C/K/Encyclopedia/typhoon/typhoon-07.txt> |
+| `zh-HK` | 香港天文台「2026年起生效的西北太平洋及南海熱帶氣旋名字」 | <https://www.hko.gov.hk/tc/informtc/sound/tcname2026e.html> |
+| `en` | 香港天文台英文版（同一份名單） | <https://www.hko.gov.hk/en/informtc/sound/tcname2026e.html> |
+| `zh-CN` | 中國氣象局國家氣象中心（中央氣象台）「台风命名_西北太平洋」（自 2026 年 6 月 8 日起執行） | <https://www.nmc.cn/publish/typhoon/typhoon-name/index.html> |
+
+- 比對英文名照 `typhoons._name_key`（不分大小寫、忽略非英數字：氣象署 `IN-FA`、天文台 `In-fa`、氣象署表 `In-Fa` 都一樣）；
+  三份名單的英文名在這個比法下 140 個完全一致
+- 三個機關譯名不同的照各自的（例如 Damrey：氣象署「丹瑞」、天文台「達維」、中國氣象局「达维」）
+- 某個機關的頁面抓不到時那一欄先放空字串（`tests/test_typhoons.py` 的 `EMPTY_OK` 列出；目前沒有），名稱退回下一順位
+- WMO 颱風委員會之後再除名替補：重新從三個機關的現行版抄，更新 `sources` 的抓取時間
 
 ## 事件保存（HD20）
 
