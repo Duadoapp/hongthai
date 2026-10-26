@@ -194,6 +194,7 @@ def test_not_approved_403_is_ok_false_not_crash(airports):
             airports, RUN, RUN, RUN + timedelta(hours=120), client=client, open_stats=zarr_403
         )
     assert e.value.code == "http_403"
+    assert e.value.fields == {"bqError": "http_403", "zarrError": "http_403"}
 
 
 def test_bytes_limit_code():
@@ -546,3 +547,47 @@ def test_budget_and_workflow_timeout():
     yml = (ROOT / ".github" / "workflows" / "build.yml").read_text("utf-8")
     assert "timeout-minutes: 45" in yml and "timeout-minutes: 55" in yml
     assert sum(build.BUDGET_S.values()) / 60 < 45
+
+
+def test_via_zarr_skips_bigquery(tmp_path, airports):
+    """`WN3_VIA=zarr`（2026-10-26：Analytics Hub 訂閱滿 1000、BigQuery 用不了）：不查 BigQuery、
+    直接讀 Zarr。"""
+    ds = stats_dataset(tmp_path)
+    client = FakeClient({RUN: _rows(_airports(airports, "RCTP"), 6, 126)})
+    data = wn3.fetch(
+        _airports(airports, "RCTP"),
+        RUN,
+        utc(2026, 10, 20, 6),
+        utc(2026, 10, 25, 6),
+        client=client,
+        open_stats=lambda run: ds,
+        env={"WN3_VIA": "zarr"},
+    )
+    assert client.calls == [] and (data.via, data.bq_error) == ("zarr", "skipped")
+
+
+def test_via_zarr_failure_reports_zarr_code(airports):
+    """只走 Zarr 時失敗：`code` 是 Zarr 的、`fields` 兩個都記（服務帳號讀不到 Zarr 時看得出來）。"""
+
+    def zarr_403(run):
+        raise wn3.Wn3Error("GCS 403", "http_403")
+
+    with pytest.raises(wn3.Wn3Error) as e:
+        wn3.fetch(
+            airports,
+            RUN,
+            RUN,
+            RUN + timedelta(hours=120),
+            client=FakeClient(),
+            open_stats=zarr_403,
+            env={"WN3_VIA": "zarr"},
+        )
+    assert e.value.code == "http_403"
+    assert e.value.fields == {"bqError": "skipped", "zarrError": "http_403"}
+
+
+def test_via_mode_values():
+    assert wn3.via_mode({}) == "auto"
+    assert wn3.via_mode({"WN3_VIA": " Zarr "}) == "zarr"
+    assert wn3.via_mode({"WN3_VIA": "bigquery"}) == "bigquery"
+    assert wn3.via_mode({"WN3_VIA": "gcs"}) == "auto"
