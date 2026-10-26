@@ -28,6 +28,8 @@
     `python -m hongthai.events wn3-archive` 每天從私人 bucket 搬，`wn3private.py`）
   - `typhoons.json`：颱風地圖的官方路徑與暴風圈，只有最新一份（HD34，`typhoons.py`；來源
     `cwaTyphoon`、`jmaTyphoon`，原始回應 `history/raw/<日期>/<HHMM>Z-{cwa,jma}-typhoon.json`）
+  - `typhoon_names.json`：颱風名稱對照表的自動更新版（HD34d，`typhoons.refresh_names`；名稱表
+    查不到某個名字時才寫，之後每報先讀這份、沒有才讀 repo 的）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
   `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
   以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）、
@@ -153,6 +155,7 @@ from .sources import (
     smg,
     swic,
     taf,
+    tcnames,
     tdx,
     typhoon,
     wn3,
@@ -221,6 +224,9 @@ BUDGET_S: dict[str, float] = {
     # 所以 2026-10-25 把 `build.yml` 那一步放寬到 45 分鐘
     "cwaTyphoon": 15,
     "jmaTyphoon": 20,
+    # HD34d 的颱風名稱表自動更新不在這裡：只在名稱表查不到某個名字時、同一個名字一天一次，在
+    # `write_typhoons` 裡平行抓三個機關（天文台中英文兩頁）各逾時 15 秒、不重試，最壞約 30 秒
+    # （天文台當年 404 再抓前一年），不算進總和
     "ai": 240,  # HD5：AI 對決，兩個模型平行，每報最多 20 個機場、單次請求 60 秒；HD12 180 → 240
     "og": 60,  # HD1：51 張分享預覽圖，publish() 之後畫（本機約 3 秒）
 }
@@ -1447,16 +1453,32 @@ def write_typhoons(
     names_path: Path | None = None,
 ) -> None:
     """`--archive` 的 `typhoons.json`（HD34，`typhoons.build`；`publish()` 再複製到發布目錄）。
-    `names_path` 是颱風名稱對照表（HD34c，`airports.json` 旁邊的 `typhoon_names.json`），讀不了只
-    log、名稱照來源給的。失敗只 log，不讓 build 失敗、不動 `latest.json`。"""
-    table = None
+    `names_path` 是颱風名稱對照表（HD34c，`airports.json` 旁邊的 `typhoon_names.json`）。HD34d：
+    `--archive`（`data` 分支）根目錄的 `typhoon_names.json` 優先（`typhoons.read_names`）；有名字
+    查不到時當報抓三個官方名單更新、寫回 `data` 分支那份（`typhoons.refresh_names`），更新到了就用
+    新表重組一次。兩份都讀不了只 log、名稱照來源給的（不抓）。失敗只 log，不讓 build 失敗、不動
+    `latest.json`。"""
+    names_doc = None
     if names_path is not None:
-        try:
-            table = typhoons.load_names(names_path)
-        except Exception:
-            log.exception("颱風名稱對照表 %s 讀不了，名稱照來源給的", names_path)
+        names_doc = typhoons.read_names(archive / typhoons.NAMES_FILENAME, names_path)
+        if names_doc is None:
+            log.error("颱風名稱對照表 %s 讀不了，名稱照來源給的", names_path)
+    table = typhoons.names_table(names_doc) if names_doc is not None else None
     try:
-        doc = typhoons.build(ct, jt, status, now, typhoons.read_previous(archive), table)
+        previous = typhoons.read_previous(archive)
+        unknown: typhoons.Unknown = []
+        doc = typhoons.build(ct, jt, status, now, previous, table, unknown)
+        if unknown and names_doc is not None:
+            try:
+                new = typhoons.refresh_names(names_doc, unknown, now, tcnames.fetch)
+                if new is not names_doc:
+                    path = archive / typhoons.NAMES_FILENAME
+                    path.write_text(typhoons.dump_names(new), encoding="utf-8")
+                    if new["names"] != names_doc["names"]:
+                        table = typhoons.names_table(new)
+                        doc = typhoons.build(ct, jt, status, now, previous, table)
+            except Exception:  # 保險：名稱表更新出錯照舊表出這一報
+                log.exception("颱風名稱對照表自動更新失敗，名稱照舊表")
         _dump(archive / typhoons.FILENAME, doc, compact=True)
         log.info(
             "颱風地圖：範圍內 %d 顆 %s、範圍外 %s、減弱或結束 %s",

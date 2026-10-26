@@ -814,6 +814,7 @@ def workspace(tmp_path, monkeypatch):
     # HD34：颱風地圖的兩個來源預設沒有颱風（測試不連網）
     monkeypatch.setattr(build.typhoon, "fetch_cwa", lambda key: build.typhoon.TyphoonData([], {}))
     monkeypatch.setattr(build.typhoon, "fetch_jma", lambda: build.typhoon.TyphoonData([], {}))
+    monkeypatch.setattr(build.tcnames, "fetch", _no_names)  # HD34d：名稱表自動更新不連網
     # HD14 的兩個模式、HD16 的 Open-Meteo、HD15 的 WeatherNext 3 預設失敗（測試不連網）
     for mod in (build.aifs, build.aigfs, build.openmeteo, build.wn3):
         monkeypatch.setattr(mod, "fetch", _boom)
@@ -835,6 +836,7 @@ def workspace(tmp_path, monkeypatch):
 
 
 REAL_FETCH_CWA = build.typhoon.fetch_cwa  # workspace 換掉之前的（HD34）
+REAL_FETCH_NAMES = build.tcnames.fetch  # HD34d
 
 
 def sample_typhoons():
@@ -896,6 +898,104 @@ def test_typhoon_names_table_next_to_airports(workspace, monkeypatch, caplog):
     ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
     assert ty["storms"][0]["name"]["zh-CN"] == "In-fa"
     assert any("對照表" in r.getMessage() for r in caplog.records)
+
+
+def _no_names(year):
+    raise build.tcnames.NamesError("測試不連網", "network")
+
+
+# 名稱表自動更新的測試用：要晚於 repo 那份的 `fetchedAt`（2026-10-26），不然 `read_names` 會改用
+# repo 的
+AT_1027 = utc(2026, 10, 27, 1, 5)
+
+
+def _newname_storm(monkeypatch):
+    """0826Z 日本氣象廳的烟花（範圍內）改名成名稱表沒有的 Newname。`AT_1027` 接近真的現在，
+    模式與觀測來源一律直接失敗（不然會真的去抓那一報）。"""
+    for mod in (build.ecmwf, build.gfs, build.taf, build.hko, build.smg):
+        monkeypatch.setattr(mod, "fetch", _boom)
+    raw = load_json("jma_typhoon_0826z.json")["TC2637"]
+    infa = build.typhoon.parse_jma("TC2637", raw["specifications"], raw["forecast"])
+    return replace(infa, name_en="Newname")
+
+
+def test_typhoon_names_refresh_writes_data_branch(workspace, monkeypatch, caplog):
+    """HD34d：名稱表查不到 → 當報抓三個官方頁（mock）→ 寫進 `data` 分支那份、這一報就用新名字；
+    同一天第二報先讀 `data` 分支那份、不再抓。repo 的那份不動。"""
+    from test_tcnames import NEW, _fake_http, _official
+
+    storm = _newname_storm(monkeypatch)
+    monkeypatch.setattr(build.typhoon, "fetch_jma", lambda: build.typhoon.TyphoonData([storm], {}))
+    monkeypatch.setattr(build.tcnames, "fetch", REAL_FETCH_NAMES)
+    calls: list[str] = []
+    _fake_http(monkeypatch, _official(*NEW), calls)
+    monkeypatch.setattr(build, "utcnow", lambda: AT_1027)
+    repo_names = (workspace / "typhoon_names.json").read_text("utf-8")
+    with caplog.at_level("WARNING", logger="hongthai"):
+        assert build.main([]) == 0
+    assert len(calls) == 4
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    (s,) = ty["storms"]
+    assert s["name"] == {"zh-TW": "新名甲", "zh-HK": "新名乙", "zh-CN": "新名丙", "en": "Newname"}
+    data = json.loads((workspace / "data" / "typhoon_names.json").read_text("utf-8"))
+    assert any(r["en"] == "Newname" for r in data["names"]) and len(data["names"]) == 140
+    assert data["refreshTried"] == {"date": "2026-10-27", "names": ["NEWNAME"]}
+    assert data["sources"]["zh-TW"]["fetchedAt"] == "2026-10-27T01:05Z"
+    assert (workspace / "typhoon_names.json").read_text("utf-8") == repo_names
+    assert any(r.getMessage() == "颱風名稱 Newname（2631）：refreshed" for r in caplog.records)
+    # 同一天第二報：名字在 data 分支那份裡，不抓
+    calls.clear()
+    monkeypatch.setattr(build, "utcnow", lambda: AT_1027 + timedelta(hours=6))
+    assert build.main([]) == 0
+    assert calls == []
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert ty["storms"][0]["name"]["zh-HK"] == "新名乙"
+
+
+def test_typhoon_names_refresh_failed_falls_back(workspace, monkeypatch, caplog):
+    """抓不到：名稱表不換、只記今天抓過（同一天不再抓），名稱退回氣象署的譯名 → 英文名。"""
+    storm = _newname_storm(monkeypatch)
+    monkeypatch.setattr(build.typhoon, "fetch_jma", lambda: build.typhoon.TyphoonData([storm], {}))
+    calls = []
+    monkeypatch.setattr(build.tcnames, "fetch", lambda year: calls.append(year) or _no_names(year))
+    monkeypatch.setattr(build, "utcnow", lambda: AT_1027)
+    with caplog.at_level("WARNING", logger="hongthai"):
+        assert build.main([]) == 0
+    assert calls == [2026]
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    # 日本氣象廳那份、沒配到氣象署（沒有中文名可借）→ 三種中文都是英文名
+    assert ty["storms"][0]["name"] == dict.fromkeys(("zh-TW", "zh-HK", "zh-CN", "en"), "Newname")
+    data = json.loads((workspace / "data" / "typhoon_names.json").read_text("utf-8"))
+    repo = json.loads((workspace / "typhoon_names.json").read_text("utf-8"))
+    assert (data["names"], data["sources"]) == (repo["names"], repo["sources"])
+    assert data["refreshTried"] == {"date": "2026-10-27", "names": ["NEWNAME"]}
+    assert any(
+        r.getMessage() == "颱風名稱 Newname（2631）：fetch_failed（network）"
+        for r in caplog.records
+    )
+    # 配到氣象署那份（有中文名）：三種中文都借氣象署的
+    cwa = build.typhoon.Storm(
+        "cwa", "ty30", None, "新名", "NEWNAME", storm.issued_at, [], storm.now, []
+    )
+    monkeypatch.setattr(
+        build.typhoon, "fetch_cwa", lambda key: build.typhoon.TyphoonData([cwa], {})
+    )
+    monkeypatch.setattr(build, "utcnow", lambda: AT_1027 + timedelta(hours=6))
+    assert build.main([]) == 0
+    assert calls == [2026]  # 同一天不再抓
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    (s,) = ty["storms"]
+    assert s["name"] == {"zh-TW": "新名", "zh-HK": "新名", "zh-CN": "新名", "en": "Newname"}
+    # 名稱表更新本身出錯（程式錯誤）：只 log，這一報照舊表出
+    monkeypatch.setattr(build.typhoons, "refresh_names", _boom)
+    monkeypatch.setattr(build, "utcnow", lambda: AT_1027 + timedelta(hours=12))
+    with caplog.at_level("ERROR", logger="hongthai"):
+        assert build.main([]) == 0
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert (
+        ty["generatedAt"] == "2026-10-27T13:05:00Z" and ty["storms"][0]["name"]["zh-CN"] == "新名"
+    )
+    assert any("自動更新失敗" in r.getMessage() for r in caplog.records)
 
 
 def test_pipeline_crash_republishes_previous_typhoons(workspace, monkeypatch):
