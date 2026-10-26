@@ -804,6 +804,8 @@ def test_swic_warnings_in_output(latest):
 def workspace(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "airports.json").write_text((ROOT / "airports.json").read_text("utf-8"), "utf-8")
+    names = (ROOT / "typhoon_names.json").read_text("utf-8")  # HD34c：airports.json 旁邊
+    (tmp_path / "typhoon_names.json").write_text(names, "utf-8")
     (tmp_path / "confirmed.json").write_text("[]", "utf-8")
     monkeypatch.setattr(build.flights, "fetch", lambda now: build.flights.FlightsData({}, {}))
     monkeypatch.setattr(build.nws, "fetch", lambda zones: build.nws.NwsData([], {}))
@@ -874,6 +876,26 @@ def test_typhoon_failures_do_not_touch_latest(workspace, monkeypatch, airports):
     assert out2["generatedAt"] != out["generatedAt"]
     # 組不出來時 data 裡那份沒動，Pages 照舊發布上一份
     assert json.loads((workspace / "public" / "typhoons.json").read_text("utf-8")) == ty
+
+
+def test_typhoon_names_table_next_to_airports(workspace, monkeypatch, caplog):
+    """HD34c：`airports.json` 旁邊的 `typhoon_names.json` 有就照對照表（zh-CN 烟花），讀不了只 log、
+    名稱照來源給的。"""
+    raw = load_json("jma_typhoon_0826z.json")["TC2637"]
+    infa = build.typhoon.parse_jma("TC2637", raw["specifications"], raw["forecast"])
+    monkeypatch.setattr(build.typhoon, "fetch_jma", lambda: build.typhoon.TyphoonData([infa], {}))
+    monkeypatch.setattr(build, "utcnow", lambda: NOW)
+    names = workspace / "typhoon_names.json"  # workspace 已經放了一份
+    assert build.main([]) == 0
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert ty["storms"][0]["name"]["zh-CN"] == "烟花"
+    names.unlink()
+    monkeypatch.setattr(build, "utcnow", lambda: NOW + timedelta(hours=6))
+    with caplog.at_level("ERROR", logger="hongthai"):
+        assert build.main([]) == 0
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert ty["storms"][0]["name"]["zh-CN"] == "In-fa"
+    assert any("對照表" in r.getMessage() for r in caplog.records)
 
 
 def test_pipeline_crash_republishes_previous_typhoons(workspace, monkeypatch):

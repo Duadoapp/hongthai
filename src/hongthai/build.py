@@ -1432,7 +1432,7 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-openmeteo.json", om.raw, compact=True)
     _dump(history / f"{stamp}.json", latest, compact=True)
     _dump(archive / "latest.json", latest, compact=True)
-    write_typhoons(archive, ct, jt, status, now)
+    write_typhoons(archive, ct, jt, status, now, airports_path.with_name(typhoons.NAMES_FILENAME))
     if events_path is not None:
         event_snapshots(events_path, history, now, history / f"{stamp}.json")
     return latest
@@ -1444,17 +1444,26 @@ def write_typhoons(
     jt: typhoon.TyphoonData | None,
     status: dict[str, dict],
     now: datetime,
+    names_path: Path | None = None,
 ) -> None:
     """`--archive` 的 `typhoons.json`（HD34，`typhoons.build`；`publish()` 再複製到發布目錄）。
-    失敗只 log，不讓 build 失敗、不動 `latest.json`。"""
+    `names_path` 是颱風名稱對照表（HD34c，`airports.json` 旁邊的 `typhoon_names.json`），讀不了只
+    log、名稱照來源給的。失敗只 log，不讓 build 失敗、不動 `latest.json`。"""
+    table = None
+    if names_path is not None:
+        try:
+            table = typhoons.load_names(names_path)
+        except Exception:
+            log.exception("颱風名稱對照表 %s 讀不了，名稱照來源給的", names_path)
     try:
-        doc = typhoons.build(ct, jt, status, now, typhoons.read_previous(archive))
+        doc = typhoons.build(ct, jt, status, now, typhoons.read_previous(archive), table)
         _dump(archive / typhoons.FILENAME, doc, compact=True)
         log.info(
-            "颱風地圖：範圍內 %d 顆 %s、範圍外 %s",
+            "颱風地圖：範圍內 %d 顆 %s、範圍外 %s、減弱或結束 %s",
             len(doc["storms"]),
             [(s["id"], s["source"]) for s in doc["storms"]],
             doc["outOfRange"],
+            doc["ended"],
         )
     except Exception:  # 保險：颱風地圖不能讓 build 失敗
         log.exception("typhoons.json 寫不了")

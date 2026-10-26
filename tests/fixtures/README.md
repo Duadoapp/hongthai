@@ -129,3 +129,9 @@ HD34b（颱風地圖：氣象署路徑的實際鍵名與配對）：
 - `typhoons_1306z_mispaired.json`：同一報 HD34 輸出的 `typhoons.json`（`data` 分支根目錄，commit `1a30092`）：
   氣象署每顆都解析不到位置、氣象署烟花（`ty30`）被當成 2630 配給日本氣象廳薔琵（`others`），`outOfRange` 有
   氣象署薔琵（2629）。每顆的 `past` 只留頭兩點與最後一點
+
+HD34c（颱風地圖：名稱對照表、減弱的颱風拿掉）：
+- `cwa_typhoon_0826z.json`、`jma_typhoon_0826z.json`：`data` 分支 `history/raw/2026-10-26/0826Z-cwa-typhoon.json`
+  （17 KB）與 `0826Z-jma-typhoon.json`（24 KB）原樣（commit `69b8591` 時的內容）：氣象署只剩烟花（IN-FA，`CwaTyNo` 30，
+  最新定位 `MaxWindSpeed` 40）；日本氣象廳 `targetTc` 還留著 TC2636（薔琵，2630，title `category` 是 `LOW`，
+  10-25 21:45 JST 的最後一報）與 TC2637（インファ，2631，`TY`）
