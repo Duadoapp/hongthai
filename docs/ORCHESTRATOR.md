@@ -362,6 +362,9 @@
   自己累積（`data` 分支；H6 起只存每 6 小時格的取消／延誤統計，不存原始航班資料）
 - 保守假設都在 `assess.py` 與 `airports.json` 的門檻，改之前先跟 Shawn 確認；單位一律用節（HD2 起）
 - 隱私：這個 repo 不碰任何個資；公開 repo，程式裡不能有金鑰
+- **WeatherNext 3 核准後（2026-10-26 Shawn 確認，10/26 日誌）**：預設改 `private`（隱形旁觀：每報抓最新主報、等級與數值只放私人
+  bucket `<專案>-wn3-private`，任何公開的地方——含 Actions 日誌——都沒有 WN3 的值）；起報超過 121 小時搬進 `data` 分支（CC BY 4.0）；
+  29W 補抓只公開有效時間過 1 小時的部分（HD15b）。網頁放等級走 R2＋依國家判斷（HD15c）。讀法 A／B 等 Google 回信，回信前照 B
 - **改名 HongTai＋獨立網域 `hongtai.app`（2026-10-25 21:56 Shawn 確認；Duado spec 第 16 節「改名與獨立網域」、Duado #468）**：
   名稱 HongTai（T 大寫，四語同一個拉丁字，不附「風颱」）；副標題 能飛嗎？／飛唔飛到？／能飞吗？／Can I fly?；完全搬到 `hongtai.app`
   （Cloudflare Pages 獨立專案、根目錄），`duado.app/hongthai/...` 301 永久轉過去、路徑照帶；**不改**：這個 repo 的名稱、
