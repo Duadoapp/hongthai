@@ -384,7 +384,15 @@ class Timing:
         if name in ("openmeteo", "tdx"):  # tdx：HD38（每月計數看 `history/tdx/`，不看這裡）
             fields["calls"] = st.get("calls")
         if name == "wn3":  # HD15；`stored`：HD15b `private`
-            for k in ("mode", "via", "estimateBytes", "bytesBilled", "stored"):
+            for k in (
+                "mode",
+                "via",
+                "estimateBytes",
+                "bytesBilled",
+                "stored",
+                "bqError",
+                "zarrError",
+            ):
                 fields[k] = st.get(k)
         self.write(**fields)
 
@@ -419,6 +427,9 @@ def _call(
             exc_info=None if hasattr(e, "code") else (type(e), e, e.__traceback__),
         )
         status[name] = {"ok": False, "error": code, "seconds": round(out.seconds, 1)}
+        fields = getattr(e, "fields", None)  # wn3：兩條路各自的錯誤碼（`bqError`、`zarrError`）
+        if isinstance(fields, dict):
+            status[name].update({k: v for k, v in fields.items() if v is not None})
     else:
         result = out.result
         status[name] = {"ok": True, "seconds": round(out.seconds, 1)}

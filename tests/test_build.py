@@ -1617,7 +1617,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     wn_line = lines[17]  # HD15b：`private` 沒有服務帳號；只有中繼資料的欄位
     assert set(wn_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes"),
-        *("mode", "via", "estimateBytes", "bytesBilled", "stored"),
+        *("mode", "via", "estimateBytes", "bytesBilled", "stored", "bqError", "zarrError"),
     }
     assert (wn_line["error"], wn_line["mode"]) == ("no_credentials", "private")
     ap_line = lines[18]  # HD35：機場頁的 3 小時格
