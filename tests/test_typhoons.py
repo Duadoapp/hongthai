@@ -246,7 +246,8 @@ def test_build_selects_cwa_and_jma_only(cwa, jma):
     assert doc["outOfRange"] == [{"id": "2631", "source": "jma"}]
     champi, td = doc["storms"]
     assert (champi["sourceId"], td["sourceId"]) == ("ty30", "TC2638")
-    assert champi["name"] == {"zh-TW": "薔琵", "zh-HK": "薔琵", "zh-CN": "Champi", "en": "Champi"}
+    # 沒有名稱表：三種中文都用氣象署的中文名（HD34d 起 zh-CN 也是）
+    assert champi["name"] == {"zh-TW": "薔琵", "zh-HK": "薔琵", "zh-CN": "薔琵", "en": "Champi"}
     assert champi["url"] == typhoon.CWA_PAGE and champi["issuedAt"] == "2026-10-24T18:00:00Z"
     assert champi["others"] == [
         {
@@ -584,8 +585,8 @@ def test_build_real_1306z():
     assert doc["ended"] == [{"id": "2630", "source": "jma", "reason": "jma_low"}]
     assert (infa["id"], infa["source"], infa["sourceId"]) == ("2631", "jma", "TC2637")
     assert infa["issuedAt"] == "2026-10-25T10:10:00Z"
-    # 日本氣象廳那份只有英文名：配到的氣象署那份的中文名借給 zh-TW／zh-HK（2026-10-26）
-    assert infa["name"] == {"zh-TW": "煙花", "zh-HK": "煙花", "zh-CN": "In-fa", "en": "In-fa"}
+    # 日本氣象廳那份只有英文名：配到的氣象署那份的中文名借給三種中文（2026-10-26；zh-CN 是 HD34d）
+    assert infa["name"] == {"zh-TW": "煙花", "zh-HK": "煙花", "zh-CN": "煙花", "en": "In-fa"}
     assert infa["others"] == [
         {
             "source": "cwa",
@@ -651,7 +652,8 @@ def test_names_borrow_cwa_zh_only_for_jma():
     c.name_zh = "煙花"
     assert typhoons.names(j) == dict.fromkeys(("zh-TW", "zh-HK", "zh-CN", "en"), "In-fa")
     assert typhoons.names(j, [c])["zh-TW"] == "煙花"
-    assert typhoons.names(j, [c])["zh-CN"] == "In-fa"
+    assert typhoons.names(j, [c])["zh-CN"] == "煙花"  # HD34d：zh-CN 也借
+    assert typhoons.names(j, [c])["en"] == "In-fa"
     c2 = _storm("cwa", "ty29", en="Champi")
     c2.name_zh = "薔琵"
     assert typhoons.names(c2, [j])["zh-HK"] == "薔琵"
@@ -727,7 +729,7 @@ def test_build_real_0826z():
     json.dumps(doc)
 
 
-def test_names_table_first_then_cwa_then_en(caplog):
+def test_names_table_first_then_cwa_then_en():
     c = _storm("cwa", "ty29", en="CHAMPI")
     c.name_zh = "某譯名"  # 對照表優先於氣象署這一報給的
     assert typhoons.names(c, table=TABLE) == {
@@ -736,36 +738,44 @@ def test_names_table_first_then_cwa_then_en(caplog):
         "zh-CN": "蔷琵",
         "en": "CHAMPI",  # en 一律來源的英文名
     }
-    # 對照表有、但那一欄空著 → 那一欄照舊（氣象署的中文名；zh-CN 英文名）
+    # 對照表有、但那一欄空著 → 那一欄照舊（氣象署的中文名；HD34d 起 zh-CN 也是）
     partial = {"CHAMPI": {"zh-TW": "薔琵"}}
     assert typhoons.names(c, table=partial) == {
         "zh-TW": "薔琵",
         "zh-HK": "某譯名",
-        "zh-CN": "CHAMPI",
+        "zh-CN": "某譯名",
         "en": "CHAMPI",
     }
-    # 對照表查不到（新名字）：氣象署中文名 → 英文名，build 寫一行 log（英文名與編號）
+    # 氣象署也沒給中文名 → 英文名
+    c.name_zh = ""
+    assert typhoons.names(c, table=partial)["zh-CN"] == "CHAMPI"
+    # 對照表查不到（新名字）：三種中文都是氣象署中文名（HD34d）→ 英文名；記進 `unknown`
+    # （英文名與編號），`refresh_names` 拿來更新名稱表
     new = _storm("cwa", "ty41", en="Newname", lat=22.0, lon=121.0)
     new.name_zh = "新名"
     j = _storm("jma", "TC2650", "2641", en="Newname", lat=22.0, lon=121.0)
-    with caplog.at_level("WARNING", logger="hongthai"):
-        doc = _doc_t(new, j)
+    unknown = []
+    doc = _doc_t(new, j, unknown=unknown)
     assert doc["storms"][0]["name"] == {
         "zh-TW": "新名",
         "zh-HK": "新名",
-        "zh-CN": "Newname",
+        "zh-CN": "新名",
         "en": "Newname",
     }
-    (rec,) = [r for r in caplog.records if "對照表沒有" in r.getMessage()]
-    assert "Newname" in rec.getMessage() and "2641" in rec.getMessage()
-    # 沒有英文名的（熱帶性低氣壓）不查表、不寫 log
-    caplog.clear()
-    with caplog.at_level("WARNING", logger="hongthai"):
-        _doc_t(_storm("cwa", "td35"), None)
-    assert not [r for r in caplog.records if "對照表沒有" in r.getMessage()]
+    assert unknown == [("Newname", "2641")]
+    # 沒有英文名的（熱帶性低氣壓）不查表、不記
+    unknown = []
+    _doc_t(_storm("cwa", "td35"), None, unknown=unknown)
+    assert unknown == []
+    # 範圍外的不記；沒有名稱表時不記
+    far = _storm("jma", "TC2651", "2642", en="Farname", lat=10.0, lon=170.0)
+    _doc_t(None, far, unknown=unknown)
+    assert unknown == []
+    typhoons.build(TyphoonData([new], {}), None, OK, NOW, unknown=unknown)
+    assert unknown == []
 
 
-def _doc_t(c, j, previous=None, now=NOW):
+def _doc_t(c, j, previous=None, now=NOW, unknown=None):
     return typhoons.build(
         TyphoonData([c] if c else [], {}),
         TyphoonData([j] if j else [], {}),
@@ -773,6 +783,7 @@ def _doc_t(c, j, previous=None, now=NOW):
         now,
         previous,
         TABLE,
+        unknown,
     )
 
 
@@ -839,10 +850,34 @@ def test_ended_not_reused_and_comes_back():
     assert _src(_doc(c, j, doc, later)) == [("2640", "cwa")]
 
 
-def test_jma_td_not_removed_yet():
-    """日本氣象廳 `TD`（台風から変わった熱帯低気圧）先不拿掉（等 Shawn 決定）。"""
+def test_jma_td_last_report_removed():
+    """HD34d（Shawn 2026-10-26 23:43）：日本氣象廳命名過（有國際編號）、`TD`、而且沒有預報點（只剩
+    實況＝最後一報）→ 拿掉、記 `jma_td`；還有預報點的 TD、沒命名的 TD 照舊顯示。"""
     _, j = _pair([(20.0, 129.5)], (24.0, 127.0))
     j.category = "TD"
+    assert j.forecast == []
+    doc = _doc(None, j)
+    assert (doc["storms"], doc["active"]) == ([], False)
+    assert doc["ended"] == [{"id": "2640", "source": "jma", "reason": "jma_td"}]
+    # 氣象署那份還列著也一樣整顆拿掉、不沿用上一份
+    c, j = _pair([(20.0, 129.5)], (24.0, 127.0))
+    j.category = "TD"
+    first = _doc(c, None)
+    assert _src(first) == [("cwa-ty40", "cwa")]
+    doc = _doc(c, j, first)
+    assert (doc["storms"], doc["ended"][0]["reason"]) == ([], "jma_td")
+    # 有預報點：日本氣象廳還在追（預期再發展）→ 照舊
+    _, j = _pair([(20.0, 129.5)], (24.0, 127.0))
+    j.category = "TD"
+    j.forecast = [{**_pt(25.0, 126.0, "2026-10-25T18:00:00Z"), "leadHours": 24}]
     assert (_src(_doc(None, j)), _doc(None, j)["ended"]) == ([("2640", "jma")], [])
+    # 沒命名（沒有國際編號）的 TD：照舊
+    _, j = _pair([(20.0, 129.5)], (24.0, 127.0))
+    j.category, j.number = "TD", None
+    assert (_src(_doc(None, j)), _doc(None, j)["ended"]) == ([("jma-TC2644", "jma")], [])
+    # 其他等級沒有預報點也不拿
+    _, j = _pair([(20.0, 129.5)], (24.0, 127.0))
+    j.category = "TS"
+    assert _doc(None, j)["ended"] == []
     raw = load_json("jma_typhoon_1306z.json")["TC2636"]
     assert typhoon.parse_jma("TC2636", raw["specifications"], raw["forecast"]).category == "LOW"

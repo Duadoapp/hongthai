@@ -135,3 +135,12 @@ HD34c（颱風地圖：名稱對照表、減弱的颱風拿掉）：
   （17 KB）與 `0826Z-jma-typhoon.json`（24 KB）原樣（commit `69b8591` 時的內容）：氣象署只剩烟花（IN-FA，`CwaTyNo` 30，
   最新定位 `MaxWindSpeed` 40）；日本氣象廳 `targetTc` 還留著 TC2636（薔琵，2630，title `category` 是 `LOW`，
   10-25 21:45 JST 的最後一報）與 TC2637（インファ，2631，`TY`）
+
+HD34d（颱風名稱表自動更新）：三個機關的官方名單頁，2026-10-26 抓的（`sources/tcnames.py` 的解析測試、
+`tests/test_tcnames.py`），只留需要的那段（第一行註解寫網址）：
+- `tcnames_cwa_typhoon-07.html`：中央氣象署 `typhoon-07.txt` 的 `<p id="table_title_1">` 與表2-1（9 KB）
+- `tcnames_hko_tc_2026.html`、`tcnames_hko_en_2026.html`：香港天文台 `tcname2026e.html` 中英文版的 `<title>` 與
+  `table#sound`（36、41 KB）
+- `tcnames_nmc.html`：國家氣象中心 `typhoon-name/index.html` 的 `<title>`、表名與生效日兩段、
+  `table#typhoonNameTable`（含每格隱藏的 `div.meaning`，81 KB）
+- 解析合併後和 repo 的 `typhoon_names.json` 的 140 筆完全一樣

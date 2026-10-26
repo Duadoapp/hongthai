@@ -37,7 +37,9 @@
   - `cwa_td`：氣象署命名過的颱風（有 `CwaTyNo`）最新定位的 `MaxWindSpeed` 低於 `CWA_TY_MIN_MS`
     （17.2 m/s，氣象署輕度颱風的下限）＝減弱為熱帶性低氣壓。從沒命名過的熱帶性低氣壓（只有
     `CwaTdNo`）照舊顯示
-  - 日本氣象廳 `TD`（台風から変わった熱帯低気圧）先不拿掉（等 Shawn 決定）
+  - `jma_td`（HD34d，Shawn 2026-10-26 23:43）：日本氣象廳那顆命名過（有國際編號）、title 的
+    `category` 是 `TD`（台風から変わった熱帯低気圧），而且沒有任何預報點（只剩實況＝最後一報）。
+    還有預報點的 TD（日本氣象廳還在追）、沒命名過的 TD 照舊顯示
 - 兩個來源都失敗時沿用上一份的 `storms`（`stale` 照這一報的時間重算，另記 `reusedFrom`）；
   沒有上一份就是 `active: false`、`storms: []`。只有一個失敗時照另一個出（上一份是 `cwa` 的照上面
   的規則沿用）
@@ -64,10 +66,12 @@
 用日本氣象廳那份時，`others` 裡配到的氣象署那份有中文名就借來給 zh-TW／zh-HK（2026-10-26）。
 HD34c 起中文名先查颱風名稱對照表 `typhoon_names.json`（`airports.json` 旁邊，`load_names`；140 個
 名字，zh-TW 照中央氣象署、zh-HK 照香港天文台、zh-CN 照中國氣象局的官方名單，來源網址與抓取時間在
-檔案的 `sources`）：zh-TW／zh-HK 是 對照表 → 氣象署這一報給的中文名（含借來的）→ 英文名，zh-CN 是
-對照表 → 英文名（氣象署的是台灣譯名），en 一律英文名。英文名照 `_name_key` 比對；對照表查不到的
-（新增或除名替補沒收到）照舊退回，`build` 寫一行 log（英文名與編號）。沿用上一份的那筆也照對照表
-重算中文名。
+檔案的 `sources`）：三種中文都是 對照表 → 氣象署這一報給的中文名（含借來的）→ 英文名（HD34d 起
+zh-CN 也借氣象署的；HD34c 時 zh-CN 是 對照表 → 英文名），en 一律英文名。英文名照 `_name_key` 比對；
+沿用上一份的那筆也照對照表重算中文名。
+HD34d：對照表先讀 `data` 分支那份（`read_names`）；`storms`／`ended` 裡有名字查不到時（`build` 的
+`unknown`）當報抓三個機關的官方名單（`sources/tcnames.py`）更新、寫回 `data` 分支（`refresh_names`，
+同一個名字同一天只抓一次；抓不到或不合理不換），`build.write_typhoons` 用新表重組。
 """
 
 from __future__ import annotations
@@ -75,10 +79,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 
+from .sources import SourceError
+from .sources.tcnames import AGENCIES, COUNT, NameLists, Page
 from .sources.typhoon import CWA_PAGE, JMA_PAGE, Storm, TyphoonData
 from .timeutil import iso, parse_time
 
@@ -99,8 +106,11 @@ NAMES_FILENAME = "typhoon_names.json"
 ZH = ("zh-TW", "zh-HK", "zh-CN")
 # 氣象署輕度颱風的下限（m/s）：命名過的颱風最新定位低於這個＝減弱為熱帶性低氣壓
 CWA_TY_MIN_MS = 17.2
+# 自動更新的名稱表（HD34d）某一個中文欄空著超過這麼多格就當解析不合理、不寫（140 格的一成）
+NAMES_MAX_EMPTY = 14
 
 NameTable = dict[str, dict[str, str]]  # `_name_key(英文名)` → 三個中文欄（空的不放）
+Unknown = list[tuple[str, str]]  # 名稱表查不到的（英文名, `id`）
 
 
 def in_bounds(lat: float, lon: float, box: dict = BOUNDS) -> bool:
@@ -160,20 +170,25 @@ def storm_id(s: Storm | dict, c: Storm | None, j: Storm | None, prev: dict | Non
     return f"{s.source}-{s.key}"
 
 
-def load_names(path: Path) -> NameTable:
-    """颱風名稱對照表（格式見 `typhoon_names.json` 的 `about`）。"""
-    doc = json.loads(path.read_text(encoding="utf-8"))
+def names_table(doc: dict) -> NameTable:
+    """名稱表的檔案內容 → `NameTable`（格式見 `typhoon_names.json` 的 `about`）。"""
     out: NameTable = {}
     for row in doc["names"]:
         out[_name_key(row["en"])] = {k: row[k] for k in ZH if row.get(k)}
     return out
 
 
+def load_names(path: Path) -> NameTable:
+    """颱風名稱對照表（格式見 `typhoon_names.json` 的 `about`）。"""
+    return names_table(json.loads(path.read_text(encoding="utf-8")))
+
+
 def names(
     s: Storm, others: list[Storm] | tuple[Storm, ...] = (), table: NameTable | None = None
 ) -> dict[str, str]:
     """四語名稱（優先順序見模組說明）。用日本氣象廳那份（只有英文名）時，配到的氣象署那份有中文名就
-    借來給 zh-TW／zh-HK（Shawn 2026-10-26：只借名字，路徑、暴風圈、`source` 照用日本氣象廳的）。"""
+    借來（Shawn 2026-10-26：只借名字，路徑、暴風圈、`source` 照用日本氣象廳的）；HD34d 起名稱表
+    查不到時三種中文都借。"""
     fallback = s.key.upper() if s.source == "cwa" else s.key
     en = s.name_en or fallback
     borrowed = next((o.name_zh for o in others if o.source == "cwa" and o.name_zh), "")
@@ -183,15 +198,18 @@ def names(
     return {
         "zh-TW": row.get("zh-TW") or zh,
         "zh-HK": row.get("zh-HK") or zh,
-        "zh-CN": row.get("zh-CN") or en,
+        "zh-CN": row.get("zh-CN") or zh,
         "en": en,
     }
 
 
 def ended_reason(s: Storm) -> str | None:
-    """這一份說這顆已經減弱或結束的原因代碼（`jma_low`／`cwa_td`，見模組說明）；沒有回 None。"""
+    """這一份說這顆已經減弱或結束的原因代碼（`jma_low`／`jma_td`／`cwa_td`，見模組說明）；沒有回
+    None。"""
     if s.source == "jma" and s.category == "LOW":
         return "jma_low"
+    if s.source == "jma" and s.category == "TD" and s.number and not s.forecast:
+        return "jma_td"
     if (
         s.source == "cwa"
         and s.key.startswith("ty")
@@ -326,10 +344,21 @@ def build(
     now: datetime,
     previous: dict | None = None,
     table: NameTable | None = None,
+    unknown: Unknown | None = None,
 ) -> dict:
     """組 `typhoons.json`。`cwa`／`jma` 是 None 表示那個來源失敗（原因在 `status`，`build._call` 的
     `sources.cwaTyphoon`／`jmaTyphoon`）。`previous` 是上一份 `typhoons.json`（沒有是 None）。
-    `table` 是颱風名稱對照表（`load_names`；None 就只用來源給的名字）。"""
+    `table` 是颱風名稱對照表（`load_names`；None 就只用來源給的名字）。有 `table` 時，`storms`
+    （範圍內、這一報來源給的）與 `ended` 裡英文名在表裡查不到的記進 `unknown`（英文名, `id`；同一個
+    名字一筆），`refresh_names` 拿來當報更新名稱表。"""
+
+    def note(s: Storm | None, sid: str) -> None:
+        if unknown is None or table is None or s is None or not s.name_en:
+            return
+        key = _name_key(s.name_en)
+        if key and key not in table and all(_name_key(n) != key for n, _ in unknown):
+            unknown.append((s.name_en, sid))
+
     sources = {}
     for name, key in (("cwa", "cwaTyphoon"), ("jma", "jmaTyphoon")):
         st = status.get(key) or {"ok": False, "error": "skipped"}
@@ -369,9 +398,10 @@ def build(
             ((x, r) for x in (j, c) if x is not None and (r := ended_reason(x)) is not None), None
         )
         if gone is not None:  # 任一來源說減弱或結束：整顆拿掉，不沿用上一份
-            doc["ended"].append(
-                {"id": storm_id(gone[0], c, j, prev), "source": gone[0].source, "reason": gone[1]}
-            )
+            sid = storm_id(gone[0], c, j, prev)
+            doc["ended"].append({"id": sid, "source": gone[0].source, "reason": gone[1]})
+            note(gone[0], sid)
+            note(j if gone[0] is c else c, sid)
             continue
         res = choose(c, j, prev, cwa is not None)
         if res is not None:
@@ -389,10 +419,8 @@ def build(
             src = entry.get("source")
         else:
             entry, ok, src = storm_json(s, sid, now, others, table), in_range(s), s.source
-            if table is not None and s.name_en and _name_key(s.name_en) not in table:
-                log.warning(
-                    "颱風名稱對照表沒有 %s（%s），中文名退回氣象署的或英文名", s.name_en, sid
-                )
+            if ok:
+                note(s, sid)
         if ok:
             doc["storms"].append(entry)
         else:
@@ -407,3 +435,129 @@ def read_previous(archive: Path) -> dict | None:
     except (OSError, ValueError):
         return None
     return doc if isinstance(doc, dict) else None
+
+
+# ---- 名稱表自動更新（HD34d） ----
+
+
+def _newest(doc: dict) -> str:
+    """名稱表 `sources` 裡最新的 `fetchedAt`（`2026-10-26T14:48Z`，字串直接比）。"""
+    srcs = doc.get("sources")
+    times = [v.get("fetchedAt") for v in srcs.values() if isinstance(v, dict)] if srcs else []
+    return max((t for t in times if isinstance(t, str)), default="")
+
+
+def _read_doc(path: Path | None) -> dict | None:
+    if path is None:
+        return None
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        names_table(doc)  # 格式不對就當沒有
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        if path.exists():
+            log.exception("颱風名稱對照表 %s 讀不了", path)
+        return None
+    return doc
+
+
+def read_names(data_path: Path | None, repo_path: Path | None) -> dict | None:
+    """名稱表的檔案內容：先讀 `data` 分支那份（`data_path`，`refresh_names` 寫的），沒有才讀 repo
+    的。repo 那份的 `fetchedAt` 比較新（之後有人改了 repo 的表）時用 repo 的，`refreshTried` 照
+    `data` 分支那份的。兩份都讀不了回 None。"""
+    data, repo = _read_doc(data_path), _read_doc(repo_path)
+    if data is not None and (repo is None or _newest(data) >= _newest(repo)):
+        return data
+    if repo is not None and data is not None and "refreshTried" in data:
+        return {**repo, "refreshTried": data["refreshTried"]}
+    return repo
+
+
+def merge_names(lists: NameLists, base: dict, now: datetime) -> dict:
+    """三個官方頁 → 名稱表的檔案內容（格式同 `typhoon_names.json`，`about` 沿用 `base` 的）。
+
+    每格的英文名照三份裡多數的（`_name_key`，同票照天文台、氣象署、國家氣象中心的順序），寫法照
+    排最前面那份；三個中文欄各自只用自己機關的，**那個機關這一格的英文名不同（還沒換新名字）就
+    空著**，不拿別人的補。不合理（英文名空著或重複、某一欄空著超過 `NAMES_MAX_EMPTY` 格）丟
+    `ValueError`（訊息是原因代碼）。"""
+    pages = (lists.hko_en, lists.cwa, lists.nmc)
+    if any(len(p.cells) != COUNT for p in (*pages, lists.hko_tc)):
+        raise ValueError("bad_count")
+    rows = []
+    for i in range(COUNT):
+        cands = [p.cells[i][0] for p in pages]
+        keys = [_name_key(x) for x in cands]
+        best = max(keys, key=lambda k: (keys.count(k), bool(k)))
+        rows.append(
+            {
+                "en": cands[keys.index(best)],
+                "zh-TW": lists.cwa.cells[i][1] if keys[1] == best else "",
+                "zh-HK": lists.hko_tc.cells[i][1] if keys[0] == best else "",
+                "zh-CN": lists.nmc.cells[i][1] if keys[2] == best else "",
+            }
+        )
+    keys = [_name_key(r["en"]) for r in rows]
+    if not all(keys) or len(set(keys)) != COUNT:
+        raise ValueError("bad_en")
+    for k in ZH:
+        if sum(not r[k] for r in rows) > NAMES_MAX_EMPTY:
+            raise ValueError(f"empty_{k}")
+    at = now.strftime("%Y-%m-%dT%H:%MZ")
+
+    def src(agency: str, page: Page) -> dict:
+        return {"agency": AGENCIES[agency], "title": page.title, "url": page.url, "fetchedAt": at}
+
+    return {
+        "schema": base.get("schema", 1),
+        "about": base.get("about", ""),
+        "sources": {
+            "zh-TW": src("cwa", lists.cwa),
+            "zh-HK": src("hko", lists.hko_tc),
+            "en": src("hko", lists.hko_en),
+            "zh-CN": src("nmc", lists.nmc),
+        },
+        "names": rows,
+    }
+
+
+def refresh_names(
+    doc: dict, unknown: Unknown, now: datetime, fetch: Callable[[int], NameLists]
+) -> dict:
+    """名稱表查不到 `unknown` 裡的名字時，當報抓三個官方名單（`fetch(年份)`，`sources/tcnames.py`）
+    更新名稱表；回傳要寫進 `data` 分支的檔案內容（沒抓就是原本的 `doc`，呼叫的人不用寫）。
+
+    同一個名字同一天（UTC）只抓一次，抓過的記在 `refreshTried`
+    （`{"date", "names": [_name_key…]}`）。
+    抓取失敗或 `merge_names` 說不合理：名單不換（`names`、`sources` 照舊），只更新 `refreshTried`。
+    每個名字 log 一行：英文名、`id`、結果（`refreshed`／`still_missing`／`fetch_failed`）。"""
+    today = now.date().isoformat()
+    tried = doc.get("refreshTried")
+    done = set(tried.get("names") or []) if isinstance(tried, dict) else set()
+    if not isinstance(tried, dict) or tried.get("date") != today:
+        done = set()
+    todo = [(en, sid) for en, sid in unknown if _name_key(en) not in done]
+    for en, sid in unknown:
+        if (en, sid) not in todo:
+            log.warning("颱風名稱 %s（%s）：still_missing（今天抓過了）", en, sid)
+    if not todo:
+        return doc
+    marks = {"date": today, "names": sorted(done | {_name_key(en) for en, _ in todo})}
+    try:
+        new = merge_names(fetch(now.year), doc, now)
+    except (SourceError, ValueError) as e:
+        code = getattr(e, "code", None) or str(e)
+        for en, sid in todo:
+            log.warning("颱風名稱 %s（%s）：fetch_failed（%s）", en, sid, code)
+        return {**doc, "refreshTried": marks}
+    table = names_table(new)
+    for en, sid in todo:
+        result = "refreshed" if _name_key(en) in table else "still_missing"
+        log.warning("颱風名稱 %s（%s）：%s", en, sid, result)
+    return {**new, "refreshTried": marks}
+
+
+def dump_names(doc: dict) -> str:
+    """名稱表的檔案內容 → 文字：和 repo 的 `typhoon_names.json` 同樣排法（縮排 2、`names` 一筆一行、
+    `names` 放最後）。"""
+    head = json.dumps({k: v for k, v in doc.items() if k != "names"}, ensure_ascii=False, indent=2)
+    rows = ",\n".join("    " + json.dumps(r, ensure_ascii=False) for r in doc["names"])
+    return head[:-2] + ',\n  "names": [\n' + rows + "\n  ]\n}\n"
