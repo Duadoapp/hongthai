@@ -66,6 +66,11 @@ log = logging.getLogger("hongthai")
 
 TERMS_URL = "https://storage.googleapis.com/weathernext-public/terms-of-use.pdf"
 ENV_TABLE = "WN3_BQ_TABLE"
+# 走哪條路（2026-10-26）：`auto`（預設，BigQuery 失敗退 Zarr）、`zarr`（不查 BigQuery：
+# Analytics Hub 的 listing 連結數滿 1000、訂閱不了時用）、`bigquery`（不退 Zarr）。
+# repo Variable `WN3_VIA` 可以覆寫
+ENV_VIA = "WN3_VIA"
+VIAS = ("auto", "zarr", "bigquery")
 BQ_DATASET = "weathernext_3"
 BQ_TABLE = "weathernext_3_0_0_0p1deg"
 BQ_LATENCY = timedelta(hours=8, minutes=10)
@@ -102,7 +107,18 @@ ZARR_MSLP_VAR = "mean_sea_level_pressure_mean"
 
 
 class Wn3Error(SourceError):
-    pass
+    """`fields`：兩條路都失敗時各自的錯誤碼（`bqError`、`zarrError`），併進 `sources.wn3`
+    （只有錯誤碼，沒有任何預報值）。"""
+
+    def __init__(self, message: str, code: str | None = None, fields: dict | None = None):
+        super().__init__(message, code)
+        self.fields = dict(fields or {})
+
+
+def via_mode(env: dict[str, str] | None = None) -> str:
+    """`WN3_VIA` 環境變數（`auto`／`zarr`／`bigquery`），沒設或不認得是 `auto`。"""
+    v = (os.environ if env is None else env).get(ENV_VIA, "").strip().lower()
+    return v if v in VIAS else "auto"
 
 
 @dataclass
@@ -479,10 +495,11 @@ def fetch(
     else:
         table = (env or {}).get(ENV_TABLE) or f"{BQ_DATASET}.{BQ_TABLE}"
     runs = [run, run - timedelta(hours=STEP_H)] if retry_previous else [run]
+    via = via_mode(env)
 
     data: Wn3Data | None = None
-    bq_error: str | None = None
-    for r in runs:
+    bq_error: str | None = "skipped" if via == "zarr" else None
+    for r in [] if via == "zarr" else runs:
         h0, h1 = lead_window(r, start, end)
         try:
             res = query_points(client, table, r, h0, h1, airports)
@@ -497,6 +514,10 @@ def fetch(
         bq_error = "no_rows"
 
     ds = None
+    if data is None and via == "bigquery":
+        raise Wn3Error(
+            f"BigQuery：{bq_error}（WN3_VIA=bigquery，不退 Zarr）", bq_error or "no_rows"
+        )
     if data is None:
         for r in runs:
             try:
@@ -506,8 +527,9 @@ def fetch(
             except Wn3Error as e:
                 if e.code == "zarr_not_found" and r is not runs[-1]:
                     continue
-                code = bq_error if bq_error not in (None, "no_rows") else e.code
-                raise Wn3Error(f"BigQuery：{bq_error}；Zarr：{e}", code) from e
+                code = bq_error if bq_error not in (None, "no_rows", "skipped") else e.code
+                fields = {"bqError": bq_error, "zarrError": e.code}
+                raise Wn3Error(f"BigQuery：{bq_error}；Zarr：{e}", code, fields) from e
             data = Wn3Data(r, points, "zarr", size, bq_error=bq_error)
             break
     assert data is not None
