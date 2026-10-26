@@ -904,8 +904,11 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     assert {
         k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "tdx", "ai")
-    } == dict.fromkeys((*build.SOURCE_NAMES, "cwaTyphoon", "jmaTyphoon"), False)
+    } == dict.fromkeys((*build.SOURCE_NAMES, "cwaTyphoon", "jmaTyphoon", "wn3"), False)
     assert out["sources"]["cwaTyphoon"]["error"] == "no_api_key"
+    # HD15b：預設 `private` 每報都跑 wn3；測試沒有服務帳號
+    wn = out["sources"]["wn3"]
+    assert (wn["error"], wn["mode"]) == ("no_credentials", "private")
     # HD34：兩個都失敗、沒有上一份 → 沒有颱風（網頁不畫）
     ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
     assert (ty["active"], ty["storms"], ty["sources"]["jma"]) == (
@@ -978,7 +981,9 @@ def test_full_build_from_fixtures(workspace, monkeypatch, airports):
     # HD38：TDX 沒設金鑰（測試不連網）是 not_configured，其他都成功
     tdx_status = out["sources"]["tdx"]
     assert tdx_status == {"ok": False, "error": "not_configured", "calls": 0, "seconds": 0.0}
-    assert all(s["ok"] for k, s in out["sources"].items() if k != "tdx")
+    # HD15b：預設 `private`，沒有服務帳號是 no_credentials（只有中繼資料）
+    assert out["sources"]["wn3"]["error"] == "no_credentials"
+    assert all(s["ok"] for k, s in out["sources"].items() if k not in ("tdx", "wn3"))
     assert [a["icao"] for a in out["airports"]] == ICAOS
     assert all(len(a["slots"]) == 20 for a in out["airports"])
     assert {a["icao"] for a in out["airports"] if a["taf"]} == TAF_ICAOS
@@ -1548,6 +1553,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
         "swic",  # HD29
         "flights",
         "tdx",  # HD38
+        "wn3",  # HD15b：`private` 在算完 G 之後跑
         "airports3h",  # HD35
         "ai",
         "og",
@@ -1586,12 +1592,18 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     tdx_line = lines[16]  # HD38：tdx 記資料請求數（沒設金鑰是 0），每月上限從這裡數
     assert set(tdx_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert (tdx_line["error"], tdx_line["calls"]) == ("not_configured", 0)
-    ap_line = lines[17]  # HD35：機場頁的 3 小時格
+    wn_line = lines[17]  # HD15b：`private` 沒有服務帳號；只有中繼資料的欄位
+    assert set(wn_line) == {
+        *("run", "source", "ok", "error", "seconds", "bytes"),
+        *("mode", "via", "estimateBytes", "bytesBilled", "stored"),
+    }
+    assert (wn_line["error"], wn_line["mode"]) == ("no_credentials", "private")
+    ap_line = lines[18]  # HD35：機場頁的 3 小時格
     assert set(ap_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "files", "mismatches"),
     }
     assert (ap_line["ok"], ap_line["error"], ap_line["files"]) == (True, None, 51)
-    ai_line = lines[18]  # HD34 在 jma 後面多 cwaTyphoon、jmaTyphoon
+    ai_line = lines[19]  # HD34 在 jma 後面多 cwaTyphoon、jmaTyphoon；HD15b 在 tdx 後面多 wn3
     assert set(ai_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "calls"),
         *("usage", "costUsd"),  # HD26
@@ -2471,10 +2483,10 @@ class _NoTfDownloads(build.tracks.Downloads):
         raise build.tracks.TracksError("測試不連網", "tf_failed")
 
 
-def test_wn3_report_only_default_not_in_latest(workspace, monkeypatch, airports):
-    """預設 `report-only`：5 天前那一報（10/13 06Z，CC BY 4.0）的起報時間在事件期間 → 抓那一報、
-    寫事件檔；`latest.json` 沒有 WN3（頂層 `models`、`runs`、每格 `models[]` 都沒有），只有
-    `sources.wn3`。"""
+def test_wn3_report_only_not_in_latest(workspace, monkeypatch, airports):
+    """`report-only`（HD15b 前的預設）：5 天前那一報（10/13 06Z，CC BY 4.0）的起報時間在事件
+    期間 → 抓那一報、寫事件檔；`latest.json` 沒有 WN3（頂層 `models`、`runs`、每格 `models[]`
+    都沒有），只有 `sources.wn3`。"""
     asked = []
     run = utc(2026, 10, 13, 6)
 
@@ -2482,6 +2494,7 @@ def test_wn3_report_only_default_not_in_latest(workspace, monkeypatch, airports)
         asked.append((r, start, end, k))
         return sample_wn3(aps, r)
 
+    monkeypatch.setattr(build, "wn3_mode", lambda: "report-only")
     _fail_all_but(monkeypatch)
     monkeypatch.setattr(build.wn3, "fetch", fetch)
     monkeypatch.setattr(build.tracks, "build_tracks", lambda *a, **k: build.tracks.TracksResult())
@@ -2522,6 +2535,7 @@ def test_wn3_report_only_default_not_in_latest(workspace, monkeypatch, airports)
 
 
 def test_wn3_report_only_outside_event_does_not_run(workspace, monkeypatch, airports):
+    monkeypatch.setattr(build, "wn3_mode", lambda: "report-only")
     _fail_all_but(monkeypatch)
     monkeypatch.setattr(build.wn3, "fetch", _boom)
     _events_json(workspace, "2026-10-19", "2026-10-28")  # 10/13 那一報不在期間

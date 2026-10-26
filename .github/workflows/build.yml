@@ -83,11 +83,13 @@ jobs:
           GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
           GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
           # WeatherNext 3（HD15）用同一把服務帳號（上面兩個）；開關是 repo 的 Variables（不是 secret），
-          # 沒設就是 src/hongthai/config.py 的預設（WN3_MODE=report-only、WN3_VOTING 不投）。
-          # WN3_BQ_TABLE 沒設就用 <GOOGLE_CLOUD_PROJECT>.weathernext_3.weathernext_3_0_0_0p1deg
+          # 沒設就是 src/hongthai/config.py 的預設（HD15b 起 WN3_MODE=private、WN3_VOTING 不投）。
+          # WN3_BQ_TABLE 沒設就用 <GOOGLE_CLOUD_PROJECT>.weathernext_3.weathernext_3_0_0_0p1deg；
+          # WN3_PRIVATE_BUCKET（HD15b 隱形旁觀的私人 bucket）沒設就用 <GOOGLE_CLOUD_PROJECT>-wn3-private
           WN3_MODE: ${{ vars.WN3_MODE }}
           WN3_VOTING: ${{ vars.WN3_VOTING }}
           WN3_BQ_TABLE: ${{ vars.WN3_BQ_TABLE }}
+          WN3_PRIVATE_BUCKET: ${{ vars.WN3_PRIVATE_BUCKET }}
           # HD38：TDX 航空即時航班（台中、台南、花蓮、台東、澎湖、金門、馬祖南竿的取消統計），和 events.yml
           # 同一組 secrets；沒設就跳過（sources.tdx 記 not_configured），其他照跑
           TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}

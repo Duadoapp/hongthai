@@ -29,8 +29,11 @@
   寫，過去的報用 `python -m hongthai.events backfill-tracks --archive data --from <UTC 時間>` 補：
   讀 `from` 以後每份快照的 `runs`，每個模式每個時次只抽一次，已經有的跳過）
 - `wn3/<起報 YYYYMMDDTHHMM>Z.json`：WeatherNext 3 每格的數字（HD15，`wn3report.py`）；
-  `backfill-tracks` 也補 WN3（事件期間 `from` 以後、起報 ≤ 現在 − 121 小時的主報，事件檔＋
-  路徑檔），要 Google 憑證
+  `backfill-tracks` 也補 WN3（HD15b：`--from` 以後、事件期間每個已發布的主報，事件檔＋路徑檔，
+  只寫有效時間已經過了 1 小時的部分、截過的多 `clippedAt`，之後再跑會補寫），要 Google 憑證。
+  `python -m hongthai.events wn3-archive --archive data`（HD15b，`wn3_archive`）：私人 bucket
+  裡起報 ≤ 現在 − 121 小時的隱形旁觀檔搬到 `history/wn3/`，起報在事件期間的這裡也放一份
+  （`wn3private.archive`）
 - `flights/<YYYY-MM-DD>.jsonl`（HD31，日期是**表定時間**的 UTC 日期）：每小時抓桃園、松山、
   高雄、香港、澳門五個航班來源（`sources/flights.py`，事件的 `airports` 有的才寫），逐班一行
   （格式與規則見 `flights_log.py`；解析、共掛、分類沿用 `cancellations.py`）；同一班的狀態、分類、
@@ -743,8 +746,8 @@ def _backfill_tracks(
     now: datetime | None = None,
 ) -> int:
     """`backfill-tracks`（HD21）：要 eccodes，所以這裡才載入 `tracks`（`hourly` 只裝 requests）。
-    HD15：接著補 WeatherNext 3（`wn3report.backfill`：起報 ≤ 現在 − 121 小時、CC BY 4.0 的那幾報，
-    事件檔＋路徑）；沒有 Google 憑證或還沒核准只印一行。"""
+    HD15：接著補 WeatherNext 3（`wn3report.backfill`，HD15b：事件期間每個已發布的主報，只寫有效
+    時間已經過了 1 小時的部分，事件檔＋路徑）；沒有 Google 憑證或還沒核准只印一行。"""
     import tempfile
     import time
 
@@ -774,6 +777,27 @@ def _backfill_tracks(
         )
         for p in r.written:
             print(f"  {p.name}")
+    return 0
+
+
+def wn3_archive(history: Path, events: list[Event], now: datetime) -> int:
+    """`wn3-archive`（HD15b）：私人 bucket 裡起報 ≤ 現在 − 121 小時的 WeatherNext 3 隱形旁觀檔 →
+    `history/wn3/`（＋事件目錄）。只要 requests 與 google-auth（`wn3private` 不載入 numpy）。沒有
+    憑證或 bucket 讀不了印一行、回 0（不讓每小時那支失敗）；只印檔名與錯誤碼，不印內容。"""
+    from . import wn3private
+
+    try:
+        bucket = wn3private.Bucket.from_env()
+        res = wn3private.archive(history, events, now, bucket)
+    except SourceError as e:
+        print(f"WeatherNext 3 搬家：失敗（{e.code}）")
+        return 0
+    print(
+        f"WeatherNext 3 搬家：寫了 {len(res.written)} 份、已經搬過 {res.skipped} 報、"
+        f"失敗 {len(res.failed)}（{'、'.join(res.failed) or '無'}）"
+    )
+    for p in res.written:
+        print(f"  {p.relative_to(history)}")
     return 0
 
 
@@ -821,6 +845,7 @@ def main(argv: list[str] | None = None) -> int:
             "backfill-metar",
             "backfill-flights",
             "backfill-openmeteo",
+            "wn3-archive",
         ),
     )
     ap.add_argument("--archive", type=Path, default=Path("data"))
@@ -845,6 +870,8 @@ def main(argv: list[str] | None = None) -> int:
         return _backfill_tracks(
             history, events, parse_time(args.since) or utcnow(), load_airports(args.airports)
         )
+    if args.command == "wn3-archive":
+        return wn3_archive(history, events, utcnow())
     if args.command == "backfill-metar":
         since = parse_time(args.since) or utcnow()
         dirs = {e.id: event_dir(history, e) for e in events}
