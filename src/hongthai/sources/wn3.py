@@ -8,7 +8,9 @@ allowlist（2026-10-20 19:04 送出，5–7 個工作天），沒核准前查詢
   （`TERMS_URL`）。內部使用可以；**未修改的數字（含裁切地區、挑時間與變數、乘固定比例）不能公開**，
   加工成看不出原始數字的東西才能公開、要附固定標註；日本是限制國家
 - 有效時間在 1 小時以前的：CC BY 4.0
-- 所以 `config.WN3_MODE` 預設 `report-only`（只抓已經過去的那一報，見 `wn3report.py`）
+- 所以 `config.WN3_MODE` 預設 `private`（HD15b，2026-10-26 核准後：照有效時間的讀法，最新一報
+  只寫進私人 bucket、超過 121 小時才公開，見 `wn3report.py`、`wn3private.py`）。**日誌不印任何
+  預報值或等級**（只印起報時間、機場數、bytes、秒數、錯誤碼）
 
 文件（2026-10-20 查；公開的 Colab 範例 `gs://weathernext-public/colabs/WeatherNext_3_Starter_Guide_*`
 有完整欄位）：
@@ -44,7 +46,6 @@ allowlist（2026-10-20 19:04 送出，5–7 個工作天），沒核准前查詢
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import time
@@ -64,12 +65,7 @@ from . import SourceError
 log = logging.getLogger("hongthai")
 
 TERMS_URL = "https://storage.googleapis.com/weathernext-public/terms-of-use.pdf"
-SCOPES = ("https://www.googleapis.com/auth/cloud-platform",)
-ENV_JSON, ENV_PROJECT, ENV_TABLE = (
-    "GOOGLE_SERVICE_ACCOUNT_JSON",
-    "GOOGLE_CLOUD_PROJECT",
-    "WN3_BQ_TABLE",
-)
+ENV_TABLE = "WN3_BQ_TABLE"
 BQ_DATASET = "weathernext_3"
 BQ_TABLE = "weathernext_3_0_0_0p1deg"
 BQ_LATENCY = timedelta(hours=8, minutes=10)
@@ -151,19 +147,15 @@ class Wn3Data:
 
 def credentials(env: dict[str, str] | None = None):
     """服務帳號（同 Gemini：`GOOGLE_SERVICE_ACCOUNT_JSON` 整份原文，`json.loads` 後直接給
-    `google.oauth2`，不寫到磁碟）與專案。少一個或讀不了丟 `no_credentials`。"""
-    env = os.environ if env is None else env
-    raw, project = env.get(ENV_JSON), env.get(ENV_PROJECT)
-    if not (raw and project):
-        raise Wn3Error("沒有 GOOGLE_SERVICE_ACCOUNT_JSON／GOOGLE_CLOUD_PROJECT", "no_credentials")
-    from google.oauth2 import service_account  # 延後載入
+    `google.oauth2`，不寫到磁碟）與專案。少一個或讀不了丟 `no_credentials`。實作在輕量的
+    `wn3private.credentials`（事件保存每小時那支搬家也用）。"""
+    from ..wn3private import PrivateError
+    from ..wn3private import credentials as load
 
     try:
-        info = json.loads(raw)
-        creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
-    except (ValueError, KeyError, TypeError) as e:  # 訊息裡不放 JSON 內容
-        raise Wn3Error("GOOGLE_SERVICE_ACCOUNT_JSON 讀不了", "no_credentials") from e
-    return creds, project
+        return load(env)
+    except PrivateError as e:
+        raise Wn3Error(str(e), e.code) from e
 
 
 def table_id(project: str, env: dict[str, str] | None = None) -> str:

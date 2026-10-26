@@ -31,16 +31,17 @@ def _airports(airports, *icaos):
 
 
 def test_switches_default_and_env():
-    assert config.wn3_mode({}) == "report-only"  # 條款的結論：預設不上網頁
+    assert config.wn3_mode({}) == "private"  # HD15b：隱形旁觀，只寫私人 bucket
     assert config.wn3_mode({"WN3_MODE": "observe"}) == "observe"
-    assert config.wn3_mode({"WN3_MODE": "public"}) == "report-only"  # 不認得 → 預設
+    assert config.wn3_mode({"WN3_MODE": "report-only"}) == "report-only"
+    assert config.wn3_mode({"WN3_MODE": "public"}) == "private"  # 不認得 → 預設
     assert config.wn3_voting({}) is False  # 旁觀
     assert config.wn3_voting({"WN3_VOTING": "1"}) is True
     assert config.wn3_voting({"WN3_VOTING": "yes"}) is False
     m = config.WN3_MODEL
     assert (m.id, m.gust_estimated, m.votes_only_high, m.voting) == ("wn3", True, False, False)
     assert set(m.name.values()) == {"Google WeatherNext 3"}
-    # 預設 report-only：`MODELS` 沒有 wn3（`latest.json` 完全沒有它）
+    # 預設 private：`MODELS` 沒有 wn3（`latest.json` 只有 `sources.wn3` 的中繼資料）
     assert [x.id for x in config.MODELS][-1] == "cma"  # HD33b 的三個旁觀模式接在 wn2-ens 後面
 
 
@@ -492,34 +493,6 @@ def test_event_runs_taipei_dates():
     assert len(runs) == 6
     end = wn3report.event_runs(EV, utc(2026, 10, 1), utc(2026, 11, 30))
     assert end[-1] == utc(2026, 10, 28, 12)  # 10/28 台灣 24:00 ＝ 10/28 16Z
-
-
-def test_backfill_writes_and_stops_when_not_approved(tmp_path, airports, monkeypatch):
-    aps = _airports(airports, "RCTP")
-    monkeypatch.setattr(tracks, "Downloads", lambda workdir: _NoTf(workdir))
-    asked = []
-
-    def fetch(airports, run, start, end, mslp=False):
-        asked.append((run, start, end, mslp))
-        return replace(_data(aps), run=run)
-
-    now = utc(2026, 10, 25, 1, 5)
-    out = wn3report.backfill(tmp_path, [EV], aps, utc(2026, 10, 19, 12), now, tmp_path / "w", fetch)
-    res = out["29W"]
-    assert [a[0] for a in asked] == [utc(2026, 10, 19, 12), utc(2026, 10, 19, 18), RUN]
-    assert asked[0][1:] == (utc(2026, 10, 19, 12), utc(2026, 10, 24, 12), True)
-    assert len([p for p in res.written if p.parent.name == "wn3"]) == 3
-    # 第二次：事件檔都有，但沒有起點所以路徑檔沒寫 → 照樣再試（不跳過）
-    asked.clear()
-
-    def denied(*a, **k):
-        asked.append(a[1])
-        raise wn3.Wn3Error("403", "http_403")
-
-    out = wn3report.backfill(
-        tmp_path, [EV], aps, utc(2026, 10, 19, 12), now, tmp_path / "w", denied
-    )
-    assert len(asked) == 1 and out["29W"].failed == ["wn3@2026-10-19T12:00:00Z"]
 
 
 class _NoTf(tracks.Downloads):

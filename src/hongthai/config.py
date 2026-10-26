@@ -84,22 +84,26 @@ class Model:
 
 
 # HD15：Google WeatherNext 3（`sources/wn3.py`）的兩個開關，環境變數可以覆寫（`build.yml` 不設就是
-# 這裡的值）。2026-10-20 讀完 GDM 即時資料條款的結論（README「資料來源與授權」）：即時（有效時間在
-# 1 小時內或未來）的數字算「未修改的即時資料」，不能公開放在網頁、`latest.json` 與公開的 `data`
-# 分支，而且條款把日本列為限制國家——所以預設 `report-only`：
+# 這裡的值）。條款（README「資料來源與授權」）：即時（有效時間在 1 小時內或未來）的數字算「未修改的
+# 即時資料」，不能公開放在網頁、`latest.json` 與公開的 `data` 分支，而且條款把日本列為限制國家。
+# 2026-10-26 核准後（HD15b）照比較嚴的讀法（看有效時間）預設 `private`：
+# - `private`（預設，HD15b）：每報抓最新的主報、照事件檔的格式算等級，整份只寫進私人 bucket
+#   （`wn3private.py`）；`latest.json` 只有 `sources.wn3` 的中繼資料，不放預報值或等級、不投票；
+#   起報超過 121 小時每天搬進 `data` 分支的 `history/wn3/`
 # - `report-only`：`latest.json` 完全沒有 WN3（頂層 `models`、每格 `models[]`、`runs` 都沒有）；
 #   只在事件期間抓「最後一個有效時間已經過了 1 小時」的那一報（起報 ≤ 現在 − 121 小時，資料是
 #   CC BY 4.0），寫 `history/events/<id>/wn3/` 與路徑檔，給颱風過後的報告比對
 # - `observe`：每報抓最新一報，進 `models[]` 與路徑檔（Google 書面同意公開顯示之後才切）；
 #   投不投票看 `WN3_VOTING`
-WN3_MODES = ("observe", "report-only")
-WN3_MODE_DEFAULT = "report-only"
+WN3_MODES = ("private", "observe", "report-only")
+WN3_MODE_DEFAULT = "private"
 # 旁觀（`False`）：29W 驗證期凍結（2026-10-22 12:00 起）不改投票，解凍後才改 True
 WN3_VOTING_DEFAULT = False
 
 
 def wn3_mode(env: dict[str, str] | None = None) -> str:
-    """`WN3_MODE` 環境變數（`observe`／`report-only`），沒設或不認得用 `WN3_MODE_DEFAULT`。"""
+    """`WN3_MODE` 環境變數（`private`／`observe`／`report-only`），沒設或不認得用
+    `WN3_MODE_DEFAULT`。"""
     v = (os.environ if env is None else env).get("WN3_MODE", "").strip()
     return v if v in WN3_MODES else WN3_MODE_DEFAULT
 

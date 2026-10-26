@@ -24,6 +24,8 @@
   - `history/events/<id>/tracks/<起報時間>-<模式>.json`：事件期間每個模式每一報的颱風路徑（HD21，
     `tracks.py`；來源 `tracks`，見下面）
   - `history/events/<id>/wn3/<起報時間>.json`：WeatherNext 3 每格的數字（HD15，`wn3report.py`）
+  - `history/wn3/<起報時間>.json`：WeatherNext 3 隱形旁觀起報超過 121 小時的報（HD15b，build 不寫；
+    `python -m hongthai.events wn3-archive` 每天從私人 bucket 搬，`wn3private.py`）
   - `typhoons.json`：颱風地圖的官方路徑與暴風圈，只有最新一份（HD34，`typhoons.py`；來源
     `cwaTyphoon`、`jmaTyphoon`，原始回應 `history/raw/<日期>/<HHMM>Z-{cwa,jma}-typhoon.json`）
 - `--out`（預設 `public/`，GitHub Pages 發布的內容）：`latest.json` 與最近 7 天的
@@ -65,7 +67,11 @@ Open-Meteo 的三個模式（`openmeteo`，HD16）也**不沿用**：失敗那�
 `sources.tracks`。
 
 WeatherNext 3（HD15，`sources/wn3.py`、`wn3report.py`）：模式由 `config.WN3_MODE`（環境變數
-`WN3_MODE`）決定。`report-only`（預設，條款的結論）：`latest.json` 沒有 WN3（只有 `sources.wn3`），
+`WN3_MODE`）決定。`private`（預設，HD15b）：每報都跑來源 `wn3`，但放在算完估算陣風係數之後
+（`wn3report.observe_private`：最新的主報 → 事件檔格式 → 只寫進私人 bucket，同一報已經有就不查），
+`latest.json` 只有 `sources.wn3` 的中繼資料（`run`、`stored`、`via`、掃描量、秒數，不放任何預報值或
+等級）、不進 `models[]`／`slots`、不投票、不寫事件檔與路徑檔（補抓見 `wn3report.backfill`）。
+`report-only`：`latest.json` 沒有 WN3（只有 `sources.wn3`），
 只在「5 天前那一報」（`wn3report.report_run`，資料已經是 CC BY 4.0）的起報時間落在事件期間時跑
 來源 `wn3`，寫 `history/events/<id>/wn3/` 與路徑檔；`observe`：每報抓最新一報進 `models[]`
 （`voting` 看 `WN3_VOTING`），事件期間也寫事件檔、路徑由來源 `tracks` 一起抽。不沿用舊資料。
@@ -335,7 +341,7 @@ class Timing:
     - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf、gfs、aifs、aigfs
       （HD14）多 `mirror`；openmeteo（HD16）多 `calls`（Open-Meteo 的加權呼叫次數，失敗是 null）；
       wn3（HD15）多 `mode`、`via`（`bigquery`／`zarr`）、`estimateBytes`（BigQuery dry run）、
-      `bytesBilled`
+      `bytesBilled`、`stored`（HD15b `private`：`written`／`exists`）
     - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
     - AI 對決（HD5）：`{"run", "source": "ai", "ok", "error", "seconds", "bytes": 0,
       "calls": {"claude": n, "gemini": n}, "usage": {...}, "costUsd": {"claude": x, "gemini": y},
@@ -377,8 +383,8 @@ class Timing:
             fields["errorMessages"] = st.get("errorMessages")  # HD30
         if name in ("openmeteo", "tdx"):  # tdx：HD38（每月計數看 `history/tdx/`，不看這裡）
             fields["calls"] = st.get("calls")
-        if name == "wn3":  # HD15
-            for k in ("mode", "via", "estimateBytes", "bytesBilled"):
+        if name == "wn3":  # HD15；`stored`：HD15b `private`
+            for k in ("mode", "via", "estimateBytes", "bytesBilled", "stored"):
                 fields[k] = st.get(k)
         self.write(**fields)
 
@@ -470,6 +476,16 @@ def _wn3_extra(w: wn3.Wn3Data) -> dict:
         d["bqError"] = w.bq_error
     if w.mslp_error:
         d["mslpError"] = w.mslp_error
+    return d
+
+
+def _wn3_private_extra(r: wn3report.PrivateResult) -> dict:
+    """`sources.wn3`（HD15b `private`）：只有中繼資料——起報、`stored`（`written`：這一報寫進私人
+    bucket；`exists`：已經有了、沒查 BigQuery），有查時加 `_wn3_extra` 那些（`via`、掃描量）。
+    **不放任何預報值或等級**。"""
+    d: dict[str, object] = {"run": iso(r.run), "stored": r.stored}
+    if r.data is not None:
+        d.update(_wn3_extra(r.data))
     return d
 
 
@@ -1254,7 +1270,8 @@ def run(
     )
     om = _call("openmeteo", lambda: openmeteo.fetch(airports), status, timing, _openmeteo_extra)
     wn_mode = wn3_mode()
-    wn_run, wn_events = wn3_targets(wn_mode, now, events_path, history)
+    private = wn_mode == "private"  # HD15b：在算完 G 之後才跑（下面），不進 `latest.json`
+    wn_run, wn_events = (None, []) if private else wn3_targets(wn_mode, now, events_path, history)
     wn: wn3.Wn3Data | None = None
     if wn_run is not None:
         observe = wn_mode == "observe"
@@ -1318,6 +1335,15 @@ def run(
     )
 
     factors = gust_factors(ec, gf, airports, now, history)
+    if private:
+        _call(
+            "wn3",
+            lambda: wn3report.observe_private(airports, now, factors),
+            status,
+            timing,
+            _wn3_private_extra,
+            {"mode": wn_mode},
+        )
     inputs = {
         "ec": ec,
         "gf": gf,

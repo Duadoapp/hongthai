@@ -6,13 +6,17 @@ name: events
 # 勾 backfill-tracks（HD21）：從 2026-10-19T00:00Z 起的快照補抽各模式的颱風路徑到
 # history/events/<id>/tracks/（已存在的跳過；GFS、AIGFS 從 AWS 重抓海平面氣壓、IFS／AIFS 從 ECMWF
 # 開放資料抓，拿不到的記 log）；接著補 WeatherNext 3（HD15：起報 ≤ 現在 − 121 小時、CC BY 4.0 的報，事件檔
-# history/events/<id>/wn3/ 與路徑；要 Google 服務帳號，還沒核准時第一報 403 就停）；
+# history/events/<id>/wn3/ 與路徑；HD15b 起見下面；要 Google 服務帳號，還沒核准時第一報 403 就停）；
 # 勾 backfill-metar（HD25）：從 2026-10-19T00:00Z 起把 AviationWeather 還有的 METAR 補進
 # history/events/<id>/metar/（已有的不覆蓋，補進來的行多 "backfill"；金門、馬祖是氣象署觀測，補不到只記 log）；
 # 勾 backfill-flights（HD31）：香港 past?date= 從 2026-10-19 起每天補逐班航班紀錄到 history/events/<id>/flights/
 # （同一班同狀態不重寫，補進來的行多 "backfill": true；其他四個機場只有當天，補不到只記 log）。
 # backfill-openmeteo（HD33a）填事件 id（例如 29W）：UKMO、GEM、ARPEGE、CMA 經 Open-Meteo Previous Runs
 # 回補事件期間的預報到 history/events/<id>/backfill/（只追加、已有的跳過；只給報告比，不進 latest.json）。
+# HD15b：WeatherNext 3 隱形旁觀（私人 bucket gs://<GOOGLE_CLOUD_PROJECT>-wn3-private/observe/）裡起報超過 121 小時的報，
+# 每天 00Z 那次搬進 history/wn3/（起報在事件期間的也放一份到 history/events/<id>/wn3/，已經有就不覆寫）；手動勾 wn3-archive
+# 時照跑。backfill-tracks 的 WN3（HD15b）：事件期間每個已發布的主報都補，只寫有效時間已經過了 1 小時的部分（clippedAt），
+# 再跑一次會補寫之後又過了 1 小時的格。日誌只印檔名、起報時間、錯誤碼，不印 WN3 的任何數值。
 # HD32：每小時的航班另外存 TDX 台灣十個機場（source: "tdx"），要 secrets TDX_CLIENT_ID／TDX_CLIENT_SECRET，
 # 沒設就跳過（log 記「TDX 未設定」），其他照跑。
 # HD25：整點的排程由 Cloudflare 排程 Worker（cloudflare/trigger/）用 workflow_dispatch 觸發
@@ -47,6 +51,10 @@ on:
         description: "事件 id（例如 29W）：回補 UKMO、GEM、ARPEGE、CMA 的預報到 history/events/<id>/backfill/；空白＝不跑"
         type: string
         default: ""
+      wn3-archive:
+        description: "現在就把私人 bucket 裡起報超過 121 小時的 WeatherNext 3 搬進 history/wn3/（平常每天 00Z 自動跑）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write # 推 data 分支
@@ -58,7 +66,7 @@ concurrency:
 jobs:
   events:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45 # 每小時的只要 1 分鐘；手動 backfill-tracks 每報約 1 分鐘下載＋解析，WN3 每報一個 BigQuery 查詢＋21 張氣壓（HD15 前 30、HD20 是 10）
+    timeout-minutes: 90 # 每小時的只要 1 分鐘；手動 backfill-tracks 每報約 1 分鐘下載＋解析，WN3 每報一個 BigQuery 查詢＋最多 20 張氣壓；HD15b 起 29W 事件期間每報都補（約 30 報，HD15b 前 45、HD15 前 30、HD20 是 10）
     steps:
       - uses: actions/checkout@v6
 
@@ -66,11 +74,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      # hongthai.events 的每小時不用 eccodes（不 import 模式來源），只裝 requests 省時間；
-      # backfill-tracks 要解析 GRIB／BUFR，裝 eccodes 與整個套件（同 build.yml）
+      # hongthai.events 的每小時不用 eccodes（不 import 模式來源），只裝 requests 省時間（HD15b 加
+      # google-auth：WeatherNext 3 搬家讀私人 bucket）；backfill-tracks 要解析 GRIB／BUFR，裝 eccodes 與
+      # 整個套件（同 build.yml）
       - name: 裝套件
         if: "!(github.event_name == 'workflow_dispatch' && inputs.backfill-tracks)"
-        run: pip install requests
+        run: pip install requests google-auth
 
       - name: 裝套件（backfill-tracks）
         if: github.event_name == 'workflow_dispatch' && inputs.backfill-tracks
@@ -129,6 +138,21 @@ jobs:
         run: |
           echo "觸發：$TRIGGER"
           python -m hongthai.events hourly --archive data
+
+      - name: WeatherNext 3 搬家（每天 00Z 那次、或手動 wn3-archive）
+        env:
+          PYTHONPATH: src
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          # 沒設就是 <GOOGLE_CLOUD_PROJECT>-wn3-private
+          WN3_PRIVATE_BUCKET: ${{ vars.WN3_PRIVATE_BUCKET }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.wn3-archive }}
+        run: |
+          if [ "$FORCE" = "true" ] || [ "$(date -u +%H)" = "00" ]; then
+            python -m hongthai.events wn3-archive --archive data
+          else
+            echo "不是 00Z，不搬 WeatherNext 3"
+          fi
 
       - name: 推 data 分支
         working-directory: data
