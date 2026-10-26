@@ -371,6 +371,12 @@ def open_stats_gcs(creds, project: str) -> Callable[[datetime], object]:
             raise
         except PermissionError as e:  # gcsfs 把 401／403 換成 PermissionError
             raise Wn3Error(f"GCS 統計 Zarr {iso(run)}：{e}"[:300], "http_403") from e
+        except OSError as e:
+            # gcsfs 的 403 是 `OSError("Forbidden: <路徑>…")`（不是 PermissionError；
+            # 2026-10-26 服務帳號讀 Zarr 的那報 `zarrError` 是 `OSError`）
+            msg = str(e)
+            code = "http_403" if msg.startswith("Forbidden") else e.__class__.__name__
+            raise Wn3Error(f"GCS 統計 Zarr {iso(run)}：{msg}"[:300], code) from e
         except Exception as e:
             code = getattr(e, "code", None)
             raise Wn3Error(

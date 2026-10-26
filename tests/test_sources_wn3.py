@@ -591,3 +591,30 @@ def test_via_mode_values():
     assert wn3.via_mode({"WN3_VIA": " Zarr "}) == "zarr"
     assert wn3.via_mode({"WN3_VIA": "bigquery"}) == "bigquery"
     assert wn3.via_mode({"WN3_VIA": "gcs"}) == "auto"
+
+
+def test_gcs_forbidden_oserror_is_http_403(monkeypatch):
+    """gcsfs 的 403 是 `OSError("Forbidden: …")`（2026-10-26 服務帳號讀 Zarr 的實況），記成
+    `http_403`；其他 OSError 照類別名稱。"""
+    import sys
+    import types
+
+    def fake_fs(message):
+        class FS:
+            def __init__(self, **kw):
+                pass
+
+            def glob(self, pattern):
+                raise OSError(message)
+
+        return types.SimpleNamespace(GCSFileSystem=FS)
+
+    monkeypatch.setitem(sys.modules, "gcsfs", fake_fs("Forbidden: weathernext3_statistics_spatial"))
+    with pytest.raises(wn3.Wn3Error) as e:
+        wn3.open_stats_gcs(None, "p")(RUN)
+    assert e.value.code == "http_403"
+
+    monkeypatch.setitem(sys.modules, "gcsfs", fake_fs("connection reset"))
+    with pytest.raises(wn3.Wn3Error) as e:
+        wn3.open_stats_gcs(None, "p")(RUN)
+    assert e.value.code == "OSError"
