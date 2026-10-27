@@ -546,8 +546,15 @@ def test_parse_cwa_real_1306z():
         "time": "2026-10-25T06:00:00Z",
         "lat": 30.1,
         "lon": 125.4,
-        "radius15": [{"dir": "all", "km": 150}],  # Radius；四象限 QuadrantRadii 不轉
+        "radius15": [{"dir": "all", "km": 150}],  # Radius（整圈）
         "radius25": [],  # 沒有 Circle25ms
+        # HD41：四象限 QuadrantRadii 另放（radius15 不變），沒有 Circle25ms 就沒有 radius25Quadrants
+        "radius15Quadrants": [
+            {"dir": "NE", "km": 200},
+            {"dir": "SE", "km": 100},
+            {"dir": "SW", "km": 130},
+            {"dir": "NW", "km": 160},
+        ],
     }
     assert champi.forecast[0] == {
         "time": "2026-10-25T12:00:00Z",  # InitialTime＋ForecastHour 6

@@ -1,4 +1,5 @@
-"""颱風地圖的資料 `typhoons.json`（HD34）：**只轉載官方路徑與暴風圈，不計算**。
+"""颱風地圖的資料 `typhoons.json`（HD34）：**只轉載官方路徑與暴風圈，不計算**（唯一的例外是 HD41 的
+`entries`「幾點進暴風圈」，依官方暴風圈預報推算，`stormentry.py`）。
 
 抓取與解析在 `sources/typhoon.py`（氣象署 `W-C0034-005`、日本氣象廳 bosai）；這裡決定每顆用
 哪一份、算不算在範圍內、資料舊不舊，組成 GitHub Pages 的 `typhoons.json`（只放最新一份；`data`
@@ -48,7 +49,9 @@
 格式（`schema` 1）：`{"schema", "generatedAt", "active",
 "bounds": {"south", "north", "west", "east"},
 "sources": {"cwa": {"ok"[, "error"]}, "jma": {"ok"[, "error"]}}, "storms": [...],
-"outOfRange": [{"id", "source"}], "ended": [{"id", "source", "reason"}][, "reusedFrom"]}`；
+"outOfRange": [{"id", "source"}], "ended": [{"id", "source", "reason"}], "entries": [...]
+[, "reusedFrom"]}`（`entries` 是 HD41「幾點進暴風圈」，依官方暴風圈預報推算、不是官方發布，格式與
+方法見 `stormentry.py`）；
 每顆 `{"id", "name": {四語},
 "source": "cwa"|"jma", "sourceId", "issuedAt", "url", "stale",
 "others": [{"source", "id", "issuedAt", "url"}], "past": [...], "now", "forecast": [...]
@@ -79,11 +82,12 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 
+from . import stormentry
 from .sources import SourceError
 from .sources.tcnames import AGENCIES, COUNT, NameLists, Page
 from .sources.typhoon import CWA_PAGE, JMA_PAGE, Storm, TyphoonData
@@ -337,6 +341,15 @@ def _reuse(
     }
 
 
+def _entries(storms: list[dict], airports: Sequence[stormentry.Place]) -> list[dict]:
+    """`stormentry.entries`；算不出來只 log、回 `[]`（不能讓颱風地圖跟著出不來）。"""
+    try:
+        return stormentry.entries(storms, airports)
+    except Exception:  # 保險
+        log.exception("進暴風圈時間算不出來，entries 先給 []")
+        return []
+
+
 def build(
     cwa: TyphoonData | None,
     jma: TyphoonData | None,
@@ -345,12 +358,15 @@ def build(
     previous: dict | None = None,
     table: NameTable | None = None,
     unknown: Unknown | None = None,
+    airports: Sequence[stormentry.Place] = (),
 ) -> dict:
     """組 `typhoons.json`。`cwa`／`jma` 是 None 表示那個來源失敗（原因在 `status`，`build._call` 的
     `sources.cwaTyphoon`／`jmaTyphoon`）。`previous` 是上一份 `typhoons.json`（沒有是 None）。
     `table` 是颱風名稱對照表（`load_names`；None 就只用來源給的名字）。有 `table` 時，`storms`
     （範圍內、這一報來源給的）與 `ended` 裡英文名在表裡查不到的記進 `unknown`（英文名, `id`；同一個
-    名字一筆），`refresh_names` 拿來當報更新名稱表。"""
+    名字一筆），`refresh_names` 拿來當報更新名稱表。`airports` 是 51 個機場
+    （`config.load_airports`），`entries`（HD41「幾點進暴風圈」）照 `storms` 算
+    （`stormentry.entries`；沒給機場就是 `[]`）。"""
 
     def note(s: Storm | None, sid: str) -> None:
         if unknown is None or table is None or s is None or not s.name_en:
@@ -374,6 +390,7 @@ def build(
         "storms": [],
         "outOfRange": [],
         "ended": [],
+        "entries": [],
     }
     prev_storms = previous.get("storms") if isinstance(previous, dict) else None
     prev_storms = (
@@ -387,6 +404,7 @@ def build(
             ]
             doc["reusedFrom"] = generated
             doc["active"] = True
+        doc["entries"] = _entries(doc["storms"], airports)
         return doc
     used: list[int] = []
     picked: list[tuple[Storm | dict, list[Storm], str]] = []
@@ -426,6 +444,7 @@ def build(
         else:
             doc["outOfRange"].append({"id": sid, "source": src})
     doc["active"] = bool(doc["storms"])
+    doc["entries"] = _entries(doc["storms"], airports)
     return doc
 
 

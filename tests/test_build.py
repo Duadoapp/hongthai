@@ -888,6 +888,34 @@ def test_typhoon_failures_do_not_touch_latest(workspace, monkeypatch, airports):
     assert json.loads((workspace / "public" / "typhoons.json").read_text("utf-8")) == ty
 
 
+def test_typhoon_entries_in_typhoons_json_only(workspace, monkeypatch, airports):
+    """HD41：「幾點進暴風圈」只寫進 `typhoons.json` 的 `entries`（機場照 `airports.json`），
+    `latest.json` 不變。"""
+    tpe = next(a for a in airports if a.iata == "TPE")
+    t = build.typhoon
+    pt = {"time": "2026-10-18T08:00:00Z", "lat": tpe.lat, "lon": tpe.lon, "category": "TY"}
+    storm = t.Storm(
+        source="jma",
+        key="TC2699",
+        number="2699",
+        name_zh="",
+        name_en="Test",
+        issued_at=NOW,
+        now=pt | {"radius15": [{"dir": "all", "km": 15}], "radius25": []},  # 松山約 32 公里
+        forecast=[],
+        category="TY",
+    )
+    monkeypatch.setattr(build.typhoon, "fetch_jma", lambda: t.TyphoonData([storm], {}))
+    monkeypatch.setattr(build, "utcnow", lambda: NOW)
+    assert build.main([]) == 0
+    ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
+    assert [(e["iata"], e["circle"], e["now"]) for e in ty["entries"]] == [
+        ("TPE", "jma_gale", True)
+    ]
+    latest = (workspace / "public" / "latest.json").read_text("utf-8")
+    assert "entries" not in json.loads(latest) and "jma_gale" not in latest
+
+
 def test_typhoon_names_table_next_to_airports(workspace, monkeypatch, caplog):
     """HD34c：`airports.json` 旁邊的 `typhoon_names.json` 有就照對照表（zh-CN 烟花），讀不了只 log、
     名稱照來源給的。"""

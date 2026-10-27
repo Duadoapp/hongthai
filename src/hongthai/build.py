@@ -107,7 +107,7 @@ import shutil
 import sys
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1438,7 +1438,15 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-openmeteo.json", om.raw, compact=True)
     _dump(history / f"{stamp}.json", latest, compact=True)
     _dump(archive / "latest.json", latest, compact=True)
-    write_typhoons(archive, ct, jt, status, now, airports_path.with_name(typhoons.NAMES_FILENAME))
+    write_typhoons(
+        archive,
+        ct,
+        jt,
+        status,
+        now,
+        airports_path.with_name(typhoons.NAMES_FILENAME),
+        airports,
+    )
     if events_path is not None:
         event_snapshots(events_path, history, now, history / f"{stamp}.json")
     return latest
@@ -1451,8 +1459,10 @@ def write_typhoons(
     status: dict[str, dict],
     now: datetime,
     names_path: Path | None = None,
+    airports: Sequence[Airport] = (),
 ) -> None:
     """`--archive` 的 `typhoons.json`（HD34，`typhoons.build`；`publish()` 再複製到發布目錄）。
+    `airports` 給「幾點進暴風圈」的 `entries`（HD41）。
     `names_path` 是颱風名稱對照表（HD34c，`airports.json` 旁邊的 `typhoon_names.json`）。HD34d：
     `--archive`（`data` 分支）根目錄的 `typhoon_names.json` 優先（`typhoons.read_names`）；有名字
     查不到時當報抓三個官方名單更新、寫回 `data` 分支那份（`typhoons.refresh_names`），更新到了就用
@@ -1467,7 +1477,7 @@ def write_typhoons(
     try:
         previous = typhoons.read_previous(archive)
         unknown: typhoons.Unknown = []
-        doc = typhoons.build(ct, jt, status, now, previous, table, unknown)
+        doc = typhoons.build(ct, jt, status, now, previous, table, unknown, airports)
         if unknown and names_doc is not None:
             try:
                 new = typhoons.refresh_names(names_doc, unknown, now, tcnames.fetch)
@@ -1476,7 +1486,9 @@ def write_typhoons(
                     path.write_text(typhoons.dump_names(new), encoding="utf-8")
                     if new["names"] != names_doc["names"]:
                         table = typhoons.names_table(new)
-                        doc = typhoons.build(ct, jt, status, now, previous, table)
+                        doc = typhoons.build(
+                            ct, jt, status, now, previous, table, airports=airports
+                        )
             except Exception:  # 保險：名稱表更新出錯照舊表出這一報
                 log.exception("颱風名稱對照表自動更新失敗，名稱照舊表")
         _dump(archive / typhoons.FILENAME, doc, compact=True)
