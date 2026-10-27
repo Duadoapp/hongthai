@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from ..config import MODELS as WEATHER_MODELS
+
 MODELS = {"claude": "claude-opus-5-5", "gemini": "gemini-4-argon"}
 KEYS = tuple(MODELS)  # `latest.json` 的鍵名（模型換版不用改鍵名）
 
@@ -143,6 +145,77 @@ CANCEL_TERMS = ("航班取消",)
 EN_RISK_FORBIDDEN = ("cancellation risk", "suspension risk")
 # en 不能有中日文字（CJK 標點、假名、漢字、全形字）
 CJK_RANGES = "\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff00-\uffef"
+
+# ---- 來源代號（HD40）----
+# 每句短評的 `src`：精簡文字（`prompt.airport_text`）每一段前面的 `[代號]`。官方四個、給 AI 看的模式
+# （`Model.ai`；`wn3` 只在 `observe` 模式）、投票、規則燈。網頁上標的名稱四語在 `SOURCE_NAMES`
+OFFICIAL_SOURCES = ("taf", "metar", "warning", "confirmed")
+DERIVED_SOURCES = ("vote", "rule")
+MODEL_SOURCES = tuple(m.id for m in WEATHER_MODELS if m.ai)
+SOURCES = (*OFFICIAL_SOURCES, *MODEL_SOURCES, *DERIVED_SOURCES)
+_SOURCE_NAMES = {
+    "taf": {
+        "zh-TW": "機場預報",
+        "zh-HK": "機場預報",
+        "zh-CN": "机场预报",
+        "en": "Airport forecast (TAF)",
+    },
+    "metar": {
+        "zh-TW": "機場觀測",
+        "zh-HK": "機場觀測",
+        "zh-CN": "机场观测",
+        "en": "Airport observation (METAR)",
+    },
+    "warning": {
+        "zh-TW": "官方警報",
+        "zh-HK": "官方警報",
+        "zh-CN": "官方警报",
+        "en": "Official warnings",
+    },
+    "confirmed": {
+        "zh-TW": "已確認停飛",
+        "zh-HK": "已確認停飛",
+        "zh-CN": "已确认停飞",
+        "en": "Confirmed closure",
+    },
+    "ifs": {"zh-TW": "歐洲模式", "zh-HK": "歐洲模式", "zh-CN": "欧洲模式", "en": "European model"},
+    "gfs": {"zh-TW": "美國模式", "zh-HK": "美國模式", "zh-CN": "美国模式", "en": "US model"},
+    "ifs-ens": {
+        "zh-TW": "歐洲系集",
+        "zh-HK": "歐洲系集",
+        "zh-CN": "欧洲集合预报",
+        "en": "European ensemble",
+    },
+    "aifs": {
+        "zh-TW": "歐洲 AI 模式",
+        "zh-HK": "歐洲 AI 模式",
+        "zh-CN": "欧洲 AI 模式",
+        "en": "European AI model",
+    },
+    "aigfs": {
+        "zh-TW": "美國 AI 模式",
+        "zh-HK": "美國 AI 模式",
+        "zh-CN": "美国 AI 模式",
+        "en": "US AI model",
+    },
+    "icon": {"zh-TW": "德國模式", "zh-HK": "德國模式", "zh-CN": "德国模式", "en": "German model"},
+    "jma": {"zh-TW": "日本模式", "zh-HK": "日本模式", "zh-CN": "日本模式", "en": "Japanese model"},
+    "wn2-ens": {
+        "zh-TW": "Google 的 AI 系集",
+        "zh-HK": "Google 的 AI 系集",
+        "zh-CN": "Google 的 AI 集合预报",
+        "en": "Google AI ensemble",
+    },
+    "wn3": {
+        "zh-TW": "Google 的新一代 AI 系集",
+        "zh-HK": "Google 的新一代 AI 系集",
+        "zh-CN": "Google 的新一代 AI 集合预报",
+        "en": "Google next-generation AI ensemble",
+    },
+    "vote": {"zh-TW": "模式投票", "zh-HK": "模式投票", "zh-CN": "模式投票", "en": "Model vote"},
+    "rule": {"zh-TW": "規則燈", "zh-HK": "規則燈", "zh-CN": "规则灯", "en": "Rule-based light"},
+}
+SOURCE_NAMES = {k: _SOURCE_NAMES[k] for k in SOURCES}
 
 DISCLAIMER = {
     "zh-TW": "AI 評論僅供參考，以航空公司與機場公告為準",

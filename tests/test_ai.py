@@ -40,7 +40,24 @@ COMMENT = {
     "en": "10/23 14:00–20:00: European model gusts 75 kt, crosswind 51 kt, 56% chance of gusts "
     "over 49 kt; disruption risk High.",
 }
+SRC = ["ifs", "ifs-ens"]  # COMMENT 那一句的來源代號（HD40）
 ENV_KEYS = [k for keys in config.ENV.values() for k in keys]
+
+
+def as_sentences(comment: object, src: list[str] | None = None) -> object:
+    """四語短評 → 每語一句的 `sentences`（HD40）；不是 dict 的照原樣（測格式錯）。"""
+    if not isinstance(comment, dict):
+        return comment
+    return {lang: [{"text": c, "src": list(src or SRC)}] for lang, c in comment.items()}
+
+
+SENTENCES = as_sentences(COMMENT)
+
+
+def ok_result(level: str = "high", comment: dict | None = None) -> dict:
+    """假模型成功的回傳（`claude.evaluate`／`gemini.evaluate` 的形狀，不含 `usage`）。"""
+    comment = dict(comment or COMMENT)
+    return {"level": level, "comment": comment, "sentences": as_sentences(comment)}
 
 
 def slots(levels: list[str], t0=T0) -> list[dict]:
@@ -202,7 +219,7 @@ def test_airport_text_contains_data_and_units(latest):  # noqa: F811
     lines = [ln for ln in text.splitlines() if re.match(r"\d+\. ", ln)]
     assert len(lines) == 20
     first = lines[0]
-    assert first.startswith("1. 10/18 14–20 時｜等級 high（依據 官方）")
+    assert first.startswith("1. 10/18 14–20 時｜[rule] 等級 high（依據 官方）")
     assert "熱帶氣旋信號" in first and "落差" in first
     assert "節" in text and "%" in text and "m/s" not in text and "Ms" not in text
     assert "p29Kt" in text and "p49Kt" in text
@@ -259,8 +276,11 @@ def test_airport_text_weather_types():
     )
     assert "p49Kt 10%、p24hRain50 40%" in line
     # HD14：每個模式一行，接在那一格後面
-    ifs = "  - 歐洲模式：陣風 40 節、側風 20 節、rain6hMm 35.2 mm、ptype rain"
-    gfs = "  - 美國模式：陣風 30 節、側風 10 節、rain6hMm 12 mm、ptype snow、visibilityM 800 公尺"
+    ifs = "  - [ifs] 歐洲模式：陣風 40 節、側風 20 節、rain6hMm 35.2 mm、ptype rain"
+    gfs = (
+        "  - [gfs] 美國模式：陣風 30 節、側風 10 節、rain6hMm 12 mm、ptype snow、"
+        "visibilityM 800 公尺"
+    )
     assert lines[i + 1].startswith(ifs) and lines[i + 2].startswith(gfs)
     assert "能見度 300 公尺、天氣 FG、雲底 100 呎" in text  # METAR
     second = next(ln for ln in text.splitlines() if ln.startswith("2. "))
@@ -301,21 +321,21 @@ def test_airport_text_models_and_vote_hd14():
     i = next(i for i, ln in enumerate(lines) if ln.startswith("1. "))
     assert "模式：等級 high、投票（強風）：5 個模式中 3 個認為高 → high、" in lines[i]
     assert lines[i + 1 : i + 6] == [
-        "  - 歐洲模式：陣風 50 節、側風 20 節、rain6hMm —、ptype —、visibilityM —、"
+        "  - [ifs] 歐洲模式：陣風 50 節、側風 20 節、rain6hMm —、ptype —、visibilityM —、"
         "等級 high（wind high、rain —、snow —、fog —）",
-        "  - 美國模式：陣風 49 節、側風 10 節、rain6hMm —、ptype —、visibilityM —、"
+        "  - [gfs] 美國模式：陣風 49 節、側風 10 節、rain6hMm —、ptype —、visibilityM —、"
         "等級 high（wind high、rain —、snow —、fog —）",
-        "  - 歐洲系集：p49Kt 40% → 投 high（只投高）",
-        "  - 歐洲 AI 模式：陣風 43.4 節（估）、側風 20 節、rain6hMm 3.1 mm、ptype rain、"
+        "  - [ifs-ens] 歐洲系集：p49Kt 40% → 投 high（只投高）",
+        "  - [aifs] 歐洲 AI 模式：陣風 43.4 節（估）、側風 20 節、rain6hMm 3.1 mm、ptype rain、"
         "visibilityM —、等級 medium（wind medium、rain low、snow low、fog —）",
-        "  - 美國 AI 模式：陣風 14 節（估）、側風 —、rain6hMm 0.4 mm、ptype —、visibilityM —、"
-        "等級 low（wind low、rain low、snow —、fog —）",
+        "  - [aigfs] 美國 AI 模式：陣風 14 節（估）、側風 —、rain6hMm 0.4 mm、ptype —、"
+        "visibilityM —、等級 low（wind low、rain low、snow —、fog —）",
     ]
     # HD16 的三個沒資料（Open-Meteo 失敗那一報）：照樣列、寫無資料
     assert lines[i + 6 : i + 9] == [
-        "  - 德國模式：無資料",
-        "  - 日本模式：無資料",
-        "  - Google 的 AI 系集：無資料",
+        "  - [icon] 德國模式：無資料",
+        "  - [jma] 日本模式：無資料",
+        "  - [wn2-ens] Google 的 AI 系集：無資料",
     ]
     assert lines[i + 9].startswith("2. ")
     # 規則說明：投票、系集只投高、估算陣風
@@ -383,21 +403,31 @@ def test_airport_text_without_optional_data():
         "warnings": ["typhoon_sea"],
     }
     text = prompt.airport_text(ap, RUN)
-    assert "METAR：無" in text and "TAF：無" in text
+    assert "[metar] METAR：無" in text and "[taf] TAF：無" in text
     assert "沒有接官方警報來源" in text
-    assert "模式：無" in text
-    assert "TAF（tempo）平均風 25 節、陣風 —、側風 —、警報 海上颱風警報" in text
+    assert "[vote] 模式：無" in text
+    assert "[taf] 官方：等級 low、TAF（tempo）平均風 25 節、陣風 —、側風 —、wx 無" in text
+    assert "｜[warning] 套用的警報 海上颱風警報｜" in text  # HD40：警報另成一段
 
 
 # ---- 回應解析 ----
 
 
-def _resp(**kw) -> str:
-    return json.dumps({"level": "high", "comment": dict(COMMENT), **kw}, ensure_ascii=False)
+def _resp(comment: object = None, src: list[str] | None = None, **kw) -> str:
+    """模型的回應（HD40 的格式）：`comment` 的四語各當一句，`src` 預設 `SRC`。"""
+    body = {
+        "level": "high",
+        "sentences": as_sentences(COMMENT if comment is None else comment, src),
+        **kw,
+    }
+    return json.dumps(body, ensure_ascii=False)
+
+
+PARSED = {"level": "high", "comment": COMMENT, "sentences": SENTENCES}
 
 
 def test_parse_ok_and_fenced():
-    assert parse.parse_response(_resp()) == {"level": "high", "comment": COMMENT}
+    assert parse.parse_response(_resp()) == PARSED
     assert parse.parse_response("```json\n" + _resp() + "\n```")["level"] == "high"
 
 
@@ -410,7 +440,7 @@ def test_parse_ok_and_fenced():
     ],
 )
 def test_parse_json_with_surrounding_text(text):
-    assert parse.parse_response(text) == {"level": "high", "comment": COMMENT}
+    assert parse.parse_response(text) == PARSED
 
 
 @pytest.mark.parametrize(
@@ -901,7 +931,7 @@ def fake_model(
             if response:  # 有拿到回應（stop_reason、輸出 token 數）
                 parse.with_response(e, *response)
             raise e
-        return {"level": level, "comment": dict(COMMENT)}
+        return ok_result(level)
 
     return SimpleNamespace(make_client=make_client, evaluate=evaluate, calls=calls)
 
@@ -930,6 +960,7 @@ def test_duel_output_structure(tmp_path):
             "level": "high",
             "comment": COMMENT,
             "model": "claude-opus-5-5",
+            "sentences": SENTENCES,  # HD40
         },
         "gemini": {
             "status": "error",
@@ -937,6 +968,7 @@ def test_duel_output_structure(tmp_path):
             "comment": None,
             "model": "gemini-4-argon",
             "error": "bad_format",
+            "sentences": None,
         },
     }
     quiet = res["airports"]["ZZ00"]
@@ -947,6 +979,7 @@ def test_duel_output_structure(tmp_path):
             "level": "low",
             "comment": config.NO_RISK,
             "model": config.MODELS[k],
+            "sentences": None,
         }
     assert config.NO_RISK == {
         "zh-TW": "沒看到明顯風險",
@@ -1083,7 +1116,7 @@ def concurrent_model(delay: float):
         time.sleep(delay)
         with lock:
             state["now"] -= 1
-        return {"level": "high", "comment": dict(COMMENT)}
+        return ok_result("high")
 
     return SimpleNamespace(make_client=object, evaluate=evaluate, state=state)
 
@@ -1126,7 +1159,7 @@ def test_duel_request_timeout_and_budget_guard(tmp_path):
     def model(key):
         def evaluate(text, *, client=None, timeout=60):
             seen[key].append(timeout)
-            return {"level": "low", "comment": dict(COMMENT)}
+            return ok_result("low")
 
         return SimpleNamespace(make_client=object, evaluate=evaluate)
 
@@ -1396,7 +1429,7 @@ def seq_model(*outcomes: str | None, delay: float = 0.0, clock=None, took: float
             time.sleep(delay)
         if code:
             raise AiError(code)
-        return {"level": "high", "comment": dict(COMMENT)}
+        return ok_result("high")
 
     return SimpleNamespace(make_client=object, evaluate=evaluate, timeouts=timeouts)
 
@@ -1608,7 +1641,7 @@ def region_model(primary, backup, *, clock=None, took=0.0, locs=("global", "us")
             clock.advance(took)
         if code:
             raise AiError(code)
-        return {"level": "high", "comment": dict(COMMENT)}
+        return ok_result("high")
 
     return SimpleNamespace(
         make_client=make_client, evaluate=evaluate, locations=lambda: locs, made=made, sent=sent
@@ -1739,12 +1772,12 @@ def test_airport_text_openmeteo_hd16(monkeypatch):
     # 歐洲模式、歐洲系集低；GFS、ICON、JMA、WN2 四個高（系集比例 62%）：6 個模式中 4 個認為高
     assert "投票（強風）：6 個模式中 4 個認為高 → high" in lines[i]
     assert lines[i + 6 : i + 9] == [
-        "  - 德國模式：陣風 50.7 節、側風 13.1 節、rain6hMm 1.2 mm、ptype rain、visibilityM —、"
-        "等級 high（wind high、rain low、snow low、fog —）",
-        "  - 日本模式：陣風 51.4 節（估）、側風 —、rain6hMm 2.4 mm、ptype rain、visibilityM —、"
-        "等級 high（wind high、rain low、snow low、fog —）",
-        "  - Google 的 AI 系集：成員中位數陣風 48.6 節（估）、估算陣風達 high 門檻的成員比例 62% "
-        "→ 投 high（只投高）",
+        "  - [icon] 德國模式：陣風 50.7 節、側風 13.1 節、rain6hMm 1.2 mm、ptype rain、"
+        "visibilityM —、等級 high（wind high、rain low、snow low、fog —）",
+        "  - [jma] 日本模式：陣風 51.4 節（估）、側風 —、rain6hMm 2.4 mm、ptype rain、"
+        "visibilityM —、等級 high（wind high、rain low、snow low、fog —）",
+        "  - [wn2-ens] Google 的 AI 系集：成員中位數陣風 48.6 節（估）、"
+        "估算陣風達 high 門檻的成員比例 62% → 投 high（只投高）",
     ]
     text = "\n".join(lines)
     assert "德國模式、日本模式、Google 的 AI 系集各一票" in text
@@ -1762,7 +1795,7 @@ def test_airport_text_openmeteo_hd16(monkeypatch):
     _with_models(m, others)
     lines = prompt.airport_text(ap, RUN).splitlines()
     assert "投票（強風）：5 個模式中 3 個認為高 → high" in lines[i]
-    assert lines[i + 6].startswith("  - 德國模式（旁觀，不投票）：陣風 50.7 節")
+    assert lines[i + 6].startswith("  - [icon] 德國模式（旁觀，不投票）：陣風 50.7 節")
 
 
 def test_airport_text_hides_observers_hd33b():
@@ -1790,7 +1823,7 @@ def test_airport_text_hides_observers_hd33b():
     lines = text.splitlines()
     i = next(i for i, ln in enumerate(lines) if ln.startswith("1. "))
     rows = list(takewhile(lambda ln: ln.startswith("  - "), lines[i + 1 :]))
-    assert len(rows) == 8 and rows[-1].startswith("  - Google 的 AI 系集")
+    assert len(rows) == 8 and rows[-1].startswith("  - [wn2-ens] Google 的 AI 系集")
     assert assess.ai_hidden() == set(observers)
 
 

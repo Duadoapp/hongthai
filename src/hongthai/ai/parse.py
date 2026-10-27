@@ -19,6 +19,7 @@ from .config import (
     MAX_COMMENT_CHARS,
     ONCE_IN_PARENS,
     SIMPLIFIED_CHARS,
+    SOURCES,
     SUSPEND_TERMS,
     TRADITIONAL_CHARS,
     ZH_CN_TAIWAN_TERMS,
@@ -113,9 +114,15 @@ def _load(s: str) -> object:
 
 
 def parse_response(text: str) -> dict:
-    """`{"level", "comment": {四語}}`；JSON 解析失敗、`level` 不在三種裡、四語有缺或空白、
-    任一語超過 `MAX_COMMENT_CHARS` → `AiError("bad_format")`。外面包了 ``` 或前後有說明文字也接受。
-    格式通過後再做用字檢查（`check_wording`），不過 → `AiError("bad_wording")`。"""
+    """`{"level", "sentences": {四語: [{"text", "src"}]}}`（HD40）→ `{"level", "comment",
+    "sentences"}`；`comment` 是同一語的句子依序接起來（`join_sentences`），模型自己另給的
+    `comment` 不用。外面包了 ``` 或前後有說明文字也接受。
+
+    `AiError("bad_format")`：JSON 解析失敗、`level` 不在三種裡、沒有 `sentences`（舊格式只有
+    `comment` 也是）、四語有缺或不是非空的陣列、句子不是 `{"text", "src"}` 或 `text` 空白、`src`
+    不是非空的字串陣列或有不在 `config.SOURCES` 的代號、四語句數不同、同一個位置的 `src` 不同、
+    接起來任一語超過 `MAX_COMMENT_CHARS`。格式通過後再對接起來的四語做用字檢查（`check_wording`），
+    不過 → `AiError("bad_wording")`。不幫模型補代號或句子。"""
     s = (text or "").strip()
     try:
         obj = _load(s)
@@ -126,20 +133,67 @@ def parse_response(text: str) -> dict:
     level = obj.get("level")
     if level not in LEVELS:
         raise AiError("bad_format", f"level 不對：{level!r}", tag="level")
-    comment = obj.get("comment")
-    if not isinstance(comment, dict):
-        raise AiError("bad_format", "沒有 comment", tag="no_comment")
-    out = {}
+    sentences = parse_sentences(obj.get("sentences"))
+    comment = {}
     for lang in LANGS:
-        c = comment.get(lang)
-        if not isinstance(c, str) or not c.strip():
-            raise AiError("bad_format", f"缺 {lang}", tag=f"missing_{lang}")
+        c = join_sentences(lang, [x["text"] for x in sentences[lang]])
         limit = MAX_COMMENT_CHARS[lang]
-        if len(c.strip()) > limit:
+        if len(c) > limit:
             raise AiError("bad_format", f"{lang} 超過 {limit} 字", tag=f"{lang}_too_long")
-        out[lang] = c.strip()
-    check_wording(out)
-    return {"level": level, "comment": out}
+        comment[lang] = c
+    check_wording(comment)
+    return {"level": level, "comment": comment, "sentences": sentences}
+
+
+def join_sentences(lang: str, texts: list[str]) -> str:
+    """一語的句子接成整段短評：中文直接接（句子自己帶「。」），en 用一個空白隔開。"""
+    return (" " if lang == "en" else "").join(texts)
+
+
+def parse_sentences(raw: object) -> dict[str, list[dict]]:
+    """`sentences` 的格式檢查（見 `parse_response`）；回傳去掉頭尾空白的
+    `{四語: [{"text", "src"}]}`，`src` 照模型給的順序。"""
+    if not isinstance(raw, dict):
+        raise AiError("bad_format", "沒有 sentences", tag="no_sentences")
+    out: dict[str, list[dict]] = {}
+    for lang in LANGS:
+        items = raw.get(lang)
+        if not isinstance(items, list) or not items:
+            raise AiError("bad_format", f"缺 {lang}", tag=f"missing_{lang}")
+        out[lang] = [_sentence(lang, i, x) for i, x in enumerate(items, 1)]
+    base = out[LANGS[0]]
+    for lang in LANGS[1:]:
+        if len(out[lang]) != len(base):
+            raise AiError(
+                "bad_format",
+                f"{lang} 有 {len(out[lang])} 句、{LANGS[0]} 有 {len(base)} 句",
+                tag="sentence_count",
+            )
+        for i, (a, b) in enumerate(zip(base, out[lang], strict=True), 1):
+            if a["src"] != b["src"]:
+                raise AiError(
+                    "bad_format", f"{lang} 第 {i} 句的 src 和 {LANGS[0]} 不同", tag="src_mismatch"
+                )
+    return out
+
+
+def _sentence(lang: str, i: int, x: object) -> dict:
+    if not isinstance(x, dict):
+        raise AiError("bad_format", f"{lang} 第 {i} 句不是物件", tag=f"{lang}_sentence")
+    text = x.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise AiError("bad_format", f"{lang} 第 {i} 句沒有 text", tag=f"{lang}_sentence")
+    src = x.get("src")
+    if not isinstance(src, list) or not src or not all(isinstance(c, str) for c in src):
+        raise AiError("bad_format", f"{lang} 第 {i} 句沒有 src", tag=f"{lang}_no_src")
+    unknown = [c for c in src if c not in SOURCES]
+    if unknown:  # 訊息只放代號（模型給的字串截短），不放句子
+        raise AiError(
+            "bad_format",
+            f"{lang} 第 {i} 句有未知代號 {unknown[0][:20]!r}",
+            tag=f"{lang}_src_unknown",
+        )
+    return {"text": text.strip(), "src": list(src)}
 
 
 # ---- 用字檢查（HD6） ----
@@ -159,6 +213,10 @@ _EN_LEVEL = re.compile(
 )
 _EN_RISK = [(t, re.compile(rf"\b{re.escape(t)}\b", re.IGNORECASE)) for t in EN_RISK_FORBIDDEN]
 _CJK = re.compile(f"[{CJK_RANGES}]")
+# 句子裡不能有精簡文字的來源標籤（HD40：代號只放 `src`），例如「[taf]」「［ifs］」
+_SRC_TAG = re.compile(
+    rf"[\[［]\s*({'|'.join(re.escape(c) for c in SOURCES)})\s*[\]］]", re.IGNORECASE
+)
 
 
 def _bad(lang: str, what: str, message: str) -> AiError:
@@ -181,6 +239,8 @@ def check_wording(comment: dict[str, str]) -> None:
                     raise _bad(lang, t, f"{lang}：叫法不一致「{t}」（要用停飛風險）")
     for lang in LANGS:
         text = comment[lang]
+        if m := _SRC_TAG.search(text):
+            raise _bad(lang, m.group(0), f"{lang}：來源代號寫進句子 {m.group(0)}")
         for token, pat in _FORBIDDEN_EN if lang == "en" else _FORBIDDEN:
             if pat.search(text):
                 raise _bad(lang, token, f"{lang}：內部代號 {token}")

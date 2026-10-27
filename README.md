@@ -696,8 +696,9 @@ H10（2026-10-18）之後：
       "confirmed": [ { "from": "…", "to": "…", "note": { "zh-TW": "…", "en": "…" } } ],
       "ai": {
         "evaluatedAt": "2026-10-18T08:10:00Z",
-        "claude": { "status": "ok", "level": "medium", "comment": { "zh-TW": "…", "zh-HK": "…", "zh-CN": "…", "en": "…" }, "model": "claude-opus-5-5" },
-        "gemini": { "status": "error", "level": null, "comment": null, "model": "gemini-4-argon", "error": "bad_format" }
+        "claude": { "status": "ok", "level": "medium", "comment": { "zh-TW": "…", "zh-HK": "…", "zh-CN": "…", "en": "…" }, "model": "claude-opus-5-5",
+                    "sentences": { "zh-TW": [ { "text": "…", "src": ["vote"] }, { "text": "…", "src": ["taf", "ifs"] } ], "zh-HK": [ … ], "zh-CN": [ … ], "en": [ … ] } },
+        "gemini": { "status": "error", "level": null, "comment": null, "model": "gemini-4-argon", "error": "bad_format", "sentences": null }
       }
     }
   ]
@@ -770,7 +771,7 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
   `claude`／`gemini` 換模型版本也不改
 - `airports[].ai`：`{ "evaluatedAt", "claude": <燈>, "gemini": <燈> }`，每個機場都有
   - `evaluatedAt`：這一報的時間（＝`generatedAt`）；兩顆燈都是 `error` 時 `null`（`skipped` 也填時間）
-  - `<燈>`：`{ "status", "level", "comment", "model" }`，`error` 時多 `"error"`
+  - `<燈>`：`{ "status", "level", "comment", "model", "sentences" }`，`error` 時多 `"error"`（`sentences` 是 HD40 加的，見下一段）
     - `status: "ok"`：`level` 是 `low`／`medium`／`high`，`comment` 是四語短評（以 zh-TW 為準、其他三語是
       忠實翻譯，中文每語最多 300 字、en 最多 800 字；HD5 是四語都 400，HD6 放寬）
     - `status: "skipped"`（沒被選、不呼叫）：`level: "low"`，`comment` 固定四語「沒看到明顯風險」
@@ -782,6 +783,31 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
       `daily_cap`（那個模型今天已經呼叫到每日上限；目前 `DAILY_CAP=0` 不限，不會出現）；**規格以外多三個**：`run_cap`（符合條件但排在這一報前 20 個
       之後，沒評；不寫「沒看到明顯風險」，因為可能是中級）、`refusal`（模型拒答或被安全過濾擋下）、
       `bad_wording`（HD6：格式對但短評用字違規，見「AI 對決」的「用字規則與檢查」）
+    - `sentences`（HD40，2026-10-27；只加欄位，其他欄位不改）：`status: "ok"` 時是四語逐句短評與每句的來源代號
+      `{ "zh-TW": [ { "text": "…", "src": ["taf", "ifs"] }, … ], "zh-HK": […], "zh-CN": […], "en": […] }`——四語句數一樣、
+      同一個位置的 `src` 一樣（代號與順序都一樣），`src` 至少一個、都在 `ai/config.py` 的 `SOURCES` 裡；`comment` 照舊，
+      就是同一語的 `text` 依序接起來（中文直接接、en 用一個空白隔開），不是模型另寫的一份。`skipped`、`error` 是 `null`。
+      網頁把 `src` 轉成上標（Duado HW20）；代號與四語名稱（`ai/config.py` 的 `SOURCE_NAMES`）：
+
+      | 代號 | 內容（精簡文字裡的哪一段） | zh-TW | zh-HK | zh-CN | en |
+      | --- | --- | --- | --- | --- | --- |
+      | `taf` | TAF 原文、每格官方層的機場預報數字 | 機場預報 | 機場預報 | 机场预报 | Airport forecast (TAF) |
+      | `metar` | METAR、沒有 TAF 的機場第一格官方層 | 機場觀測 | 機場觀測 | 机场观测 | Airport observation (METAR) |
+      | `warning` | 生效中的官方警報、每格套用的警報 | 官方警報 | 官方警報 | 官方警报 | Official warnings |
+      | `confirmed` | 已確認停飛 | 已確認停飛 | 已確認停飛 | 已确认停飞 | Confirmed closure |
+      | `ifs` | 歐洲模式那一行 | 歐洲模式 | 歐洲模式 | 欧洲模式 | European model |
+      | `gfs` | 美國模式那一行 | 美國模式 | 美國模式 | 美国模式 | US model |
+      | `ifs-ens` | 歐洲系集那一行、每格的 `p29Kt`／`p49Kt`／`p24hRain50` | 歐洲系集 | 歐洲系集 | 欧洲集合预报 | European ensemble |
+      | `aifs` | 歐洲 AI 模式那一行 | 歐洲 AI 模式 | 歐洲 AI 模式 | 欧洲 AI 模式 | European AI model |
+      | `aigfs` | 美國 AI 模式那一行 | 美國 AI 模式 | 美國 AI 模式 | 美国 AI 模式 | US AI model |
+      | `icon` | 德國模式那一行 | 德國模式 | 德國模式 | 德国模式 | German model |
+      | `jma` | 日本模式那一行 | 日本模式 | 日本模式 | 日本模式 | Japanese model |
+      | `wn2-ens` | Google 的 AI 系集那一行 | Google 的 AI 系集 | Google 的 AI 系集 | Google 的 AI 集合预报 | Google AI ensemble |
+      | `vote` | 每格模式層的等級、投票結果、歐洲與美國模式是否一致 | 模式投票 | 模式投票 | 模式投票 | Model vote |
+      | `rule` | 每格的等級、依據、`causes`、落差，與規則燈門檻說明 | 規則燈 | 規則燈 | 规则灯 | Rule-based light |
+
+      模式代號就是 `models[].id`，只有給 AI 看的模式（`Model.ai`）才有；`WN3_MODE=observe` 時多 `wn3`
+      （Google 的新一代 AI 系集／Google next-generation AI ensemble）。HD33b 的三個旁觀模式不給 AI，沒有代號
 - `sources.ai`：`{ "ok": <兩個模型至少一個有成功>, "seconds", "calls": { "claude": n, "gemini": n },
   "errors": { "<模型>": "<代碼>" }, "geminiLocation" }`；`calls` 是這一報的呼叫次數，`errors` 只列有失敗的模型（那個模型
   最多的代碼，`run_cap` 不算），沒有就不出現。`geminiLocation`（字串，HD23）是這一報 Gemini 最後送出的請求用的
@@ -1586,8 +1612,33 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
 - **規則**：AI 只能根據給它的數據講，不能用其他知識或外部資訊、不能自己估機率；短評 zh-TW 60–120 字，說明
   依據哪幾格、哪些數字，只講風險判讀、不給乘客建議；**一次輸出四語，以 zh-TW 為準，zh-HK、zh-CN、en 是
   忠實翻譯，內容完全一樣、不得增減**，zh-HK、zh-CN 用當地用語。回應一定要是
-  `{"level", "comment": {四語}}` 的 JSON，不然記 `bad_format`（外面包了 ``` 或前後多了說明文字時，取第一個
-  `{` 到最後一個 `}` 之間再解析，HD6）；字數上限中文每語 300 字、en 800 字（`config.MAX_COMMENT_CHARS`）
+  `{"level", "sentences": {四語逐句}}` 的 JSON（HD40；HD5–HD39 是 `{"level", "comment": {四語}}`），不然記
+  `bad_format`（外面包了 ``` 或前後多了說明文字時，取第一個 `{` 到最後一個 `}` 之間再解析，HD6）；字數上限
+  中文每語 300 字、en 800 字（`config.MAX_COMMENT_CHARS`，算接起來的整段）
+- **只陳述資料來源、不延伸推論＋逐句出處**（HD40，2026-10-27；氣象署 10/27 書面回覆第 1 點：忠實引用國外
+  氣象機構的預測屬「播報」，AI 評論**逾越資料來源做延伸詮釋**又公開發布可能涉及預報；Shawn 16:52 定案第 3 點，
+  全文在 `docs/worklog/2026-10-27.md`）：
+  - 系統提示規則第 2 條（緊接「只能根據數據」）：「只陳述資料來源說了什麼，不自行延伸推論：每一句都要能在
+    使用者訊息裡找到根據（哪個來源、哪一格、什麼數字、幾個模式怎麼投）。不能預測資料沒寫的天氣變化（例如
+    「風會再增強」「颱風可能轉向」），不能把一個來源的說法延伸到它沒涵蓋的時段或地點，也不能自己歸納資料
+    沒寫的原因或趨勢。」等級照舊要給、可以和規則燈不同，但短評裡說明等級時只能引用資料（第 5 條）
+  - 精簡文字每一段資料前面加來源代號 `[taf]`、`[metar]`、`[warning]`、`[confirmed]`、`[ifs]`…、`[vote]`、`[rule]`
+    （`prompt.tag`；每格那一行 `｜` 隔開的每一段都有，官方層拆成機場預報〔或觀測〕與套用的警報兩段，模式層拆成
+    投票與系集機率兩段，模式明細每行是那個模式的 id）；表頭、每格標題與「提醒：」開頭的行不標
+    （`prompt.UNLABELED`）。代號清單與說明在系統提示的「來源代號」那段（`prompt.SOURCE_TEXT`），和
+    `config.SOURCES` 一一對應；`tests/test_ai_sources.py` 擋「精簡文字多了新段落卻沒有代號」
+  - 模型回 `{"level", "sentences": {"zh-TW": [{"text", "src": [代號…]}, …], "zh-HK", "zh-CN", "en"}}`，**不另寫整段
+    短評**：`comment` 由程式把同一語的句子依序接起來（中文直接接、en 用空白隔開，`parse.join_sentences`；模型
+    多給的 `comment` 不用）。檢查（`parse.parse_sentences`，不合格記 `bad_format`、照舊不重試，**不幫模型補代號**）：
+    沒有 `sentences`（舊格式）、四語有缺或不是非空陣列、句子不是 `{"text", "src"}` 或 `text` 空白、`src` 不是非空
+    字串陣列或有不在 `SOURCES` 的代號（大小寫要一樣）、四語句數不同、同一個位置的 `src` 不同（代號或順序）。
+    接起來的四語再照舊做用字檢查（`check_wording`），另外句子裡寫了 `[代號]`／`［代號］` 記 `bad_wording`
+    （例如 `en/[ifs]`）
+  - 預算（用 10/27 08:27Z 那報 8 個機場、10/25–27 的戰績估，**沒有實跑**）：系統提示 2,938 → 3,973 字（約 +900
+    token，Claude 走快取讀取）、每個機場的精簡文字約 20,700 → 23,000 字（代號，約 +1,100–1,800 token）；輸出每句多
+    `{"text": …, "src": […]}` 的結構，5 句×4 語約 +300 token（Claude 10/25–27 輸出含思考中位數 1,095、最大 1,412，
+    `max_tokens` 3,000 夠，不改）。每次呼叫約 Claude US$0.087 → 0.10、Gemini（促銷價）US$0.034 → 0.042；
+    一報 20 個機場兩家合計約多 US$0.4。上線後用 `tools/ai_cost.py` 比 HD40 前後的實際數字
 - **免責**：頂層 `ai.disclaimer`「AI 評論僅供參考，以航空公司與機場公告為準」（四語）
 - **保險**（`ai/config.py`）：每報最多評 20 個機場；每天（UTC）每個模型的呼叫上限 `DAILY_CAP` **開發期間不限**
   （`DAILY_CAP=0`，2026-10-19 定案，HD11；手動 Run workflow 也照常跑 AI），正式推廣前再評估，恢復時改成 80 之類的
@@ -1759,7 +1810,8 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   `"bad_format:end_turn:1650:en_too_long"`、`"bad_wording:STOP:700+900:zh-HK/喺"`、`"http_429:-:-"`（沒拿到
   回應的欄位寫 `-`）。Claude 的 token 數是 `usage.output_tokens`（含思考）；Gemini 是
   `candidates_token_count`，有思考時寫成 `<回答>+<思考>`（`thoughts_token_count`）。標記是解析失敗的種類
-  （`not_json`、`not_object`、`level`、`no_comment`、`missing_<語>`、`<語>_too_long`）或用字違規的
+  （`not_json`、`not_object`、`level`、`missing_<語>`、`<語>_too_long`；HD40 起 `no_sentences`、`<語>_sentence`、
+  `<語>_no_src`、`<語>_src_unknown`、`sentence_count`、`src_mismatch`，HD40 前有 `no_comment`）或用字違規的
   `<語>/<詞>`。`daily_cap`、`run_cap`、`no_api_key`、`timeout`（預算到了沒送）沒呼叫，不寫 `detail`。
   log 也印同一串（`AI gemini RCKH 失敗：bad_wording: zh-HK：粵語口語「喺」［bad_wording:STOP:700+900:zh-HK/喺］`）
 - `claude`／`gemini` 真的送出的呼叫（成功、失敗都算）多一個 `seconds`（HD12，`latest.json` 不加）：從送出到

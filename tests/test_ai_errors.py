@@ -14,7 +14,7 @@ import anthropic
 import httpx2
 import pytest
 from google.genai import errors as genai_errors
-from test_ai import COMMENT, NOW, FakeAnthropic, FakeGenai, _msg, duel_doc, fake_model
+from test_ai import NOW, FakeAnthropic, FakeGenai, _msg, duel_doc, fake_model, ok_result
 
 from hongthai import build
 from hongthai.ai import claude, gemini, parse
@@ -210,7 +210,7 @@ def msg_model(*outcomes: tuple[str, str] | None):
             n["i"] += 1
         if out:
             raise parse.transport_error(*out)
-        return {"level": "high", "comment": dict(COMMENT)}
+        return ok_result("high")
 
     return SimpleNamespace(make_client=object, evaluate=evaluate)
 

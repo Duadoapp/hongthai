@@ -21,6 +21,11 @@ HD16（Open-Meteo 三票，8 票）：`models[]` 多德國模式（ICON）、日
 
 HD33b：Open-Meteo 的三個旁觀模式（加拿大、法國、中國模式，`Model.ai=False`）**不給 AI**，
 文字維持上面 8 個模式（改 AI 提示要另外決定）；它們不投票，所以投票句也不變。
+
+HD40（氣象署 2026-10-27 回覆、Shawn 定案）：規則加「只陳述資料來源說了什麼，不自行延伸
+推論」；精簡文字每一段資料前面加來源代號（`tag`，代號是 `config.SOURCES`，給模型看的說明是
+`SOURCE_TEXT`），模型每句短評附 `src`。不標代號的只有 `UNLABELED` 開頭的行與 `- ` 明細（明細
+屬於上一個有代號的段落）。
 """
 
 from __future__ import annotations
@@ -32,6 +37,36 @@ from ..assess import ENS_ID, MODEL_CAUSE_ORDER, ONLY_HIGH, ai_hidden, model_vote
 from ..config import GUST_FACTOR_RANGE, Thresholds
 from ..og import slot_text
 from ..timeutil import parse_time
+from .config import MODEL_SOURCES, SOURCES
+
+# 模式的白話名（HD14；短評裡也照這樣寫）
+MODEL_TEXT = {
+    "ifs": "歐洲模式",
+    "gfs": "美國模式",
+    "ifs-ens": "歐洲系集",
+    "aifs": "歐洲 AI 模式",
+    "aigfs": "美國 AI 模式",
+    "icon": "德國模式",  # HD16
+    "jma": "日本模式",
+    "wn2-ens": "Google 的 AI 系集",
+    "wn3": "Google 的新一代 AI 系集",  # HD15，只在 `observe` 模式出現
+}
+# 來源代號（HD40，`config.SOURCES`）：給模型看的說明，和 `airport_text` 每一段前面的 `[代號]`
+# 一一對應
+SOURCE_TEXT = {
+    "taf": "機場預報：TAF 原文，與每格官方層的機場預報數字（平均風、陣風、側風、wx）",
+    "metar": "機場觀測：METAR，與沒有 TAF 的機場第一格官方層的觀測數字",
+    "warning": "官方警報：生效中的官方警報，與每格套用的警報",
+    "confirmed": "已確認停飛",
+    **{
+        m: f"{MODEL_TEXT[m]}：每格模式明細裡「{MODEL_TEXT[m]}」那一行"
+        + ("，與每格的 p29Kt、p49Kt、p24hRain50" if m == ENS_ID else "")
+        for m in MODEL_SOURCES
+    },
+    "vote": "模式投票：每格模式層的等級、投票結果、歐洲模式與美國模式是否一致",
+    "rule": "規則燈：每格的等級、依據、causes、官方與模式落差，與最後的規則燈門檻說明",
+}
+SOURCE_LINES = [f"- {k}：{SOURCE_TEXT[k]}" for k in SOURCES]
 
 SYSTEM = "\n".join(
     [
@@ -41,21 +76,35 @@ SYSTEM = "\n".join(
         "規則：",
         "1. 只能根據使用者訊息裡給你的數據講。不能用你自己的天氣知識、新聞或任何外部資訊，"
         "也不能推測數據裡沒有的事。",
-        "2. 不能自己估或寫出任何機率數字；數據裡已經有的機率可以照引"
+        "2. 只陳述資料來源說了什麼，不自行延伸推論：每一句都要能在使用者訊息裡找到根據"
+        "（哪個來源、哪一格、什麼數字、幾個模式怎麼投）。不能預測資料沒寫的天氣變化"
+        "（例如「風會再增強」「颱風可能轉向」），不能把一個來源的說法延伸到它沒涵蓋的時段"
+        "或地點，也不能自己歸納資料沒寫的原因或趨勢。",
+        "3. 不能自己估或寫出任何機率數字；數據裡已經有的機率可以照引"
         "（例如「陣風超過 49 節的機率 30%」）。",
-        "3. 風速一律用「節」，雨量用「毫米」，能見度用「公尺」，雲底用「呎」。"
+        "4. 風速一律用「節」，雨量用「毫米」，能見度用「公尺」，雲底用「呎」。"
         "時間用數據裡的當地日期時段（例如「10/23 14–20 時」）。",
-        "4. 給一個等級：low（低）、medium（中）、high（高）三選一。可以和規則燈不同，"
-        "這正是請你評的原因，但要說得出依據。",
-        "5. 寫一段短評，像評論員：說明依據哪幾格、哪些數字，zh-TW 60–120 字。"
-        "只講風險判讀，不給乘客建議（例如改票、提早出門）。",
-        "6. 短評先寫 zh-TW，再把同一段忠實翻成 zh-HK、zh-CN、en（各語的用語見下面「用字」）。"
-        "四語內容必須完全一樣，不得增減任何資訊。",
-        "7. 短評第一句要點出主因天氣：強風／側風、大雨／雷雨、大雪／結冰、濃霧／低雲"
+        "5. 給一個等級：low（低）、medium（中）、high（高）三選一。可以和規則燈不同，"
+        "這正是請你評的原因；但短評裡說明等級時只能引用資料（例如「五個模式中三個認為高」"
+        "「機場預報陣風 50 節，超過高的門檻 48 節」），不能用資料以外的理由。",
+        "6. 寫一段短評，像評論員：說明依據哪幾格、哪些數字，分成幾個完整的句子，"
+        "zh-TW 合計 60–120 字。只講風險判讀，不給乘客建議（例如改票、提早出門）。",
+        "7. 每一句附來源代號（src）：那一句的內容出自哪幾段資料，就列那幾段前面方括號裡的代號"
+        "（清單見下面「來源代號」），至少一個；只能用清單裡的代號，不能自己造，"
+        "也不能列那一句沒用到的來源。代號只放在 src，句子裡不寫代號和方括號。",
+        "8. 短評先寫 zh-TW，再把同一段逐句忠實翻成 zh-HK、zh-CN、en（各語的用語見下面「用字」）。"
+        "四語內容必須完全一樣，不得增減任何資訊；四語的句數一樣、逐句對應，"
+        "同一個位置的句子 src 完全一樣（同樣的代號、同樣的順序）。",
+        "9. 短評第一句要點出主因天氣：強風／側風、大雨／雷雨、大雪／結冰、濃霧／低雲"
         "（每格的 causes 第一個就是規則燈的主因；你可以有不同看法，但要說得出依據）。",
-        "8. 只回一個 JSON 物件，不要 Markdown、不要其他文字：",
-        '{"level": "low|medium|high", "comment": '
-        '{"zh-TW": "…", "zh-HK": "…", "zh-CN": "…", "en": "…"}}',
+        "10. 只回一個 JSON 物件，不要 Markdown、不要其他文字；不用另外寫整段短評"
+        "（程式會把同一語的句子依序接起來）：",
+        '{"level": "low|medium|high", "sentences": {'
+        '"zh-TW": [{"text": "…", "src": ["taf", "ifs"]}, {"text": "…", "src": ["vote"]}], '
+        '"zh-HK": […], "zh-CN": […], "en": […]}}',
+        "",
+        "來源代號（使用者訊息每一段前面方括號裡的代號；src 只能用這些）：",
+        *SOURCE_LINES,
         "",
         "用字：",
         "1. 短評裡不出現內部代號：p29Kt、p49Kt、EC、GFS、HRES、TAF、METAR、crosswindKt、gustKt、"
@@ -127,18 +176,6 @@ WARNING_KIND_TEXT = {
     "cwa_dense_fog": "濃霧特報",
 }
 CAUSE_TEXT = {"wind": "強風", "rain": "大雨", "snow": "大雪", "fog": "濃霧"}
-# 模式的白話名（HD14；短評裡也照這樣寫）
-MODEL_TEXT = {
-    "ifs": "歐洲模式",
-    "gfs": "美國模式",
-    "ifs-ens": "歐洲系集",
-    "aifs": "歐洲 AI 模式",
-    "aigfs": "美國 AI 模式",
-    "icon": "德國模式",  # HD16
-    "jma": "日本模式",
-    "wn2-ens": "Google 的 AI 系集",
-    "wn3": "Google 的新一代 AI 系集",  # HD15，只在 `observe` 模式出現
-}
 LEVEL_WORD = {"high": "高", "medium": "中以上"}
 
 
@@ -183,16 +220,25 @@ def _wx(wx: object) -> str:
     )
 
 
+def tag(code: str) -> str:
+    """精簡文字裡一段資料的來源標籤（HD40）：`[taf]`；`code` 一定要在 `config.SOURCES` 裡。"""
+    return f"[{code}]"
+
+
 def _official(o: dict | None) -> str:
+    """官方層：機場預報（沒有 TAF 的機場第一格是觀測）一段、套用的警報一段（HD40 分開標來源）。"""
     if not isinstance(o, dict):
-        return "官方：無"
+        return f"{tag('taf')} 官方：無"
     warns = "、".join(WARNING_KIND_TEXT.get(k, str(k)) for k in o.get("warnings") or []) or "無"
     # HD13：沒有 TAF 的機場第一格由 METAR 撐起（`kind: "metar"`）
-    src = "METAR（觀測）" if o.get("kind") == "metar" else f"TAF（{o.get('kind') or '無'}）"
+    if o.get("kind") == "metar":
+        code, src = "metar", "METAR（觀測）"
+    else:
+        code, src = "taf", f"TAF（{o.get('kind') or '無'}）"
     return (
-        f"官方：等級 {o.get('level') or '—'}、{src}平均風 "
+        f"{tag(code)} 官方：等級 {o.get('level') or '—'}、{src}平均風 "
         f"{_kt(o.get('windKt'))}、陣風 {_kt(o.get('gustKt'))}、側風 {_kt(o.get('crosswindKt'))}、"
-        f"警報 {warns}、{_wx(o.get('wx'))}"
+        f"{_wx(o.get('wx'))}｜{tag('warning')} 套用的警報 {warns}"
     )
 
 
@@ -216,7 +262,7 @@ def _vote(m: dict, models: list[dict]) -> str:
 
 def _model_entry(e: dict, ec: dict) -> str:
     mid = str(e.get("id"))
-    name = MODEL_TEXT.get(mid, mid)
+    name = f"{tag(mid)} {MODEL_TEXT.get(mid, mid)}"
     if mid in non_voting():  # HD16
         name += "（旁觀，不投票）"
     lv = e.get("levels") if isinstance(e.get("levels"), dict) else {}
@@ -253,12 +299,12 @@ def _models(m: object) -> list[dict]:
 def _model(m: dict | None) -> str:
     """模式層：等級、投票、一致性、系集機率（每個模式的明細在 `_model_lines`，HD14）。"""
     if not isinstance(m, dict):
-        return "模式：無"
+        return f"{tag('vote')} 模式：無"
     ec = m.get("ec") if isinstance(m.get("ec"), dict) else {}
     agreement = AGREEMENT_TEXT.get(m.get("agreement"), "缺一個模式")  # type: ignore[arg-type]
     return (
-        f"模式：等級 {m.get('level') or '—'}、{_vote(m, _models(m))}、"
-        f"EC 與 GFS {agreement}（只看陣風）、p29Kt {_pct(ec.get('p29Kt'))}、"
+        f"{tag('vote')} 模式：等級 {m.get('level') or '—'}、{_vote(m, _models(m))}、"
+        f"EC 與 GFS {agreement}（只看陣風）｜{tag(ENS_ID)} 系集機率 p29Kt {_pct(ec.get('p29Kt'))}、"
         f"p49Kt {_pct(ec.get('p49Kt'))}、p24hRain50 {_pct(ec.get('p24hRain50'))}"
     )
 
@@ -282,10 +328,12 @@ def slot_line(i: int, slot: dict, tz: str) -> str:
     except (KeyError, TypeError, ValueError, AttributeError):
         when = f"{slot.get('from')}–{slot.get('to')}（UTC）"
     gap = "是" if slot.get("gap") else "否"
+    rule = tag("rule")
     line = (
-        f"{i}. {when}｜等級 {slot.get('level') or '—'}"
-        f"（依據 {BASIS_TEXT.get(slot.get('basis'), '—')}）｜{_causes(slot)}｜"  # type: ignore[arg-type]
-        f"{_official(slot.get('official'))}｜{_model(slot.get('model'))}｜官方與模式落差 {gap}"
+        f"{i}. {when}｜{rule} 等級 {slot.get('level') or '—'}"
+        f"（依據 {BASIS_TEXT.get(slot.get('basis'), '—')}）｜{rule} {_causes(slot)}｜"  # type: ignore[arg-type]
+        f"{_official(slot.get('official'))}｜{_model(slot.get('model'))}｜"
+        f"{rule} 官方與模式落差 {gap}"
     )
     return "\n".join([line, *_model_lines(slot.get("model"))])
 
@@ -294,8 +342,8 @@ def rules_text(th: Thresholds | None = None) -> str:
     th = th or Thresholds()
     return "\n".join(
         [
-            "p29Kt／p49Kt：EC 系集「陣風 ≥ 29／49 節」的機率。",
-            "規則燈怎麼算（每格取官方層與模式層；0–30 小時以官方為準）：",
+            f"{tag('rule')} 規則燈怎麼算（每格取官方層與模式層；0–30 小時以官方為準）：",
+            "- p29Kt／p49Kt：EC 系集「陣風 ≥ 29／49 節」的機率",
             f"- 陣風（TAF 與模式同一套）：≥ {th.model_high_gust_kt:g} 節 → high，"
             f"≥ {th.model_medium_gust_kt:g} 節 → medium；"
             f"TAF 平均風 ≥ {th.taf_high_wind_kt:g} 節 → high",
@@ -334,14 +382,23 @@ def rules_text(th: Thresholds | None = None) -> str:
             "模式層的霧最高只到 medium；要到 high 得是官方真的報霧或低雲）",
             "- 每格的等級＝強風與三類取最高；causes 是達到 medium 以上的種類（高的在前），"
             "第一個是主因；只看模式時同級的雨排在霧前面（模式的低能見度常是大雨造成的）",
-            "短評要說出主要是哪種天氣造成：強風／側風、大雨／雷雨、大雪／結冰、濃霧／低雲。",
-            "短評裡請用白話，不要照抄上面的欄位名（EC、GFS、p29Kt、p49Kt、TAF、METAR 這些）。",
+            "提醒：短評要說出主要是哪種天氣造成：強風／側風、大雨／雷雨、大雪／結冰、濃霧／低雲。",
+            "提醒：每一句只陳述上面資料說了什麼、不自行延伸推論，src 列那一句用到的段落前面的"
+            "方括號代號。",
+            "提醒：短評裡請用白話，不要照抄上面的欄位名"
+            "（EC、GFS、p29Kt、p49Kt、TAF、METAR 這些）。",
         ]
     )
 
 
+# 精簡文字裡不標來源的行（HD40）：表頭、每格的標題與給模型的提醒；其他每一行都以 `[代號]` 開頭，
+# 或是上一行底下的 `- ` 明細（模式明細那幾行自己也有代號），每格那一行 `｜` 隔開的每一段都有代號
+UNLABELED = ("機場：", "資料時間：", "每格（", "提醒：")
+
+
 def airport_text(airport: dict, generated_at: str) -> str:
-    """一個機場給模型看的精簡文字（`airport` 是 `latest.json` 的 `airports[]` 一筆）。"""
+    """一個機場給模型看的精簡文字（`airport` 是 `latest.json` 的 `airports[]` 一筆）；每一段資料前面
+    有來源代號（`tag`，HD40），模型每句短評的 `src` 就是這些代號。"""
     tz = airport.get("tz") or "UTC"
     z = ZoneInfo(tz)
     gen = parse_time(generated_at)
@@ -358,31 +415,31 @@ def airport_text(airport: dict, generated_at: str) -> str:
         # HD13：金門、馬祖沒有機場 METAR，用氣象署局屬站的觀測
         src = "氣象署局屬站觀測、" if metar.get("source") == "cwa" else ""
         lines.append(
-            f"METAR（{src}觀測 當地 {_local(metar.get('observedAt'), z)}）：風向 "
+            f"{tag('metar')} METAR（{src}觀測 當地 {_local(metar.get('observedAt'), z)}）：風向 "
             f"{'不定' if wdir is None else _num(wdir, '°')}、風 {_kt(metar.get('windKt'))}、"
             f"陣風 {_kt(metar.get('gustKt'))}、能見度 {_num(metar.get('visibilityM'), ' 公尺')}、"
             f"天氣 {phen}、雲底 {_num(metar.get('ceilingFt'), ' 呎')}；原文 {metar.get('raw')}"
         )
     else:
-        lines.append("METAR：無")
+        lines.append(f"{tag('metar')} METAR：無")
     taf = airport.get("taf")
     if isinstance(taf, dict):
         lines.append(
-            f"TAF（發布 當地 {_local(taf.get('issuedAt'), z)}，"
+            f"{tag('taf')} TAF（發布 當地 {_local(taf.get('issuedAt'), z)}，"
             f"有效 {_local(taf.get('validFrom'), z)}–{_local(taf.get('validTo'), z)}）："
             f"原文 {taf.get('raw')}"
         )
     else:
-        lines.append("TAF：無")
+        lines.append(f"{tag('taf')} TAF：無")
     official = airport.get("official")
     if isinstance(official, dict) and official.get("warnings") is False:
-        lines.append("生效中的官方警報：這個機場沒有接官方警報來源")
+        lines.append(f"{tag('warning')} 生效中的官方警報：這個機場沒有接官方警報來源")
     else:
         warns = [w for w in airport.get("warnings") or [] if isinstance(w, dict)]
         if not warns:
-            lines.append("生效中的官方警報：無")
+            lines.append(f"{tag('warning')} 生效中的官方警報：無")
         else:
-            lines.append("生效中的官方警報：")
+            lines.append(f"{tag('warning')} 生效中的官方警報：")
             for w in warns:
                 text = (w.get("text") or {}).get("zh-TW") or ""
                 kind = WARNING_KIND_TEXT.get(w.get("kind"), w.get("kind"))  # type: ignore[arg-type]
@@ -392,9 +449,9 @@ def airport_text(airport: dict, generated_at: str) -> str:
                 )
     confirmed = [c for c in airport.get("confirmed") or [] if isinstance(c, dict)]
     if not confirmed:
-        lines.append("已確認停飛：無")
+        lines.append(f"{tag('confirmed')} 已確認停飛：無")
     else:
-        lines.append("已確認停飛：")
+        lines.append(f"{tag('confirmed')} 已確認停飛：")
         for c in confirmed:
             note = (c.get("note") or {}).get("zh-TW") or ""
             lines.append(f"- 當地 {_local(c.get('from'), z)}–{_local(c.get('to'), z)} {note}")

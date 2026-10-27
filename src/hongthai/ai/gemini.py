@@ -77,8 +77,9 @@ def make_client(location: str | None = None) -> genai.Client:
 
 
 def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = TIMEOUT) -> dict:
-    """一個機場的精簡文字 → `{"level", "comment", "usage"}`；失敗丟 `AiError`，這裡不重試
-    （快回的 `http_503`／`http_504` 由 `run.py` 重試一次、切備援區域也在 `run.py`，HD17、HD23）。"""
+    """一個機場的精簡文字 → `{"level", "comment", "sentences", "usage"}`；失敗丟 `AiError`，
+    這裡不重試（快回的 `http_503`／`http_504` 由 `run.py` 重試一次、切備援區域也在 `run.py`，
+    HD17、HD23）。"""
     client = client or make_client()
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM,

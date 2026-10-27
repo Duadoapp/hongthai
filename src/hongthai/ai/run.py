@@ -87,19 +87,34 @@ def top_level() -> dict:
 
 
 def skipped(key: str) -> dict:
-    return {"status": "skipped", "level": "low", "comment": dict(NO_RISK), "model": MODELS[key]}
+    return {
+        "status": "skipped",
+        "level": "low",
+        "comment": dict(NO_RISK),
+        "model": MODELS[key],
+        "sentences": None,
+    }
 
 
 def error(key: str, code: str) -> dict:
-    return {"status": "error", "level": None, "comment": None, "model": MODELS[key], "error": code}
+    return {
+        "status": "error",
+        "level": None,
+        "comment": None,
+        "model": MODELS[key],
+        "error": code,
+        "sentences": None,
+    }
 
 
 def ok(key: str, result: dict) -> dict:
+    """`sentences`（HD40）是四語逐句短評與來源代號；`comment` 是同一語的句子接起來。"""
     return {
         "status": "ok",
         "level": result["level"],
         "comment": result["comment"],
         "model": MODELS[key],
+        "sentences": result["sentences"],
     }
 
 
