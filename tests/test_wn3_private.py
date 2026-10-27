@@ -212,12 +212,12 @@ def test_observe_private_writes_bucket_and_skips_existing(airports):
     bucket = FakeBucket()
     f = {"RCTP": wn3report.assess.GustFactor(1.4, "airport30d")}
     res = wn3report.observe_private(aps, now, f, bucket, fetch)
-    # 前一報也不在 bucket → 查不到可以退一報；起點放前一報，這一報照樣 1–120 小時
+    # 前一報也不在 bucket → 查不到可以退一報；起點放前一報，這一報照樣從 1 小時起；終點蓋住
+    # `latest.json` 那 20 格（HD15c：12Z 起 120 小時＝這一報的 132 小時）
     prev = run - timedelta(hours=6)
-    assert asked == [
-        (run, prev, run + timedelta(hours=120), {"mslp": False, "retry_previous": True})
-    ]
-    assert wn3.lead_window(run, prev, run + timedelta(hours=120)) == (1, 120)
+    end = utc(2026, 10, 26, 12) + timedelta(hours=120)
+    assert asked == [(run, prev, end, {"mslp": False, "retry_previous": True})]
+    assert wn3.lead_window(run, prev, end) == (1, 132)
     assert (res.run, res.stored) == (run, "written")
     doc = bucket.objects["observe/20261026T0000Z.json"]
     assert (doc["model"], doc["run"], doc["mode"], doc["license"]) == (
@@ -240,7 +240,8 @@ def test_observe_private_writes_bucket_and_skips_existing(airports):
     nxt = now + timedelta(hours=6)
     wn3report.observe_private(aps, nxt, f, bucket, fetch)
     r2 = utc(2026, 10, 26, 6)
-    assert asked == [(r2, r2, r2 + timedelta(hours=120), {"mslp": False, "retry_previous": False})]
+    end = utc(2026, 10, 26, 18) + timedelta(hours=120)
+    assert asked == [(r2, r2, end, {"mslp": False, "retry_previous": False})]
 
 
 def test_observe_private_bucket_error_raises_with_code(airports):
@@ -301,6 +302,9 @@ def test_private_build_latest_has_no_wn3_values_and_logs_are_clean(
         "estimateBytes": 5_000_000_000,
         "bytesProcessed": 3_100_000_000,
         "bytesBilled": 3_100_000_000,
+        "r2": "not_configured",  # HD15c：測試沒設 R2 的 secrets
+        "r2Files": 0,
+        "r2Bytes": 0,
         "mode": "private",
     }
     # 公開的地方（Pages、data 分支的整個 checkout）一個數字都沒有、也沒有事件檔

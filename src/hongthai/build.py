@@ -74,6 +74,8 @@ WeatherNext 3（HD15，`sources/wn3.py`、`wn3report.py`）：模式由 `config.
 （`wn3report.observe_private`：最新的主報 → 事件檔格式 → 只寫進私人 bucket，同一報已經有就不查），
 `latest.json` 只有 `sources.wn3` 的中繼資料（`run`、`stored`、`via`、掃描量、秒數，不放任何預報值或
 等級）、不進 `models[]`／`slots`、不投票、不寫事件檔與路徑檔（補抓見 `wn3report.backfill`）。
+這一報有查到時另外把**只有等級**的檔上傳 Cloudflare R2（HD15c，`observe_wn3`、`wn3levels.py`；
+`sources.wn3` 只多 `r2`、`r2Files`、`r2Bytes`）。
 `report-only`：`latest.json` 沒有 WN3（只有 `sources.wn3`），
 只在「5 天前那一報」（`wn3report.report_run`，資料已經是 CC BY 4.0）的起報時間落在事件期間時跑
 來源 `wn3`，寫 `history/events/<id>/wn3/` 與路徑檔；`observe`：每報抓最新一報進 `models[]`
@@ -126,6 +128,7 @@ from . import (
     og,
     tracks,
     typhoons,
+    wn3levels,
     wn3report,
 )
 from .ai import run as ai
@@ -349,7 +352,8 @@ class Timing:
     - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf、gfs、aifs、aigfs
       （HD14）多 `mirror`；openmeteo（HD16）多 `calls`（Open-Meteo 的加權呼叫次數，失敗是 null）；
       wn3（HD15）多 `mode`、`via`（`bigquery`／`zarr`）、`estimateBytes`（BigQuery dry run）、
-      `bytesBilled`、`stored`（HD15b `private`：`written`／`exists`）
+      `bytesBilled`、`stored`（HD15b `private`：`written`／`exists`）、`r2`、`r2Files`（HD15c：
+      等級檔上傳 R2 的結果與檔數，沒上傳是 null）
     - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
     - AI 對決（HD5）：`{"run", "source": "ai", "ok", "error", "seconds", "bytes": 0,
       "calls": {"claude": n, "gemini": n}, "usage": {...}, "costUsd": {"claude": x, "gemini": y},
@@ -391,7 +395,7 @@ class Timing:
             fields["errorMessages"] = st.get("errorMessages")  # HD30
         if name in ("openmeteo", "tdx"):  # tdx：HD38（每月計數看 `history/tdx/`，不看這裡）
             fields["calls"] = st.get("calls")
-        if name == "wn3":  # HD15；`stored`：HD15b `private`
+        if name == "wn3":  # HD15；`stored`：HD15b `private`；`r2`、`r2Files`：HD15c
             for k in (
                 "mode",
                 "via",
@@ -400,6 +404,8 @@ class Timing:
                 "stored",
                 "bqError",
                 "zarrError",
+                "r2",
+                "r2Files",
             ):
                 fields[k] = st.get(k)
         self.write(**fields)
@@ -505,7 +511,19 @@ def _wn3_private_extra(r: wn3report.PrivateResult) -> dict:
     d: dict[str, object] = {"run": iso(r.run), "stored": r.stored}
     if r.data is not None:
         d.update(_wn3_extra(r.data))
+    d.update(r.r2)
     return d
+
+
+def observe_wn3(
+    airports: list[Airport], now: datetime, factors: dict[str, assess.GustFactor]
+) -> wn3report.PrivateResult:
+    """`private` 這一報（HD15b）＋只有等級的檔上傳 R2（HD15c，`wn3levels`）：有查到這一報才傳
+    （私人 bucket 已經有、沒查的不傳，R2 留著上一份）。R2 失敗只記錯誤碼，不讓這個來源失敗。"""
+    r = wn3report.observe_private(airports, now, factors)
+    if r.data is not None:
+        r.r2 = wn3levels.publish(r.data, airports, factors, now)
+    return r
 
 
 def _is_num(v: object) -> bool:
@@ -1357,7 +1375,7 @@ def run(
     if private:
         _call(
             "wn3",
-            lambda: wn3report.observe_private(airports, now, factors),
+            lambda: observe_wn3(airports, now, factors),
             status,
             timing,
             _wn3_private_extra,
