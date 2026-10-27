@@ -834,6 +834,8 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.delenv("JOB_STARTED_AT", raising=False)  # HD25：build.yml 才有
     for k in (build.tdx.ENV_ID, build.tdx.ENV_SECRET):  # HD38：TDX 不連網
         monkeypatch.delenv(k, raising=False)
+    for k in (build.wn3levels.ENV_ACCOUNT, build.wn3levels.ENV_KEY_ID):  # HD15c：R2 不連網
+        monkeypatch.delenv(k, raising=False)
     for k in (k for keys in ai_config.ENV.values() for k in keys):  # AI 對決（HD5）不呼叫
         monkeypatch.delenv(k, raising=False)
     # 預覽圖（HD1）在 test_og.py 測；這裡不畫，build 的測試才不會每個多幾秒
@@ -1754,8 +1756,10 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     assert set(wn_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes"),
         *("mode", "via", "estimateBytes", "bytesBilled", "stored", "bqError", "zarrError"),
+        *("r2", "r2Files"),  # HD15c
     }
     assert (wn_line["error"], wn_line["mode"]) == ("no_credentials", "private")
+    assert (wn_line["r2"], wn_line["r2Files"]) == (None, None)  # 失敗那報沒上傳
     ap_line = lines[18]  # HD35：機場頁的 3 小時格
     assert set(ap_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "files", "mismatches"),

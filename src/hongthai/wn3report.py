@@ -324,6 +324,7 @@ class PrivateResult:
     run: datetime
     stored: str
     data: wn3.Wn3Data | None = None
+    r2: dict = field(default_factory=dict)  # HD15c：等級檔上傳 R2 的結果（`wn3levels.upload`）
 
 
 def observe_private(
@@ -335,7 +336,8 @@ def observe_private(
 ) -> PrivateResult:
     """`private` 模式（HD15b）：最新的主報（`wn3.latest_run`，還沒發布就退一報）→ 事件檔格式
     （0–120 小時、含 `levels`／`level`）→ 私人 bucket `observe/<起報>.json`。同一個起報已經在
-    bucket 裡就跳過（不查 BigQuery）；退一報時那一報已經有了也不退。不回傳也不記任何預報值。"""
+    bucket 裡就跳過（不查 BigQuery）；退一報時那一報已經有了也不退。查詢的終點是 `latest.json` 最後
+    一格的結束（HD15c 的等級檔要 20 格都有資料），事件檔照樣只有起報起 120 小時。不記任何預報值。"""
     bucket = bucket or wn3private.Bucket.from_env()
     fetch = fetch or wn3.fetch
     run = wn3.latest_run(now)
@@ -346,7 +348,8 @@ def observe_private(
     retry = not bucket.exists(wn3private.object_name(prev))
     # 退一報時那一報也要 0–120 小時：起點放前一報（這一報的提前時間照樣從 1 小時起）
     start = prev if retry else run
-    end = run + timedelta(hours=wn3.SPAN_H)
+    # 終點也蓋住 `latest.json` 那 20 格（HD15c 的等級檔用；`floor_6h(now)` ≥ 這一報的起報）
+    end = floor_6h(now) + timedelta(hours=wn3.SPAN_H)
     data = fetch(airports, run, start, end, mslp=False, retry_previous=retry)
     doc = report_doc(data, airports, factors, "private")
     stored = "written" if bucket.put_json(wn3private.object_name(data.run), doc) else "exists"
