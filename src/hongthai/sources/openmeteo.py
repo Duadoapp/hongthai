@@ -65,6 +65,16 @@ HD33b 旁觀的三個模式（`OBSERVER_MODELS`，`config.MODELS` 是 `voting=Fa
 超過 `META_DEADLINE_S` 秒就不問（`run` 是 None、`runError` 記 `skipped`），免得 metadata 把整個
 來源拖過 90 秒的預算、連 ICON／JMA 的票都丟掉。文件說新的一報在 `last_run_availability_time` 之後約
 10 分鐘內各台伺服器才會一致，所以剛好碰到換報的那幾分鐘，`runs.*` 可能和實際用到的資料差一報
+
+遠期關注（HD42，`fetch_longrange`，給 `longrange.py`，**一天一次**、不進 `latest.json`）：
+同一個系集 API、同一個模式與變數（只要 `wind_speed_10m`），但用 `start_date`／`end_date` 只抓
+第 6–15 天（不帶 `forecast_days`）。2026-10-27 實抓：00Z 那報 11:27Z 才上 API（metadata 的
+`last_run_availability_time`），資料到起報後 366 小時（`data_end_time` 11/11 06Z），所以第 15 天
+那個窗的結尾（11/11 00Z）有值。加權呼叫次數：1 個變數 × 64 個成員 ÷ 10 × max(1, 11 天 ÷ 14)
+＝ 6.4，× 51 個機場 ＝ **326.4**（`longrange_calls`；`start_date`＝第 6 天、`end_date`＝第 15 天
+結束那個 00Z 的日期，共 11 天，沒超過 14 天）。加上 build 每天 4 報 × 504.9 ＝ 2,019.6，
+**一天約 2,346**（< 每日 10,000，也 < HD16 提示詞的每日 5,000）；單一請求 326.4 < 每分鐘 600，
+排在 11:47Z、和 build（08:25Z、13:05Z）不同一分鐘
 """
 
 from __future__ import annotations
@@ -73,7 +83,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import requests
 
@@ -419,6 +429,75 @@ def fetch(airports: list[Airport]) -> OpenMeteoData:
         meta_errors=meta_errors,
         model_errors=model_errors,
     )
+
+
+# ---- 遠期關注（HD42）----
+
+
+@dataclass
+class LongRangeEnsemble:
+    run: datetime | None  # metadata 的起報時間；問不到是 None
+    ensemble: dict[str, list[EnsStep]]  # icao → 6 小時一個時間點
+    members: int
+    bytes_downloaded: int = 0
+    calls: float = 0.0
+    meta_error: str | None = None
+
+
+def longrange_days(start: date, end: date) -> int:
+    return (end - start).days + 1
+
+
+def longrange_calls(n_locations: int, start: date, end: date) -> float:
+    return weighted_calls(
+        len(ENSEMBLE_VARS), ENSEMBLE_MEMBERS, longrange_days(start, end), n_locations
+    )
+
+
+def longrange_params(
+    points: list[tuple[float, float]], start: date, end: date
+) -> dict[str, object]:
+    return {
+        **_coords(points),
+        "models": ENSEMBLE_MODEL,
+        "hourly": ",".join(ENSEMBLE_VARS),
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "temporal_resolution": "native",
+        "wind_speed_unit": "kn",
+        "timezone": "UTC",
+    }
+
+
+def fetch_longrange(airports: list[Airport], start: date, end: date) -> LongRangeEnsemble:
+    """HD42：WeatherNext 2 系集 `start`～`end`（UTC 日期，含頭尾）的 10 米風，全部機場一個請求。
+    資料請求失敗丟 `OpenMeteoError`；metadata 問不到只是 `run` 是 None。"""
+    t0 = time.monotonic()
+    icaos = [a.icao for a in airports]
+    points = [(a.lat, a.lon) for a in airports]
+    with requests.Session() as session:
+        doc, size = _get_json(
+            ENSEMBLE_URL, longrange_params(points, start, end), "遠期系集", session
+        )
+        ensemble, members = parse_ensemble(doc, icaos)
+        run, meta_error = None, None
+        try:
+            run = _meta_run(ENSEMBLE_ID, session)
+        except OpenMeteoError as e:
+            log.warning("Open-Meteo WN2 系集的起報時間問不到：%s", e)
+            meta_error = e.code
+    calls = longrange_calls(len(points), start, end)
+    log.info(
+        "Open-Meteo 遠期系集 %s～%s：%d bytes（%d 個成員）、加權 %.1f 次，%.1f 秒；起報 %s",
+        start,
+        end,
+        size,
+        members,
+        calls,
+        time.monotonic() - t0,
+        run,
+    )
+    return LongRangeEnsemble(run, ensemble, members, size, calls, meta_error)
 
 
 # ---- 一格（6 小時）的換算；`assess` 用 ----
