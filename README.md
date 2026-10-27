@@ -526,6 +526,8 @@ H10（2026-10-18）之後：
 - `src/hongthai/gustfactor.py`：估算陣風的係數（HD18，上面「估算陣風的係數」）；30 天後的驗證報表
   `tools/gust_factor_report.py`
 - `src/hongthai/build.py`：組 JSON、寫檔、失敗處理
+- `src/hongthai/longrange.py`：遠期關注（HD42，`.github/workflows/longrange.yml` 每天一次；美國系集 GEFS 在
+  `src/hongthai/sources/gefs.py`；下面「遠期關注」）
 - `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR、颱風現報與逐班航班紀錄
   （HD31，逐班轉換在 `src/hongthai/flights_log.py`；HD32 起多 TDX 台灣機場，`src/hongthai/sources/tdx.py`）
   （`.github/workflows/events.yml`）；推 `data` 分支用
@@ -553,7 +555,8 @@ H10（2026-10-18）之後：
   `data` 分支照舊全部保留）；每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，下面「分享預覽圖」，
   每報重畫、不進 `data` 分支）；每個機場一個機場頁的 3 小時時間軸 `airports/<iata 小寫>.json`（HD35，上面
   「機場頁的 3 小時時間軸」、格式在下面；只放這一報、不進 `history/`、不進 `data` 分支，事件保存的快照照舊只存
-  `latest.json`）；颱風地圖 `typhoons.json`（HD34，只放最新一份，下面「颱風地圖」）
+  `latest.json`）；颱風地圖 `typhoons.json`（HD34，只放最新一份，下面「颱風地圖」）；遠期關注 `longrange.json`（HD42，只放
+  最新一份，`longrange.yml` 每天寫進 `data` 分支、下一次 build 複製過來；下面「遠期關注」）
 - `data` 分支（Actions 自動推）：同樣的結果（全部，不限 7 天），加上原始快照
   `history/raw/<日期>/<HHMM>Z-{taf,metar,hko,cwa,smg,nws,jma,swic,openmeteo}.json`（SMG 是 `{"c": XML, "e": XML}`；NWS 是
   `/alerts/active` 的原始回應，HD3 起；JMA 是 `{office 代碼: 警報 JSON}`，HD9 起；SWIC 是
@@ -1287,6 +1290,104 @@ Shawn 2026-10-27 16:52、18:34 定案（氣象署 10/27 書面回覆後，`docs/
 - 抓了還是沒有、或抓不到：**三種中文都先借氣象署當報的譯名**（用日本氣象廳那份時借配到的氣象署那份的），再沒有用
   英文名；en 一律英文名
 
+## 遠期關注（HD42）
+
+Shawn 2026-10-27 21:28–21:37 定案（`docs/worklog/2026-10-27.md`）：第 6–15 天單一模式的陣風與時間基本上是雜訊，所以
+**只看系集的成員同意比例**，三套分開列、不合併、不給等級。**不進 `latest.json`、不給 AI、不參與 AI 評論與投票**，
+0–5 天的燈號照舊。網頁（Duado HW22）在任一套 49 節比例 ≥ 20% 那天才顯示；**資料端每天每個機場都存**，之後對照準不準。
+
+- 程式：`src/hongthai/longrange.py`（`python -m hongthai.longrange --archive data`），GEFS 在
+  `src/hongthai/sources/gefs.py`，歐洲系集與 WN2 是 `sources/ecmwf.py`、`sources/openmeteo.py` 的 `fetch_longrange`
+- 排程：`.github/workflows/longrange.yml`，**每天 11:47Z 一次**（可手動 Run workflow）。不進 build（預算已經
+  1,910 秒）；GitHub 自己的 cron 就好，Cloudflare Worker 不用改。時間依實測的出齊時間（UTC）：GEFS 00Z 31 個成員的
+  f360 約 06:20、ECMWF 系集機率到 360 小時約 08:01、**WN2 00Z 上 Open-Meteo 約 11:00–11:30**（metadata 的
+  `last_run_availability_time`：10/20 11:02、10/27 11:27），所以排在 WN2 之後約 20 分鐘
+- 發布：`longrange.yml` **不部署 Pages**（Pages 一次部署就換掉整個站，這裡沒有 `latest.json`、`og/`、`airports/`），
+  只寫 `data` 分支；**下一次 build 的 `publish` 原樣複製到 Pages**（同 `typhoons.json`），正常是 13:05Z 那次。
+  GitHub 排程晚到 13:05Z 之後就等 20:25Z 那次
+- `data` 分支：`longrange.json`（最新一份）與 `history/longrange/<基準日>.json`（每天一份，同一天再跑覆寫）
+
+### 三套怎麼算
+
+| 套 | 成員 | 資料 | 陣風 | 範圍與步長（2026-10-27 查） |
+| --- | --- | --- | --- | --- |
+| 歐洲系集 `ifsEns`（ECMWF ENS） | 51 | 開放資料現成的系集機率 `10fgg15`（≥ 15 m/s）、`10fgg25`（≥ 25 m/s），機場最近格點（同 `latest.json` 的 `p29Kt`／`p49Kt`） | 有 | 0.25°；機率產品到 **360 小時**、每 12 小時一個 24 小時窗（0–240 小時在 `…-240h-enfo-ep`，`228-252`…`336-360` 在 `…-360h-enfo-ep`）；只有 00／12Z。10 個窗兩個參數約 8.4 MB |
+| 美國系集 `gefs`（NOAA GEFS，新來源） | 31（控制 `gec00`＋擾動 `gep01`…`gep30`） | AWS `noaa-gefs-pds` 的 `pgrb2bp5`（b 檔）`GUST:surface`，`.idx` 分段下載 | **有**（b 檔第 30 筆；a 檔 `pgrb2ap5` 沒有陣風、只有 10 米風；0.25° 的 `pgrb2sp25` 有陣風但只到 240 小時） | **0.5°**；每個時次到 **384 小時**（00Z 延長到 840），240 小時以前每 3 小時、以後每 6 小時一個檔；這裡一律只抓 6 小時整的（41 個步長 × 31 ＝ 1,271 個檔，約 222 MB） |
+| Google WN2 系集 `wn2Ens`（經 Open-Meteo） | 64 | 系集 API、同 build 的模式代號，只要 `wind_speed_10m`，`start_date`／`end_date` 只抓第 6–15 天 | **沒有** → 10 米風 × 機場的 G（`estimated: true`） | 0.25°；6 小時一點，00Z 那報到起報後 366 小時；約 0.86 MB |
+
+- **窗**：三套用同一組 UTC 24 小時窗，對齊歐洲系集機率產品 00Z 起報的提前 120–144、144–168…336–360 小時，也就是
+  **第 6–15 天的 00Z–24Z**（`windows[].day` 6–15）。基準日是「現在減 8 小時」那天的 00Z（11:47Z 跑就是當天；半夜手動跑
+  是前一天，那時當天 00Z 的系集還沒出）。網頁怎麼標日期由 HW22 決定，資料端每窗給 `from`／`to`（UTC）
+- **起報**：每套各自找最新出齊的一報、`runs` 各自記。歐洲系集：最新出到 360 小時的 00／12Z（窗換成那一報的步長，
+  換不過去的窗是 null）；GEFS：從基準日 00Z 往回每 6 小時找，`gec00` 與 `gep30` 的最後所需步長都在才算出齊；
+  WN2：Open-Meteo 當下最新的一報（起報時間問 metadata）
+- **GEFS 與 WN2 的比例**：每個成員每個窗取窗內（**含頭尾**，所以是 00、06、12、18、24Z 五個時間點）的最大值，
+  取一位小數後數達門檻的成員比例。GEFS 的 `GUST` 是瞬時值（同 GFS）；WN2 是 10 米平均風 × G（同
+  `assess.ensemble_for_slot`）。沒有值的成員不算分母（`members` 是有值的成員數）。GEFS 的 b 檔萬一沒有 `GUST`，
+  那個檔改抓 a 檔的 10 米風 × G、`estimated: true`
+- **門檻**：三套一律用歐洲系集機率產品的 **25 m/s（48.6 節，`p49`）與 15 m/s（29.2 節，`p29`）**，三欄比的是同一件事
+- **G**：`data` 分支 `history/gustfactor/latest.json`（build 每報算的 G，上面「估算陣風的係數」）；沒有那個檔或那個
+  機場時用 1.4。這一份用的 G 記在 `gustFactor`
+- **下載方式**：GEFS 每個檔先只抓 `.idx` 前 8 KB（`Range`，約 120 行；`GUST` 是第 30 筆），找不到 `GUST` 的下一筆才
+  抓整個 `.idx`（約 38 KB；1,271 個檔差約 43 MB），再一個 `Range` 抓 `GUST`（約 175 KB）；16 條執行緒平行抓，
+  每個成員的步長接成一個檔再解析。單一檔失敗（重試 3 次後）只是那個成員那個時間點沒值；超過一成抓不到整套失敗
+- **實測（2026-10-27 15:14Z，雲端開發機，今天 00Z）**：歐洲系集 8,417,484 bytes、12.3 秒（AWS 鏡像回 503 Slow Down
+  後改從 ECMWF 入口）；GEFS 222,109,466 bytes、1,271 個檔、75.1 秒；WN2 858,138 bytes、1.4 秒；整個 90 秒。
+  每天下載約 231 MB
+
+### 失敗與沿用
+
+- 每套在自己的時間預算內跑（`longrange.BUDGET_S`：歐洲系集 300、GEFS 900、WN2 120 秒），失敗或超時**那套 `null`、
+  其他照出**（`sources.<套>` 記 `ok: false` 與原因）
+- **三套都失敗、或整個流程出例外 → 沿用上一份**（`data` 分支的 `longrange.json`，沒有就從 Pages 抓），內容不動，加
+  `stale: true`、`staleAt`（這次失敗的時間）、`staleErrors`（這次各套的錯誤碼），寫回 `data` 分支（不寫 `history/`）、
+  workflow 標紅；連上一份都沒有就什麼都不寫。網頁看到 `stale: true` 要另外標示（HW22）
+
+### Open-Meteo 用量
+
+WN2 這一個請求（51 個機場）：1 個變數 × 64 個成員 ÷ 10 × max(1, 11 天 ÷ 14) ＝ 6.4，× 51 ＝ **326.4 次加權**
+（`start_date`＝第 6 天、`end_date`＝第 15 天結束那個 00Z 的日期，共 11 天，沒超過 14 天；用 `forecast_days=15`
+抓整段會是 349.7）。加上 build 每天 4 報 × 504.9 ＝ 2,019.6，**一天約 2,346 次**（< 每日 10,000，也 < HD16
+提示詞的每日 5,000）；單一請求 326.4 < 每分鐘 600，和 build（08:25Z、13:05Z）不在同一分鐘。
+`sources.wn2Ens.calls` 記這一次的加權次數
+
+### `longrange.json` 格式
+
+不縮排、約 118 KB。比例 0–1、兩位小數；那套失敗、這一報沒涵蓋那個窗、或沒有任何成員有值時是 `null`。51 個機場都寫。
+
+```json
+{
+  "schema": 1,
+  "generatedAt": "2026-10-27T11:47:00Z",
+  "stale": false,
+  "base": "2026-10-27",
+  "runs": {"ifsEns": "2026-10-27T00:00:00Z", "gefs": "2026-10-27T00:00:00Z", "wn2Ens": "2026-10-27T00:00:00Z"},
+  "sources": {
+    "ifsEns": {"ok": true, "error": null, "seconds": 12.3, "bytes": 8417484, "mirror": "ecmwf"},
+    "gefs": {"ok": true, "error": null, "seconds": 75.1, "bytes": 222109466, "files": 1271, "missing": 0, "estimated": false},
+    "wn2Ens": {"ok": true, "error": null, "seconds": 1.4, "bytes": 858138, "calls": 326.4, "metaError": null}
+  },
+  "thresholds": {"p29Kt": 29.2, "p49Kt": 48.6, "p29Ms": 15, "p49Ms": 25},
+  "gustFactor": {"generatedAt": "2026-10-27T08:26:00Z", "airports": {"RCTP": 2.0, "…": 1.65}},
+  "windows": [{"day": 6, "from": "2026-11-01T00:00:00Z", "to": "2026-11-02T00:00:00Z"}, "… 共 10 個"],
+  "airports": {
+    "RCMQ": [
+      {
+        "from": "2026-11-08T00:00:00Z", "to": "2026-11-09T00:00:00Z",
+        "ifsEns": {"p29": 0.53, "p49": 0.04, "members": 51},
+        "gefs": {"p29": 0.16, "p49": 0.0, "members": 31, "estimated": false},
+        "wn2Ens": {"p29": 0.67, "p49": 0.2, "members": 64, "estimated": true}
+      },
+      "… 每個機場 10 筆，照 windows 的順序"
+    ]
+  }
+}
+```
+
+沿用上一份時多 `"stale": true`、`"staleAt"`、`"staleErrors": {"ifsEns": "http_503", …}`（整個流程出例外時是
+`{"all": "<例外>"}`）。Duado 網頁經同網域轉送（`functions/hongthai/`）讀的話，要加一支 `longrange.json` 的轉送
+（同 `typhoons.json.ts`）。
+
 ## 事件保存（HD20）
 
 颱風 29W（CHAMPI，薔琵）的 AI 模式與物理模式路線分歧很大，Shawn 2026-10-20 定案拿這顆完整驗證：期間內
@@ -2016,6 +2117,8 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
   `concurrency: build` 不取消，兩邊同時觸發時第二個排隊，進來時第一個已經推上 `data` → 跳過。
   **手動按的（`manual`，Run workflow 的預設）一律照跑**；讀不到上一份 `latest.json` 時也照跑
 - `events` 不跳過（多跑一次只是去重）；`trigger` 只印在 log
+- `longrange`（HD42，遠期關注）每天一次 11:47Z，**只用 GitHub 自己的 cron**（不經 Worker、不跳過；晚到只是
+  晚一次 build 才發布到 Pages，見上面「遠期關注」）
 - `history/timing/` 每報第一行（`start`）多 `trigger`、`slot`（排定時間，手動是 null）、`startedAt`（job 開始，
   含排隊時間）、`delayMinutes`，看 Worker 準不準；`latest.json` 沒有這些欄位
 
@@ -2023,11 +2126,12 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 
 | 來源 | 內容 | 授權 |
 | --- | --- | --- |
-| [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data)（經 AWS／Google 鏡像） | HRES 10 米陣風（`10fg`／`10fg3`）與 10 米風（`10u`／`10v`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`）；HD8 起 HRES 總降水 `tp`、降水型態 `ptype`、2 米溫度 `2t`，系集 24 小時雨量機率 `tpg25`／`tpg50` | CC BY 4.0，© ECMWF |
+| [ECMWF 開放資料](https://www.ecmwf.int/en/forecasts/datasets/open-data)（經 AWS／Google 鏡像） | HRES 10 米陣風（`10fg`／`10fg3`）與 10 米風（`10u`／`10v`）、系集陣風機率（`10fgg10`／`10fgg15`／`10fgg25`；HD42 的遠期關注另抓 `10fgg15`／`10fgg25` 到 360 小時，只進 `longrange.json`）；HD8 起 HRES 總降水 `tp`、降水型態 `ptype`、2 米溫度 `2t`，系集 24 小時雨量機率 `tpg25`／`tpg50` | CC BY 4.0，© ECMWF |
 | NOAA GFS（[AWS 開放資料鏡像 `noaa-gfs-bdp-pds`](https://registry.opendata.aws/noaa-gfs-bdp-pds/)，[NOMADS](https://nomads.ncep.noaa.gov/) 備援） | 地面陣風 `GUST`、10 米風 `UGRD`／`VGRD`；HD8 起 6 小時降水 `APCP`、類別降水 `CRAIN`／`CFRZR`／`CICEP`／`CSNOW`、地面能見度 `VIS` | 美國政府公有領域 |
+| NOAA GEFS（[AWS 開放資料 `noaa-gefs-pds`](https://registry.opendata.aws/noaa-gefs/)；HD42 遠期關注，**只進 `longrange.json`**） | 美國系集 31 個成員（`gec00`、`gep01`…`gep30`）0.5° 的地面陣風 `GUST`（`pgrb2bp5`），第 6–15 天每 6 小時；b 檔沒有陣風時改用 `pgrb2ap5` 的 10 米風 `UGRD`／`VGRD` | 美國政府公有領域（NOAA） |
 | [ECMWF AIFS Single](https://www.ecmwf.int/en/forecasts/datasets/open-data)（ECMWF 開放資料，經 AWS／Google 鏡像；HD14） | AI 模式的 10 米風 `10u`／`10v`、總降水 `tp`、降雪 `sf`、2 米溫度 `2t`（每 6 小時） | CC BY 4.0，© ECMWF |
 | NOAA AIGFS（[AWS 開放資料 `noaa-nws-graphcastgfs-pds`](https://registry.opendata.aws/noaa-nws-graphcastgfs-pds/)；HD14） | AI 模式的 10 米風 `UGRD`／`VGRD`、6 小時降水 `APCP`、2 米溫度 `TMP` | 美國政府公有領域 |
-| [Open-Meteo](https://open-meteo.com/)（[預報 API](https://open-meteo.com/en/docs) `models=icon_global,jma_gsm`、[系集 API](https://open-meteo.com/en/docs/ensemble-api) `models=google_weathernext2_ensemble`；HD16） | DWD ICON global 與 JMA GSM 的逐時 10 米風、風向、陣風（ICON）、雨量、降雪、天氣碼；Google WeatherNext 2 系集 64 個成員的 10 米風（6 小時一點） | **CC BY 4.0**（Open-Meteo 的資料授權；原始模式 © DWD、JMA、Google）。**免費版只限非商業**、每日 10,000／每月 300,000 次（加權）：**一旦 HongThai 或 Duado 收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或拿掉這三個模式**。（贊助，2026-10-21 Shawn 定案）照 [Open-Meteo 條款](https://open-meteo.com/en/terms)，自願捐款（tip jar）屬於非商業：網頁頁尾連到 duado.app/support（Ko-fi，只收單次自由贊助）。**之後不能開 Ko-fi 的 Memberships 或月費、不能放廣告或贊助商 logo**，否則要改買 Open-Meteo 商業方案或拿掉這三個模式。網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2」。Google 對即時 WeatherNext 資料另有實驗條款，Open-Meteo 的授權來源查不到（上面「已知的保守假設」） |
+| [Open-Meteo](https://open-meteo.com/)（[預報 API](https://open-meteo.com/en/docs) `models=icon_global,jma_gsm`、[系集 API](https://open-meteo.com/en/docs/ensemble-api) `models=google_weathernext2_ensemble`；HD16） | DWD ICON global 與 JMA GSM 的逐時 10 米風、風向、陣風（ICON）、雨量、降雪、天氣碼；Google WeatherNext 2 系集 64 個成員的 10 米風（6 小時一點；HD42 起每天另抓一次第 6–15 天，只進 `longrange.json`） | **CC BY 4.0**（Open-Meteo 的資料授權；原始模式 © DWD、JMA、Google）。**免費版只限非商業**、每日 10,000／每月 300,000 次（加權）：**一旦 HongThai 或 Duado 收費、訂閱或放廣告，必須改買 Open-Meteo 商業方案或拿掉這三個模式**。（贊助，2026-10-21 Shawn 定案）照 [Open-Meteo 條款](https://open-meteo.com/en/terms)，自願捐款（tip jar）屬於非商業：網頁頁尾連到 duado.app/support（Ko-fi，只收單次自由贊助）。**之後不能開 Ko-fi 的 Memberships 或月費、不能放廣告或贊助商 logo**，否則要改買 Open-Meteo 商業方案或拿掉這三個模式。網頁與資料來源標「Open-Meteo（CC BY 4.0）・DWD ICON・JMA・Google WeatherNext 2」。Google 對即時 WeatherNext 資料另有實驗條款，Open-Meteo 的授權來源查不到（上面「已知的保守假設」） |
 | [Open-Meteo](https://open-meteo.com/) [Previous Runs API](https://open-meteo.com/en/docs/previous-runs-api)（HD33a，**只存進 `data` 分支給驗證報告比，不進 `latest.json`**） | UK Met Office Global 10 km（`ukmo_global_deterministic_10km`）、ECCC GEM Global（`gem_global`；文件現在寫 `cmc_gem_gdps`，實測是同一份資料的別名）、Météo-France ARPEGE World（`meteofrance_arpege_world`）、CMA GRAPES Global（`cma_grapes_global`）提前 0–5 天的逐時 10 米風、風向、陣風、雨量 | Open-Meteo（CC BY 4.0）・UK Met Office・ECCC GEM・Météo-France ARPEGE・CMA GRAPES。Open-Meteo [授權頁](https://open-meteo.com/en/licence)列的原始資料條款：UK Met Office **[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.en)**（Open-Meteo UKMO 頁：衍生產品要用相同或相容的授權再散布，所以 `backfill/openmeteo-ukmo.jsonl` 與用到 UKMO 數字的報告標 CC BY-SA 4.0）、加拿大 CMC（[ECCC 開放資料授權](https://eccc-msc.github.io/open-data/licence/readme_en/)）、Météo-France（[開放資料授權](https://donneespubliques.meteofrance.fr/?fond=dossier&id_dossier=1)）、中國氣象局 CMA（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）。免費版只限非商業，條件同上一列 Open-Meteo |
 | [Open-Meteo](https://open-meteo.com/)（預報 API 同上一列的請求，HD33b 加 `cmc_gem_gdps`、`meteofrance_arpege_world`、`cma_grapes_global`） | 三個旁觀模式（不投票）的逐時 10 米風、風向、陣風、雨量、降雪、天氣碼 | Open-Meteo 的 [授權頁](https://open-meteo.com/en/licence) 逐一列原始資料的條款：Canadian Meteorological Centre（ECCC 開放資料授權）；Météo-France（Météo-France 公共資料授權）；China Meteorological Administration（CC BY 4.0）。非商業條款同上一列。網頁與資料來源標「Open-Meteo（CC BY 4.0）・ECCC・Météo-France・CMA」。**UK Met Office 不進 `latest.json`**：Open-Meteo 的 UKMO 資料是 **CC BY-SA 4.0**（UKMO 文件頁：衍生產品要用相同或相容的授權再發布），放進來整份 `latest.json` 與網頁都要跟著 ShareAlike；2026-10-25 Shawn 定案只用在 HD33a 的 29W 報告比對 |
 | [Google WeatherNext 3](https://developers.google.com/weathernext)（BigQuery `weathernext_3_0_0_0p1deg`，備援 GCS `gs://weathernext3_statistics_spatial/`；HD15，要 allowlist） | 64 成員統計（p50、平均、p90）的逐時 10 米風、平均 u／v、1 小時雨量、2 米溫度；平均海平面氣壓（颱風路徑） | **有效時間在 1 小時以前：CC BY 4.0**（© Google LLC）；**1 小時內或未來：[GDM Real-Time Weather Forecasting Experimental Data Terms of Use](https://storage.googleapis.com/weathernext-public/terms-of-use.pdf)**——不能公開未修改的數字、日本是限制國家（下面「WeatherNext 3 的條款」）。所以預設 `private`（HD15b）：即時的只放私人 bucket，公開的只有有效時間過了 1 小時的部分（補抓）與起報超過 121 小時的報（`history/wn3/`），都標 CC BY 4.0 |
@@ -2102,7 +2206,7 @@ HD16 Open-Meteo（2026-10-20 11:17Z 實抓，細節在 `src/hongthai/sources/ope
   CMA 約 122 小時。GEM 的代號 `cmc_gem_gdps`（同 HD33a）和 `gem_global` 回的資料一樣（各 381 KB、7,344 筆
   全有值）。metadata 的路徑和模式名不同：`cmc_gem_gdps_15km`（`cmc_gem_gdps` 的 metadata 停在 2026-05）、
   `meteofrance_arpege_world025`、`cma_grapes_global`。預報 7 個變數 × 5 個模式 → 3.5 × 51 ＝ 178.5，
-  **一報 504.9**（< 每分鐘 600）、一天 4 報約 2,020
+  **一報 504.9**（< 每分鐘 600）、一天 4 報約 2,020；HD42 的遠期關注每天再加一次 326.4，一天約 2,346（下面「遠期關注」）
 - 起報時間用 metadata API（`api.open-meteo.com/data/dwd_icon/static/meta.json`、`…/jma_gsm/…`、
   `ensemble-api.open-meteo.com/data/google_weathernext2_ensemble/static/meta.json` 的
   `last_run_initialisation_time`）。11:21Z 查：ICON 06Z（09:26Z 上 API）、WeatherNext 2 00Z（11:02Z 上 API）

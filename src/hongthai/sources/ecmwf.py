@@ -56,6 +56,12 @@ HD18 起同一個時間點的風速（√(u²+v²)，節）也留下來（`GustI
   （`PTYPE_NAMES`）
 - 系集機率多 `tpg25`、`tpg50`（24 小時總降水 ≥ 25／50 mm 的機率，%；窗和 `10fgg*` 一樣、每個約
   0.07–0.15 MB），和陣風機率同一個請求
+
+遠期關注（HD42，`fetch_longrange`，給 `longrange.py`，不進 `latest.json`）：2026-10-27 查
+00Z 的 `…-360h-enfo-ep.index`：系集機率**到 360 小時**、每 12 小時一個 24 小時窗——0–240 小時
+的窗在 `…-240h-enfo-ep.grib2`（`"0-24"`…`"216-240"`），之後在 `…-360h-enfo-ep.grib2`
+（`"228-252"`…`"336-360"`），`ecmwf-opendata` 依窗的結束步長自己挑檔。360h 檔 08:01Z 上入口
+（同 240h 檔）。只抓 `10fgg15`、`10fgg25`（每個窗約 0.66＋0.25 MB，10 個窗約 9 MB）
 """
 
 from __future__ import annotations
@@ -317,6 +323,67 @@ def parse_ens(path: str | Path, airports: list[Airport]) -> tuple[datetime, dict
     if run is None:
         raise EcmwfError("系集機率 GRIB 裡沒有資料", "empty")
     return run, out
+
+
+# HD42：遠期關注只要 ≥ 15／25 m/s 兩個機率；窗到 360 小時
+LONGRANGE_PARAMS = ("10fgg15", "10fgg25")
+LONGRANGE_MAX_END_H = 360
+
+
+@dataclass
+class LongRangeData:
+    """HD42：最新系集機率在 `windows` 那幾個窗的值（icao → 有資料的窗）。"""
+
+    run: datetime
+    points: dict[str, list[ProbWindow]]
+    bytes_downloaded: int = 0
+    mirror: str | None = None
+
+
+def window_steps(run: datetime, windows: list[tuple[datetime, datetime]]) -> list[str]:
+    """`windows`（UTC 的 24 小時窗）對這一報的步長字串（`"120-144"`）；不在系集機率產品裡的窗
+    （開始不是 12 小時的倍數、超過 360 小時、在起報之前）跳過。"""
+    out = []
+    for start, end in windows:
+        a, b = hours_between(run, start), hours_between(run, end)
+        if (
+            a >= 0
+            and a == int(a)
+            and int(a) % ENS_STRIDE_H == 0
+            and b - a == ENS_WINDOW_H
+            and b <= LONGRANGE_MAX_END_H
+        ):
+            out.append(f"{int(a)}-{int(b)}")
+    return out
+
+
+def fetch_longrange(
+    airports: list[Airport],
+    windows: list[tuple[datetime, datetime]],
+    workdir: str | Path | None = None,
+) -> LongRangeData:
+    """HD42：最新出到 360 小時的系集機率（00／12Z），只抓 `windows` 的窗的 `10fgg15`／`10fgg25`。"""
+    clients = functools.cache(_client)
+    tmp = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="hongthai-ecmwf-lr-"))
+    tmp.mkdir(parents=True, exist_ok=True)
+    last = f"{LONGRANGE_MAX_END_H - ENS_WINDOW_H}-{LONGRANGE_MAX_END_H}"
+    run = _latest(clients, "ECMWF 遠期", stream="enfo", type="ep", param="10fgg25", step=last)
+    steps = window_steps(run, windows)
+    if not steps:
+        raise EcmwfError(f"ECMWF 系集 {run} 沒有涵蓋任何一個遠期的窗", "no_window")
+    size, mirror = _download(
+        clients,
+        tmp / "ens-longrange.grib2",
+        label="ECMWF 遠期",
+        date=run.strftime("%Y%m%d"),
+        time=run.hour,
+        stream="enfo",
+        type="ep",
+        param=list(LONGRANGE_PARAMS),
+        step=steps,
+    )
+    parsed_run, points = parse_ens(tmp / "ens-longrange.grib2", airports)
+    return LongRangeData(parsed_run, points, size, mirror)
 
 
 @functools.cache

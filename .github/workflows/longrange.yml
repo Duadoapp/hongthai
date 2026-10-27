@@ -1,0 +1,66 @@
+name: longrange
+
+# 遠期關注（HD42）：三套系集（歐洲 ECMWF ENS、美國 GEFS、Google WN2 經 Open-Meteo）第 6–15 天陣風達
+# 49／29 節的成員比例，每天一次（src/hongthai/longrange.py）。寫 data 分支的 longrange.json 與
+# history/longrange/<基準日>.json；GitHub Pages 由下一次 build（build.py 的 publish）複製發布——這裡不部署
+# Pages（Pages 一次部署就換掉整個站，這裡沒有 latest.json、og/、airports/）。不進 build（預算已經 1,910 秒）、
+# 不進 latest.json、不給 AI。
+#
+# 時間（UTC，實測各套 00Z 出齊的時間）：
+# - GEFS 00Z：31 個成員的 f360 約 06:20（2026-10-27 的 gep30 f360 06:18、f384 06:28）
+# - ECMWF 系集機率 00Z 到 360 小時（…-360h-enfo-ep）：約 08:01
+# - WN2 系集 00Z 在 Open-Meteo：約 11:00–11:30（metadata 的 last_run_availability_time：10/20 11:02、10/27 11:27）
+# 所以排 11:47（WN2 出齊後約 20 分鐘、避開整點）；GitHub 排程常晚 5–30 分鐘，跑完約 2 分鐘，趕得上 13:05 那次
+# build 發布。晚到 13:05 之後就等 20:25 那次 build。Cloudflare Worker 不用改（只觸發 build、events）。
+# Open-Meteo 用量：一天這一次 326.4 次加權（README「遠期關注」），和 build 不在同一分鐘。
+on:
+  schedule:
+    - cron: "47 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write # 推 data 分支
+
+concurrency:
+  group: longrange
+  cancel-in-progress: false
+
+jobs:
+  longrange:
+    runs-on: ubuntu-24.04 # 同 build.yml：eccodes 與 Python 套件在 26.04 確認過再換
+    timeout-minutes: 30 # 三套的預算合計 1,320 秒（longrange.BUDGET_S）＋裝套件；2026-10-27 開發機實跑 90 秒
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 裝 eccodes
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libeccodes-dev
+
+      - name: 裝套件
+        run: pip install .
+
+      - name: 取出 data 分支（上一份 longrange.json 與陣風係數）
+        run: |
+          git fetch --depth=1 origin data:data
+          git worktree add data data
+
+      - name: 產生 longrange.json
+        id: longrange
+        continue-on-error: true
+        run: python -m hongthai.longrange --archive data
+
+      - name: 推 data 分支
+        if: always()
+        working-directory: data
+        # build.yml、events.yml 也會推 data 分支：先 rebase 到遠端最新的、失敗重試（tools/push_data.sh）
+        run: ../tools/push_data.sh longrange
+
+      - name: 流程失敗時標紅
+        if: steps.longrange.outcome != 'success'
+        run: |
+          echo "::error::python -m hongthai.longrange 失敗（三套都失敗或程式出錯；已改用上一份並標 stale，或沒有上一份）"
+          exit 1

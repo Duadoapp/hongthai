@@ -34,7 +34,8 @@
   `history/<YYYYMMDDTHHMM>Z.json`（`PAGES_HISTORY_DAYS`，H9；只放結果，不放原始快照與航班統計），
   以及每個機場一張分享預覽圖 `og/<iata 小寫>.png`（HD1，`og.py`；每報重畫，不進 `data` 分支）、
   機場頁的 3 小時時間軸 `airports/<iata 小寫>.json`（HD35，`airport_files`；只放這一報，不進
-  `data` 分支）與颱風地圖 `typhoons.json`（HD34，從 `--archive` 複製）
+  `data` 分支）、颱風地圖 `typhoons.json`（HD34，從 `--archive` 複製）與遠期關注 `longrange.json`
+  （HD42，`longrange.py` 每天寫進 `--archive`，這裡原樣複製；`latest.json` 不讀它、不變）
 
 失敗處理：單一來源失敗記在 `sources.<名稱>`，其他照出。整個流程失敗（例外沒接到）時不產生新的
 `latest.json`，改用上一份（先找 `--archive` 裡的，沒有就從 Pages 網址抓）重新發布，並回傳非 0。
@@ -121,6 +122,7 @@ from . import (
     events,
     flights_log,
     gustfactor,
+    longrange,
     og,
     tracks,
     typhoons,
@@ -1660,7 +1662,8 @@ def publish(
 
     檔名的時間就是那一份的 `generatedAt`，所以用檔名判斷、不用打開約 500 KB 的檔。發布目錄裡已經有、
     但超過天數的舊檔刪掉。`data` 分支（`--archive`）照舊全部保留（H9）。`--archive` 有
-    `typhoons.json`（HD34）就一起複製（整個流程失敗改發布上一份時也是）。
+    `typhoons.json`（HD34）、`longrange.json`（HD42，`longrange.yml` 寫的遠期關注）就一起複製
+    （整個流程失敗改發布上一份時也是）。
 
     HD35：`airport_docs`（`airport_files` 的結果）寫成 `airports/<iata 小寫>.json`（不縮排），只放
     這一報；這次沒有的機場檔（算不出來、改發布上一份時）刪掉，網頁退回 6 小時。不進 `history/`、
@@ -1671,6 +1674,8 @@ def publish(
         _dump(out / "latest.json", latest, compact=True)
     if (archive / typhoons.FILENAME).exists():  # HD34：只放最新一份
         shutil.copy2(archive / typhoons.FILENAME, out / typhoons.FILENAME)
+    if (archive / longrange.FILENAME).exists():  # HD42：`longrange.yml` 每天寫一次，這裡跟著發布
+        shutil.copy2(archive / longrange.FILENAME, out / longrange.FILENAME)
     docs = airport_docs or {}
     ap_out = out / AIRPORT_DIR
     ap_out.mkdir(parents=True, exist_ok=True)
