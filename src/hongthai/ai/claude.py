@@ -41,8 +41,8 @@ def make_client() -> anthropic.Anthropic:
 def evaluate(
     text: str, *, client: anthropic.Anthropic | None = None, timeout: float = TIMEOUT
 ) -> dict:
-    """一個機場的精簡文字 → `{"level", "comment", "usage"}`；失敗丟 `AiError`，這裡不重試
-    （快回的 `http_503`／`http_504` 由 `run.py` 重試一次，HD17、HD23）。"""
+    """一個機場的精簡文字 → `{"level", "comment", "sentences", "usage"}`；失敗丟 `AiError`，
+    這裡不重試（快回的 `http_503`／`http_504` 由 `run.py` 重試一次，HD17、HD23）。"""
     client = client or make_client()
     try:
         msg = client.with_options(timeout=timeout, max_retries=0).messages.create(

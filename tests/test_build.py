@@ -230,7 +230,8 @@ def fake_ai(level: str | None = "high", code: str | None = None, delay: float = 
         time.sleep(delay)
         if level is None:
             raise AiError(code or "bad_format")
-        return {"level": level, "comment": dict(AI_COMMENT)}
+        sentences = {lang: [{"text": c, "src": ["rule"]}] for lang, c in AI_COMMENT.items()}
+        return {"level": level, "comment": dict(AI_COMMENT), "sentences": sentences}
 
     return SimpleNamespace(make_client=object, evaluate=evaluate)
 
@@ -395,19 +396,26 @@ def test_ai_shape(latest):
             light = ai[key]
             statuses.add(light["status"])
             assert light["model"] == model
+            # HD40：三種燈都只多 `sentences`（`ok` 是逐句短評，其他是 null）
             if light["status"] == "ok":
-                assert set(light) == {"status", "level", "comment", "model"}
+                assert set(light) == {"status", "level", "comment", "model", "sentences"}
                 assert light["level"] in ("low", "medium", "high")
                 assert set(light["comment"]) == LANGS
+                assert set(light["sentences"]) == LANGS
+                for lang in LANGS:
+                    texts = [x["text"] for x in light["sentences"][lang]]
+                    assert light["comment"][lang] == (" " if lang == "en" else "").join(texts)
             elif light["status"] == "skipped":
-                assert set(light) == {"status", "level", "comment", "model"}
+                assert set(light) == {"status", "level", "comment", "model", "sentences"}
+                assert light["sentences"] is None
                 assert light["level"] == "low"
                 assert light["comment"]["zh-TW"] == "沒看到明顯風險"
                 assert set(light["comment"]) == LANGS
             else:
                 assert light["status"] == "error"
-                assert set(light) == {"status", "level", "comment", "model", "error"}
+                assert set(light) == {"status", "level", "comment", "model", "error", "sentences"}
                 assert light["level"] is None and light["comment"] is None
+                assert light["sentences"] is None
                 assert light["error"] in errors or light["error"].startswith("http_")
         both_error = all(ai[k]["status"] == "error" for k in ("claude", "gemini"))
         assert (ai["evaluatedAt"] is None) == both_error

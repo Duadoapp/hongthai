@@ -16,7 +16,7 @@ from types import SimpleNamespace
 import pytest
 from conftest import ROOT
 from google.genai import types as genai_types
-from test_ai import COMMENT, NOW, FakeAnthropic, FakeGenai, _resp, duel_doc
+from test_ai import COMMENT, NOW, FakeAnthropic, FakeGenai, _resp, duel_doc, ok_result
 
 from hongthai.ai import claude, config, gemini, prompt, usage
 from hongthai.ai import run as ai_run
@@ -174,7 +174,7 @@ def timed_model(delay: float, fail_first: bool = False):
             log.append((icao, t0, time.monotonic()))
         if fail_first and first:
             raise AiError("bad_format")
-        return {"level": "high", "comment": dict(COMMENT)}
+        return ok_result("high")
 
     return SimpleNamespace(make_client=object, evaluate=evaluate, log=log)
 
@@ -230,7 +230,7 @@ def usage_model(key: str, rows: list[dict | None], exc_at: int | None = None):
             e = AiError("bad_format", tag="not_json")
             e.usage = u
             raise e
-        return {"level": "high", "comment": dict(COMMENT), "usage": u}
+        return {**ok_result("high"), "usage": u}
 
     return SimpleNamespace(make_client=object, evaluate=evaluate)
 
