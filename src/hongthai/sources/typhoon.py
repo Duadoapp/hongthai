@@ -17,7 +17,10 @@
   `{"Radius": 公里, "QuadrantRadii": 四象限}`，沒有就沒這個鍵）
 - `ForecastData.Fix[]`：`InitialTime`、`ForecastHour`（預報時距，小時）、兩個座標、`Circle15ms`／
   `Circle25ms`（`{"Radius"}`）、`Radius70PercentProbability`（70% 機率圈半徑，公里）
-- 暴風半徑只取 `Radius`（整圈），四象限 `QuadrantRadii` 不轉；`-99` 當沒有（資料說明的寫法）
+- 暴風半徑 `radius15`／`radius25` 只取 `Radius`（整圈）；`-99` 當沒有（資料說明的寫法）。HD41 起
+  四象限 `QuadrantRadii`（`{"Radius": [{"value": 公里, "dir": "NE"…}]}`，實抓只有定位點有、
+  預報點沒有）另放 `radius15Quadrants`／`radius25Quadrants`（`[{"dir", "km"}]`，有才有這個鍵），
+  給「幾點進暴風圈」用（`stormentry.py`）；`radius15`／`radius25` 不變
 - 鍵名比對不分大小寫、忽略 `_` 與 `-`、`cwb` 當 `cwa`（`_get`）；HD34 照 XML 資料說明猜的 snake_case
   鍵名（`fix_time`、`coordinate`「經度,緯度」、`init_time`、`tau`、`circle_of_15ms`、
   `radius_of_70percent_probability`）留著當別名。只有一筆時可能不是 list（`_as_list`）。原始回應存
@@ -61,7 +64,9 @@
 預報點另有 `leadHours`、`probabilityRadius`（`{"km"[, "nm"]}` 或 null）、`stormWarning`
 （JMA 預報點的暴風警戒域，格式同 `radius25`；氣象署沒有，是 `[]`）。數值與單位照原文（氣象署
 只有公里、JMA 公里與海浬都是原文），**沒有換算**。JMA 的點多 `category`（原文的 `category.en`）
-與 `jmaShapes`；JMA 的過去路徑點 `time` 是 null、多 `stage`（`track` 的鍵）。
+與 `jmaShapes`；JMA 的過去路徑點 `time` 是 null、多 `stage`（`track` 的鍵）。氣象署的點有
+四象限半徑時另有 `radius15Quadrants`／`radius25Quadrants`（HD41，`[{"dir", "km"}]`，`dir` 是
+`NE`／`SE`／`SW`／`NW`）。
 """
 
 from __future__ import annotations
@@ -82,6 +87,7 @@ JMA_SPEC_URL = "https://www.jma.go.jp/bosai/typhoon/data/{tc}/specifications.jso
 JMA_FORECAST_URL = "https://www.jma.go.jp/bosai/typhoon/data/{tc}/forecast.json"
 JMA_PAGE = "https://www.jma.go.jp/bosai/map.html#contents=typhoon"
 MISSING = -99
+CWA_QUADS = ("NE", "SE", "SW", "NW")  # 氣象署 `QuadrantRadii` 的 `dir`
 # JMA 的方位（`area`）→ 代碼；`全域` 是整圈
 JMA_DIRS = {
     "全域": "all",
@@ -215,17 +221,38 @@ def _cwa_radius(fix: dict, *names: str) -> list[dict]:
     return [] if km is None else [{"dir": "all", "km": km}]
 
 
+def _cwa_quadrants(fix: dict, *names: str) -> list[dict]:
+    """四象限暴風半徑（`QuadrantRadii.Radius[]`，每筆 `{"value", "dir"}`，公里）→
+    `[{"dir": "NE", "km": …}, …]`（HD41）；`-99` 的那筆不放，沒有是 `[]`。"""
+    circle = _get(fix, *names)
+    quads = _get(_get(circle, "QuadrantRadii", "quadrant_radii"), "radius")
+    out = []
+    for q in _as_list(quads):
+        d = _text(_get(q, "dir")).upper()
+        km = _num(q)
+        if d in CWA_QUADS and km is not None:
+            out.append({"dir": d, "km": km})
+    return out
+
+
 def _cwa_point(fix: dict, t: datetime | None) -> dict | None:
     lat, lon = _cwa_coord(fix)
     if lat is None or lon is None:
         return None
-    return {
+    point = {
         "time": iso(t),
         "lat": lat,
         "lon": lon,
         "radius15": _cwa_radius(fix, "Circle15ms", "circle_of_15ms"),
         "radius25": _cwa_radius(fix, "Circle25ms", "circle_of_25ms"),
     }
+    for key, names in (
+        ("radius15Quadrants", ("Circle15ms", "circle_of_15ms")),
+        ("radius25Quadrants", ("Circle25ms", "circle_of_25ms")),
+    ):
+        if quads := _cwa_quadrants(fix, *names):
+            point[key] = quads
+    return point
 
 
 def parse_cwa(data: object) -> list[Storm]:

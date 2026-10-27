@@ -537,7 +537,7 @@ H10（2026-10-18）之後：
 - `src/hongthai/wn3report.py`：WeatherNext 3 的事件檔與補報（HD15，下面「事件保存」）、隱形旁觀（HD15b）
 - `src/hongthai/wn3private.py`：WeatherNext 3 的私人 bucket 與超過 121 小時的搬家（HD15b；只用 requests、google-auth）
 - `src/hongthai/typhoons.py`：颱風地圖 `typhoons.json`（HD34，下面「颱風地圖」）；兩個官方來源的抓取與解析在
-  `src/hongthai/sources/typhoon.py`
+  `src/hongthai/sources/typhoon.py`；「幾點進暴風圈」的推算在 `src/hongthai/stormentry.py`（HD41，下面「進暴風圈時間」）
 - `tools/report_29w.py`：颱風 29W 的驗證報告（HD22，下面「事件保存」）
 - `tools/ai_cost.py`：AI 對決的 token 用量、快取命中率與估計費用（HD26，下面「AI 對決」）
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
@@ -1091,10 +1091,12 @@ Duado HW14）：
 
 ## 颱風地圖（HD34）
 
-Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，HongThai 不自己算任何路徑或時間**——台灣附近用
-中央氣象署開放資料、境外用日本氣象廳（WMO 西北太平洋區域專責氣象中心），都標出處；台灣與境外機場都**不算「幾點進暴風圈」**（台灣《氣象法》
-第 18 條、日本《氣象業務法》）。網頁（Duado HW15）只在範圍內有颱風時出現：列表頁最上面一張、機場頁一張小圖。
-程式在 `src/hongthai/sources/typhoon.py`（抓取、解析）與 `src/hongthai/typhoons.py`（選哪一份、範圍、輸出）。
+Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，HongThai 不自己算任何路徑**——台灣附近用
+中央氣象署開放資料、境外用日本氣象廳（WMO 西北太平洋區域專責氣象中心），都標出處。~~台灣與境外機場都不算「幾點進暴風圈」~~
+→ **2026-10-27 改（HD41）**：51 個機場都依官方暴風圈預報推算進入／離開時間（`entries`，下面「進暴風圈時間」），
+**不是官方發布**。網頁（Duado HW15）只在範圍內有颱風時出現：列表頁最上面一張、機場頁一張小圖。
+程式在 `src/hongthai/sources/typhoon.py`（抓取、解析）、`src/hongthai/typhoons.py`（選哪一份、範圍、輸出）與
+`src/hongthai/stormentry.py`（進暴風圈時間）。
 
 - 每報抓（`build.py` 的來源 `cwaTyphoon`、`jmaTyphoon`，各自的時間預算 15、20 秒，失敗互不影響）：
   - 氣象署 `GET https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0034-005`（「颱風消息與警報-熱帶氣旋
@@ -1136,7 +1138,7 @@ Shawn 2026-10-23、2026-10-25 定案：**只轉載官方路徑與暴風圈，Hon
     TD（日本氣象廳還在追，預期再發展）與沒命名過的 TD 照舊顯示
 - **名稱**（HD34c、HD34d）：中文名先查颱風名稱對照表 `typhoon_names.json`（`data` 分支那份優先，沒有才用 `airports.json`
   旁邊的 repo 那份；查不到時當報抓三個機關的官方名單更新，下面「颱風名稱對照表」）
-- **原文照轉載**：不平滑、不內插、不延伸；數值與單位照原文（氣象署只有公里，JMA 公里與海浬都是原文，**沒有
+- **原文照轉載**（`storms`；`entries` 是另外推算的，下面「進暴風圈時間」）：不平滑、不內插、不延伸；數值與單位照原文（氣象署只有公里，JMA 公里與海浬都是原文，**沒有
   換算**）。唯一的相加是氣象署預報點的時間＝`InitialTime`＋`ForecastHour`（原文兩個欄位）。`issuedAt` 超過 12 小時就
   `stale: true`
 - 失敗只 log：兩個來源都失敗時沿用上一份的 `storms`（`stale` 重算、記 `reusedFrom`），沒有上一份就是沒有颱風；
@@ -1171,7 +1173,10 @@ HD34c 起那報日本氣象廳的薔琵已是 `LOW`，會從 `storms` 移到 `en
    "others": [{"source": "cwa", "id": "ty30", "issuedAt": "2026-10-25T06:00:00Z", …}], …}
  ],
  "outOfRange": [],
- "ended": []
+ "ended": [],
+ "entries": [{"iata": "GUM", "icao": "PGUM", "stormId": "2631", "source": "jma", "circle": "jma_storm_warning",
+              "enterAt": "2026-10-30T01:00:00Z", "exitAt": null, "now": false,
+              "issuedAt": "2026-10-25T10:10:00Z", "method": "linear_hourly"}]
 }
 ```
 
@@ -1191,7 +1196,9 @@ HD34c 起那報日本氣象廳的薔琵已是 `LOW`，會從 `storms` 移到 `en
   另有 `stage`（`preTyphoon`＝熱帶低氣壓階段、`typhoon`）
 - `now`／`forecast[]`：`radius15`／`radius25` 是七級（15 m/s）／十級（25 m/s）風暴風半徑（JMA 的強風域／
   暴風域），每筆 `{"dir", "km"[, "nm"][, "area"]}`，`dir` 是 `all` 或八方位（JMA 依方位給不同半徑，`area` 是
-  原文 `東`、`南西`、`全域`）；`forecast[]` 另有 `leadHours`、`probabilityRadius`（70% 機率圈，JMA 的予報円）、
+  原文 `東`、`南西`、`全域`）；氣象署的點有四象限半徑（`QuadrantRadii`，實抓只有定位點有）時另有
+  `radius15Quadrants`／`radius25Quadrants`（HD41，`[{"dir": "NE"|"SE"|"SW"|"NW", "km"}]`，`radius15`／`radius25`
+  照舊只放整圈）；`forecast[]` 另有 `leadHours`、`probabilityRadius`（70% 機率圈，JMA 的予報円）、
   `stormWarning`（JMA 預報點的**暴風警戒域**，格式同 `radius25`；氣象署是 `[]`）。JMA 的點另有 `category`
   （`TD`／`TS`／`STS`／`TY`／`LOW`，`LOW` 是溫帶低氣壓）與 `jmaShapes`（JMA `forecast.json` 那一點的
   `galeWarningArea`（偏心圓：`center` [緯, 經]、`radius` 公尺）、`stormWarningArea`、`probabilityCircle`，
@@ -1199,6 +1206,47 @@ HD34c 起那報日本氣象廳的薔琵已是 `LOW`，會從 `storms` 移到 `en
 - `stale`：`issuedAt` 超過 12 小時；`reusedFrom`：沿用上一份時那份的 `generatedAt`——兩個來源都失敗時在最上層，
   上一份是 `cwa`、這一報氣象署沒有這顆時在那一顆（連續沿用時是第一次沿用的那份）
 - `sources.cwa`／`jma`：這報兩個來源有沒有抓到（`error` 同 `latest.json` 的 `sources.cwaTyphoon`／`jmaTyphoon`）
+
+### 進暴風圈時間（HD41）
+
+Shawn 2026-10-27 16:52、18:34 定案（氣象署 10/27 書面回覆後，`docs/worklog/2026-10-27.md`）：**51 個機場都做**，
+依那顆颱風選用來源的**官方暴風圈預報推算**進入與離開的時間，放在 `typhoons.json` 的 `entries`。
+**這是 HongThai 依官方暴風圈預報推算的，不是官方發布**；氣象署回覆第 1 點（延伸詮釋可能涉及預報）所以推算方法
+刻意單純、可說明，不加任何自己的預測。網頁（Duado HW21）的句子寫明「依<來源>官方暴風圈預報推算」，境外機場
+（日本氣象廳那份）加註「非日本氣象廳發布」（例如「依日本氣象廳暴風警戒域預報推算（非日本氣象廳發布）」），
+旁邊附標語「以上言論僅提供學術討論之用，氣象預報應以氣象署為準」。程式在 `src/hongthai/stormentry.py`。
+
+- **來源**：和颱風地圖同一份（`storms[].source`，以颱風為單位、中途不換：台灣附近照氣象署、其他照日本氣象廳）；
+  `stale`（資料超過 12 小時）的不算，`ended` 的本來就不在 `storms`。兩個來源都失敗、沿用上一份 `storms` 時照
+  沿用的那筆算（`stale` 了就不算）
+- **圈**（`circle`）：
+  - 氣象署：`cwa_r15`（七級風暴風半徑 `Circle15ms`，15 m/s）、`cwa_r25`（十級風 `Circle25ms`，25 m/s），
+    實況點與預報點同一種圈；**不用** 70% 機率圈
+  - 日本氣象廳：`jma_storm_warning`（預報點的**暴風警戒域**＝暴風域 25 m/s 可能到達的範圍，原文已含預報誤差；
+    起點是實況點的暴風域，和 JMA 自己 `forecast.json` 的 `stormWarningArea` 一樣從實況暴風域接到各預報點的
+    暴風警戒域）、`jma_storm`（實況點的暴風域）、`jma_gale`（實況點的強風域，15 m/s）。預報點沒有暴風域與
+    強風域，所以 `jma_storm`／`jma_gale` 只看實況（只會有 `now`，不算進入時間）
+- **半徑**：原文有公里用公里，只有海浬的乘 1.852。方位：氣象署實況點的四象限半徑（`radius15Quadrants`／
+  `radius25Quadrants`）有就照機場在中心的哪個象限（`NE` 0–90 度…）用那個半徑，沒有（預報點、上一份沿用的
+  那筆）用整圈；日本氣象廳兩個相對的方位（`北`／`南`、`南西`／`北東`）是**偏心圓**（氣象廳的定義：直徑兩端
+  分別在兩個方位的距離上），圓心往大的那邊移（大－小）÷2、半徑（大＋小）÷2——2026-10-25～27 實抓的 9 報煙花
+  強風域，這樣算的圓心和 JMA `forecast.json` 的 `galeWarningArea` 都差 1 公里內（半徑差約 2 公里：JMA 用
+  海浬算、這裡照原文的公里）；`全域` 是整圈，其他看不懂的組合用最大的那個當整圈
+- **時間**：實況點＋預報點（官方的點）照時間排，取**第一段連續都有這種圈的點**（中間有一點沒有這種圈就到前一點
+  為止）。相鄰兩點之間，**圓心經緯度與每個方位的半徑照時間線性內插**，每個 UTC 整點檢查機場（`airports.json`
+  的座標）在不在圈內，距離用大圓距離。第一個在圈內的整點＝`enterAt`、之後第一個不在圈內的整點＝`exitAt`；
+  到最後一點還在圈內就沒有 `exitAt`。**不外插**：最後一個點之後、第一個點之前都不算
+- **實況點就在圈內** → `now: true`、`enterAt: null`（實況是那份官方資料的定位時間，不是 `generatedAt`；
+  氣象署的實況通常比 `generatedAt` 早幾個小時）
+- **欄位**（每筆，同一個機場、同一顆、同一種圈一筆；沒有進入的不寫；沒有颱風是 `[]`）：
+  `{"iata", "icao", "stormId", "source": "cwa"|"jma", "circle", "enterAt", "exitAt", "now", "issuedAt", "method"}`——
+  `stormId` 是 `storms[].id`；`enterAt`／`exitAt` 是 UTC 整點（ISO，可能是 null）；`issuedAt` 是那份官方資料的
+  發布時間（`storms[].issuedAt`）；`method` 目前只有 `linear_hourly`（上面的方法）。照 `storms`、`airports.json`、
+  圈的順序排
+- 實跑（`tests/test_stormentry.py` 的 `test_real_1306z`）：2026-10-25 13:06Z 那報，日本氣象廳煙花（TC2637）117 小時
+  那點的暴風警戒域（北緯 17.6、東經 147.4、650 公里）蓋到關島，`GUM` `jma_storm_warning` 10-30 01Z 進入、預報範圍
+  結束還在圈內；薔琵那報日本氣象廳已是 `LOW`（拿掉）。同一報氣象署那份的薔琵單獨算（日本氣象廳當作失敗）：七級風
+  在 10-26 00Z（18 小時那點，150 公里）蓋到鹿兒島，24 小時那點沒有七級風（變性為溫帶氣旋）→ 沒有離開時間
 
 ### 颱風名稱對照表（HD34c）
 
@@ -1991,8 +2039,8 @@ GitHub 自己的排程延遲太嚴重（2026-10-20～21 實測：build 13:05Z �
 | [WMO 惡劣天氣資訊中心 SWIC](https://severeweather.wmo.int/)（香港天文台代 WMO 經營；網頁用的 `json/wmo_all.json` 與 `v2/cap-alerts/<url>` 的 CAP 原文，**非正式介面**；HD29） | 中國氣象局（各級氣象台）、韓國氣象廳、菲律賓 PAGASA 的 CAP 警報（中國大陸 14 個、韓國 4 個、菲律賓 3 個機場） | [SWIC 使用須知](https://severeweather.wmo.int/note.html)：「The information is free for re-use by media or other websites. When doing so, it should be indicated that they are issued by the respective Tropical Cyclone RSMCs, TCWCs or NMHSs.」——可再使用，要註明由相應機關發布：**中國氣象局**（China Meteorological Administration，CAP 的發布台，例如溫州市氣象台）、**韓國氣象廳**（Korea Meteorological Administration）、**菲律賓大氣地球物理天文管理局 PAGASA**（Philippine Atmospheric, Geophysical and Astronomical Services Administration）；`warnings[].text` 結尾都標「經 WMO SWIC」。同一頁也寫：「If no warning is found on land on the SWIC map, it may be due to other reasons apart from no warning is in effect for that area.」——**SWIC 沒有不代表官方沒發**（警報沒有 CAP 格式或 feed 抓不到），網頁要寫清楚 |
 | [香港天文台開放數據](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf)（data.gov.hk） | 天氣警告摘要（熱帶氣旋信號；HD8 起加暴雨警告信號 `WRAIN`、雷暴警告 `WTS`，同一個請求） | [data.gov.hk 使用條款](https://data.gov.hk/tc/terms-and-conditions) |
 | [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-001` 颱風警報；HD8 起加 `W-C0033-001` 天氣特報；HD13 起加 `O-A0003-001` 氣象觀測站-10分鐘綜觀氣象資料） | 海上／陸上颱風警報與警戒區（台灣十個機場）；各縣市目前的天氣特報（只用大豪雨、超大豪雨、濃霧）；金門 467110、馬祖 467990 局屬站的能見度、天氣、風（當這兩個機場的 METAR） | [政府資料開放授權條款](https://data.gov.tw/license) |
-| [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-005` 颱風消息與警報-熱帶氣旋路徑；HD34） | 颱風地圖 `typhoons.json`：進過台灣附近（北緯 18–30、東經 112–130）的熱帶氣旋整個生命期的過去路徑、目前位置、預報點、70% 機率圈、七級與十級風暴風半徑。**只轉載、不計算**（不平滑、不內插、不延伸、不算進暴風圈的時間） | [政府資料開放授權條款](https://data.gov.tw/license)：出處標「資料來源：中央氣象署」並連到[颱風消息頁](https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html)（`typhoons.json` 的 `url`） |
-| [日本氣象廳（WMO 西北太平洋區域專責氣象中心）颱風資訊](https://www.jma.go.jp/bosai/map.html#contents=typhoon)（JMA 網頁用的 JSON `bosai/typhoon/data/targetTc.json`、`<代號>/specifications.json`、`<代號>/forecast.json`，**非正式介面**；HD34） | 颱風地圖 `typhoons.json`：從沒進過台灣附近的熱帶氣旋（境外）的過去路徑、目前位置、預報點、予報円、暴風警戒域、強風域、暴風域。**只轉載、不計算**；只把 JSON 改成 `typhoons.json` 的格式，數值與單位照原文 | [氣象廳網站利用規約](https://www.jma.go.jp/jma/kishou/info/coment.html)（公共データ利用規約第 1.0 版）：要寫出處，編輯、加工過的要另外註明，例如「出典：気象庁ホームページ（https://www.jma.go.jp/bosai/map.html#contents=typhoon）」＋「気象庁「台風情報」を加工して作成」；不能寫成像是氣象廳自己做的。同頁提醒《氣象業務法》第 17 條（預報業務許可）：轉載氣象廳發布的路徑與暴風圈，不另外做預報 |
+| [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)（`W-C0034-005` 颱風消息與警報-熱帶氣旋路徑；HD34） | 颱風地圖 `typhoons.json`：進過台灣附近（北緯 18–30、東經 112–130）的熱帶氣旋整個生命期的過去路徑、目前位置、預報點、70% 機率圈、七級與十級風暴風半徑。**只轉載、不計算**（不平滑、不內插、不延伸）；HD41 起另依七級與十級風暴風半徑**推算**機場的進入／離開時間（`entries`，標明「依中央氣象署官方暴風圈預報推算」，不是氣象署發布） | [政府資料開放授權條款](https://data.gov.tw/license)：出處標「資料來源：中央氣象署」並連到[颱風消息頁](https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html)（`typhoons.json` 的 `url`） |
+| [日本氣象廳（WMO 西北太平洋區域專責氣象中心）颱風資訊](https://www.jma.go.jp/bosai/map.html#contents=typhoon)（JMA 網頁用的 JSON `bosai/typhoon/data/targetTc.json`、`<代號>/specifications.json`、`<代號>/forecast.json`，**非正式介面**；HD34） | 颱風地圖 `typhoons.json`：從沒進過台灣附近的熱帶氣旋（境外）的過去路徑、目前位置、預報點、予報円、暴風警戒域、強風域、暴風域。**只轉載、不計算**；只把 JSON 改成 `typhoons.json` 的格式，數值與單位照原文；HD41 起另依暴風警戒域、暴風域、強風域**推算**機場的進入／離開時間（`entries`，加註「非日本氣象廳發布」，屬「加工」） | [氣象廳網站利用規約](https://www.jma.go.jp/jma/kishou/info/coment.html)（公共データ利用規約第 1.0 版）：要寫出處，編輯、加工過的要另外註明，例如「出典：気象庁ホームページ（https://www.jma.go.jp/bosai/map.html#contents=typhoon）」＋「気象庁「台風情報」を加工して作成」；不能寫成像是氣象廳自己做的。同頁提醒《氣象業務法》第 17 條（預報業務許可）：轉載氣象廳發布的路徑與暴風圈，不另外做預報 |
 | [澳門地球物理氣象局 XML](https://xml.smg.gov.mo/)（`c_typhoon.xml`／`e_typhoon.xml`；data.gov.mo 資料集[「熱帶氣旋信號」](https://data.gov.mo/Detail?id=15044781-1752-4f98-b87e-508208d70408)） | 熱帶氣旋信號 | [澳門政府數據開放平台使用條款](https://data.gov.mo/)：免費使用與再發布，須註明「澳門特別行政區政府數據開放平台」與取得日期 |
 | [香港機管局航班資訊](https://data.gov.hk/tc-data/dataset/aahk-team1-flight-info)（data.gov.hk） | 算每 6 小時格的取消／延誤統計（不存原始資料） | data.gov.hk 使用條款 |
 | [桃園國際機場即時航班](https://data.gov.tw/dataset/26194)（data.gov.tw） | 算每 6 小時格的取消／延誤統計（不存原始資料） | 政府資料開放授權條款 |
