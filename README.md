@@ -126,17 +126,27 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
   回補（HD33a）比過準確度後再決定投票或加權，**不照解析度加權**。某個模式單位不對或整欄沒有只丟掉它（那幾筆
   全 `null`、`sources.openmeteo.modelError`）；模式名失效（整個預報請求回 400）時只帶 ICON、JMA 再請求一次，
   兩票照投。不沿用舊資料（同 ICON／JMA）
-- **WeatherNext 3**（HD15，`wn3`，`src/hongthai/sources/wn3.py`）：**預設不在 `latest.json`**——Google 的即時
-  資料條款不准公開未修改的數字（下面「資料來源與授權」），2026-10-26 核准後照比較嚴的讀法（看有效時間）
-  `WN3_MODE` 預設 **`private`（隱形旁觀，HD15b）**：每報抓最新的主報、同一套規則算每格等級，整份只寫進私人
-  bucket（`gs://<GOOGLE_CLOUD_PROJECT>-wn3-private/observe/<起報>.json`，`src/hongthai/wn3private.py`），
-  `latest.json` 只有 `sources.wn3` 的中繼資料、不投票；起報超過 121 小時（任何讀法下都是 CC BY 4.0）每天搬進
-  `data` 分支的 `history/wn3/`。這一報有查到時，另外把**只有等級**的檔上傳 Cloudflare R2（HD15c，下面「WeatherNext 3
-  旁觀等級（R2）」），給 Duado 的轉送程式依訪客國家轉給網頁；`latest.json`、`data` 分支、Pages 都沒有這些等級。`report-only`（HD15b 前的預設）只在事件期間抓 5 天前那一報寫
-  `history/events/<id>/wn3/` 與路徑檔。Google 書面同意公開顯示後才切 `observe`：每報抓最新一報，接在 `wn2-ens` 後面成為第 9 筆，**`voting` 預設
-  `false`（旁觀）**，29W 凍結解除後再設 `WN3_VOTING=1` 投票。數字是逐時的 64 成員**中位數（p50）**10 米風，
-  沒有陣風 → 同 JMA GSM 用平均風 × G 估算；雨量照投；沒有降水型態（不投雪）與能見度。兩個開關都是環境變數
-  （Actions 的 repo Variables `WN3_MODE`、`WN3_VOTING`），預設值在 `src/hongthai/config.py`
+- **WeatherNext 3**（HD15，`wn3`，`src/hongthai/sources/wn3.py`）：Google 的即時資料條款不准公開未修改的
+  數字（下面「資料來源與授權」），多模式綜合成的衍生等級可以（附出處＋實驗性聲明，2026-10-28 Google 第三封回信）。
+  `WN3_MODE` 預設 **`vote`（HD43，2026-10-28 Shawn 定案）**：WN3 **投一票**、只算進綜合燈號——
+  - 每報照 `private` 抓最新的主報、整份（含數值與等級）寫進私人 bucket（`observe/<起報>.json`，內部檢視頁讀這份），
+    另外把逐時數字存 `points/<起報>.json`；同一報之後的 build 從 `points/` 讀、不再查 BigQuery；最新一報還查不到時
+    用私人 bucket 裡前一報的（`sources.wn3.stored: "previous"`、`latestError`）
+  - 接在 HD33b 的三個旁觀模式後面（第 12 筆）；數字是逐時的 64 成員**中位數（p50）**10 米風，沒有陣風 → 同 JMA
+    GSM 用平均風 × G 估算；雨量照投；沒有降水型態（不投雪）與能見度
+  - **日本、南韓的 15 個機場**（`airports.json` 的 `region` 是 `okinawa`、`japan`、`korea`，
+    `config.WN3_EXCLUDED_REGIONS`）投票與 AI 都**不含** WN3，`models[]` 也沒有它那筆
+  - `latest.json`、機場頁、`data` 分支、Pages、分享圖都**沒有** WN3 的數值與它自己的等級：每格 `models[]` 那筆只有
+    `{"id": "wn3", "valuesHidden": true}`；`model.vote` 的票數照實算（含 WN3，推得出它投了什麼可以接受，門檻照舊
+    公開）。build 記憶體裡那筆是完整的（投票、模式沿用的重算、3 小時格、AI 都用），寫出去之前才換掉
+    （`build.hide_wn3`、`assess.public_slots`）
+  - AI 拿得到 WN3（「多模式綜合」那段，`ai/prompt.py`），但不准寫出數值、不准歸因（程式檢查＋重生，下面「AI 對決」）
+  - 起報超過 121 小時（任何讀法下都是 CC BY 4.0）照舊每天搬進 `data` 分支的 `history/wn3/`
+  `WN3_VOTING=0`：照樣藏值、只旁觀。`private`（HD15b）：只寫私人 bucket、`latest.json` 只有 `sources.wn3` 的
+  中繼資料、不投票。`report-only`：只在事件期間抓 5 天前那一報寫 `history/events/<id>/wn3/` 與路徑檔。`observe`
+  會**公開數值**，要 Google 書面同意才能切（目前不能用）。HD15c 的 R2 旁觀等級 HD43 拿掉了。兩個開關都是環境變數
+  （Actions 的 repo Variables `WN3_MODE`、`WN3_VOTING`），預設值在 `src/hongthai/config.py`；**repo Variable
+  `WN3_MODE` 要沒設或設 `vote`**
 - **Open-Meteo 失敗或逾時**：這一報沒有這三票（三筆全 `null`、不算分母，其他照 5 票算），`sources.openmeteo.ok:
   false`＋`error`，整報照出；**也不沿用舊資料**（和 `ecmwf`／`gfs`／`aifs`／`aigfs` 的沿用不同：不想把 24 小時前
   的 WeatherNext 2 當今天的票）
@@ -275,8 +285,9 @@ Shawn 2026-10-19 定案、**先求能跑**，門檻累積一個月紀錄再調�
   自動接前一報；JMA GSM 的逐時值是 Open-Meteo 從 3／6 小時內插的
 - **WeatherNext 3 核准前每報 `ok: false`**（HD15）：allowlist（2026-10-20 19:04 送出、5–7 個工作天）沒下來前，
   BigQuery 與 GCS 都會拒絕（`sources.wn3.error` 是 `http_403`，沒設服務帳號是 `no_credentials`），這是預期的；
-  `report-only` 只在 5 天前那一報落在事件期間時才跑，其他時候 `sources` 沒有 `wn3`。`private`（預設，HD15b）
-  每報都跑：私人 bucket 查不了或寫不進去是 `gcs_http_<狀態碼>`，整報照出
+  `report-only` 只在 5 天前那一報落在事件期間時才跑，其他時候 `sources` 沒有 `wn3`。`vote`（預設，HD43）、
+  `private`（HD15b）每報都跑：私人 bucket 查不了或寫不進去是 `gcs_http_<狀態碼>`，整報照出（`vote` 時這一報
+  沒有 WN3 那票）
 - **WeatherNext 3 的 BigQuery 掃描量未知**（HD15）：文件只說表依 `init_time`「每日」分割、沒寫叢集欄位。一天
   一個分割有 24 報（4 個主報 360 小時、20 個中間報 48 小時），**沒有叢集時一個 `forecast` 欄位一天約 124 GB**
   （648 萬格 × 2,400 個時間 × 8 bytes），我們選 7 個欄位加 `hours` 就近 1 TB。所以每個查詢都設
@@ -430,7 +441,7 @@ H10（2026-10-18）之後：
 | aifs（ECMWF AIFS Single，HD14；鏡像同 ecmwf） | 180 | 55（2026-10-20，66 MB，從 ECMWF 入口；AWS 回 503） |
 | aigfs（NOAA AIGFS，HD14；只有 AWS） | 120 | 38（2026-10-20，51 MB） |
 | openmeteo（ICON、JMA GSM、WeatherNext 2 系集，HD16；HD33b 的三個旁觀模式併在預報那個請求；兩個請求、各 60 秒逾時、不重試） | 90 | 約 2–3（2026-10-20 雲端開發機，預報 632 KB／1.0 秒、系集 3 個變數時 1.6 MB／1.2 秒；只抓風速約 560 KB）。HD33b 後（2026-10-25 00:08Z 實抓）預報 1.4 MB、系集 0.56 MB，連 6 個 metadata 共 3.9 秒；旁觀模式的 metadata 在 60 秒後就不問（`runError` 記 `skipped`） |
-| wn3（Google WeatherNext 3，HD15；BigQuery 一個查詢，失敗退 GCS Zarr；事件期間加讀海平面氣壓。HD15b `private`：私人 bucket 查兩次、寫一次，同一報已經有就不查 BigQuery；排在算完 G 之後。HD15c：有查到時再傳 51 個等級檔到 R2，每個約 3 KB、15 秒逾時，一個失敗就停） | 120 | 還沒核准、沒實測（核准前幾秒就 `http_403`） |
+| wn3（Google WeatherNext 3，HD15；BigQuery 一個查詢，失敗退 GCS Zarr；事件期間加讀海平面氣壓。HD15b `private`：私人 bucket 查兩次、寫一次，同一報已經有就不查 BigQuery；排在算完 G 之後。HD43 `vote`：同 `private`，再寫一個逐時檔 `points/`（51 個機場約 0.6 MB）；同一報已經有就讀它（約 0.6 MB、30 秒逾時）不查 BigQuery） | 120 | 還沒核准、沒實測（核准前幾秒就 `http_403`） |
 | taf（含 METAR） | 45 | 幾秒 |
 | hko、smg | 各 30 | 幾秒 |
 | cwa | 45 | 幾秒 |
@@ -537,9 +548,9 @@ H10（2026-10-18）之後：
   不動 repo 根目錄；`npm test` 測 cron → workflow 的對照（CI 只在 `cloudflare/` 有變動時跑）
 - `src/hongthai/tracks.py`：颱風路徑抽取（HD21）：ECMWF 路徑產品（BUFR）與從海平面氣壓找中心
   （下面「事件保存」）；HD15 起找中心吃任何規則經緯網格（`grid_field`）
-- `src/hongthai/wn3report.py`：WeatherNext 3 的事件檔與補報（HD15，下面「事件保存」）、隱形旁觀（HD15b）
+- `src/hongthai/wn3report.py`：WeatherNext 3 的事件檔與補報（HD15，下面「事件保存」）、隱形旁觀（HD15b）、
+  投票用的逐時檔與讀回（HD43 `observe_vote`）
 - `src/hongthai/wn3private.py`：WeatherNext 3 的私人 bucket 與超過 121 小時的搬家（HD15b；只用 requests、google-auth）
-- `src/hongthai/wn3levels.py`：WeatherNext 3 旁觀等級上傳 Cloudflare R2（HD15c；`requests`＋自己簽 SigV4）
 - `src/hongthai/typhoons.py`：颱風地圖 `typhoons.json`（HD34，下面「颱風地圖」）；兩個官方來源的抓取與解析在
   `src/hongthai/sources/typhoon.py`；「幾點進暴風圈」的推算在 `src/hongthai/stormentry.py`（HD41，下面「進暴風圈時間」）
 - `tools/report_29w.py`：颱風 29W 的驗證報告（HD22，下面「事件保存」）
@@ -808,16 +819,20 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
       | `icon` | 德國模式那一行 | 德國模式 | 德國模式 | 德国模式 | German model |
       | `jma` | 日本模式那一行 | 日本模式 | 日本模式 | 日本模式 | Japanese model |
       | `wn2-ens` | Google 的 AI 系集那一行 | Google 的 AI 系集 | Google 的 AI 系集 | Google 的 AI 集合预报 | Google AI ensemble |
+      | `multi` | 「多模式綜合」那一段（HD43 `vote`：WN3，日韓以外的機場才有） | 多模式綜合 | 多模式綜合 | 多模式综合 | Multi-model blend |
       | `vote` | 每格模式層的等級、投票結果、歐洲與美國模式是否一致 | 模式投票 | 模式投票 | 模式投票 | Model vote |
       | `rule` | 每格的等級、依據、`causes`、落差，與規則燈門檻說明 | 規則燈 | 規則燈 | 规则灯 | Rule-based light |
 
       模式代號就是 `models[].id`，只有給 AI 看的模式（`Model.ai`）才有；`WN3_MODE=observe` 時多 `wn3`
-      （Google 的新一代 AI 系集／Google next-generation AI ensemble）。HD33b 的三個旁觀模式不給 AI，沒有代號
+      （Google 的新一代 AI 系集／Google next-generation AI ensemble）。HD33b 的三個旁觀模式不給 AI，沒有代號。
+      `multi`（HD43）只在 `WN3_MODE=vote` 時有；`vote` 時 `wn3` 不是代號（不寫模式名）
 - `sources.ai`：`{ "ok": <兩個模型至少一個有成功>, "seconds", "calls": { "claude": n, "gemini": n },
   "errors": { "<模型>": "<代碼>" }, "geminiLocation" }`；`calls` 是這一報的呼叫次數，`errors` 只列有失敗的模型（那個模型
   最多的代碼，`run_cap` 不算），沒有就不出現。`geminiLocation`（字串，HD23）是這一報 Gemini 最後送出的請求用的
   Vertex 區域（`global`，切到備援時是 `us` 之類），Gemini 一次都沒送（沒金鑰、沒有要評的機場）時不出現；燈的欄位不動。這一報沒有要評的機場、金鑰也都在時 `ok: true`。
-  `ok: false` 時照其他來源的慣例多一個 `error`（`"claude:no_api_key,gemini:no_api_key"` 這種）
+  `ok: false` 時照其他來源的慣例多一個 `error`（`"claude:no_api_key,gemini:no_api_key"` 這種）。
+  HD43：這一報有機場拿到「多模式綜合」那段時多 `wn3Retries`、`wn3Dropped`（`{"claude": n, "gemini": n}`，
+  因 WN3 違規重生的次數、其中拿掉那段重生的次數；只有次數，不記違規內容）
 
 HD8（2026-10-19，第五階段新天氣種類；欄位名定案，Shawn 轉給 Duado 寫進 spec 第 16 節；`schema` 維持 `1`，
 既有欄位不改名、不改型別、不拿掉）：
@@ -1878,6 +1893,30 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
     沒有訊息
   - log 那行照樣印，訊息接在代碼後面：`AI claude RCTP 失敗：http_400: invalid_request_error: Your credit balance
     is too low ...［http_400:-:-］（0.4 秒）`
+- **WeatherNext 3：多模式綜合與洩漏檢查**（HD43，2026-10-28 Shawn 定案）：
+  - `WN3_MODE=vote` 時，日本、南韓以外、這一報有 WN3 資料的機場，精簡文字最後多一段 `[multi] 多模式綜合`
+    （`prompt.multi_lines`）：每格一行平均風、估算陣風、側風、6 小時雨量、等級——**這是送給 AI 的內部輸入**，
+    不寫模式名（不出現 WeatherNext、WN3、Google 的新一代 AI）；那段的說明與系統提示第 10 條都寫明「只能影響整體
+    判斷，不能引用這段的任何數字、不能說是哪個模式說的；用到這段的句子 `src` 寫 `multi`」。投票句照 `model.vote`
+    （含 WN3 那票），規則說明多一句「另有一個模式也投一票」。WN3 不是一般的模式明細（`Model.ai=False`）
+  - **程式檢查**（不只靠提示詞）：格式通過後先查名字（`parse.check_wn3_names`，在一般用字檢查之前）：四語任一語
+    出現 `WeatherNext`／`Weather Next`／`WN3`（不分大小寫）或白話名（新一代 AI、next-generation AI）→ 違規；
+    再查數字（`parse.check_wn3`）：那段的數值四捨五入到整數，扣掉精簡文字其他段落出現過的所有整數（門檻、其他
+    模式、格的編號、日期時間……），剩下的是 **WN3 獨有的數字**（`prompt.wn3_numbers`）；每語每句的數字（全形先轉
+    半形）四捨五入後落在裡面 → 違規。和其他來源同值的數字不算
+  - 違規（`parse.Wn3Leak`，代碼 `bad_wording`、標記 `wn3/name`／`wn3/number`）→ **同一段文字重生一次**；再違規 →
+    **這個機場這一報拿掉那段重生**（`airport_text(..., wn3=False)`；這次 `src` 用 `multi` 是 `bad_format`）；第三次
+    照一般的流程（還是違規就是 `bad_wording`、`detail` 尾巴 `wn3/…`）。重生同 HD17 的重試：算一次呼叫、要有剩餘
+    預算；被丟掉那幾次的 token 數加進 `usage` 合計（費用照算）。沒有那段的機場（日韓、這一報沒有 WN3）照舊，名字
+    違規直接 `bad_wording`、不重生
+  - 紀錄：`sources.ai` 的 `wn3Retries`、`wn3Dropped` 只有次數；log 只印標記（`wn3/number`），不印違規的句子或數字；
+    戰績（`history/ai/`）照舊只存等級與格，**提示詞（含 WN3 數值）不存檔**
+  - 誤判：數字檢查只看「WN3 獨有」的整數，最常見的誤判是模型剛好寫了一個和 WN3 獨有值相同、但出自別處推算的數字
+    （例如自己加總）——規則本來就不准自己算，重生一次的代價可以接受；名字檢查的 `WN 3` 要前後不是英數字才算
+  - 成本：那段每個機場約 2,300 字（20 格；2026-10-28 用假資料量），約 1,800–2,300 token。每報最多 20 個機場、兩個
+    模型 → Claude 約 4.6 萬 token × US$4／百萬 ≈ **US$0.18**、Gemini 約 4.6 萬 × US$2（促銷，12/1 起 4）≈
+    **US$0.09**；一報合計約 US$0.27（一天 4 報約 US$1.1）。每次重生是整個機場再評一次（Claude 約 US$0.08、Gemini
+    約 US$0.04）
 - **模型參數**：Claude 用官方 `anthropic` SDK（Messages API），`max_tokens` 3000（HD6；HD5 是 1200）、
   `effort: "low"`；**不送 `temperature`**——Opus 5.5 不接受取樣參數（送了回 400），思考也關不掉、思考的
   token 算在 `max_tokens` 裡，所以用 `low` 留空間給四語短評；沒開 server-side fallback（換別的模型回答，
@@ -2052,21 +2091,38 @@ Duado 用 Pages Function 轉送這張圖當分享預覽卡，`latest.json` 沒�
 
 HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**；核准與條款確認前不用轉 Duado）：
 
-- **`WN3_MODE=private`（預設，HD15b，2026-10-26）**：`latest.json` 唯一的變化是每報多 `sources.wn3`，**只有
+- **`WN3_MODE=vote`（預設，HD43，2026-10-28；網頁是 Duado HW24）**：只加欄位、不改名——
+  - 頂層 `models[]` 第 12 筆（接在 `cma` 後面）`{"id": "wn3", "name": {四語都是 "Google WeatherNext 3"},
+    "voting": true, "votesOnlyHigh": false, "valuesHidden": true}`；**`valuesHidden` 是新欄位**（只有這筆有）：
+    網頁那列不顯示數字、也不顯示它自己的高低。`WN3_VOTING=0` 時 `voting: false`
+  - 頂層 `runs.wn3`：這一報用的起報（ISO，WN3 這一報沒有資料是 `null`）
+  - `slots[].model.models[]` 的 `wn3` 那筆**只有** `{"id": "wn3", "valuesHidden": true}`：沒有任何數字、沒有
+    `run`、`levels`、`level`。**日本、南韓的 15 個機場**（`region` 是 `okinawa`、`japan`、`korea`）**沒有這筆**
+  - `model.vote` 的票數照實算（含 WN3；日韓不含）；`model.level`、`level`、`causes`、`gap`、一致性只看綜合結果
+  - 機場頁 `airports/<iata>.json` 的 `slots3h`、`slots6h` 同上
+  - `sources.wn3`：`{"ok", "seconds", "mode": "vote", "run", "stored": "written"|"exists"|"previous",
+    "attribution"}`，這一報有查（`written`）時再加 `via`、`bytes`、`estimateBytes`、`bytesProcessed`、
+    `bytesBilled`（同下）；`previous`（最新一報還查不到、用私人 bucket 裡前一報的）時多 `latestError`（錯誤碼）。
+    `attribution` 是 GDM 即時資料條款 Section 4(b) 的固定標註原文，前面加取得管道：
+    `"Google WeatherNext 3 via Google BigQuery. © 2024-6 Google LLC, whose machine learning models were used to
+    create the experimental data made available under the following licence terms
+    https://storage.googleapis.com/weathernext-public/terms-of-use.pdf. This data is intended for experimental
+    modelling only and is not intended, validated, or approved for real world use."`（`zarr` 時是 Google Cloud
+    Storage）。失敗時 `ok: false`、`error`、`mode`（那一報沒有 WN3 的票）
+  - 歷史快照（`history/<時間>.json`）就是 `latest.json`，一樣乾淨；原始回應不存
+- **`WN3_MODE=private`（HD15b，2026-10-26）**：`latest.json` 唯一的變化是每報多 `sources.wn3`，**只有
   中繼資料**：`{"ok", "seconds", "mode": "private", "run", "stored": "written"|"exists"}`，這一報有查 BigQuery
   （`stored: "written"`）時再加 `via`、`bytes`、`estimateBytes`、`bytesProcessed`、`bytesBilled`（同下）；同一個
   起報已經在私人 bucket 裡是 `stored: "exists"`（沒查）。失敗時 `ok: false`、`error`（`no_credentials`、
   `http_403`、`gcs_http_403`、`bq_bytes_limit` 之類）、`mode`。**不放任何預報值或等級**；頂層 `models`、
-  `runs`、每格 `models[]` 都沒有 `wn3`。`history/timing/` 的 wn3 那行多 `stored`。HD15c 起，這一報有查
-  （`via` 有值）時再加 `r2`（`ok`、`not_configured`（沒設 R2 的 secrets）或錯誤碼 `r2_http_<狀態碼>`／
-  `r2_<例外名稱>`）、`r2Files`（傳了幾個檔，正常是 51）、`r2Bytes`；`stored: "exists"`（沒查）時沒有這三個
-  （沒上傳）。timing 那行多 `r2`、`r2Files`
+  `runs`、每格 `models[]` 都沒有 `wn3`。`history/timing/` 的 wn3 那行多 `stored`（`vote` 也是）。HD15c 的
+  `r2`、`r2Files`、`r2Bytes` HD43 拿掉了
 - **`WN3_MODE=report-only`**：`latest.json` 唯一的變化是事件期間、5 天前那一報落在期間內的報多
   `sources.wn3`：`{"ok", "seconds", "mode": "report-only", "run", "via": "bigquery"|"zarr", "bytes",
   "estimateBytes", "bytesProcessed", "bytesBilled"}`，BigQuery 失敗退到 Zarr 時多 `bqError`、氣壓讀不到時
   多 `mslpError`；失敗時 `ok: false`、`error`（核准前 `http_403`）、`mode`。頂層 `models`、`runs`、每格
   `models[]` 都**沒有** `wn3`
-- **`WN3_MODE=observe`**（Google 同意公開顯示後才切；欄位到時再經 Shawn 轉 Duado）：
+- **`WN3_MODE=observe`**（**公開數值**，Google 書面同意公開數值後才能切；欄位到時再經 Shawn 轉 Duado）：
   - 頂層 `models[]` 多第 9 筆 `{"id": "wn3", "name": {四語都是 "Google WeatherNext 3"}, "voting": false}`
     （`WN3_VOTING=1` 時 `true`）
   - `slots[].model.models[]` 每格多 `wn3` 那筆：`windKt`（p50 平均風，格內最大）、`gustKt`（估算，
@@ -2075,36 +2131,14 @@ HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**�
     `windKtP90`**（節，一位小數；格內最大的 p90 平均風，不乘 G；只有這筆有這個鍵）
   - 頂層 `runs.wn3`（ISO 或 `null`）；`sources.wn3` 同上（`mode: "observe"`）
   - 旁觀時 `vote.total` 不含它；失敗那一報那筆全是 `null`（不沿用）
-- 大小：`observe` 時每格多一筆約 280 bytes × 1,020 格 ≈ 多 290 KB；`report-only`、`private` 不變
+- 大小：`observe` 時每格多一筆約 280 bytes × 1,020 格 ≈ 多 290 KB；`vote` 每格多 33 bytes × 720 格 ≈ 多 24 KB；
+  `report-only`、`private` 不變
 
-#### WeatherNext 3 旁觀等級（R2，HD15c，2026-10-28 定案）
+#### WeatherNext 3 旁觀等級（R2，HD15c）——HD43 停用
 
-`private` 那一報有查到資料（`sources.wn3.via` 有值）之後，`src/hongthai/wn3levels.py` 把每個機場一份**只有
-等級**的檔上傳 Cloudflare R2（bucket 是 Variable `R2_BUCKET`，預設 `hongthai-wn3`），物件 `wn3/<iata 小寫>.json`
-（51 個都傳，日本、南韓的機場照樣有；覆寫，只放最新一份）：
-
-```json
-{"schema": 1, "generatedAt": "2026-10-28T08:25:00Z", "run": "2026-10-28T00:00:00Z", "model": "wn3",
- "attribution": "Google WeatherNext 3 via Google Cloud Storage. © 2024-6 Google LLC, whose machine learning models were used to create the experimental data made available under the following licence terms https://storage.googleapis.com/weathernext-public/terms-of-use.pdf. This data is intended for experimental modelling only and is not intended, validated, or approved for real world use.",
- "slots": [{"from": "2026-10-28T06:00:00Z", "to": "2026-10-28T12:00:00Z", "level": "low",
-            "levels": {"wind": "low", "rain": "low", "snow": null, "fog": null}}, …]}
-```
-
-- 格子同 `latest.json` 的 20 格（`generatedAt` 那一報的 `slot_bounds`），等級的算法同事件檔那筆（`levels`、
-  `level`；旁觀不判霧、沒有降水型態所以 `snow` 一律 `null`，`slots` 超出資料的格是 `null`）。所以這一報查詢的
-  終點是 `latest.json` 最後一格的結束（起報後 126 或 132 小時），私人 bucket 那份照樣是起報起 120 小時
-- **不放任何數字**（`windKt`、`gustKt`、雨量、`p49Kt` 都沒有；測試擋：除了 `schema` 沒有數字）。`attribution` 是
-  Section 4(b) 的固定標註原文，前面加實際的取得管道（`via` 是 `bigquery` → Google BigQuery、`zarr` → Google
-  Cloud Storage）
-- 不上傳的情況：WN3 這一報失敗、私人 bucket 已經有這一報（`stored: "exists"`、沒查）——R2 留著上一份，網頁由
-  `generatedAt` 判斷舊不舊。R2 失敗只記錯誤碼（`sources.wn3.r2`）、一個檔失敗就停（已經傳的留著），整報照出
-- 上傳：R2 的 S3 相容 API（`PUT https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com/<bucket>/wn3/<iata>.json`），
-  用現有的 `requests` 自己簽 AWS Signature Version 4（`region` 是 `auto`、`service` 是 `s3`、標頭簽
-  `content-type`、`host`、`x-amz-content-sha256`、`x-amz-date`），沒有加套件；測試用 AWS 文件的簽章範例驗證
-- **日誌只印上傳幾個檔、bytes、錯誤碼**，不印等級（日誌是公開的，會在限制國家被看到）
-- 擋限制國家的**訪客**是 Duado 的轉送程式（`duado.app/hongthai/wn3/<iata>.json` 看 `request.cf.country`，日本、
-  南韓、印尼、古巴、伊朗、北韓與烏克蘭克里米亞、頓內茨克、盧甘斯克回 `{"available": false}`，回應不共用快取），
-  不在這個 repo；網頁是 Duado HW23
+HD15c（2026-10-28 定案）把只有等級的檔上傳 Cloudflare R2、由 Duado 的轉送程式依訪客國家轉給網頁；同一天
+HD43 改成 WN3 投一票（上面 `vote`），**等級不再單獨公開**，R2 上傳（`wn3levels.py`）、`sources.wn3.r2*`、
+`build.yml` 的 `R2_*` 都拿掉了。`R2_*` secrets 沒設過就不用管；設過的可以刪。
 
 ## 發布設定（產品負責人要做的）
 
@@ -2119,16 +2153,12 @@ HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**�
      **Settings → Secrets and variables → Actions → Variables** 設 `WN3_BQ_TABLE`＝完整的
      `專案.資料集.weathernext_3_0_0_0p1deg`）
    - 服務帳號在那個專案要有 BigQuery Job User（跑查詢）；讀 GCS 統計 Zarr 要 allowlist 有含這個服務帳號
-   - 開關（Variables，不是 secret）：`WN3_MODE`（`private`／`report-only`／`observe`，沒設＝`private`；
-     **HD15b 起要讓它沒設或設 `private`**）、`WN3_VOTING`（`1` 投票，沒設＝旁觀）
-   - 隱形旁觀（HD15b）：私人 bucket **`<GOOGLE_CLOUD_PROJECT>-wn3-private`**（us-central1、公開存取封鎖），
+   - 開關（Variables，不是 secret）：`WN3_MODE`（`vote`／`private`／`report-only`／`observe`，沒設＝`vote`；
+     **HD43 起要讓它沒設或設 `vote`**——之前設成 `private` 的要刪掉或改掉，不然不投票）、`WN3_VOTING`
+     （`0` 只旁觀，沒設＝投票）
+   - 隱形旁觀（HD15b）與投票（HD43，另存 `points/<起報>.json`）：私人 bucket **`<GOOGLE_CLOUD_PROJECT>-wn3-private`**（us-central1、公開存取封鎖），
      服務帳號在這個 bucket 要有 Storage Object Admin（查、寫、列、讀）；名字不同時設 Variable
      `WN3_PRIVATE_BUCKET`。BigQuery 預算提醒 US$5／月、每日查詢上限 100 GiB
-   - 旁觀等級上傳 R2（HD15c）：Cloudflare → R2 建 bucket **`hongthai-wn3`**（不開公開存取、不綁自訂網域；
-     Duado 的轉送程式用 R2 binding 讀），再到 R2 → Manage API tokens 建一把 **Object Read & Write**、只限這個
-     bucket 的 token，新增三個 secret：`R2_ACCOUNT_ID`（Cloudflare 帳號 ID）、`R2_ACCESS_KEY_ID`、
-     `R2_SECRET_ACCESS_KEY`（token 的 S3 Access Key ID／Secret Access Key）。bucket 名字不同時設 Variable
-     `R2_BUCKET`。三個 secret 少一個就不上傳（`sources.wn3.r2` 是 `not_configured`），其他照跑
 5. TDX（HD32，事件保存的台灣機場航班；HD38 起 build 也用）：在 <https://tdx.transportdata.tw/> 註冊會員（基礎會員免費），
    【會員中心 > 資料服務 > API金鑰】取得 Client Id 與 Client Secret，新增兩個 secret：`TDX_CLIENT_ID`、
    `TDX_CLIENT_SECRET`。沒設時 `events` 與 `build` 只是跳過 TDX，其他照跑（`events.yml`、`build.yml` 都讀這兩個）
@@ -2359,7 +2389,13 @@ HD15 WeatherNext 3（2026-10-20 查，**還沒核准、沒有實抓**；細節�
 - **2026-10-28 Google 回信後（HD15c）**：只有等級的檔（看不出原始數字）照 Section 3 可以公開，附 Section 4(b) 的
   標註與取得管道；不能在限制國家提供——等級不進 `latest.json`（github.io 在限制國家打得開），改傳 Cloudflare R2，
   由 Duado 的轉送程式依訪客國家擋。Google 回信說日本、南韓不給書面同意；Shawn 定案 51 個機場都傳（條款限制的是
-  在限制國家提供、不是預報地點），只擋限制國家的訪客（上面「WeatherNext 3 旁觀等級（R2）」）
+  在限制國家提供、不是預報地點），只擋限制國家的訪客（上面「WeatherNext 3 旁觀等級（R2）」；HD43 停用）
+- **2026-10-28 Google 第三封回信後（HD43，Shawn 20:35 定案、20:43 確認五題）**：界線看有效時間；不准公開未修改的
+  WN3 數值，多模式綜合成的衍生等級可以（附出處＋實驗性聲明）；日韓不給豁免。所以 WN3 **投一票**、只進綜合燈號
+  （`vote`），任何公開的地方（`latest.json`、`data` 分支、Pages、分享圖、Actions 日誌、PR、測試 fixture 的真實數值）
+  都沒有 WN3 未來時段的數值，也不單獨公開它自己的高低；日本、南韓 15 個機場投票與 AI 都不含 WN3；AI（Claude、
+  Gemini）拿得到但不准寫出數值或歸因（程式檢查＋重生）；`sources.wn3.attribution` 附 Section 4(b) 原文與取得管道；
+  過去時段（有效時間早於現在 − 1 小時）照 CC BY 4.0（HD15b 的補抓與 121 小時後搬家照舊）
 - 另外的免責（disclaimers 頁）：「not official weather forecasts, watches, or warnings」；Google Cloud 上的模型
   另有「must not … develop a similar or competing product」（指模型與輸出，HongThai 只取用預報值）
 

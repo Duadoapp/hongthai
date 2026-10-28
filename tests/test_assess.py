@@ -1188,6 +1188,7 @@ def test_models_entries_numbers_and_levels():
     assert list(by) == [
         *("ifs", "gfs", "ifs-ens", "aifs", "aigfs", "icon", "jma", "wn2-ens"),
         *("gem", "arpege", "cma"),  # HD33b：旁觀
+        "wn3",  # HD43：`vote`（預設）
     ]
     ifs, g, ens, ai, ag = (by[i] for i in ("ifs", "gfs", "ifs-ens", "aifs", "aigfs"))
     assert (ifs["gustKt"], ifs["gustEstimated"], ifs["rain6hMm"], ifs["ptype"]) == (
@@ -1279,6 +1280,7 @@ def test_models_present_when_sources_missing():
         "gem",  # HD33b：旁觀
         "arpege",
         "cma",
+        "wn3",  # HD43：`vote`（預設）
     ]
     assert all(e["level"] is None for e in s["model"]["models"])
     assert s["model"]["vote"]["level"] is None and s["model"]["vote"]["thin"] is True

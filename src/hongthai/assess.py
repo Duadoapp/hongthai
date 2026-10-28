@@ -145,10 +145,13 @@ Open-Meteo、`voting=False`；UKMO 是 CC BY-SA 4.0，不放）：數字與 `lev
 完全不受影響；不給 AI 短評（`ai_hidden`）。**旁觀模式不判霧**：等級只算風（陣風、側風）、雨、雪；
 CMA 的能見度照存 `visibilityM`，不進 `levels.fog`／`level`（2026-10-25 主對話定案）
 
-WeatherNext 3（HD15，`wn3`）：只有 `config.WN3_MODE` 是 `observe` 時才在 `MODELS` 裡（預設
-`report-only`，`latest.json` 沒有它）。數字是逐時的成員中位數（p50）10 米風，同 JMA GSM 估算陣風
-（`wn3_for_slot`），雨量照投；沒有降水型態（不投雪）、沒有能見度。那筆多 `windKtP90`（格內最大的
-p90 平均風，給報告看離散）。`voting` 預設 False（旁觀），環境變數 `WN3_VOTING=1` 才投
+WeatherNext 3（HD15，`wn3`）：`config.WN3_MODE` 是 `vote`（預設，HD43）或 `observe` 時才在
+`MODELS` 裡。數字是逐時的成員中位數（p50）10 米風，同 JMA GSM 估算陣風（`wn3_for_slot`），雨量照投；
+沒有降水型態（不投雪）、沒有能見度。那筆多 `windKtP90`（格內最大的 p90 平均風，給報告看離散）。
+HD43 `vote`：投一票（`WN3_VOTING`，預設投），build 記憶體裡那筆和其他模式一樣完整（投票、3 小時格、
+模式沿用的重算、AI 都用它），**寫出去之前**由 `public_slots` 換成只有 `{"id": "wn3",
+"valuesHidden": true}`；日本、南韓的機場（`config.WN3_EXCLUDED_REGIONS`）build 不給資料（等級全
+null、不算票），寫出去時整筆拿掉
 """
 
 from __future__ import annotations
@@ -160,7 +163,15 @@ from datetime import datetime, timedelta
 from math import radians, sin
 from statistics import median
 
-from .config import GUST_FACTOR_DEFAULT, MODELS, ConfirmedPeriod, Model, Runway, Thresholds
+from .config import (
+    GUST_FACTOR_DEFAULT,
+    MODELS,
+    ConfirmedPeriod,
+    Model,
+    Runway,
+    Thresholds,
+    wn3_allowed,
+)
 from .sources.aifs import AifsStep
 from .sources.aigfs import AigfsStep
 from .sources.ecmwf import EcmwfPoint, PrecipStep
@@ -213,7 +224,7 @@ SNOWY_PTYPES = frozenset({"snow", "wet_snow", "rain_snow"})
 MODEL_NUM_KEYS = ("gustKt", "crosswindKt", "rain6hMm", "ptype", "visibilityM")
 ONLY_HIGH = frozenset(m.id for m in MODELS if m.votes_only_high)
 ESTIMATED = frozenset(m.id for m in MODELS if m.gust_estimated)
-WN3_ID = "wn3"  # HD15：只有 `observe` 模式才在 `MODELS` 裡
+WN3_ID = "wn3"  # HD15：只有 `vote`、`observe` 模式才在 `MODELS` 裡
 ENS_ID = "ifs-ens"  # IFS 系集：機率從 `model.ec` 來（其他只投高的模式從自己那筆的 `p49Kt`，HD16）
 FREEZING_PTYPES = frozenset({"freezing_rain", "freezing_drizzle", "ice_pellets"})
 
@@ -862,6 +873,33 @@ def non_voting() -> frozenset[str]:
 def ai_hidden() -> frozenset[str]:
     """不給 AI 短評看的模式（`Model.ai=False`，HD33b 的三個旁觀模式）的 id；同 `non_voting`。"""
     return frozenset(m.id for m in MODELS if not m.ai)
+
+
+def values_hidden() -> frozenset[str]:
+    """公開的檔不放數值的模式（`Model.values_hidden`，HD43 的 WeatherNext 3）；同 `non_voting`。"""
+    return frozenset(m.id for m in MODELS if m.values_hidden)
+
+
+def public_entries(entries: Sequence[dict], region: str) -> list[dict]:
+    """`models[]` → 公開的樣子（HD43）：`values_hidden` 的模式那筆只留 `{"id", "valuesHidden":
+    true}`（沒有任何數字、`levels`、`level`、`run`）；WN3 在日本、南韓的機場整筆拿掉。"""
+    hidden = values_hidden()
+    out = []
+    for e in entries:
+        mid = e.get("id")
+        if mid == WN3_ID and not wn3_allowed(region):
+            continue
+        out.append({"id": mid, "valuesHidden": True} if mid in hidden else e)
+    return out
+
+
+def public_slots(slots: Sequence[dict], region: str) -> None:
+    """一個機場的格（6 小時或 3 小時）就地換成公開的 `models[]`（`public_entries`）；投票結果、
+    等級等其他欄位不動。"""
+    for s in slots:
+        m = s.get("model")
+        if isinstance(m, dict) and isinstance(m.get("models"), list):
+            m["models"] = public_entries(m["models"], region)
 
 
 def _flags(flags: Sequence[bool], n: int, default: bool) -> list[bool]:

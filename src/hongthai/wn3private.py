@@ -13,6 +13,8 @@
   CC BY 4.0）、`data` 分支還沒有的，複製到 `history/wn3/<起報>.json`（`license`、`attribution`
   換成 CC BY 4.0 的）；起報落在事件期間（台灣日期）的，事件目錄 `wn3/` 也放一份（已經有就不
   覆寫，除非那份是補抓時截過的 `clippedAt`）。私人 bucket 的檔留著
+- **投票用的逐時數字**（HD43 `vote`）：`points/<起報>.json`（`wn3report.points_doc`），同一報之後的
+  build 從這裡讀來投票；不搬家
 
 這支只用 `requests` 與 `google-auth`（GCS JSON API），不載入 numpy／xarray：`events` workflow
 每小時那支只裝這兩個套件。**日誌只印起報時間、檔名、HTTP 狀態碼**，不印檔案內容或回應本文。
@@ -46,6 +48,9 @@ ENV_JSON, ENV_PROJECT, ENV_BUCKET = (
 SCOPES = ("https://www.googleapis.com/auth/cloud-platform",)
 BUCKET_SUFFIX = "-wn3-private"
 OBSERVE_PREFIX = "observe/"
+# HD43 `vote`：每報投票要的逐時數字（`wn3report.points_doc`），同一報之後的 build 從這裡讀、不再查
+# BigQuery；不搬家（`archive` 只看 `observe/`）
+POINTS_PREFIX = "points/"
 GCS_API = "https://storage.googleapis.com/storage/v1"
 GCS_UPLOAD = "https://storage.googleapis.com/upload/storage/v1"
 TIMEOUT_S = 30
@@ -91,6 +96,10 @@ def stamp(run: datetime) -> str:
 
 def object_name(run: datetime) -> str:
     return f"{OBSERVE_PREFIX}{stamp(run)}.json"
+
+
+def points_name(run: datetime) -> str:
+    return f"{POINTS_PREFIX}{stamp(run)}.json"
 
 
 def run_of(name: str) -> datetime | None:

@@ -269,6 +269,7 @@ def latest(airports, tmp_path):
     duel = build.ai.Duel(out, None, NOW, tmp_path, evaluators=evaluators)
     res = duel.run()
     build.ai.apply(out, res, {"ok": res["source"]["ok"], "seconds": 0.1, **res["source"]})
+    build.hide_wn3(out)  # HD43：寫出去之前（同 `build.run`）
     # 確認可以序列化成 JSON，並用序列化後的結果檢查
     return json.loads(json.dumps(out))
 
@@ -318,9 +319,12 @@ def test_top_level(latest):
         "gem",  # HD33b：旁觀
         "arpege",
         "cma",
+        "wn3",  # HD43：投一票、數值不公開（`valuesHidden`）
     ]
     for m in latest["models"]:
-        assert set(m) == {"id", "name", "voting", "votesOnlyHigh"} and set(m["name"]) == LANGS
+        keys = {"id", "name", "voting", "votesOnlyHigh"}
+        assert set(m) == keys | ({"valuesHidden"} if m["id"] == "wn3" else set())
+        assert set(m["name"]) == LANGS
         # HD16：三票都投票；HD33b 的三個是旁觀
         assert m["voting"] is (m["id"] not in ("gem", "arpege", "cma"))
         # HD24：只投高或低的系集（判中時不算分母）
@@ -526,8 +530,13 @@ def test_slot_shape(latest):
                 "gem",  # HD33b：旁觀
                 "arpege",
                 "cma",
+                # HD43：日本、南韓的機場沒有 wn3 那筆，其他機場那筆只有 id 與 `valuesHidden`
+                *(["wn3"] if a["region"] not in ("okinawa", "japan", "korea") else []),
             ]
             for e in m["models"]:
+                if e["id"] == "wn3":
+                    assert e == {"id": "wn3", "valuesHidden": True}
+                    continue
                 assert set(e) == MODEL_ENTRY_KEYS
                 assert e["run"] is None or ISO_Z.match(e["run"])
                 assert all(is_num_or_none(e[k]) for k in ("gustKt", "crosswindKt", "rain6hMm"))
@@ -834,8 +843,6 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.delenv("JOB_STARTED_AT", raising=False)  # HD25：build.yml 才有
     for k in (build.tdx.ENV_ID, build.tdx.ENV_SECRET):  # HD38：TDX 不連網
         monkeypatch.delenv(k, raising=False)
-    for k in (build.wn3levels.ENV_ACCOUNT, build.wn3levels.ENV_KEY_ID):  # HD15c：R2 不連網
-        monkeypatch.delenv(k, raising=False)
     for k in (k for keys in ai_config.ENV.values() for k in keys):  # AI 對決（HD5）不呼叫
         monkeypatch.delenv(k, raising=False)
     # 預覽圖（HD1）在 test_og.py 測；這裡不畫，build 的測試才不會每個多幾秒
@@ -1066,9 +1073,9 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
         k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "tdx", "ai")
     } == dict.fromkeys((*build.SOURCE_NAMES, "cwaTyphoon", "jmaTyphoon", "wn3"), False)
     assert out["sources"]["cwaTyphoon"]["error"] == "no_api_key"
-    # HD15b：預設 `private` 每報都跑 wn3；測試沒有服務帳號
+    # HD15b、HD43：預設 `vote` 每報都跑 wn3；測試沒有服務帳號
     wn = out["sources"]["wn3"]
-    assert (wn["error"], wn["mode"]) == ("no_credentials", "private")
+    assert (wn["error"], wn["mode"]) == ("no_credentials", "vote")
     # HD34：兩個都失敗、沒有上一份 → 沒有颱風（網頁不畫）
     ty = json.loads((workspace / "public" / "typhoons.json").read_text("utf-8"))
     assert (ty["active"], ty["storms"], ty["sources"]["jma"]) == (
@@ -1089,6 +1096,7 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
         "gem": None,  # HD33b
         "arpege": None,
         "cma": None,
+        "wn3": None,  # HD43
     }
     assert all(s["level"] == "unknown" for a in out["airports"] for s in a["slots"])
     # 沒有上一份、全部 unknown → 沒有機場要評；沒設金鑰照樣記 no_api_key
@@ -1495,6 +1503,7 @@ def test_ecmwf_failure_reuses_previous_model(workspace, monkeypatch):
         "gem": None,  # HD33b
         "arpege": None,
         "cma": None,
+        "wn3": None,  # HD43
     }
     # gfs 也失敗了，但上一份的 runs.gfs 是 null → 不沿用
     assert "reusedFrom" not in out["sources"]["gfs"]
@@ -1553,6 +1562,7 @@ def test_reuse_expires_after_24h(workspace, monkeypatch):
         "gem": None,  # HD33b
         "arpege": None,
         "cma": None,
+        "wn3": None,  # HD43
     }
     s0 = _airport(out, "VHHH")["slots"][0]
     assert s0["model"]["ec"]["hresGustMs"] is None
@@ -1752,14 +1762,12 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     tdx_line = lines[16]  # HD38：tdx 記資料請求數（沒設金鑰是 0），每月上限從這裡數
     assert set(tdx_line) == {"run", "source", "ok", "error", "seconds", "bytes", "calls"}
     assert (tdx_line["error"], tdx_line["calls"]) == ("not_configured", 0)
-    wn_line = lines[17]  # HD15b：`private` 沒有服務帳號；只有中繼資料的欄位
+    wn_line = lines[17]  # HD15b、HD43：`vote` 沒有服務帳號；只有中繼資料的欄位
     assert set(wn_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes"),
         *("mode", "via", "estimateBytes", "bytesBilled", "stored", "bqError", "zarrError"),
-        *("r2", "r2Files"),  # HD15c
     }
-    assert (wn_line["error"], wn_line["mode"]) == ("no_credentials", "private")
-    assert (wn_line["r2"], wn_line["r2Files"]) == (None, None)  # 失敗那報沒上傳
+    assert (wn_line["error"], wn_line["mode"]) == ("no_credentials", "vote")
     ap_line = lines[18]  # HD35：機場頁的 3 小時格
     assert set(ap_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes", "files", "mismatches"),
@@ -2261,10 +2269,11 @@ def test_rescore_revotes_models():
         "gem",  # HD33b：旁觀
         "arpege",
         "cma",
+        "wn3",  # HD43
     ]
     assert m["models"][3]["run"] == "2026-10-18T00:00:00Z"  # 沒給 runs 時維持原值
     winds = [e["levels"]["wind"] for e in m["models"]]
-    assert winds == ["high", "medium", "high", "medium", *[None] * 7]
+    assert winds == ["high", "medium", "high", "medium", *[None] * 8]
     # 高 2 × 2 ≥ 4（IFS、系集）→ 高
     assert m["vote"] == {
         "total": 4,
@@ -2277,7 +2286,7 @@ def test_rescore_revotes_models():
     }
     assert (m["level"], slot["level"], slot["causes"]) == ("high", "high", ["wind"])
     build._rescore(slot, Thresholds(), {"ifs": "2026-10-18T06:00:00Z"})
-    assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z"] + [None] * 10
+    assert [e["run"] for e in m["models"]] == ["2026-10-18T06:00:00Z"] + [None] * 11
 
 
 # ---- 估算陣風的係數（HD18）----
@@ -2447,7 +2456,8 @@ def test_openmeteo_three_votes_in_output(airports):
     # 高 1 × 2 < 4；中那一輪兩個系集不算，ICON、JMA 都低 → 低
     assert v["level"] == s["model"]["level"] == "low"
     assert out["runs"]["wn2-ens"] is None and wn2["run"] is None
-    assert [m["voting"] for m in out["models"]] == [True] * 8 + [False] * 3  # HD33b
+    # HD33b 三個旁觀；HD43 的 wn3 投票
+    assert [m["voting"] for m in out["models"]] == [True] * 8 + [False] * 3 + [True]
 
 
 def test_openmeteo_failure_drops_three_votes(airports):
@@ -2564,8 +2574,8 @@ def test_observers_listed_but_do_not_change_level_or_vote(airports):
         assert e["levels"]["wind"] == e["levels"]["rain"] == e["level"] == "high"
         assert e["run"] == "2026-10-18T00:00:00Z"
     assert s["model"]["vote"]["total"] == 4 and s["model"]["level"] == "low"
-    assert [m["id"] for m in out["models"]][8:] == list(OBSERVERS)
-    assert all(m["voting"] is False and m["votesOnlyHigh"] is False for m in out["models"][8:])
+    assert [m["id"] for m in out["models"]][8:11] == list(OBSERVERS)
+    assert all(m["voting"] is False and m["votesOnlyHigh"] is False for m in out["models"][8:11])
     assert out["models"][10]["name"] == {
         "zh-TW": "中國模式",
         "zh-HK": "中國模式",
@@ -2573,7 +2583,7 @@ def test_observers_listed_but_do_not_change_level_or_vote(airports):
         "en": "CMA GRAPES",
     }
     assert "ukmo" not in out["runs"]  # UKMO 不進 latest.json（ShareAlike）
-    assert {m["id"]: m["name"]["en"] for m in out["models"][8:]} == {
+    assert {m["id"]: m["name"]["en"] for m in out["models"][8:11]} == {
         "gem": "Canada GEM",
         "arpege": "Météo-France ARPEGE",
         "cma": "CMA GRAPES",
@@ -2656,7 +2666,7 @@ def test_wn3_report_only_not_in_latest(workspace, monkeypatch, airports):
         asked.append((r, start, end, k))
         return sample_wn3(aps, r)
 
-    monkeypatch.setattr(build, "wn3_mode", lambda: "report-only")
+    _report_only(monkeypatch)
     _fail_all_but(monkeypatch)
     monkeypatch.setattr(build.wn3, "fetch", fetch)
     monkeypatch.setattr(build.tracks, "build_tracks", lambda *a, **k: build.tracks.TracksResult())
@@ -2697,7 +2707,7 @@ def test_wn3_report_only_not_in_latest(workspace, monkeypatch, airports):
 
 
 def test_wn3_report_only_outside_event_does_not_run(workspace, monkeypatch, airports):
-    monkeypatch.setattr(build, "wn3_mode", lambda: "report-only")
+    _report_only(monkeypatch)
     _fail_all_but(monkeypatch)
     monkeypatch.setattr(build.wn3, "fetch", _boom)
     _events_json(workspace, "2026-10-19", "2026-10-28")  # 10/13 那一報不在期間
@@ -2707,8 +2717,20 @@ def test_wn3_report_only_outside_event_does_not_run(workspace, monkeypatch, airp
     assert "wn3" not in {line["source"] for line in _timing_lines(workspace)}
 
 
+def _without_wn3() -> tuple:
+    """`MODELS` 在載入時照預設（HD43 `vote`）放了 wn3；測別的模式時先拿掉。"""
+    return tuple(m for m in build.MODELS if m.id != "wn3")
+
+
+def _report_only(monkeypatch):
+    monkeypatch.setattr(build, "wn3_mode", lambda: "report-only")
+    monkeypatch.setattr(build, "MODELS", _without_wn3())
+    monkeypatch.setattr(build.assess, "MODELS", _without_wn3())
+
+
 def _observe(monkeypatch, voting=False):
-    models = (*build.MODELS, replace(WN3_MODEL, voting=voting))
+    wn3_model = replace(WN3_MODEL, voting=voting, ai=True, values_hidden=False)
+    models = (*_without_wn3(), wn3_model)
     monkeypatch.setattr(build, "wn3_mode", lambda: "observe")
     monkeypatch.setattr(build, "MODELS", models)
     monkeypatch.setattr(build.assess, "MODELS", models)

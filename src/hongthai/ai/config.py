@@ -145,14 +145,28 @@ CANCEL_TERMS = ("航班取消",)
 EN_RISK_FORBIDDEN = ("cancellation risk", "suspension risk")
 # en 不能有中日文字（CJK 標點、假名、漢字、全形字）
 CJK_RANGES = "\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff00-\uffef"
+# HD43：WeatherNext 3 的名字（四語、不分大小寫，`parse.check_wn3_names`）：WeatherNext／
+# Weather Next、WN3、它在 `prompt.MODEL_TEXT`／`SOURCE_NAMES` 的白話名（新一代 AI、
+# next-generation AI）。違規不是一般的 `bad_wording`：重生（`run.py`）
+WN3_NAME_PATTERNS = (
+    r"weather\s*next",
+    r"(?<![a-z0-9])wn\s*-?\s*3(?![0-9])",
+    r"新一代\s*ai",
+    r"next[-\s]*generation\s+ai",
+)
 
 # ---- 來源代號（HD40）----
 # 每句短評的 `src`：精簡文字（`prompt.airport_text`）每一段前面的 `[代號]`。官方四個、給 AI 看的模式
-# （`Model.ai`；`wn3` 只在 `observe` 模式）、投票、規則燈。網頁上標的名稱四語在 `SOURCE_NAMES`
+# （`Model.ai`；`wn3` 只在 `observe` 模式）、多模式綜合（HD43 `vote`：WeatherNext 3 那段的代號，
+# 不寫模式名）、投票、規則燈。網頁上標的名稱四語在 `SOURCE_NAMES`
 OFFICIAL_SOURCES = ("taf", "metar", "warning", "confirmed")
 DERIVED_SOURCES = ("vote", "rule")
 MODEL_SOURCES = tuple(m.id for m in WEATHER_MODELS if m.ai)
-SOURCES = (*OFFICIAL_SOURCES, *MODEL_SOURCES, *DERIVED_SOURCES)
+BLEND_SOURCE = "multi"
+# HD43：數值不公開的模式（WeatherNext 3）給 AI 時那段的代號；`vote` 模式才有
+HIDDEN_MODELS = tuple(m.id for m in WEATHER_MODELS if m.values_hidden)
+BLEND_SOURCES = (BLEND_SOURCE,) if HIDDEN_MODELS else ()
+SOURCES = (*OFFICIAL_SOURCES, *MODEL_SOURCES, *BLEND_SOURCES, *DERIVED_SOURCES)
 _SOURCE_NAMES = {
     "taf": {
         "zh-TW": "機場預報",
@@ -211,6 +225,12 @@ _SOURCE_NAMES = {
         "zh-HK": "Google 的新一代 AI 系集",
         "zh-CN": "Google 的新一代 AI 集合预报",
         "en": "Google next-generation AI ensemble",
+    },
+    "multi": {  # HD43
+        "zh-TW": "多模式綜合",
+        "zh-HK": "多模式綜合",
+        "zh-CN": "多模式综合",
+        "en": "Multi-model blend",
     },
     "vote": {"zh-TW": "模式投票", "zh-HK": "模式投票", "zh-CN": "模式投票", "en": "Model vote"},
     "rule": {"zh-TW": "規則燈", "zh-HK": "規則燈", "zh-CN": "规则灯", "en": "Rule-based light"},

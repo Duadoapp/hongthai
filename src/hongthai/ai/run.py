@@ -40,6 +40,13 @@
 - 錯誤訊息（HD30）：HTTP、逾時、網路錯誤時 API 回的錯誤訊息（`AiError.message`，清理過、≤ 200 字）；
   戰績那筆失敗的模型多 `message`（重試過的是第二次的）；`result()["errorMessages"]` 是各模型這一報
   **第一則**錯誤的 `message`（含重試前那次；沒有是 `None`），只進 `timing/` 的 `ai` 那行
+- WeatherNext 3（HD43）：日本、南韓以外、這一報有 WN3 資料的機場，精簡文字多「多模式綜合」那段
+  （`prompt.multi_lines`）。回應通過格式與用字後再查 `parse.check_wn3`：寫出 WN3 的名字或它獨有的
+  數字（`parse.Wn3Leak`）→ **同一段文字重生一次**；再違規 → **拿掉那段重生**（`src` 不能再用
+  `multi`）；第三次的結果照一般的流程（還是違規就是 `bad_wording`、標記 `wn3/…`）。重生也算一次呼叫
+  （次數檔、`calls`、時間預算同 HD17 的重試）；被丟掉那次的 token 數加進 `usage` 合計。
+  `sources.ai` 多 `wn3Retries`（各模型因 WN3 重生幾次）、`wn3Dropped`（其中拿掉那段的次數），
+  只記次數、**不記違規的內容**；這一報沒有機場有那段時沒有這兩個鍵。提示詞（含 WN3 數值）不存檔
 """
 
 from __future__ import annotations
@@ -50,6 +57,7 @@ import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from types import ModuleType
@@ -74,11 +82,20 @@ from .config import (
     TIMEOUT_S,
     WARMUP,
 )
-from .parse import AiError
+from .parse import AiError, Wn3Leak, check_wn3
 
 log = logging.getLogger("hongthai")
 
 EVALUATORS: dict[str, ModuleType] = {"claude": claude, "gemini": gemini}
+
+
+@dataclass(frozen=True)
+class Wn3Input:
+    """一個機場的多模式綜合那段（HD43）：`numbers` 是那段獨有的整數，`plain` 是拿掉那段的
+    精簡文字。"""
+
+    numbers: frozenset[int]
+    plain: str
 
 
 def top_level() -> dict:
@@ -327,12 +344,22 @@ class Duel:
         self.first_message: dict[str, str] = {}  # 各模型這一報第一則錯誤訊息（HD30）
         self.model_errors: dict[str, str] = {}  # 整個模型不能用（no_api_key）
         self.regions: dict[str, Regions] = {}  # 有呼叫的模型（HD23）
+        self.wn3: dict[str, Wn3Input] = {}  # HD43：有多模式綜合那段的機場
+        self.wn3_retries = dict.fromkeys(KEYS, 0)
+        self.wn3_dropped = dict.fromkeys(KEYS, 0)
+        self.dropped_usage: dict[str, list[dict | None]] = {k: [] for k in KEYS}  # 重生前那次
         self.stop = threading.Event()
         self.lock = threading.Lock()
         self._result: dict | None = None
 
     def run(self) -> dict:
         texts = {a["icao"]: prompt.airport_text(a, self.run_at) for a, _ in self.selected}
+        for a, _ in self.selected:  # HD43
+            if prompt.has_blend(a):
+                self.wn3[a["icao"]] = Wn3Input(
+                    prompt.wn3_numbers(a, self.run_at),
+                    prompt.airport_text(a, self.run_at, wn3=False),
+                )
         with ThreadPoolExecutor(len(KEYS), thread_name_prefix="ai") as ex:
             for f in [ex.submit(self._run_model, k, texts) for k in KEYS]:
                 f.result()
@@ -394,27 +421,71 @@ class Duel:
                 self.lights[key][icao] = error(key, "daily_cap")
             return
         t0 = time.monotonic()
-        light, err, backup, used = self._send(key, mod, icao, text, timeout)
+        wn3 = self.wn3.get(icao)
+        numbers = wn3.numbers if wn3 else None
+        light, err, backup, used, tag = self._try(key, mod, icao, text, numbers, timeout)
+        rounds = 0  # HD43：WN3 違規重生的次數（最多兩次：照原文、拿掉那段）
+        while wn3 is not None and isinstance(err, Wn3Leak) and rounds < 2:
+            retry = self._retry_timeout(key)
+            if retry is None:
+                break
+            rounds += 1
+            with self.lock:
+                self.wn3_retries[key] += 1
+                self.dropped_usage[key].append(used)
+                if rounds == 2:
+                    self.wn3_dropped[key] += 1
+            if rounds == 2:
+                text, numbers = wn3.plain, None
+            log.info(
+                "AI %s %s 違規（%s），%s",
+                key,
+                icao,
+                err.tag,
+                "拿掉多模式綜合重生" if rounds == 2 else "重生",
+            )
+            light, err, backup, used, tag = self._try(key, mod, icao, text, numbers, retry)
+        detail = f"{err.trace()}{tag}{':fallback' if backup else ''}" if err else None
+        message = err.message if err else None
+        seconds = time.monotonic() - t0  # 重試、重生時是全部合計
+        self._set(key, icao, light, detail, seconds, used, message)
+
+    def _try(
+        self,
+        key: str,
+        mod: ModuleType,
+        icao: str,
+        text: str,
+        numbers: frozenset[int] | None,
+        timeout: float,
+    ) -> tuple[dict, AiError | None, bool, dict | None, str]:
+        """送一次（閘道快失敗時同一個請求重試一次，HD17、HD23）→（燈, `AiError`, 備援, `usage`,
+        `detail` 的尾巴 `:slow`／`:retried`）。"""
+        t0 = time.monotonic()
+        light, err, backup, used = self._send(key, mod, icao, text, timeout, numbers)
         tag = ""
         if err and err.code in RETRY_CODES:  # 閘道沒回應（HD17）
             if time.monotonic() - t0 >= RETRY_FAST_FAIL_S:  # 閘道逾時：重試只會再卡一次（HD23）
                 tag = ":slow"
             elif (retry := self._retry_timeout(key)) is not None:  # 快失敗：同一個請求重試一次
                 log.info("AI %s %s %s，重試一次", key, icao, err.code)
-                light, err, backup, used = self._send(key, mod, icao, text, retry)
+                light, err, backup, used = self._send(key, mod, icao, text, retry, numbers)
                 tag = ":retried"
-        detail = f"{err.trace()}{tag}{':fallback' if backup else ''}" if err else None
-        message = err.message if err else None
-        seconds = time.monotonic() - t0  # 重試時是兩次合計
-        self._set(key, icao, light, detail, seconds, used, message)
+        return light, err, backup, used, tag
 
     def _send(
-        self, key: str, mod: ModuleType, icao: str, text: str, timeout: float
+        self,
+        key: str,
+        mod: ModuleType,
+        icao: str,
+        text: str,
+        timeout: float,
+        numbers: frozenset[int] | None = None,
     ) -> tuple[dict, AiError | None, bool, dict | None]:
         """選區域、送一次、記結果 →（燈, 失敗時的 `AiError`, 是不是用備援區域, `usage`）。"""
         regions = self.regions[key]
         client, backup = regions.pick()
-        light, err, used = self._call(key, mod, client, icao, text, timeout, backup)
+        light, err, used = self._call(key, mod, client, icao, text, timeout, backup, numbers)
         regions.note(backup, light.get("error"))
         return light, err, backup, used
 
@@ -449,24 +520,34 @@ class Duel:
         text: str,
         timeout: float,
         backup: bool = False,
+        numbers: frozenset[int] | None = None,
     ) -> tuple[dict, AiError | None, dict | None]:
-        """送一次請求 → (燈, 失敗時的 `AiError`, `usage`：沒拿到回應是 `None`)。"""
+        """送一次請求 → (燈, 失敗時的 `AiError`, `usage`：沒拿到回應是 `None`)。`numbers`：多模式
+        綜合那段獨有的整數（HD43；None＝這次沒有那段，`check_wn3`）。"""
         t0 = time.monotonic()
         where = f"（備援 {self.regions[key].backup}）" if backup else ""
         try:
             res = mod.evaluate(text, client=client, timeout=timeout)
+            try:
+                check_wn3(res["sentences"], numbers)
+            except AiError as e:
+                e.usage = res.get("usage")
+                raise
             light = ok(key, res)
             log.info(
                 "AI %s %s%s：%s（%.1f 秒）", key, icao, where, light["level"], time.monotonic() - t0
             )
             return light, None, res.get("usage")
         except AiError as e:
+            # HD43：有多模式綜合那段的機場，回應內容的錯（`bad_format` 會帶回應的前 80 字）只印
+            # 代碼，免得模型寫出的 WN3 數字進到公開的 Actions 日誌
+            hide = icao in self.wn3 and e.code in CONTENT_ERRORS
             log.warning(
                 "AI %s %s%s 失敗：%s［%s］（%.1f 秒）",
                 key,
                 icao,
                 where,
-                e,
+                e.code if hide else e,
                 e.trace(),
                 time.monotonic() - t0,
             )
@@ -510,7 +591,9 @@ class Duel:
                     )
                 )
             source = self._source(airports)
-            totals = {k: usage.total(k, self.usage[k].values()) for k in KEYS}
+            totals = {
+                k: usage.total(k, [*self.usage[k].values(), *self.dropped_usage[k]]) for k in KEYS
+            }
             day = f"{self.now:%Y-%m-%d}"
             self._result = {
                 "ai": top_level(),
@@ -542,6 +625,9 @@ class Duel:
         }
         if errors:
             src["errors"] = errors
+        if self.wn3:  # HD43：只記次數
+            src["wn3Retries"] = dict(self.wn3_retries)
+            src["wn3Dropped"] = dict(self.wn3_dropped)
         for k, r in self.regions.items():  # HD23：`geminiLocation`
             if r.last:
                 src[f"{k}Location"] = r.last
