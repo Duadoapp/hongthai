@@ -83,7 +83,8 @@ jobs:
           GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
           GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
           # WeatherNext 3（HD15）用同一把服務帳號（上面兩個）；開關是 repo 的 Variables（不是 secret），
-          # 沒設就是 src/hongthai/config.py 的預設（HD15b 起 WN3_MODE=private、WN3_VOTING 不投）。
+          # 沒設就是 src/hongthai/config.py 的預設（HD43 起 WN3_MODE=vote、WN3_VOTING 投；設成 private
+          # 會變回只旁觀、不投票）。
           # WN3_BQ_TABLE 沒設就用 <GOOGLE_CLOUD_PROJECT>.weathernext_3.weathernext_3_0_0_0p1deg；
           # WN3_PRIVATE_BUCKET（HD15b 隱形旁觀的私人 bucket）沒設就用 <GOOGLE_CLOUD_PROJECT>-wn3-private
           WN3_MODE: ${{ vars.WN3_MODE }}
@@ -92,12 +93,6 @@ jobs:
           WN3_PRIVATE_BUCKET: ${{ vars.WN3_PRIVATE_BUCKET }}
           # WN3_VIA：auto（預設，BigQuery 失敗退 Zarr）／zarr（不查 BigQuery）／bigquery（不退 Zarr）
           WN3_VIA: ${{ vars.WN3_VIA }}
-          # HD15c：WN3 旁觀等級（只有等級、不放數值）上傳 Cloudflare R2 的 S3 相容 API。三個 secret 少一個就
-          # 不上傳（sources.wn3.r2 記 not_configured）；R2_BUCKET 是 Variable，沒設用 hongthai-wn3
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ vars.R2_BUCKET }}
           # HD38：TDX 航空即時航班（台中、台南、花蓮、台東、澎湖、金門、馬祖南竿的取消統計），和 events.yml
           # 同一組 secrets；沒設就跳過（sources.tdx 記 not_configured），其他照跑
           TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}

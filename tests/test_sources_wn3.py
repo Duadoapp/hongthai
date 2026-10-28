@@ -31,18 +31,23 @@ def _airports(airports, *icaos):
 
 
 def test_switches_default_and_env():
-    assert config.wn3_mode({}) == "private"  # HD15b：隱形旁觀，只寫私人 bucket
+    assert config.wn3_mode({}) == "vote"  # HD43：投一票、數值不公開
+    assert config.wn3_mode({"WN3_MODE": "private"}) == "private"  # HD15b：隱形旁觀
     assert config.wn3_mode({"WN3_MODE": "observe"}) == "observe"
     assert config.wn3_mode({"WN3_MODE": "report-only"}) == "report-only"
-    assert config.wn3_mode({"WN3_MODE": "public"}) == "private"  # 不認得 → 預設
-    assert config.wn3_voting({}) is False  # 旁觀
-    assert config.wn3_voting({"WN3_VOTING": "1"}) is True
-    assert config.wn3_voting({"WN3_VOTING": "yes"}) is False
+    assert config.wn3_mode({"WN3_MODE": "public"}) == "vote"  # 不認得 → 預設
+    assert config.wn3_voting({}) is True  # HD43：預設投
+    assert config.wn3_voting({"WN3_VOTING": "0"}) is False
+    assert config.wn3_voting({"WN3_VOTING": "yes"}) is True
     m = config.WN3_MODEL
-    assert (m.id, m.gust_estimated, m.votes_only_high, m.voting) == ("wn3", True, False, False)
+    assert (m.id, m.gust_estimated, m.votes_only_high, m.voting) == ("wn3", True, False, True)
+    assert (m.ai, m.values_hidden) == (False, True)  # 不當一般模式給 AI、公開的檔不放數值
     assert set(m.name.values()) == {"Google WeatherNext 3"}
-    # 預設 private：`MODELS` 沒有 wn3（`latest.json` 只有 `sources.wn3` 的中繼資料）
-    assert [x.id for x in config.MODELS][-1] == "cma"  # HD33b 的三個旁觀模式接在 wn2-ens 後面
+    # 預設 vote：wn3 接在 HD33b 的三個旁觀模式後面
+    assert [x.id for x in config.MODELS][-2:] == ["cma", "wn3"]
+    # 日本、南韓（沖繩、日本、韓國三個地區）投票與 AI 都不含 WN3
+    assert config.WN3_EXCLUDED_REGIONS == {"okinawa", "japan", "korea"}
+    assert not config.wn3_allowed("japan") and config.wn3_allowed("taiwan")
 
 
 def test_latest_run_follows_dissemination_schedule():
@@ -338,7 +343,8 @@ def test_model_entry_wn3_has_p90_only_there():
 
 def test_observe_non_voting_wn3_listed_but_not_counted(monkeypatch):
     """旁觀（`voting=False`）：`models[]` 有 wn3 那筆（等級照算），但不算分母、不投票。"""
-    monkeypatch.setattr(assess, "MODELS", (*config.MODELS, config.WN3_MODEL))
+    base = tuple(m for m in config.MODELS if m.id != "wn3")
+    monkeypatch.setattr(assess, "MODELS", (*base, replace(config.WN3_MODEL, voting=False)))
     slots = assess.assess_slots(
         now=RUN,
         slots=[(RUN, RUN + timedelta(hours=6))],
@@ -354,7 +360,7 @@ def test_observe_non_voting_wn3_listed_but_not_counted(monkeypatch):
     e = m["models"][-1]
     assert e["id"] == "wn3" and e["level"] == "high"
     assert m["vote"]["total"] == 0 and m["level"] is None  # 只有它有資料，但它不投
-    monkeypatch.setattr(assess, "MODELS", (*config.MODELS, replace(config.WN3_MODEL, voting=True)))
+    monkeypatch.setattr(assess, "MODELS", (*base, replace(config.WN3_MODEL, voting=True)))
     m = assess.assess_slots(
         now=RUN,
         slots=[(RUN, RUN + timedelta(hours=6))],
@@ -511,14 +517,18 @@ def test_saved_factors(tmp_path):
 
 
 def test_env_switches_at_import():
-    """`MODELS` 在載入時看環境變數：`WN3_MODE=observe` 才有 wn3，`WN3_VOTING=1` 才投票。"""
+    """`MODELS` 在載入時看環境變數：`WN3_MODE` 是 `vote`（預設）或 `observe` 才有 wn3，
+    `WN3_VOTING=0` 才不投；`vote` 時藏值、不當一般模式給 AI。"""
     import os
     import subprocess
     import sys
 
     from conftest import ROOT
 
-    code = "from hongthai.config import MODELS; m = MODELS[-1]; print(len(MODELS), m.id, m.voting)"
+    code = (
+        "from hongthai.config import MODELS; m = MODELS[-1]; "
+        "print(len(MODELS), m.id, m.voting, m.values_hidden, m.ai)"
+    )
 
     def run(**env):
         base = {k: v for k, v in os.environ.items() if not k.startswith("WN3_")}
@@ -528,9 +538,11 @@ def test_env_switches_at_import():
         )
         return out.stdout.split()
 
-    assert run() == ["11", "cma", "False"]  # HD33b：8 票＋3 個旁觀
-    assert run(WN3_MODE="observe") == ["12", "wn3", "False"]
-    assert run(WN3_MODE="observe", WN3_VOTING="1") == ["12", "wn3", "True"]
+    assert run() == ["12", "wn3", "True", "True", "False"]  # HD43：8 票＋3 個旁觀＋WN3
+    assert run(WN3_MODE="private") == ["11", "cma", "False", "False", "False"]  # HD33b
+    assert run(WN3_VOTING="0") == ["12", "wn3", "False", "True", "False"]
+    assert run(WN3_MODE="observe") == ["12", "wn3", "True", "False", "True"]
+    assert run(WN3_MODE="observe", WN3_VOTING="0") == ["12", "wn3", "False", "False", "True"]
 
 
 def test_budget_and_workflow_timeout():

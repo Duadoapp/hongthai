@@ -1,9 +1,13 @@
 """WeatherNext 3 的事件檔、補報與隱形旁觀（HD15、HD15b）：
 `history/events/<id>/wn3/<起報 YYYYMMDDTHHMM>Z.json`，給颱風過後的報告（HD22）比對陣風、等級與路徑。
 
-三個模式（`config.WN3_MODE`，README「資料來源與授權」）：
+四個模式（`config.WN3_MODE`，README「資料來源與授權」）：
 
-- `private`（預設，HD15b）：build 每報抓**最新的主報**（`wn3.latest_run`），照事件檔的格式算
+- `vote`（預設，HD43）：同 `private` 抓最新的主報、整份寫進私人 bucket（`observe_vote`），另外把
+  逐時數字存 `points/<起報>.json`；這一報的資料交給 build 投票（日本、南韓以外），公開的檔只有
+  `{"id": "wn3", "valuesHidden": true}`。同一報之後的 build 從 `points/` 讀（不查 BigQuery），
+  最新一報還查不到時用私人 bucket 裡前一報的
+- `private`（HD15b）：build 每報抓**最新的主報**（`wn3.latest_run`），照事件檔的格式算
   每格（含 `levels`／`level`），整份只寫進**私人 bucket**（`observe_private`、`wn3private`）；
   `latest.json` 只有 `sources.wn3` 的中繼資料（起報、`via`、掃描量、秒數），不放任何預報值或
   等級、不投票。起報超過 121 小時後每天搬進 `data` 分支（`wn3private.archive`）
@@ -63,6 +67,18 @@ ATTRIBUTION_RT = (
     "only and is not intended, validated, or approved for real world use."
 )
 STOP_CODES = frozenset({"http_401", "http_403", "no_credentials"})
+VIA_NAMES = {"bigquery": "Google BigQuery", "zarr": "Google Cloud Storage"}
+# GDM 即時資料條款 Section 4(b) 的固定標註原文（README「WeatherNext 3 的條款」）
+ATTRIBUTION_4B = (
+    "© 2024-6 Google LLC, whose machine learning models were used to create the experimental data "
+    f"made available under the following licence terms {wn3.TERMS_URL}. This data is intended for "
+    "experimental modelling only and is not intended, validated, or approved for real world use."
+)
+
+
+def attribution(via: str) -> str:
+    """`sources.wn3.attribution`（HD43）：Section 4(b) 原文＋實際的取得管道（`Wn3Data.via`）。"""
+    return f"Google WeatherNext 3 via {VIA_NAMES.get(via, VIA_NAMES['zarr'])}. {ATTRIBUTION_4B}"
 
 
 def report_run(now: datetime) -> datetime:
@@ -148,7 +164,7 @@ def report_doc(
                 }
             )
         out[a.icao] = rows
-    realtime = mode in ("observe", "private")
+    realtime = mode in ("observe", "private", "vote")
     doc = {
         "model": "wn3",
         "run": iso(run),
@@ -318,13 +334,16 @@ def backfill(
 
 @dataclass
 class PrivateResult:
-    """隱形旁觀這一報（HD15b）：`stored` 是 `written`（寫進私人 bucket）或 `exists`（已經有了，沒查
-    BigQuery 時 `data` 是 None）。"""
+    """隱形旁觀／投票這一報（HD15b、HD43）：`stored` 是 `written`（查了、寫進私人 bucket）、
+    `exists`（已經有了，沒查 BigQuery；`private` 時 `data` 是 None，`vote` 時是從 `points/` 讀的）或
+    `previous`（`vote`：最新一報查不到，用私人 bucket 裡前一報的，`latest_error` 是查詢的錯誤碼）。
+    `queried`：這一報真的查了 BigQuery／Zarr（`sources.wn3` 才放掃描量）。"""
 
     run: datetime
     stored: str
     data: wn3.Wn3Data | None = None
-    r2: dict = field(default_factory=dict)  # HD15c：等級檔上傳 R2 的結果（`wn3levels.upload`）
+    queried: bool = False
+    latest_error: str | None = None
 
 
 def observe_private(
@@ -354,7 +373,110 @@ def observe_private(
     doc = report_doc(data, airports, factors, "private")
     stored = "written" if bucket.put_json(wn3private.object_name(data.run), doc) else "exists"
     log.info("WeatherNext 3 隱形旁觀：%s → 私人 bucket（%s）", iso(data.run), stored)
-    return PrivateResult(data.run, stored, data)
+    return PrivateResult(data.run, stored, data, queried=True)
+
+
+# ---- 投票（HD43 `vote`）----
+
+
+def points_doc(data: wn3.Wn3Data) -> dict:
+    """投票用的逐時數字（只進私人 bucket `points/`）：每小時一列
+    `[有效時間, p50, 平均, p90, 風向, 雨量, 溫度]`（同 `Wn3Hour`）。"""
+    return {
+        "model": "wn3",
+        "run": iso(data.run),
+        "via": data.via,
+        "airports": {
+            icao: [
+                [
+                    iso(h.valid),
+                    h.wind_kt,
+                    h.wind_mean_kt,
+                    h.wind_p90_kt,
+                    h.wdir,
+                    h.precip_mm,
+                    h.temp2m_c,
+                ]
+                for h in hours
+            ]
+            for icao, hours in data.points.items()
+        },
+    }
+
+
+def _opt(v: object) -> float | None:
+    return float(v) if isinstance(v, int | float) and not isinstance(v, bool) else None
+
+
+def data_from_points(doc: dict, run: datetime) -> wn3.Wn3Data:
+    """`points_doc` → `Wn3Data`（沒有掃描量）；格式不對丟 `PrivateError("gcs_bad_points")`
+    （訊息不放內容）。"""
+    try:
+        if doc.get("model") != "wn3" or doc.get("run") != iso(run):
+            raise ValueError("model／run 對不上")
+        points: dict[str, list[wn3.Wn3Hour]] = {}
+        for icao, rows in (doc.get("airports") or {}).items():
+            hours = []
+            for row in rows:
+                valid = parse_time(row[0])
+                if valid is None:
+                    raise ValueError("沒有時間")
+                hours.append(wn3.Wn3Hour(valid, *(_opt(v) for v in row[1:7])))
+            points[str(icao)] = hours
+        via = doc.get("via") if doc.get("via") in VIA_NAMES else "zarr"
+    except (AttributeError, TypeError, ValueError, IndexError) as e:
+        raise wn3private.PrivateError(
+            f"私人 bucket 的 WeatherNext 3 {iso(run)} 逐時檔格式不對", "gcs_bad_points"
+        ) from e
+    return wn3.Wn3Data(run, points, str(via))
+
+
+def load_points(bucket: wn3private.Bucket, run: datetime) -> wn3.Wn3Data:
+    return data_from_points(bucket.get_json(wn3private.points_name(run)), run)
+
+
+def observe_vote(
+    airports: Sequence[Airport],
+    now: datetime,
+    factors: dict[str, assess.GustFactor],
+    bucket: wn3private.Bucket | None = None,
+    fetch: Callable[..., wn3.Wn3Data] | None = None,
+) -> PrivateResult:
+    """`vote` 模式（HD43）：最新的主報（`wn3.latest_run`）的逐時數字給 build 投票。
+
+    - 私人 bucket 已經有這一報的 `points/` → 讀回來（不查 BigQuery）
+    - 沒有 → 照 `observe_private` 查（前一報也沒有 `points/` 時，這一報還沒發布可以退一報）、
+      整份事件檔格式寫 `observe/`（已經有就不寫）、逐時數字寫 `points/`
+    - 查不到、但前一報有 `points/` → 用前一報的（`stored: "previous"`）
+    日誌只印起報、`stored`、錯誤碼，不印任何預報值或等級。"""
+    bucket = bucket or wn3private.Bucket.from_env()
+    fetch = fetch or wn3.fetch
+    run = wn3.latest_run(now)
+    if bucket.exists(wn3private.points_name(run)):
+        data = load_points(bucket, run)
+        log.info("WeatherNext 3 投票：%s 從私人 bucket 讀（不再查）", iso(run))
+        return PrivateResult(run, "exists", data)
+    prev = run - timedelta(hours=wn3.STEP_H)
+    have_prev = bucket.exists(wn3private.points_name(prev))
+    start = run if have_prev else prev
+    end = floor_6h(now) + timedelta(hours=wn3.SPAN_H)  # 蓋住 `latest.json` 那 20 格
+    try:
+        data = fetch(airports, run, start, end, mslp=False, retry_previous=not have_prev)
+    except wn3.Wn3Error as e:
+        if not have_prev:
+            raise
+        log.warning(
+            "WeatherNext 3 投票：%s 查不到（%s），用私人 bucket 裡前一報 %s",
+            iso(run),
+            e.code,
+            iso(prev),
+        )
+        return PrivateResult(prev, "previous", load_points(bucket, prev), latest_error=e.code)
+    doc = report_doc(data, airports, factors, "vote")
+    stored = "written" if bucket.put_json(wn3private.object_name(data.run), doc) else "exists"
+    bucket.put_json(wn3private.points_name(data.run), points_doc(data))
+    log.info("WeatherNext 3 投票：%s → 私人 bucket（%s）", iso(data.run), stored)
+    return PrivateResult(data.run, "written", data, queried=True)
 
 
 def targets(mode: str, now: datetime, events: Sequence[Event]) -> tuple[datetime, list[Event]]:

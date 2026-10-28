@@ -31,6 +31,14 @@ BQ = {"p50": 22.4867, "mean": 20.9533, "p90": 26.8489}
 REAL_FETCH = wn3.fetch  # workspace 換掉之前的
 
 
+def private_mode(monkeypatch):
+    """HD43 起預設 `vote`（`MODELS` 載入時就放了 wn3）；測 HD15b 的 `private` 時換回來。"""
+    models = tuple(m for m in build.MODELS if m.id != "wn3")
+    monkeypatch.setattr(build, "wn3_mode", lambda: "private")
+    monkeypatch.setattr(build, "MODELS", models)
+    monkeypatch.setattr(build.assess, "MODELS", models)
+
+
 def _airports(airports, *icaos):
     return [a for a in airports if a.icao in icaos]
 
@@ -264,6 +272,7 @@ def test_private_build_latest_has_no_wn3_values_and_logs_are_clean(
     """整個 `private` 流程：私人 bucket 拿到整份；`latest.json`、`history/`、Pages、`timing/` 與日誌
     都沒有 WN3 的任何數值或等級，`sources.wn3` 只有中繼資料。"""
     ws = workspace
+    private_mode(monkeypatch)
     _fail_all_but(monkeypatch)
     bucket = FakeBucket()
     monkeypatch.setattr(wn3private.Bucket, "from_env", classmethod(lambda cls, env=None: bucket))
@@ -302,9 +311,6 @@ def test_private_build_latest_has_no_wn3_values_and_logs_are_clean(
         "estimateBytes": 5_000_000_000,
         "bytesProcessed": 3_100_000_000,
         "bytesBilled": 3_100_000_000,
-        "r2": "not_configured",  # HD15c：測試沒設 R2 的 secrets
-        "r2Files": 0,
-        "r2Bytes": 0,
         "mode": "private",
     }
     # 公開的地方（Pages、data 分支的整個 checkout）一個數字都沒有、也沒有事件檔
@@ -340,6 +346,7 @@ def test_private_build_latest_has_no_wn3_values_and_logs_are_clean(
 
 def test_private_build_bucket_failure_is_source_error(workspace, monkeypatch):  # noqa: F811
     ws = workspace
+    private_mode(monkeypatch)
     _fail_all_but(monkeypatch)
     monkeypatch.setattr(
         wn3private.Bucket,

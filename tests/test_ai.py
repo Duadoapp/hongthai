@@ -1814,8 +1814,8 @@ def test_airport_text_hides_observers_hd33b():
     observers = ("gem", "arpege", "cma")
     loud = {"gustKt": 80.0, "crosswindKt": 40.0, "rain6hMm": 90.0, "ptype": "rain"}
     _with_models(m, {**others, **dict.fromkeys(observers, loud)})
-    assert [e["id"] for e in m["models"]][8:] == list(observers)
-    assert all(e["level"] == "high" for e in m["models"][8:])
+    assert [e["id"] for e in m["models"]][8:11] == list(observers)
+    assert all(e["level"] == "high" for e in m["models"][8:11])
     text = prompt.airport_text(ap, RUN)
     assert text == base
     for name in ("加拿大模式", "法國模式", "中國模式", "Canada GEM", "ARPEGE", "GRAPES"):
@@ -1824,7 +1824,7 @@ def test_airport_text_hides_observers_hd33b():
     i = next(i for i, ln in enumerate(lines) if ln.startswith("1. "))
     rows = list(takewhile(lambda ln: ln.startswith("  - "), lines[i + 1 :]))
     assert len(rows) == 8 and rows[-1].startswith("  - [wn2-ens] Google 的 AI 系集")
-    assert assess.ai_hidden() == set(observers)
+    assert assess.ai_hidden() == {*observers, "wn3"}  # HD43：WN3 另外給「多模式綜合」那段
 
 
 @pytest.mark.parametrize(
@@ -1834,7 +1834,7 @@ def test_airport_text_hides_observers_hd33b():
         ({"zh-HK": "日本 GSM 估算陣風 51 節，停飛風險高。"}, "zh-HK：內部代號 GSM"),
         (
             {"en": "WeatherNext shows 62% of members high; disruption risk High."},
-            "en：內部代號 WeatherNext",
+            "寫出 WN3 的名字",  # HD43：WeatherNext 先由 WN3 的名字檢查擋（會重生）
         ),
     ],
 )

@@ -26,6 +26,13 @@ HD40（氣象署 2026-10-27 回覆、Shawn 定案）：規則加「只陳述資�
 推論」；精簡文字每一段資料前面加來源代號（`tag`，代號是 `config.SOURCES`，給模型看的說明是
 `SOURCE_TEXT`），模型每句短評附 `src`。不標代號的只有 `UNLABELED` 開頭的行與 `- ` 明細（明細
 屬於上一個有代號的段落）。
+
+HD43（WeatherNext 3 投一票，Shawn 2026-10-28 定案）：`vote` 模式時 WN3 不是一般的一行模式
+明細（`Model.ai=False`），而是精簡文字最後另外一段「多模式綜合」（代號 `multi`，`multi_lines`；
+只有日本、南韓以外、這一報有 WN3 資料的機場），**數字是送給 AI 的內部輸入**，那段與系統提示都寫明
+不能引用數字、不能說是哪個模式；模式名不寫。投票句照 `model.vote`（含 WN3 那票）。程式檢查在
+`parse.check_wn3`：`wn3_numbers` 是那段獨有的整數。`airport_text(..., wn3=False)` 是拿掉那段的
+版本（重生用）。
 """
 
 from __future__ import annotations
@@ -37,7 +44,8 @@ from ..assess import ENS_ID, MODEL_CAUSE_ORDER, ONLY_HIGH, ai_hidden, model_vote
 from ..config import GUST_FACTOR_RANGE, Thresholds
 from ..og import slot_text
 from ..timeutil import parse_time
-from .config import MODEL_SOURCES, SOURCES
+from .config import BLEND_SOURCE, BLEND_SOURCES, HIDDEN_MODELS, MODEL_SOURCES, SOURCES
+from .parse import integers, round_half_up
 
 # 模式的白話名（HD14；短評裡也照這樣寫）
 MODEL_TEXT = {
@@ -63,6 +71,9 @@ SOURCE_TEXT = {
         + ("，與每格的 p29Kt、p49Kt、p24hRain50" if m == ENS_ID else "")
         for m in MODEL_SOURCES
     },
+    # HD43：不寫模式名
+    BLEND_SOURCE: "多模式綜合：最後「多模式綜合」那一段（另一個模式的逐格估算，已算進模式投票；"
+    "只能影響整體判斷，不能引用那段的任何數字、不能說是哪個模式說的）",
     "vote": "模式投票：每格模式層的等級、投票結果、歐洲模式與美國模式是否一致",
     "rule": "規則燈：每格的等級、依據、causes、官方與模式落差，與最後的規則燈門檻說明",
 }
@@ -97,8 +108,19 @@ SYSTEM = "\n".join(
         "同一個位置的句子 src 完全一樣（同樣的代號、同樣的順序）。",
         "9. 短評第一句要點出主因天氣：強風／側風、大雨／雷雨、大雪／結冰、濃霧／低雲"
         "（每格的 causes 第一個就是規則燈的主因；你可以有不同看法，但要說得出依據）。",
-        "10. 只回一個 JSON 物件，不要 Markdown、不要其他文字；不用另外寫整段短評"
-        "（程式會把同一語的句子依序接起來）：",
+        *(
+            [
+                "10. 「多模式綜合」那段（代號 multi，有的機場才有）是另一個模式的逐格估算，"
+                "已算進每格的模式投票：只能用來影響你的整體判斷，短評裡不能寫出那段的任何數字"
+                "（平均風、陣風、側風、雨量，換算、四捨五入或約略的寫法都不行），不能說是哪個模式、"
+                "哪家公司的模式，也不能把判斷歸給它；用到那段的句子 src 寫 multi"
+                "（和其他來源一起列也可以）。",
+            ]
+            if BLEND_SOURCES
+            else []
+        ),
+        f"{11 if BLEND_SOURCES else 10}. 只回一個 JSON 物件，不要 Markdown、不要其他文字；"
+        "不用另外寫整段短評（程式會把同一語的句子依序接起來）：",
         '{"level": "low|medium|high", "sentences": {'
         '"zh-TW": [{"text": "…", "src": ["taf", "ifs"]}, {"text": "…", "src": ["vote"]}], '
         '"zh-HK": […], "zh-CN": […], "en": […]}}',
@@ -252,7 +274,7 @@ def _vote(m: dict, models: list[dict]) -> str:
     if level == "low":
         return f"投票：每一類都沒有過半的模式認為中以上 → low{thin}"
     cats, _ = model_vote(models)
-    cause = next(c for c in MODEL_CAUSE_ORDER if cats.get(c) == level)
+    cause = next((c for c in MODEL_CAUSE_ORDER if cats.get(c) == level), "wind")
     votes, total = tally(models, cause, level)
     return (
         f"投票（{CAUSE_TEXT[cause]}）：{total} 個模式中 {votes} 個認為{LEVEL_WORD[level]}"
@@ -302,8 +324,10 @@ def _model(m: dict | None) -> str:
         return f"{tag('vote')} 模式：無"
     ec = m.get("ec") if isinstance(m.get("ec"), dict) else {}
     agreement = AGREEMENT_TEXT.get(m.get("agreement"), "缺一個模式")  # type: ignore[arg-type]
+    # 投票句用全部的模式（HD43：數值不公開的那個也算進分母；旁觀模式 `tally` 本來就不算）
+    entries = [e for e in m.get("models") or [] if isinstance(e, dict)]
     return (
-        f"{tag('vote')} 模式：等級 {m.get('level') or '—'}、{_vote(m, _models(m))}、"
+        f"{tag('vote')} 模式：等級 {m.get('level') or '—'}、{_vote(m, entries)}、"
         f"EC 與 GFS {agreement}（只看陣風）｜{tag(ENS_ID)} 系集機率 p29Kt {_pct(ec.get('p29Kt'))}、"
         f"p49Kt {_pct(ec.get('p49Kt'))}、p24hRain50 {_pct(ec.get('p24hRain50'))}"
     )
@@ -338,7 +362,8 @@ def slot_line(i: int, slot: dict, tz: str) -> str:
     return "\n".join([line, *_model_lines(slot.get("model"))])
 
 
-def rules_text(th: Thresholds | None = None) -> str:
+def rules_text(th: Thresholds | None = None, blend: bool = False) -> str:
+    """`blend`：這個機場的投票含數值不公開的模式（HD43，日本、南韓以外）。"""
     th = th or Thresholds()
     return "\n".join(
         [
@@ -352,7 +377,13 @@ def rules_text(th: Thresholds | None = None) -> str:
             "- 模式層是投票（每格）：歐洲模式、美國模式、歐洲系集、歐洲 AI 模式、美國 AI 模式、"
             "德國模式、日本模式、Google 的 AI 系集各一票；某一級的票（認為 ≥ 這一級的模式數）"
             "達到有資料模式數的一半就成立，取成立的最高級；強風、雨、雪、霧各自投，再取最高；"
-            "標「旁觀，不投票」的模式只列出、不算票也不算分母",
+            "標「旁觀，不投票」的模式只列出、不算票也不算分母"
+            + (
+                "；另有一個模式也投一票（明細不列，見「多模式綜合」那段；"
+                "所以投票句的模式數比上面列的多一個）"
+                if blend
+                else ""
+            ),
             f"- 歐洲系集只投 high：p49Kt ≥ {round(th.ec_p49_high * 100)}% 投 high、否則投 low，"
             "判 medium 時不算它（p29Kt 只是參考）",
             "- Google 的 AI 系集也只投 high：每個成員的估算陣風達 high 門檻"
@@ -396,9 +427,70 @@ def rules_text(th: Thresholds | None = None) -> str:
 UNLABELED = ("機場：", "資料時間：", "每格（", "提醒：")
 
 
-def airport_text(airport: dict, generated_at: str) -> str:
+def _hidden_entries(slot: dict) -> list[dict]:
+    """一格裡數值不公開的模式（HD43 的 WN3）有資料的那幾筆（build 記憶體裡還是完整的）。"""
+    m = slot.get("model")
+    entries = m.get("models") if isinstance(m, dict) else None
+    return [
+        e
+        for e in entries or []
+        if isinstance(e, dict) and e.get("id") in HIDDEN_MODELS and e.get("level") is not None
+    ]
+
+
+# 多模式綜合那段給模型看的數字（`wn3_numbers` 也照這幾個算）
+BLEND_KEYS = ("windKt", "gustKt", "crosswindKt", "rain6hMm")
+
+
+def has_blend(airport: dict) -> bool:
+    """這個機場有沒有多模式綜合那段（HD43）：`vote` 模式、而且至少一格 WN3 有資料（日本、南韓的
+    機場 build 不給資料，所以沒有）。"""
+    slots = [s for s in airport.get("slots") or [] if isinstance(s, dict)]
+    return bool(BLEND_SOURCES) and any(_hidden_entries(s) for s in slots)
+
+
+def multi_lines(airport: dict) -> list[str]:
+    """多模式綜合那段（HD43）：說明一行＋每格一行（當地時段、平均風、估算陣風、側風、雨量、等級）。"""
+    tz = airport.get("tz") or "UTC"
+    lines = [
+        f"{tag(BLEND_SOURCE)} 多模式綜合（另一個模式的逐格估算，已算進上面每格的模式投票）："
+        "這段只能影響整體判斷，不能引用這段的任何數字（換算、四捨五入也不行），"
+        "不能說是哪個模式說的；用到這段的句子 src 寫 multi"
+    ]
+    for i, slot in enumerate((s for s in airport.get("slots") or [] if isinstance(s, dict)), 1):
+        try:
+            when = slot_text(slot, tz)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            when = f"{slot.get('from')}–{slot.get('to')}（UTC）"
+        for e in _hidden_entries(slot):
+            lv = e.get("levels") if isinstance(e.get("levels"), dict) else {}
+            levels = "、".join(f"{c} {lv.get(c) or '—'}" for c in ("wind", "rain", "snow", "fog"))
+            lines.append(
+                f"- {i}. {when}：平均風 {_kt(e.get('windKt'))}、估算陣風 {_kt(e.get('gustKt'))}、"
+                f"側風 {_kt(e.get('crosswindKt'))}、6 小時雨量 {_num(e.get('rain6hMm'), ' 毫米')}、"
+                f"等級 {e.get('level')}（{levels}）"
+            )
+    return lines
+
+
+def wn3_numbers(airport: dict, generated_at: str) -> frozenset[int]:
+    """多模式綜合那段**獨有**的整數（HD43，`parse.check_wn3`）：那段的數值（`BLEND_KEYS`）四捨五入
+    到整數，扣掉拿掉那段的精簡文字裡出現過的所有整數（其他來源同值的數字不算違規）。"""
+    mine = {
+        round_half_up(float(v))
+        for s in airport.get("slots") or []
+        if isinstance(s, dict)
+        for e in _hidden_entries(s)
+        for k in BLEND_KEYS
+        if isinstance(v := e.get(k), int | float) and not isinstance(v, bool)
+    }
+    return frozenset(mine - integers(airport_text(airport, generated_at, wn3=False)))
+
+
+def airport_text(airport: dict, generated_at: str, wn3: bool = True) -> str:
     """一個機場給模型看的精簡文字（`airport` 是 `latest.json` 的 `airports[]` 一筆）；每一段資料前面
-    有來源代號（`tag`，HD40），模型每句短評的 `src` 就是這些代號。"""
+    有來源代號（`tag`，HD40），模型每句短評的 `src` 就是這些代號。`wn3=False`：不放多模式綜合那段
+    （HD43，WN3 違規兩次後重生用）。"""
     tz = airport.get("tz") or "UTC"
     z = ZoneInfo(tz)
     gen = parse_time(generated_at)
@@ -458,5 +550,8 @@ def airport_text(airport: dict, generated_at: str) -> str:
     slots = [s for s in airport.get("slots") or [] if isinstance(s, dict)]
     lines.append(f"每格（{len(slots)} 格、每格 6 小時、當地時間）：")
     lines += [slot_line(i, s, tz) for i, s in enumerate(slots, 1)]
-    lines.append(rules_text())
+    blend = has_blend(airport)
+    if blend and wn3:
+        lines += multi_lines(airport)
+    lines.append(rules_text(blend=blend))
     return "\n".join(lines)

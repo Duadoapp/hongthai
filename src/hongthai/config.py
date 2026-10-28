@@ -72,7 +72,9 @@ class Model:
     分母、不投票（`vote.total` 不含它），頂層 `models[].voting` 讓網頁標「旁觀，不投票」；
     `three_hourly`：0–72 小時有 3 小時（或更細）的風（HD35，機場頁的 3 小時格各自算）；`False` 的
     模式在 3 小時格用包住它的 6 小時格的值、標 `sixHourly`（`assess.merge_3h`）；
-    `ai`：`False` 的不放進給 AI 短評的文字（HD33b：三個旁觀模式不給，改 AI 提示要另外決定）。"""
+    `ai`：`False` 的不放進給 AI 短評的文字（HD33b：三個旁觀模式不給，改 AI 提示要另外決定）；
+    `values_hidden`：公開的檔（`latest.json`、機場頁）每格那筆只留 `{"id", "valuesHidden": true}`，
+    數字與它自己的等級只在 build 的記憶體裡算投票、給 AI（HD43 的 WeatherNext 3）。"""
 
     id: str
     name: dict[str, str]
@@ -81,28 +83,34 @@ class Model:
     voting: bool = True
     three_hourly: bool = False
     ai: bool = True
+    values_hidden: bool = False
 
 
 # HD15：Google WeatherNext 3（`sources/wn3.py`）的兩個開關，環境變數可以覆寫（`build.yml` 不設就是
 # 這裡的值）。條款（README「資料來源與授權」）：即時（有效時間在 1 小時內或未來）的數字算「未修改的
-# 即時資料」，不能公開放在網頁、`latest.json` 與公開的 `data` 分支，而且條款把日本列為限制國家。
-# 2026-10-26 核准後（HD15b）照比較嚴的讀法（看有效時間）預設 `private`：
-# - `private`（預設，HD15b）：每報抓最新的主報、照事件檔的格式算等級，整份只寫進私人 bucket
-#   （`wn3private.py`）；`latest.json` 只有 `sources.wn3` 的中繼資料，不放預報值或等級、不投票；
-#   起報超過 121 小時每天搬進 `data` 分支的 `history/wn3/`
+# 即時資料」，不能公開放在網頁、`latest.json` 與公開的 `data` 分支；多模式綜合成的衍生等級可以公開
+# （附出處與實驗性聲明，Google 2026-10-28 第三封回信）。日本、南韓不給豁免。
+# - `vote`（預設，HD43，2026-10-28 Shawn 定案）：每報照 `private` 抓最新的主報、整份（含數值與
+#   等級）寫進私人 bucket，同時把每格的等級交給投票（**一票**，只算進綜合燈號）；`latest.json` 每格
+#   `models[]` 的 `wn3` 那筆只有 `{"id": "wn3", "valuesHidden": true}`（`hide_values`），日本、
+#   南韓的機場（`WN3_EXCLUDED_REGIONS`）沒有這筆、不投票、AI 也不給。起報超過 121 小時照舊搬進
+#   `data` 分支的 `history/wn3/`
+# - `private`（HD15b）：同上但不投票，`latest.json` 只有 `sources.wn3` 的中繼資料
 # - `report-only`：`latest.json` 完全沒有 WN3（頂層 `models`、每格 `models[]`、`runs` 都沒有）；
 #   只在事件期間抓「最後一個有效時間已經過了 1 小時」的那一報（起報 ≤ 現在 − 121 小時，資料是
 #   CC BY 4.0），寫 `history/events/<id>/wn3/` 與路徑檔，給颱風過後的報告比對
-# - `observe`：每報抓最新一報，進 `models[]` 與路徑檔（Google 書面同意公開顯示之後才切）；
-#   投不投票看 `WN3_VOTING`
-WN3_MODES = ("private", "observe", "report-only")
-WN3_MODE_DEFAULT = "private"
-# 旁觀（`False`）：29W 驗證期凍結（2026-10-22 12:00 起）不改投票，解凍後才改 True
-WN3_VOTING_DEFAULT = False
+# - `observe`：每報抓最新一報，**數值公開**進 `models[]` 與路徑檔（要 Google 書面同意公開數值才能
+#   切，目前不能用）；投不投票看 `WN3_VOTING`
+WN3_MODES = ("vote", "private", "observe", "report-only")
+WN3_MODE_DEFAULT = "vote"
+# HD43：預設投票（`vote` 模式）；`WN3_VOTING=0` 時照樣藏值、只旁觀
+WN3_VOTING_DEFAULT = True
+# HD43：投票與 AI 都不含 WN3 的地區（`airports.json` 的 `region`）：沖繩、日本、南韓共 15 個機場
+WN3_EXCLUDED_REGIONS = frozenset({"okinawa", "japan", "korea"})
 
 
 def wn3_mode(env: dict[str, str] | None = None) -> str:
-    """`WN3_MODE` 環境變數（`private`／`observe`／`report-only`），沒設或不認得用
+    """`WN3_MODE` 環境變數（`vote`／`private`／`observe`／`report-only`），沒設或不認得用
     `WN3_MODE_DEFAULT`。"""
     v = (os.environ if env is None else env).get("WN3_MODE", "").strip()
     return v if v in WN3_MODES else WN3_MODE_DEFAULT
@@ -112,6 +120,11 @@ def wn3_voting(env: dict[str, str] | None = None) -> bool:
     """`WN3_VOTING=1`（或 `0`）覆寫 `WN3_VOTING_DEFAULT`。"""
     v = (os.environ if env is None else env).get("WN3_VOTING", "").strip()
     return WN3_VOTING_DEFAULT if v not in ("0", "1") else v == "1"
+
+
+def wn3_allowed(region: str) -> bool:
+    """這個地區的機場投票與 AI 能不能含 WN3（HD43：日本、南韓不行）。"""
+    return region not in WN3_EXCLUDED_REGIONS
 
 
 WN3_MODEL = Model(
@@ -124,9 +137,13 @@ WN3_MODEL = Model(
     },
     gust_estimated=True,
     voting=wn3_voting(),
+    # HD43 `vote`：不當一般模式給 AI（AI 另外拿一段「多模式綜合」`multi`，`ai/prompt.py`）、
+    # 公開的檔不放數值與它自己的等級
+    ai=wn3_mode() == "observe",
+    values_hidden=wn3_mode() == "vote",
 )
 
-# 之後加模式只改這裡＋一個來源檔（HD15 `wn3` 只在 `observe` 模式才在這裡，見上面）
+# 之後加模式只改這裡＋一個來源檔（HD15 `wn3` 只在 `vote`、`observe` 模式才在這裡，見上面）
 MODELS: tuple[Model, ...] = (
     Model(
         "ifs",
@@ -231,7 +248,7 @@ MODELS: tuple[Model, ...] = (
         # HD35：metadata `cma_grapes_global` 10800（原生 3 小時，3 小時格各一個原生值）
         three_hourly=True,
     ),
-    *((WN3_MODEL,) if wn3_mode() == "observe" else ()),
+    *((WN3_MODEL,) if wn3_mode() in ("vote", "observe") else ()),
 )
 
 

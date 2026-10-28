@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+import math
 import re
+import unicodedata
+from collections.abc import Collection
 
 from .config import (
+    BLEND_SOURCE,
     CANCEL_TERMS,
     CANTONESE,
     CHINESE_LANGS,
@@ -22,6 +26,7 @@ from .config import (
     SOURCES,
     SUSPEND_TERMS,
     TRADITIONAL_CHARS,
+    WN3_NAME_PATTERNS,
     ZH_CN_TAIWAN_TERMS,
 )
 
@@ -49,6 +54,16 @@ class AiError(Exception):
         """`<代碼>:<stop_reason>:<輸出 token 數>`，有 `tag` 時再加 `:<tag>`；沒有的欄位寫 `-`。"""
         parts = [self.code, self.stop_reason or "-", self.output_tokens or "-"]
         return ":".join([*parts, self.tag] if self.tag else parts)
+
+
+class Wn3Leak(AiError):
+    """短評寫出 WeatherNext 3 的名字或它獨有的數字（HD43）。`code` 照樣是 `bad_wording`（最後還是
+    違規時就是一般的用字錯誤），`tag` 是 `wn3/name` 或 `wn3/number`；訊息與標記都**不放違規的內容**
+    （哪個數字、哪句話）。`run.py` 看到這個會重生：第一次照原文、第二次拿掉多模式綜合那段。"""
+
+    def __init__(self, what: str):
+        text = "寫出 WN3 的名字" if what == "name" else "寫出 WN3 獨有的數字"
+        super().__init__("bad_wording", text, tag=f"wn3/{what}")
 
 
 def with_response(
@@ -141,6 +156,8 @@ def parse_response(text: str) -> dict:
         if len(c) > limit:
             raise AiError("bad_format", f"{lang} 超過 {limit} 字", tag=f"{lang}_too_long")
         comment[lang] = c
+    # HD43：在一般用字之前（WeatherNext 也在 `FORBIDDEN_TOKENS`），才會重生
+    check_wn3_names(comment)
     check_wording(comment)
     return {"level": level, "comment": comment, "sentences": sentences}
 
@@ -276,3 +293,44 @@ def check_wording(comment: dict[str, str]) -> None:
             for term, pat in _EN_RISK:
                 if pat.search(text):
                     raise _bad(lang, term, f"{lang}：叫法不一致「{term}」（要用 disruption risk）")
+
+
+# ---- WeatherNext 3（HD43）----
+
+_WN3_NAMES = [re.compile(p, re.IGNORECASE) for p in WN3_NAME_PATTERNS]
+_NUMBER = re.compile(r"(?<![\d.])\d+(?:\.\d+)?")
+
+
+def round_half_up(v: float) -> int:
+    return math.floor(v + 0.5)
+
+
+def integers(text: str) -> set[int]:
+    """文字裡的每個數字四捨五入到整數（全形數字先轉半形）；`10/23 14–20 時` → {10, 23, 14, 20}。"""
+    return {round_half_up(float(m)) for m in _NUMBER.findall(unicodedata.normalize("NFKC", text))}
+
+
+def check_wn3_names(comment: dict[str, str]) -> None:
+    """四語任一語出現 WeatherNext／WN3／它的白話名（`config.WN3_NAME_PATTERNS`）→
+    `Wn3Leak("name")`。"""
+    for lang in LANGS:
+        if any(p.search(comment.get(lang) or "") for p in _WN3_NAMES):
+            raise Wn3Leak("name")
+
+
+def check_wn3(sentences: dict[str, list[dict]], numbers: Collection[int] | None) -> None:
+    """格式與用字都過了之後的 WN3 檢查（HD43，`run.py` 在拿到回應後呼叫）。
+
+    - `numbers` 是 None：這次的精簡文字**沒有**多模式綜合那段（日本、南韓的機場、拿掉那段重生的
+      那次、或這一報沒有 WN3）→ `src` 不能有 `multi`（`bad_format`，同未知代號）
+    - 有：WN3 獨有的整數（`prompt.wn3_numbers`：那段的數值四捨五入，扣掉其他段落也出現過的整數）；
+      任一語任一句的數字四捨五入後在裡面 → `Wn3Leak("number")`。和其他來源同值的數字不算"""
+    for lang in LANGS:
+        for x in sentences.get(lang) or []:
+            if numbers is None:
+                if BLEND_SOURCE in (x.get("src") or []):
+                    raise AiError(
+                        "bad_format", f"{lang} 用了沒給的代號 multi", tag=f"{lang}_src_unknown"
+                    )
+            elif integers(str(x.get("text") or "")) & set(numbers):
+                raise Wn3Leak("number")

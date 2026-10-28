@@ -15,7 +15,8 @@ from hongthai.assess import fill_model_wx, model_entries, model_levels, model_vo
 from hongthai.config import MODELS, Thresholds
 
 TH = Thresholds()
-OBS = [None] * 3  # HD33b：三個旁觀模式（gem、arpege、cma）沒給資料
+# HD33b：三個旁觀模式（gem、arpege、cma）沒給資料；HD43：WeatherNext 3（`vote`，排最後）也沒給
+OBS = [None] * 4
 
 
 def test_vote_two_models_one_high_is_high():
@@ -100,10 +101,11 @@ def test_entries_in_config_order_with_nulls():
             "gem",  # HD33b：旁觀
             "arpege",
             "cma",
+            "wn3",  # HD43：`vote`（預設）投一票
         ]
     )
     for e in es:
-        assert set(e) == {
+        assert set(e) - {"windKtP90"} == {
             "id",
             "run",
             "windKt",  # HD18

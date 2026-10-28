@@ -75,12 +75,13 @@ def test_source_list_in_prompt_matches_config():
         "icon",
         "jma",
         "wn2-ens",
+        "multi",  # HD43：WeatherNext 3 那段（多模式綜合），不寫模式名
         "vote",
         "rule",
     )
-    # 給 AI 看的模式（`Model.ai`）每個都有代號；旁觀不給 AI 的三個沒有
+    # 給 AI 看的模式（`Model.ai`）每個都有代號；旁觀不給 AI 的三個、WN3 沒有
     assert set(config.MODEL_SOURCES) == {m.id for m in WEATHER_MODELS if m.ai}
-    assert not {"gem", "arpege", "cma"} & set(config.SOURCES)
+    assert not {"gem", "arpege", "cma", "wn3"} & set(config.SOURCES)
     for m in config.MODEL_SOURCES:
         assert m in prompt.MODEL_TEXT
 
@@ -432,5 +433,6 @@ def test_ok_light_from_real_parse():
 
 
 def test_assess_models_unchanged_for_prompt():
-    """HD33b 的旁觀模式照舊不給 AI（沒有代號、不在精簡文字裡）。"""
-    assert assess.ai_hidden() == {"gem", "arpege", "cma"}
+    """HD33b 的旁觀模式照舊不給 AI（沒有代號、不在精簡文字裡）；HD43 的 WN3 不當一般模式給
+    （另外給「多模式綜合」那段）。"""
+    assert assess.ai_hidden() == {"gem", "arpege", "cma", "wn3"}

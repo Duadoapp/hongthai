@@ -70,12 +70,16 @@ Open-Meteo 的三個模式（`openmeteo`，HD16）也**不沿用**：失敗那�
 `sources.tracks`。
 
 WeatherNext 3（HD15，`sources/wn3.py`、`wn3report.py`）：模式由 `config.WN3_MODE`（環境變數
-`WN3_MODE`）決定。`private`（預設，HD15b）：每報都跑來源 `wn3`，但放在算完估算陣風係數之後
-（`wn3report.observe_private`：最新的主報 → 事件檔格式 → 只寫進私人 bucket，同一報已經有就不查），
+`WN3_MODE`）決定。`vote`（預設，HD43）：每報都跑來源 `wn3`，放在算完估算陣風係數之後
+（`wn3report.observe_vote`：最新的主報 → 整份寫進私人 bucket＋逐時數字存 `points/`，同一報已經有就
+從 `points/` 讀），資料交給 `assemble` 投票（日本、南韓的機場不給，`config.wn3_allowed`）。記憶體裡
+`models[]` 的 `wn3` 那筆是完整的（投票、模式沿用的重算、3 小時格、AI 都用），**寫出去之前**
+（`hide_wn3`、`airport_files`）換成只有 `{"id": "wn3", "valuesHidden": true}`、日韓的整筆拿掉；
+`sources.wn3` 只有中繼資料＋`attribution`；頂層 `models[]` 那筆多 `valuesHidden: true`。
+`private`（HD15b）：同樣在算完 G 之後跑（`wn3report.observe_private`，同一報已經有就不查），
 `latest.json` 只有 `sources.wn3` 的中繼資料（`run`、`stored`、`via`、掃描量、秒數，不放任何預報值或
 等級）、不進 `models[]`／`slots`、不投票、不寫事件檔與路徑檔（補抓見 `wn3report.backfill`）。
-這一報有查到時另外把**只有等級**的檔上傳 Cloudflare R2（HD15c，`observe_wn3`、`wn3levels.py`；
-`sources.wn3` 只多 `r2`、`r2Files`、`r2Bytes`）。
+HD15c 的 R2 等級檔 HD43 拿掉了。
 `report-only`：`latest.json` 沒有 WN3（只有 `sources.wn3`），
 只在「5 天前那一報」（`wn3report.report_run`，資料已經是 CC BY 4.0）的起報時間落在事件期間時跑
 來源 `wn3`，寫 `history/events/<id>/wn3/` 與路徑檔；`observe`：每報抓最新一報進 `models[]`
@@ -128,7 +132,6 @@ from . import (
     og,
     tracks,
     typhoons,
-    wn3levels,
     wn3report,
 )
 from .ai import run as ai
@@ -143,6 +146,7 @@ from .config import (
     load_confirmed,
     load_events,
     load_regions,
+    wn3_allowed,
     wn3_mode,
 )
 from .sources import (
@@ -352,8 +356,7 @@ class Timing:
     - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf、gfs、aifs、aigfs
       （HD14）多 `mirror`；openmeteo（HD16）多 `calls`（Open-Meteo 的加權呼叫次數，失敗是 null）；
       wn3（HD15）多 `mode`、`via`（`bigquery`／`zarr`）、`estimateBytes`（BigQuery dry run）、
-      `bytesBilled`、`stored`（HD15b `private`：`written`／`exists`）、`r2`、`r2Files`（HD15c：
-      等級檔上傳 R2 的結果與檔數，沒上傳是 null）
+      `bytesBilled`、`stored`（HD15b `private`、HD43 `vote`：`written`／`exists`／`previous`）
     - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
     - AI 對決（HD5）：`{"run", "source": "ai", "ok", "error", "seconds", "bytes": 0,
       "calls": {"claude": n, "gemini": n}, "usage": {...}, "costUsd": {"claude": x, "gemini": y},
@@ -395,18 +398,9 @@ class Timing:
             fields["errorMessages"] = st.get("errorMessages")  # HD30
         if name in ("openmeteo", "tdx"):  # tdx：HD38（每月計數看 `history/tdx/`，不看這裡）
             fields["calls"] = st.get("calls")
-        if name == "wn3":  # HD15；`stored`：HD15b `private`；`r2`、`r2Files`：HD15c
-            for k in (
-                "mode",
-                "via",
-                "estimateBytes",
-                "bytesBilled",
-                "stored",
-                "bqError",
-                "zarrError",
-                "r2",
-                "r2Files",
-            ):
+        if name == "wn3":  # HD15；`stored`：HD15b `private`、HD43 `vote`
+            keys = ("mode", "via", "estimateBytes", "bytesBilled", "stored", "bqError", "zarrError")
+            for k in keys:
                 fields[k] = st.get(k)
         self.write(**fields)
 
@@ -505,25 +499,25 @@ def _wn3_extra(w: wn3.Wn3Data) -> dict:
 
 
 def _wn3_private_extra(r: wn3report.PrivateResult) -> dict:
-    """`sources.wn3`（HD15b `private`）：只有中繼資料——起報、`stored`（`written`：這一報寫進私人
-    bucket；`exists`：已經有了、沒查 BigQuery），有查時加 `_wn3_extra` 那些（`via`、掃描量）。
-    **不放任何預報值或等級**。"""
+    """`sources.wn3`（HD15b `private`、HD43 `vote`）：只有中繼資料——起報、`stored`
+    （`written`：這一報查了、寫進私人 bucket；`exists`：已經有了、沒查 BigQuery；`previous`：
+    最新一報查不到、用前一報的，多 `latestError`），有查時加 `_wn3_extra` 那些（`via`、掃描量）；
+    `vote` 有資料時加 `attribution`（Section 4(b) 原文＋取得管道）。**不放任何預報值或等級**。"""
     d: dict[str, object] = {"run": iso(r.run), "stored": r.stored}
-    if r.data is not None:
+    if r.data is not None and r.queried:
         d.update(_wn3_extra(r.data))
-    d.update(r.r2)
+    if r.latest_error:
+        d["latestError"] = r.latest_error
+    if r.data is not None and wn3_mode() == "vote":
+        d["attribution"] = wn3report.attribution(r.data.via)
     return d
 
 
-def observe_wn3(
-    airports: list[Airport], now: datetime, factors: dict[str, assess.GustFactor]
-) -> wn3report.PrivateResult:
-    """`private` 這一報（HD15b）＋只有等級的檔上傳 R2（HD15c，`wn3levels`）：有查到這一報才傳
-    （私人 bucket 已經有、沒查的不傳，R2 留著上一份）。R2 失敗只記錯誤碼，不讓這個來源失敗。"""
-    r = wn3report.observe_private(airports, now, factors)
-    if r.data is not None:
-        r.r2 = wn3levels.publish(r.data, airports, factors, now)
-    return r
+def hide_wn3(latest: dict) -> None:
+    """寫出去之前（HD43）：每個機場每格 `models[]` 換成公開的樣子（`assess.public_slots`：
+    `valuesHidden` 的模式只留 id、WN3 在日本、南韓的機場拿掉）。記憶體裡的投票結果不動。"""
+    for a in latest.get("airports") or []:
+        assess.public_slots(a.get("slots") or [], str(a.get("region") or ""))
 
 
 def _is_num(v: object) -> bool:
@@ -843,7 +837,8 @@ def slot_inputs(
     ec, gf, tf, af, ag = (src.get(k) for k in ("ec", "gf", "tf", "af", "ag"))
     om, wn, cw = src.get("om"), src.get("wn"), src.get("cw")
     taf_info = tf.tafs.get(a.icao) if tf else None
-    observe_wn3 = any(m.id == assess.WN3_ID for m in MODELS)
+    # HD43：日本、南韓的機場不給 WN3（`vote` 時投票與 AI 都不含）
+    use_wn3 = any(m.id == assess.WN3_ID for m in MODELS) and wn3_allowed(a.region)
     warns = collect_warnings(
         a, src.get("hk"), cw, src.get("sm"), src.get("nw"), src.get("jm"), src.get("sw")
     )
@@ -869,7 +864,7 @@ def slot_inputs(
             mid: om.hourly.get(mid, {}).get(a.icao) if om else None
             for mid in openmeteo.OBSERVER_MODELS
         },
-        "wn3": wn.points.get(a.icao) if wn and observe_wn3 else None,
+        "wn3": wn.points.get(a.icao) if wn and use_wn3 else None,
     }
 
 
@@ -898,9 +893,10 @@ def assemble(
 ) -> dict:
     """純組裝：各來源結果（失敗的是 None）→ `latest.json` 的 dict。`factors` 是每個機場估算陣風的
     係數（HD18；沒有的機場用 1.4、`default`）。`om` 是 Open-Meteo 的三個模式（HD16）。`wn` 是
-    WeatherNext 3（HD15）：只有 `MODELS` 裡有 `wn3`（`observe` 模式）才寫進 `runs` 與
-    `models[]`。`fs` 是航班統計（HD38：`flight_stats`、`tdx_stats`，失敗的是 None）：有資料的機場
-    `slots[].flights`、`airports[].flightSources`。"""
+    WeatherNext 3（HD15）：只有 `MODELS` 裡有 `wn3`（`vote`、`observe` 模式）才寫進 `runs` 與
+    `models[]`（`vote` 時每格那筆在寫出去之前才藏起來，`hide_wn3`）。`fs` 是航班統計（HD38：
+    `flight_stats`、`tdx_stats`，失敗的是 None）：有資料的機場 `slots[].flights`、
+    `airports[].flightSources`。"""
     slots = slot_bounds(now)
     window_start, window_end = slots[0][0], slots[-1][1]
     src = {
@@ -967,7 +963,14 @@ def assemble(
         # 模式層投票的模式（HD14，`config.MODELS` 的順序；每格的 `model.models[]` 只放 id）；
         # `voting: false` 是旁觀模式，網頁標「旁觀，不投票」（HD16）
         "models": [
-            {"id": m.id, "name": m.name, "voting": m.voting, "votesOnlyHigh": m.votes_only_high}
+            {
+                "id": m.id,
+                "name": m.name,
+                "voting": m.voting,
+                "votesOnlyHigh": m.votes_only_high,
+                # HD43：每格那筆沒有數值（網頁那列不顯示數字也不顯示它自己的高低）
+                **({"valuesHidden": True} if m.values_hidden else {}),
+            }
             for m in MODELS
         ],
         "airports": out_airports,
@@ -1083,6 +1086,10 @@ def airport_files(
     except Exception:  # 保險：3 小時格不能讓 build 失敗
         log.exception("機場頁 3 小時格整個算不出來")
         failed.append("*")
+    regions = {a.iata.lower(): a.region for a in airports}
+    for code, doc in docs.items():  # HD43：機場頁也是公開的，WN3 那筆藏起來（日韓拿掉）
+        for k in ("slots3h", "slots6h"):
+            assess.public_slots(doc[k], regions.get(code, ""))
     try:  # HD38：3 小時格也帶 `flights`（`src["fs"]`，同 6 小時格的來源）；算大小之前放進去
         flight_files(docs, airports, list(src.get("fs") or []))  # type: ignore[arg-type]
     except Exception:  # 保險：航班放不進去不影響機場檔
@@ -1307,7 +1314,8 @@ def run(
     )
     om = _call("openmeteo", lambda: openmeteo.fetch(airports), status, timing, _openmeteo_extra)
     wn_mode = wn3_mode()
-    private = wn_mode == "private"  # HD15b：在算完 G 之後才跑（下面），不進 `latest.json`
+    # HD15b `private`、HD43 `vote`：在算完 G 之後才跑（下面）
+    private = wn_mode in ("private", "vote")
     wn_run, wn_events = (None, []) if private else wn3_targets(wn_mode, now, events_path, history)
     wn: wn3.Wn3Data | None = None
     if wn_run is not None:
@@ -1373,14 +1381,17 @@ def run(
 
     factors = gust_factors(ec, gf, airports, now, history)
     if private:
-        _call(
+        observe = wn3report.observe_vote if wn_mode == "vote" else wn3report.observe_private
+        wr = _call(
             "wn3",
-            lambda: observe_wn3(airports, now, factors),
+            lambda: observe(airports, now, factors),
             status,
             timing,
             _wn3_private_extra,
             {"mode": wn_mode},
         )
+        if wn_mode == "vote" and isinstance(wr, wn3report.PrivateResult):
+            wn = wr.data  # HD43：投票（`assemble` 只給日韓以外的機場）
     inputs = {
         "ec": ec,
         "gf": gf,
@@ -1406,7 +1417,7 @@ def run(
         **inputs,
         fs=[fs, fs_tdx],  # type: ignore[list-item]
     )
-    if wn is not None and wn_events:
+    if wn is not None and wn_events and not private:
         wn3_files(history, wn_events, wn, airports, factors, wn_mode, workdir / "wn3")
     failed = [n for n, d in (("ecmwf", ec), ("gfs", gf), ("aifs", af), ("aigfs", ag)) if d is None]
     if failed:
@@ -1428,6 +1439,7 @@ def run(
             )
         )
     run_ai(latest, previous_latest(archive, pages_url), now, history, timing)
+    hide_wn3(latest)  # HD43：AI 評完才藏（AI 要 WN3 的數字），之後才寫檔、發布、畫分享圖
 
     stamp = f"{now:%Y%m%dT%H%M}Z"
     raw_dir = history / "raw" / f"{now:%Y-%m-%d}"
