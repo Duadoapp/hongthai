@@ -1,0 +1,173 @@
+{
+ "@context": [
+  "https://geojson.org/geojson-ld/geojson-context.jsonld",
+  {
+   "@version": "1.1",
+   "wx": "https://api.weather.gov/ontology#",
+   "@vocab": "https://api.weather.gov/ontology#"
+  }
+ ],
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.002.2",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.002.2",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.002.2",
+    "areaDesc": "Guam; Rota",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001"
+    ],
+    "references": [],
+    "sent": "2026-10-29T15:00:00+10:00",
+    "effective": "2026-10-29T15:00:00+10:00",
+    "onset": "2026-10-30T02:00:00+10:00",
+    "expires": "2026-10-30T05:00:00+10:00",
+    "ends": "2026-10-31T16:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Moderate",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Rip Current Statement",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "Rip Current Statement issued October 29 at 3:00PM ChST until October 31 at 4:00PM ChST by NWS Tiyan GU",
+    "description": "* WHAT...Large breaking waves of 10 to 14 feet and dangerous rip\ncurrents expected.\n\n* WHERE...North and east facing reefs of Guam and Rota.\n\n* WHEN...From 2 AM Friday to 4 PM ChST Saturday.\n\n* IMPACTS...Dangerous swimming and surfing conditions and\nlocalized beach erosion. Rip currents can sweep even the best\nswimmers away from shore into deeper water.\n\n* ADDITIONAL DETAILS...As TY In-fa moves west-northwest toward the\nfar northern CNMI, seas are expected to rapidly increase due to the\nlarge, long-period northeast swell emanating from In-fa. This will\nproduce hazardous surf along north and east facing reefs after\nmidnight tonight. As In-fa progresses, swell will become north,\nthen northwest, resulting in surf building over west facing reefs\nFriday night. Surf will remain hazardous through Saturday\nafternoon. These surf conditions will maintain a high risk of\ndangerous rip currents.",
+    "instruction": "Rip currents will be life threatening. Inexperienced swimmers\nshould remain out of the water due to dangerous surf conditions.\n\nRip currents will be life threatening. If caught in a rip\ncurrent, relax and float. Don't swim against the current. If\nable, swim in a direction following the shoreline. If unable to\nescape, face the shore and call or wave for help.",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "CFWGUM"
+     ],
+     "WMOidentifier": [
+      "WHMY40 PGUM 290500"
+     ],
+     "NWSheadline": [
+      "HIGH SURF ADVISORY IN EFFECT FROM 2 AM FRIDAY TO 4 PM CHST SATURDAY... ...HIGH RIP CURRENT RISK IN EFFECT FROM LATE TONIGHT THROUGH SATURDAY AFTERNOON"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.NEW.PGUM.RP.S.0024.261029T1600Z-261031T0600Z/"
+     ],
+     "eventEndingTime": [
+      "2026-10-31T16:00:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "RPS"
+     ]
+    }
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.002.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.002.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.002.1",
+    "areaDesc": "Guam; Rota",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001"
+    ],
+    "references": [],
+    "sent": "2026-10-29T15:00:00+10:00",
+    "effective": "2026-10-29T15:00:00+10:00",
+    "onset": "2026-10-30T02:00:00+10:00",
+    "expires": "2026-10-30T05:00:00+10:00",
+    "ends": "2026-10-31T16:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Minor",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "High Surf Advisory",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "High Surf Advisory issued October 29 at 3:00PM ChST until October 31 at 4:00PM ChST by NWS Tiyan GU",
+    "description": "* WHAT...Large breaking waves of 10 to 14 feet and dangerous rip\ncurrents expected.\n\n* WHERE...North and east facing reefs of Guam and Rota.\n\n* WHEN...From 2 AM Friday to 4 PM ChST Saturday.\n\n* IMPACTS...Dangerous swimming and surfing conditions and\nlocalized beach erosion. Rip currents can sweep even the best\nswimmers away from shore into deeper water.\n\n* ADDITIONAL DETAILS...As TY In-fa moves west-northwest toward the\nfar northern CNMI, seas are expected to rapidly increase due to the\nlarge, long-period northeast swell emanating from In-fa. This will\nproduce hazardous surf along north and east facing reefs after\nmidnight tonight. As In-fa progresses, swell will become north,\nthen northwest, resulting in surf building over west facing reefs\nFriday night. Surf will remain hazardous through Saturday\nafternoon. These surf conditions will maintain a high risk of\ndangerous rip currents.",
+    "instruction": "Rip currents will be life threatening. Inexperienced swimmers\nshould remain out of the water due to dangerous surf conditions.\n\nRip currents will be life threatening. If caught in a rip\ncurrent, relax and float. Don't swim against the current. If\nable, swim in a direction following the shoreline. If unable to\nescape, face the shore and call or wave for help.",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "CFWGUM"
+     ],
+     "WMOidentifier": [
+      "WHMY40 PGUM 290500"
+     ],
+     "NWSheadline": [
+      "HIGH SURF ADVISORY IN EFFECT FROM 2 AM FRIDAY TO 4 PM CHST SATURDAY... ...HIGH RIP CURRENT RISK IN EFFECT FROM LATE TONIGHT THROUGH SATURDAY AFTERNOON"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.NEW.PGUM.SU.Y.0060.261029T1600Z-261031T0600Z/"
+     ],
+     "eventEndingTime": [
+      "2026-10-31T16:00:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "SUY"
+     ]
+    }
+   }
+  }
+ ],
+ "title": "Current watches, warnings, and advisories for Guam (GUZ001) GU",
+ "updated": "2026-10-29T13:08:24+00:00"
+}
