@@ -339,6 +339,22 @@ def write(archive: Path, doc: dict, history: bool = True) -> None:
         _dump(archive / HISTORY_DIR / f"{doc['base']}.json", doc)
 
 
+def already_done(archive: Path, now: datetime) -> bool:
+    """`--archive` 的 `longrange.json` 已經是這個基準日、而且不是 stale。
+
+    只看本機檔，不抓 Pages。"""
+    path = archive / FILENAME
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return (
+        isinstance(doc, dict)
+        and doc.get("base") == base_of(now).strftime("%Y-%m-%d")
+        and doc.get("stale") is not True
+    )
+
+
 def previous(archive: Path, pages_url: str = PAGES_URL) -> dict | None:
     """上一份：先 `--archive` 的，沒有（或壞了）再從 Pages 抓。"""
     path = archive / FILENAME
@@ -399,6 +415,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--archive", type=Path, default=Path("data"))
     ap.add_argument("--airports", type=Path, default=Path("airports.json"))
     ap.add_argument("--pages-url", default=PAGES_URL)
+    ap.add_argument(
+        "--skip-done",
+        action="store_true",
+        help="這個基準日已經出過（而且不是 stale）就跳過："
+        "Cloudflare Worker 與 GitHub 的 cron 都觸發時用",
+    )
     args = ap.parse_args(argv)
 
     logging.basicConfig(
@@ -410,6 +432,9 @@ def main(argv: list[str] | None = None) -> int:
 
     t0 = time.monotonic()
     now = utcnow().replace(second=0, microsecond=0)
+    if args.skip_done and already_done(args.archive, now):
+        log.info("基準日 %s 已經出過，跳過", base_of(now).strftime("%Y-%m-%d"))
+        return 0
     errors: dict[str, str | None]
     try:
         airports = load_airports(args.airports)
