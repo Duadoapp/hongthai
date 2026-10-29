@@ -541,7 +541,10 @@ def test_skip_done(monkeypatch, tmp_path, prev, skipped):
 
     monkeypatch.setattr(longrange, "run", fake_run)
     monkeypatch.setattr(longrange, "utcnow", lambda: utc(2026, 10, 29, 16, 56))
-    monkeypatch.setattr(longrange.requests, "get", lambda *a, **k: (_ for _ in ()).throw(OSError()))
+    def offline(url, **k):
+        raise longrange.requests.ConnectionError("測試不連網")
+
+    monkeypatch.setattr(longrange.requests, "get", offline)
     archive = tmp_path / "data"
     archive.mkdir()
     if prev is not None:
