@@ -1,5 +1,5 @@
 # HD25：外部鬧鐘。GitHub 的排程常晚 2–5 小時，改由這個 Worker 準時用 workflow_dispatch 觸發
-# build.yml 與 events.yml（GitHub 自己的 cron 留著當備援）。部署與 token 見 docs/cloudflare-trigger.md。
+# build.yml、events.yml 與 longrange.yml（GitHub 自己的 cron 留著當備援）。部署與 token 見 docs/cloudflare-trigger.md。
 name = "hongthai-trigger"
 main = "src/index.ts"
 compatibility_date = "2026-10-21"
@@ -9,7 +9,7 @@ preview_urls = false
 
 [triggers]
 # UTC；和 src/index.ts 的 CRONS 一一對應（改這裡要一起改那裡）
-crons = ["5 1,13 * * *", "25 8,20 * * *", "7 * * * *"]
+crons = ["5 1,13 * * *", "25 8,20 * * *", "7 * * * *", "47 11 * * *"]
 
 # Cloudflare 主控台 Workers → hongthai-trigger → Logs 看得到 console 的輸出
 [observability]

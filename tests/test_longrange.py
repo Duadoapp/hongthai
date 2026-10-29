@@ -523,6 +523,45 @@ def test_all_fail_reuses_previous_as_stale(monkeypatch, airports, tmp_path):
     assert not (archive / "history").exists()  # 沿用的不進歷史
 
 
+@pytest.mark.parametrize(
+    ("prev", "skipped"),
+    [
+        ({"base": "2026-10-29", "stale": False}, True),  # 這個基準日出過：跳過
+        ({"base": "2026-10-29", "stale": True}, False),  # 出過但是沿用的：重跑
+        ({"base": "2026-10-28", "stale": False}, False),  # 前一天的：照跑
+        (None, False),  # 沒有檔：照跑
+    ],
+)
+def test_skip_done(monkeypatch, tmp_path, prev, skipped):
+    calls = []
+
+    def fake_run(*a, **k):
+        calls.append(1)
+        raise KeyError("不該跑到這裡就停")
+
+    monkeypatch.setattr(longrange, "run", fake_run)
+    monkeypatch.setattr(longrange, "utcnow", lambda: utc(2026, 10, 29, 16, 56))
+
+    def offline(url, **k):
+        raise longrange.requests.ConnectionError("測試不連網")
+
+    monkeypatch.setattr(longrange.requests, "get", offline)
+    archive = tmp_path / "data"
+    archive.mkdir()
+    if prev is not None:
+        (archive / "longrange.json").write_text(json.dumps({"schema": 1, **prev}), "utf-8")
+    before = (archive / "longrange.json").read_bytes() if prev is not None else None
+    code = longrange.main(["--archive", str(archive), "--skip-done"])
+    assert (calls == []) is skipped
+    if skipped:
+        assert code == 0
+        assert (archive / "longrange.json").read_bytes() == before  # 一個字都不動
+    # 沒加 --skip-done 一律照跑
+    calls.clear()
+    longrange.main(["--archive", str(archive)])
+    assert calls == [1]
+
+
 def test_crash_reuses_previous_from_pages(monkeypatch, airports, tmp_path):
     def broken(*a, **k):
         raise KeyError("bug")

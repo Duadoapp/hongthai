@@ -21,6 +21,19 @@ test("events.yml 每小時", () => {
   });
 });
 
+test("longrange.yml 每天一次、時間和 longrange.yml 的 cron 一致", () => {
+  const yml = readFileSync(new URL("../../../.github/workflows/longrange.yml", import.meta.url), "utf8");
+  const github = [...yml.matchAll(/- cron: "([^"]+)"/g)].map((m) => m[1]);
+  const worker = Object.entries(CRONS)
+    .filter(([, d]) => d.workflow === "longrange.yml")
+    .map(([cron]) => cron);
+  assert.deepEqual(worker, github);
+  assert.deepEqual(dispatchFor("47 11 * * *"), {
+    workflow: "longrange.yml",
+    inputs: { trigger: "cloudflare" },
+  });
+});
+
 test("沒列的 cron 不觸發", () => {
   assert.equal(dispatchFor("0 * * * *"), null);
 });

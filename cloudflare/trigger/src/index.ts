@@ -17,6 +17,8 @@ export const CRONS: Record<string, Dispatch> = {
   "25 8,20 * * *": { workflow: "build.yml", inputs: { trigger: "cloudflare" } },
   // events.yml 每小時
   "7 * * * *": { workflow: "events.yml", inputs: { trigger: "cloudflare" } },
+  // longrange.yml 每天 11:47Z（2026-10-29 加：GitHub 排程 10/28 晚 5.5 小時、10/29 沒跑）
+  "47 11 * * *": { workflow: "longrange.yml", inputs: { trigger: "cloudflare" } },
 };
 
 export function dispatchFor(cron: string): Dispatch | null {
