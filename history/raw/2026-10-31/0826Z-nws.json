@@ -1,0 +1,205 @@
+{
+ "@context": [
+  "https://geojson.org/geojson-ld/geojson-context.jsonld",
+  {
+   "@version": "1.1",
+   "wx": "https://api.weather.gov/ontology#",
+   "@vocab": "https://api.weather.gov/ontology#"
+  }
+ ],
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.5d0ed2e953753cdf681febf4a966c85493224927.001.2",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.5d0ed2e953753cdf681febf4a966c85493224927.001.2",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.5d0ed2e953753cdf681febf4a966c85493224927.001.2",
+    "areaDesc": "Guam; Rota; Tinian; Saipan",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100",
+      "069120",
+      "069110"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001",
+      "MPZ002",
+      "MPZ003"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001",
+     "https://api.weather.gov/zones/forecast/MPZ002",
+     "https://api.weather.gov/zones/forecast/MPZ003"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.01e7cf67f3a2bce41f061af69d9aac77a3d146e8.001.2",
+      "identifier": "urn:oid:2.49.0.1.840.0.01e7cf67f3a2bce41f061af69d9aac77a3d146e8.001.2",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-31T04:54:00+10:00"
+     }
+    ],
+    "sent": "2026-10-31T15:55:00+10:00",
+    "effective": "2026-10-31T15:55:00+10:00",
+    "onset": "2026-10-31T15:55:00+10:00",
+    "expires": "2026-11-01T06:00:00+10:00",
+    "ends": "2026-11-02T04:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Moderate",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Rip Current Statement",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "Rip Current Statement issued October 31 at 3:55PM ChST until November 2 at 4:00AM ChST by NWS Tiyan GU",
+    "description": "* WHAT...Large breaking waves of 7 to 9 feet in the surf zone and\ndangerous rip currents.\n\n* WHERE...West and north facing reefs of the Marianas.\n\n* WHEN...Until 4 AM ChST Monday.\n\n* IMPACTS...Dangerous swimming and surfing conditions and\nlocalized beach erosion. Rip currents can sweep even the best\nswimmers away from shore into deeper water.\n\n* ADDITIONAL DETAILS...Typhoon In-fa will send pulses of an elevated,\nlong-period, northwest swell over the next few days. Surf may drop\nbelow 9 ft on Sunday, but will quickly return to advisory levels\nshortly thereafter. As such, the High Surf Advisory and High Rip\nCurrent Risk Statement were extended at least through Sunday night.",
+    "instruction": "Rip currents will be life threatening. Inexperienced swimmers\nshould remain out of the water due to dangerous surf conditions.\n\nRip currents will be life threatening. If caught in a rip\ncurrent, relax and float. Don't swim against the current. If\nable, swim in a direction following the shoreline. If unable to\nescape, face the shore and call or wave for help.",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "CFWGUM"
+     ],
+     "WMOidentifier": [
+      "WHMY40 PGUM 310555"
+     ],
+     "NWSheadline": [
+      "HIGH SURF ADVISORY NOW IN EFFECT UNTIL 4 AM CHST MONDAY... ...HIGH RIP CURRENT RISK NOW IN EFFECT THROUGH LATE SUNDAY NIGHT"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.EXT.PGUM.RP.S.0024.000000T0000Z-261101T1800Z/"
+     ],
+     "eventEndingTime": [
+      "2026-11-02T04:00:00+10:00"
+     ],
+     "expiredReferences": [
+      "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d0e2033004bcd7fffe6f8550387e7d86e62bbb30.002.2,2026-10-30T15:22:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d0e2033004bcd7fffe6f8550387e7d86e62bbb30.001.4,2026-10-30T15:22:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d628a8eac276a4ff5fd940aa64b8d8e80fcca178.002.2,2026-10-30T15:19:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d628a8eac276a4ff5fd940aa64b8d8e80fcca178.001.4,2026-10-30T15:19:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.fba3fd2227879a333fd47efb099c9ff02ed907cf.002.2,2026-10-30T03:16:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.fba3fd2227879a333fd47efb099c9ff02ed907cf.001.4,2026-10-30T03:16:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.002.2,2026-10-29T15:00:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.001.4,2026-10-29T15:00:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "RPS"
+     ]
+    }
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.5d0ed2e953753cdf681febf4a966c85493224927.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.5d0ed2e953753cdf681febf4a966c85493224927.001.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.5d0ed2e953753cdf681febf4a966c85493224927.001.1",
+    "areaDesc": "Guam; Rota; Tinian; Saipan",
+    "geocode": {
+     "SAME": [
+      "066010",
+      "069100",
+      "069120",
+      "069110"
+     ],
+     "UGC": [
+      "GUZ001",
+      "MPZ001",
+      "MPZ002",
+      "MPZ003"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GUZ001",
+     "https://api.weather.gov/zones/forecast/MPZ001",
+     "https://api.weather.gov/zones/forecast/MPZ002",
+     "https://api.weather.gov/zones/forecast/MPZ003"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.01e7cf67f3a2bce41f061af69d9aac77a3d146e8.001.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.01e7cf67f3a2bce41f061af69d9aac77a3d146e8.001.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-10-31T04:54:00+10:00"
+     }
+    ],
+    "sent": "2026-10-31T15:55:00+10:00",
+    "effective": "2026-10-31T15:55:00+10:00",
+    "onset": "2026-10-31T15:55:00+10:00",
+    "expires": "2026-11-01T06:00:00+10:00",
+    "ends": "2026-11-02T04:00:00+10:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Minor",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "High Surf Advisory",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Tiyan GU",
+    "headline": "High Surf Advisory issued October 31 at 3:55PM ChST until November 2 at 4:00AM ChST by NWS Tiyan GU",
+    "description": "* WHAT...Large breaking waves of 7 to 9 feet in the surf zone and\ndangerous rip currents.\n\n* WHERE...West and north facing reefs of the Marianas.\n\n* WHEN...Until 4 AM ChST Monday.\n\n* IMPACTS...Dangerous swimming and surfing conditions and\nlocalized beach erosion. Rip currents can sweep even the best\nswimmers away from shore into deeper water.\n\n* ADDITIONAL DETAILS...Typhoon In-fa will send pulses of an elevated,\nlong-period, northwest swell over the next few days. Surf may drop\nbelow 9 ft on Sunday, but will quickly return to advisory levels\nshortly thereafter. As such, the High Surf Advisory and High Rip\nCurrent Risk Statement were extended at least through Sunday night.",
+    "instruction": "Rip currents will be life threatening. Inexperienced swimmers\nshould remain out of the water due to dangerous surf conditions.\n\nRip currents will be life threatening. If caught in a rip\ncurrent, relax and float. Don't swim against the current. If\nable, swim in a direction following the shoreline. If unable to\nescape, face the shore and call or wave for help.",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "CFWGUM"
+     ],
+     "WMOidentifier": [
+      "WHMY40 PGUM 310555"
+     ],
+     "NWSheadline": [
+      "HIGH SURF ADVISORY NOW IN EFFECT UNTIL 4 AM CHST MONDAY... ...HIGH RIP CURRENT RISK NOW IN EFFECT THROUGH LATE SUNDAY NIGHT"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.EXT.PGUM.SU.Y.0060.000000T0000Z-261101T1800Z/"
+     ],
+     "eventEndingTime": [
+      "2026-11-02T04:00:00+10:00"
+     ],
+     "expiredReferences": [
+      "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d0e2033004bcd7fffe6f8550387e7d86e62bbb30.002.1,2026-10-30T15:22:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d0e2033004bcd7fffe6f8550387e7d86e62bbb30.001.3,2026-10-30T15:22:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d628a8eac276a4ff5fd940aa64b8d8e80fcca178.002.1,2026-10-30T15:19:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d628a8eac276a4ff5fd940aa64b8d8e80fcca178.001.3,2026-10-30T15:19:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.fba3fd2227879a333fd47efb099c9ff02ed907cf.002.1,2026-10-30T03:16:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.fba3fd2227879a333fd47efb099c9ff02ed907cf.001.2,2026-10-30T03:16:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.002.1,2026-10-29T15:00:00+10:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.534005c35a5d8002d7e10b1cedad3dbb5ffc8095.001.2,2026-10-29T15:00:00+10:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "SUY"
+     ]
+    }
+   }
+  }
+ ],
+ "title": "Current watches, warnings, and advisories for Guam (GUZ001) GU",
+ "updated": "2026-10-31T08:25:06+00:00"
+}
