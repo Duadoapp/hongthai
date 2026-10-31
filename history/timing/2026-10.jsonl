@@ -1308,3 +1308,4 @@
 {"run": "2026-10-31T01:06:00Z", "source": "ai", "ok": true, "error": null, "seconds": 42.7, "bytes": 0, "calls": {"claude": 3, "gemini": 3}, "usage": {"claude": {"input": 56227, "output": 4674, "cacheRead": 7568, "cacheWrite": 3784, "calls": 3}, "gemini": {"input": 34030, "output": 1474, "thinking": null, "cacheRead": null, "calls": 2}}, "costUsd": {"claude": 0.338822, "gemini": 0.0828}, "errorMessages": {"claude": null, "gemini": "DEADLINE_EXCEEDED: Deadline expired before operation could complete."}}
 {"run": "2026-10-31T01:06:00Z", "source": "og", "ok": true, "error": null, "seconds": 2.3, "bytes": 712242}
 {"run": "2026-10-31T01:06:00Z", "source": "done", "ok": true, "seconds": 419.4}
+{"run": "2026-10-31T06:55:00Z", "source": "skip", "ok": true, "seconds": 0, "trigger": "schedule", "slot": "2026-10-31T01:05:00Z", "startedAt": "2026-10-31T06:54:52Z", "delayMinutes": 349.9, "generatedAt": "2026-10-31T01:06:00Z"}
