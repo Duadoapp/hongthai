@@ -1,4 +1,78 @@
-# HongThai
+<p align="center">
+  <a href="https://duado.app/hongthai/"><img src="https://duadoapp.github.io/hongthai/og/tpe.png" alt="HongThai 分享預覽圖：桃園機場未來 5 天的停飛風險（每報自動更新）" width="720"></a>
+</p>
+
+<h1 align="center">HongThai 風颱</h1>
+
+<p align="center">
+  <b>未來 5 天，哪些機場可能停飛</b><br>
+  台灣、港澳、中國沿海、日韓、東南亞與西太平洋 51 個機場的停飛風險預報
+</p>
+
+<p align="center">
+  <a href="https://duado.app/hongthai/"><b>duado.app/hongthai</b></a>
+  ・免費・每天更新四次
+</p>
+
+<p align="center">
+  <a href="https://github.com/Duadoapp/hongthai/actions/workflows/build.yml"><img alt="build" src="https://github.com/Duadoapp/hongthai/actions/workflows/build.yml/badge.svg"></a>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3-3776AB?logo=python&logoColor=white">
+  <img alt="GitHub Pages" src="https://img.shields.io/badge/資料-GitHub%20Pages-222?logo=github">
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/授權-MIT-5CC8E8"></a>
+</p>
+
+---
+
+## 看得到什麼
+
+<p align="center">
+  <img src="docs/readme/overview.png" alt="HongThai 網頁：颱風路徑與暴風圈、各等級機場數" width="900">
+</p>
+
+- 🛫 **51 個機場、九個地區**：台灣、華東、華南・港澳、沖繩、日本、韓國、越南、菲律賓、關島・帛琉
+- 🕕 **每 6 小時一格，看未來 5 天**：時間一律是機場當地時間
+- 🌬️ **四種天氣**：強風（含分跑道的側風）、大雨／雷雨、大雪／結冰、濃霧／低雲
+- 📡 **30 小時內看官方**：機場天氣預報（TAF）與各地氣象機關的警報；之後由多個天氣模式投票
+- 🤖 **兩個 AI 評論員**：Claude 與 Gemini 各自讀同一份數據，給自己的等級與短評，跟規則燈並排
+- 🌀 **颱風**：路徑與暴風圈地圖，推算哪些機場會進暴風圈、什麼時候進
+- ✈️ **已確認停飛**：機場公布的取消班次直接標出來
+- 🔭 **遠期關注**：第 6–15 天只看系集成員的同意比例，有訊號才出現
+
+<table>
+  <tr>
+    <td width="66%"><img src="docs/readme/airports.png" alt="機場卡：每 6 小時一格的燈號時間軸"></td>
+    <td><img src="docs/readme/mobile.png" alt="手機版" width="260"></td>
+  </tr>
+</table>
+
+<sub>上面的畫面用的是網頁內建的範例資料；即時的燈號請到 <a href="https://duado.app/hongthai/">duado.app/hongthai</a>。最上面那張分享預覽圖是每報自動產生的真實資料。</sub>
+
+## 怎麼運作
+
+```mermaid
+flowchart LR
+  A["官方資料<br>TAF, METAR, 各地警報"] --> C
+  B["天氣模式<br>ECMWF, GFS, ICON, GSM"] --> C
+  C["GitHub Actions<br>每天四次 build"] --> D["規則燈<br>Claude 與 Gemini 評論"]
+  D --> E["latest.json 與分享預覽圖<br>GitHub Pages"]
+  E --> F["duado.app/hongthai"]
+```
+
+- 資料端（這個 repo）：Python，每天四次抓官方資料與模式預報、算出每個機場每一格的等級，輸出 `latest.json` 與每個機場的分享預覽圖，發布在 GitHub Pages
+- 網頁端：在 [Duado](https://duado.app) 的網站裡，讀 `latest.json` 畫出列表、機場頁與颱風地圖
+- 排程：Cloudflare 排程 Worker 準時觸發，GitHub 自己的排程當備援
+
+## In English
+
+HongThai is a free, five-day **flight disruption risk** forecast for 51 airports across Taiwan, Hong Kong & Macau, coastal China, Okinawa, Japan, Korea, Vietnam, the Philippines, Guam and Palau. Four times a day it combines official aerodrome forecasts and warnings (first 30 hours) with a vote across global weather models, rates each 6‑hour slot for wind and crosswind, heavy rain, snow/ice and fog, and lets Claude and Gemini each give an independent take. Results are published as `latest.json` on GitHub Pages and shown at [duado.app/hongthai](https://duado.app/hongthai/?lang=en).
+
+> **免責／Disclaimer**：這是用公開氣象資料自動算的參考資訊，預報有誤差。航班是否停飛以航空公司與機場公告為準，
+> 依此做的任何決定由使用者自行負責。This is automated reference information; always follow your airline and airport.
+
+---
+
+# 技術說明
+
 
 台灣、華東、華南・港澳、沖繩、日本、韓國、越南、菲律賓、關島・帛琉九個地區 51 個機場（下面「機場」）未來 5 天的
 **停飛風險**等級：強風（含分跑道的側風），第五階段（HD8）起加大雨／雷雨、大雪／結冰、濃霧／低雲。
