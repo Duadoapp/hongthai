@@ -51,10 +51,10 @@
 
 ```mermaid
 flowchart LR
-  A["官方資料<br>TAF・METAR・各地警報"] --> C
-  B["天氣模式<br>ECMWF・GFS・ICON・GSM…"] --> C
-  C["GitHub Actions<br>每天四次 build"] --> D["規則燈<br>＋ Claude／Gemini 評論"]
-  D --> E["latest.json<br>分享預覽圖<br>（GitHub Pages）"]
+  A["官方資料<br>TAF, METAR, 各地警報"] --> C
+  B["天氣模式<br>ECMWF, GFS, ICON, GSM"] --> C
+  C["GitHub Actions<br>每天四次 build"] --> D["規則燈<br>Claude 與 Gemini 評論"]
+  D --> E["latest.json 與分享預覽圖<br>GitHub Pages"]
   E --> F["duado.app/hongthai"]
 ```
 
