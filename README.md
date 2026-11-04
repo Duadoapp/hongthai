@@ -446,6 +446,45 @@ python -m hongthai.build            # 產生 public/latest.json 與 data/（歷�
 pytest -q && ruff check . && ruff format --check .
 ```
 
+### 相依套件（lock 檔，S1 M5）
+
+Actions 不再從 PyPI 拉「符合下限的最新版」，一律照 repo 裡**帶 hash 的 lock 檔**裝（`pip install --require-hashes -r …`），
+不裝專案本身（程式從 `src/` 跑，workflow 的 `PYTHONPATH: src`）。任何一個套件的檔案內容和 lock 檔記的 sha256 不同，pip 就停下來、
+那次排程失敗（不會在持有金鑰的環境裡跑到被換掉的套件）。本機開發照上面 `pip install ".[dev]"` 也可以。
+
+| lock 檔 | 由什麼產生 | 誰用 |
+| --- | --- | --- |
+| `requirements.txt` | `pyproject.toml` 的 `dependencies` | `build.yml`、`longrange.yml`、`events.yml` 的 backfill-tracks |
+| `requirements-dev.txt` | 同上＋`dev`（pytest、ruff） | `ci.yml` |
+| `requirements-events.txt` | `requirements-events.in`（requests、google-auth；`-c requirements.txt` 版本一致） | `events.yml` 每小時那次 |
+
+`tests/test_lockfile.py`（不連網）檢查三份 lock 檔都滿足 `pyproject.toml`／`.in` 的版本條件、每個套件都有 hash、
+`requirements-events.txt` 的版本和 `requirements.txt` 一樣；pyproject 改了下限或加了套件卻沒重產，CI 會紅。
+
+**怎麼更新 lock 檔**（加套件、改下限、要手動升版時；要在 **Linux、Python 3.12** 跑，和 Actions 的 runner 一樣，
+Windows 產生的平台條件會不同——交給雲端對話做即可）：
+
+```sh
+pip install pip-tools
+pip-compile --generate-hashes --strip-extras --upgrade --output-file=requirements.txt pyproject.toml
+pip-compile --generate-hashes --strip-extras --upgrade --extra dev --output-file=requirements-dev.txt pyproject.toml
+pip-compile --generate-hashes --strip-extras --upgrade --output-file=requirements-events.txt requirements-events.in
+```
+
+- 順序要照上面（`requirements-events.in` 讀 `requirements.txt`）；只想加一個套件、其他不升，拿掉 `--upgrade`
+- 第一行要抓所有套件每個平台的 hash，第一次約 5 分鐘
+- 升版的 PR 合併前，在 Actions 頁面手動跑一次 build（Run workflow、trigger 選 manual）確認 `latest.json` 正常
+
+**Dependabot**（`.github/dependabot.yml`，每週一 10:17 台灣時間）：Python 套件與 GitHub Actions 各開**一支**合併的 PR
+（標題開頭 `build(deps)`／`ci(deps)`），作者是 `dependabot[bot]`。
+
+- Actions 那支（改 `uses:` 後面的 commit SHA 與版本註解）：CI 綠了照一般 PR 審。major 版本升級（例如 `v6` → `v7`）先看
+  該 action 的 release notes 有沒有不相容的改動，有疑慮就留著，下次排程一起看
+- Python 那支：CI 綠了照一般 PR 審，合併前照上面手動跑一次 build。CI 紅了多半是 `test_lockfile.py`（只改了其中一份 lock 檔，
+  或 `requirements-events.txt` 和 `requirements.txt` 版本不同）：請雲端對話在**同一支 PR 的分支**照上面三行重產、push，綠了再審
+- 不想要的升版：在 PR 留言 `@dependabot ignore this dependency`（或 `ignore this major version`），Dependabot 會關掉那支 PR、之後不再提
+- Dependabot 的 PR 不會自動合併；排程的 build／events／longrange 一律用 `main` 上的 lock 檔，沒合併的 PR 不影響資料管線
+
 估算陣風係數的驗證報表（HD18，30 天後用；純標準輸出、不改檔案）：
 
 ```sh

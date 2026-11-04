@@ -475,6 +475,45 @@ def test_parse_length_limits():
     assert e.value.tag == "en_too_long"
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "<script>alert(1)</script>",
+        "陣風 <b>75</b> 節",
+        "gusts > 49 kt",
+        "見 javascript:alert(1)",
+        "見 JavaScript :alert(1)",
+        "陣風\t75 節",
+        "陣風\r75 節",
+        "陣風\x0075 節",
+        "陣風\x1b[31m75 節",
+        "陣風\x7f75 節",
+        "陣風\x8575 節",
+    ],
+)
+@pytest.mark.parametrize("lang", ["zh-TW", "en"])
+def test_parse_rejects_unsafe_text(lang, text):
+    """S1 M7：句子只能是純文字（`<`、`>`、`javascript:`、換行以外的控制字元 → `bad_format`）。"""
+    with pytest.raises(AiError) as e:
+        parse.parse_response(_resp(comment={**COMMENT, lang: text}))
+    assert e.value.code == "bad_format"
+    assert e.value.tag == f"{lang}_unsafe_text"
+    assert text not in str(e.value)  # 錯誤訊息不放句子
+
+
+@pytest.mark.parametrize(
+    ("lang", "text"),
+    [
+        ("zh-TW", "10/23 14–20 時陣風 75 節，\n停飛風險高。"),  # 換行可以
+        ("zh-TW", "能見度 ＜ 800 公尺、陣風 ≥ 49 節，停飛風險高。"),  # 全形與 ≤ ≥ 是一般文字
+        ("en", "Java script and coffee: gusts 75 kt; disruption risk High."),
+    ],
+)
+def test_parse_allows_plain_text(lang, text):
+    parsed = parse.parse_response(_resp(comment={**COMMENT, lang: text}))
+    assert parsed["sentences"][lang][0]["text"] == text
+
+
 # ---- 用字檢查（HD6） ----
 
 

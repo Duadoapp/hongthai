@@ -194,12 +194,21 @@ def parse_sentences(raw: object) -> dict[str, list[dict]]:
     return out
 
 
+# S1 M7：句子裡不能有半形的 `<`、`>`、`javascript:`（大小寫不分、冒號前可有空白）
+# 與控制字元（C0、DEL、C1；換行 \n 除外）。全形的「＜」「＞」與 ≤、≥ 不算，那是一般文字。
+# 錯誤訊息不放句子本身。
+# data 分支 history/ 2026-10-18～11-04 的 65,456 句短評沒有一句會被這條擋下。
+_UNSAFE_TEXT = re.compile(r"[<>]|javascript\s*:|[\x00-\x09\x0b-\x1f\x7f-\x9f]", re.IGNORECASE)
+
+
 def _sentence(lang: str, i: int, x: object) -> dict:
     if not isinstance(x, dict):
         raise AiError("bad_format", f"{lang} 第 {i} 句不是物件", tag=f"{lang}_sentence")
     text = x.get("text")
     if not isinstance(text, str) or not text.strip():
         raise AiError("bad_format", f"{lang} 第 {i} 句沒有 text", tag=f"{lang}_sentence")
+    if _UNSAFE_TEXT.search(text):  # S1 M7：短評只能是純文字（縱深防禦，顯示端本來就轉義）
+        raise AiError("bad_format", f"{lang} 第 {i} 句不是純文字", tag=f"{lang}_unsafe_text")
     src = x.get("src")
     if not isinstance(src, list) or not src or not all(isinstance(c, str) for c in src):
         raise AiError("bad_format", f"{lang} 第 {i} 句沒有 src", tag=f"{lang}_no_src")
