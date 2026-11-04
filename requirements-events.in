@@ -1,0 +1,5 @@
+# events.yml 每小時那次只用到的套件（hongthai.events 的 hourly 不 import 模式來源、不用 eccodes）。
+# 版本跟 requirements.txt 一致（-c）；改了這裡或 requirements.txt 後重產 requirements-events.txt（README「相依套件」）。
+-c requirements.txt
+requests
+google-auth

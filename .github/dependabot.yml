@@ -1,0 +1,32 @@
+# S1 M5／M6：每週檢查一次 Python 套件與 GitHub Actions 的新版，各開一支合併的 PR（groups）。
+# Python：更新帶 hash 的 lock 檔（requirements*.txt，pip-compile 產生）；Actions：更新釘住的 commit SHA 與後面的版本註解。
+# Dependabot 的 PR 怎麼處理見 README「相依套件」：CI 綠了照一般 PR 審，紅了（多半是 lock 檔只改了一部分）照 README 重產。
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:17"
+      timezone: Asia/Taipei
+    open-pull-requests-limit: 5
+    groups:
+      python:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:17"
+      timezone: Asia/Taipei
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

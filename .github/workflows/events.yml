@@ -68,24 +68,25 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90 # 每小時的只要 1 分鐘；手動 backfill-tracks 每報約 1 分鐘下載＋解析，WN3 每報一個 BigQuery 查詢＋最多 20 張氣壓；HD15b 起 29W 事件期間每報都補（約 30 報，HD15b 前 45、HD15 前 30、HD20 是 10）
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
 
       # hongthai.events 的每小時不用 eccodes（不 import 模式來源），只裝 requests 省時間（HD15b 加
       # google-auth：WeatherNext 3 搬家讀私人 bucket）；backfill-tracks 要解析 GRIB／BUFR，裝 eccodes 與
-      # 整個套件（同 build.yml）
+      # 整個 lock 檔（同 build.yml）。S1 M5：兩種都照帶 hash 的 lock 檔裝（README「相依套件」），
+      # 每小時那份是 requirements-events.txt（版本和 requirements.txt 一致）
       - name: 裝套件
         if: "!(github.event_name == 'workflow_dispatch' && inputs.backfill-tracks)"
-        run: pip install requests google-auth
+        run: pip install --require-hashes -r requirements-events.txt
 
       - name: 裝套件（backfill-tracks）
         if: github.event_name == 'workflow_dispatch' && inputs.backfill-tracks
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libeccodes-dev
-          pip install .
+          pip install --require-hashes -r requirements.txt
 
       - name: 取出 data 分支
         run: |

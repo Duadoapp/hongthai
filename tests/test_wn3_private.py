@@ -557,7 +557,8 @@ def test_wn3_archive_command_without_credentials(tmp_path, monkeypatch, capsys):
 
 
 def test_wn3private_is_light():
-    """events workflow 每小時那支只裝 requests、google-auth：`wn3private` 不載入 numpy 等。"""
+    """events workflow 每小時那支只裝 requests、google-auth（requirements-events.txt）：
+    `wn3private` 不載入 numpy 等。"""
     import subprocess
 
     code = (
@@ -575,7 +576,7 @@ def test_wn3private_is_light():
 
 def test_events_workflow_archives_daily_at_00z():
     yml = (ROOT / ".github" / "workflows" / "events.yml").read_text("utf-8")
-    assert "pip install requests google-auth" in yml
+    assert "pip install --require-hashes -r requirements-events.txt" in yml  # S1 M5
     assert '"$(date -u +%H)" = "00"' in yml
     assert "python -m hongthai.events wn3-archive --archive data" in yml
     assert "wn3-archive:" in yml  # 手動
