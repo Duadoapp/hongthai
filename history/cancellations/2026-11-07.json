@@ -23,7 +23,7 @@
     "airport": "RCTP",
     "from": "2026-11-07T06:00:00Z",
     "to": "2026-11-07T12:00:00Z",
-    "asOf": "2026-11-06T08:26:00Z",
+    "asOf": "2026-11-06T13:06:00Z",
     "dep": {
       "total": 101,
       "cancelled": 1,
@@ -43,7 +43,7 @@
     "airport": "RCTP",
     "from": "2026-11-07T12:00:00Z",
     "to": "2026-11-07T18:00:00Z",
-    "asOf": "2026-11-06T08:26:00Z",
+    "asOf": "2026-11-06T13:06:00Z",
     "dep": {
       "total": 44,
       "cancelled": 0,
@@ -54,6 +54,26 @@
     "arr": {
       "total": 79,
       "cancelled": 1,
+      "delayed": 0,
+      "diverted": 0,
+      "other": 0
+    }
+  },
+  {
+    "airport": "VHHH",
+    "from": "2026-11-07T12:00:00Z",
+    "to": "2026-11-07T18:00:00Z",
+    "asOf": "2026-11-06T13:06:00Z",
+    "dep": {
+      "total": 0,
+      "cancelled": 0,
+      "delayed": 0,
+      "diverted": 0,
+      "other": 0
+    },
+    "arr": {
+      "total": 1,
+      "cancelled": 0,
       "delayed": 0,
       "diverted": 0,
       "other": 0
