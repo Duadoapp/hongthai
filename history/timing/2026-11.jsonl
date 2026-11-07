@@ -595,3 +595,25 @@
 {"run": "2026-11-07T01:06:00Z", "source": "og", "ok": true, "error": null, "seconds": 2.9, "bytes": 722516}
 {"run": "2026-11-07T01:06:00Z", "source": "done", "ok": true, "seconds": 339.5}
 {"run": "2026-11-07T07:01:00Z", "source": "skip", "ok": true, "seconds": 0, "trigger": "schedule", "slot": "2026-11-07T01:05:00Z", "startedAt": "2026-11-07T07:00:24Z", "delayMinutes": 355.4, "generatedAt": "2026-11-07T01:06:00Z"}
+{"run": "2026-11-07T08:26:00Z", "source": "start", "ok": true, "seconds": 0, "commit": "1c1ddc7", "trigger": "cloudflare", "slot": "2026-11-07T08:25:00Z", "startedAt": "2026-11-07T08:25:13Z", "delayMinutes": 0.2}
+{"run": "2026-11-07T08:26:00Z", "source": "ecmwf", "ok": true, "error": null, "seconds": 91.7, "bytes": 102165372, "mirror": "ecmwf"}
+{"run": "2026-11-07T08:26:00Z", "source": "gfs", "ok": true, "error": null, "seconds": 58.4, "bytes": 79333611, "mirror": "aws"}
+{"run": "2026-11-07T08:26:00Z", "source": "aifs", "ok": true, "error": null, "seconds": 48.3, "bytes": 41516021, "mirror": "ecmwf"}
+{"run": "2026-11-07T08:26:00Z", "source": "aigfs", "ok": true, "error": null, "seconds": 36.0, "bytes": 50377555, "mirror": "aws"}
+{"run": "2026-11-07T08:26:00Z", "source": "openmeteo", "ok": true, "error": null, "seconds": 6.7, "bytes": 1967333, "calls": 504.9}
+{"run": "2026-11-07T08:26:00Z", "source": "taf", "ok": true, "error": null, "seconds": 8.5, "bytes": 88017}
+{"run": "2026-11-07T08:26:00Z", "source": "hko", "ok": true, "error": null, "seconds": 2.7, "bytes": 6}
+{"run": "2026-11-07T08:26:00Z", "source": "cwa", "ok": true, "error": null, "seconds": 1.8, "bytes": 14131}
+{"run": "2026-11-07T08:26:00Z", "source": "smg", "ok": true, "error": null, "seconds": 3.3, "bytes": 2181}
+{"run": "2026-11-07T08:26:00Z", "source": "nws", "ok": true, "error": null, "seconds": 0.3, "bytes": 229}
+{"run": "2026-11-07T08:26:00Z", "source": "jma", "ok": true, "error": null, "seconds": 4.9, "bytes": 247562}
+{"run": "2026-11-07T08:26:00Z", "source": "cwaTyphoon", "ok": true, "error": null, "seconds": 0.8, "bytes": 5434}
+{"run": "2026-11-07T08:26:00Z", "source": "jmaTyphoon", "ok": true, "error": null, "seconds": 0.4, "bytes": 7904}
+{"run": "2026-11-07T08:26:00Z", "source": "swic", "ok": true, "error": null, "seconds": 5.0, "bytes": 981130}
+{"run": "2026-11-07T08:26:00Z", "source": "flights", "ok": true, "error": null, "seconds": 16.2, "bytes": 1171095}
+{"run": "2026-11-07T08:26:00Z", "source": "tdx", "ok": true, "error": null, "seconds": 2.2, "bytes": 1744724, "calls": 1}
+{"run": "2026-11-07T08:26:00Z", "source": "wn3", "ok": true, "error": null, "seconds": 86.5, "bytes": 2852784000, "mode": "vote", "via": "zarr", "estimateBytes": null, "bytesBilled": null, "stored": "written", "bqError": "bq_bytes_limit", "zarrError": null}
+{"run": "2026-11-07T08:26:00Z", "source": "airports3h", "ok": true, "error": null, "seconds": 1.0, "bytes": 6645804, "files": 51, "mismatches": 0}
+{"run": "2026-11-07T08:26:00Z", "source": "ai", "ok": true, "error": null, "seconds": 85.8, "bytes": 0, "calls": {"claude": 13, "gemini": 13}, "usage": {"claude": {"input": 243248, "output": 17338, "cacheRead": 45408, "cacheWrite": 3784, "calls": 13}, "gemini": {"input": 200541, "output": 10129, "thinking": null, "cacheRead": null, "calls": 12}}, "costUsd": {"claude": 1.347754, "gemini": 0.502372}, "errorMessages": {"claude": null, "gemini": "DEADLINE_EXCEEDED: Deadline expired before operation could complete."}}
+{"run": "2026-11-07T08:26:00Z", "source": "og", "ok": true, "error": null, "seconds": 2.3, "bytes": 716487}
+{"run": "2026-11-07T08:26:00Z", "source": "done", "ok": true, "seconds": 464.0}
