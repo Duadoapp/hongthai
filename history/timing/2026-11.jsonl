@@ -733,3 +733,25 @@
 {"run": "2026-11-08T13:05:00Z", "source": "done", "ok": true, "seconds": 370.4}
 {"run": "2026-11-08T15:27:00Z", "source": "skip", "ok": true, "seconds": 0, "trigger": "schedule", "slot": "2026-11-08T13:05:00Z", "startedAt": "2026-11-08T15:27:02Z", "delayMinutes": 142.0, "generatedAt": "2026-11-08T13:05:00Z"}
 {"run": "2026-11-08T18:18:00Z", "source": "skip", "ok": true, "seconds": 0, "trigger": "schedule", "slot": "2026-11-08T13:05:00Z", "startedAt": "2026-11-08T18:17:25Z", "delayMinutes": 312.4, "generatedAt": "2026-11-08T13:05:00Z"}
+{"run": "2026-11-08T20:25:00Z", "source": "start", "ok": true, "seconds": 0, "commit": "1c1ddc7", "trigger": "cloudflare", "slot": "2026-11-08T20:25:00Z", "startedAt": "2026-11-08T20:25:13Z", "delayMinutes": 0.2}
+{"run": "2026-11-08T20:25:00Z", "source": "ecmwf", "ok": true, "error": null, "seconds": 88.1, "bytes": 105291046, "mirror": "ecmwf"}
+{"run": "2026-11-08T20:25:00Z", "source": "gfs", "ok": true, "error": null, "seconds": 40.2, "bytes": 79386532, "mirror": "aws"}
+{"run": "2026-11-08T20:25:00Z", "source": "aifs", "ok": true, "error": null, "seconds": 42.4, "bytes": 40967367, "mirror": "ecmwf"}
+{"run": "2026-11-08T20:25:00Z", "source": "aigfs", "ok": true, "error": null, "seconds": 26.0, "bytes": 50002514, "mirror": "aws"}
+{"run": "2026-11-08T20:25:00Z", "source": "openmeteo", "ok": true, "error": null, "seconds": 2.9, "bytes": 1957356, "calls": 504.9}
+{"run": "2026-11-08T20:25:00Z", "source": "taf", "ok": true, "error": null, "seconds": 3.0, "bytes": 90748}
+{"run": "2026-11-08T20:25:00Z", "source": "hko", "ok": true, "error": null, "seconds": 2.9, "bytes": 6}
+{"run": "2026-11-08T20:25:00Z", "source": "cwa", "ok": true, "error": null, "seconds": 1.8, "bytes": 14780}
+{"run": "2026-11-08T20:25:00Z", "source": "smg", "ok": true, "error": null, "seconds": 3.8, "bytes": 2181}
+{"run": "2026-11-08T20:25:00Z", "source": "nws", "ok": true, "error": null, "seconds": 0.3, "bytes": 229}
+{"run": "2026-11-08T20:25:00Z", "source": "jma", "ok": true, "error": null, "seconds": 6.1, "bytes": 221336}
+{"run": "2026-11-08T20:25:00Z", "source": "cwaTyphoon", "ok": true, "error": null, "seconds": 1.6, "bytes": 7719}
+{"run": "2026-11-08T20:25:00Z", "source": "jmaTyphoon", "ok": true, "error": null, "seconds": 1.6, "bytes": 9087}
+{"run": "2026-11-08T20:25:00Z", "source": "swic", "ok": true, "error": null, "seconds": 6.0, "bytes": 1206696}
+{"run": "2026-11-08T20:25:00Z", "source": "flights", "ok": true, "error": null, "seconds": 20.2, "bytes": 1156373}
+{"run": "2026-11-08T20:25:00Z", "source": "tdx", "ok": true, "error": null, "seconds": 2.5, "bytes": 1669961, "calls": 1}
+{"run": "2026-11-08T20:25:00Z", "source": "wn3", "ok": true, "error": null, "seconds": 61.9, "bytes": 2852784000, "mode": "vote", "via": "zarr", "estimateBytes": null, "bytesBilled": null, "stored": "written", "bqError": "bq_bytes_limit", "zarrError": null}
+{"run": "2026-11-08T20:25:00Z", "source": "airports3h", "ok": true, "error": null, "seconds": 0.6, "bytes": 6650185, "files": 51, "mismatches": 0}
+{"run": "2026-11-08T20:25:00Z", "source": "ai", "ok": true, "error": null, "seconds": 34.1, "bytes": 0, "calls": {"claude": 8, "gemini": 8}, "usage": {"claude": {"input": 151695, "output": 11161, "cacheRead": 26488, "cacheWrite": 3784, "calls": 8}, "gemini": {"input": 50336, "output": 2587, "thinking": null, "cacheRead": null, "calls": 3}}, "costUsd": {"claude": 0.854218, "gemini": 0.126542}, "errorMessages": {"claude": null, "gemini": "RESOURCE_EXHAUSTED: TPM quota exhausted. No spare capacity is currently available to serve over-limit requests. Please try again later, reduce your request rate or contact the sales team to discuss li"}}
+{"run": "2026-11-08T20:25:00Z", "source": "og", "ok": true, "error": null, "seconds": 1.8, "bytes": 718589}
+{"run": "2026-11-08T20:25:00Z", "source": "done", "ok": true, "seconds": 348.8}
