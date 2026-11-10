@@ -11,6 +11,7 @@
 | --- | --- | --- | --- |
 | HD48 | 公開 WN3 自己的整體等級（`level`，沒有數值） | Opus 高 | `assess.public_slots`、`build.hide_wn3`、`config`、測試、README |
 | HD49 | WN3 加雨量（讀 Zarr 逐時雨量） | Opus 高 | `sources/wn3.py`、`wn3report.py`、`wn3private.py`、測試、README |
+| HD50 | AI 評論平常一天 1 報、有颱風而且有高時 2 報 | Opus 高 | `src/hongthai/ai/`、`build.py` 的 `run_ai`、`build.yml` 的手動輸入 |
 | HW26 | 網頁模式表顯示 WN3 的等級（HD48 合併後開） | Opus 中 | Duado `site/hongthai/`、`hongthai.*` 語系鍵 |
 
 - 觀察：HD47 上線後用 `python -m tools.ai_cost --from 2026-11-11 --breakdown --calibrate-as after` 驗快取命中與每次成本
@@ -22,7 +23,6 @@
    HW25（前置）→ Duado 總指揮加建置目標與轉送 → 改名、副標題（HW，編號到時再排）、canonical、sitemap、隱私頁 → HD48 分享圖上的名稱與網址 →
    `duado.app/hongthai/...` 301 → Search Console、送 sitemap
 3. **回測之後的校準**：HD46 的報告出來後，看門檻（`assess.py`、`airports.json`）要不要調；改門檻前先問 Shawn
-4. **AI 評論成本的第二步**：HD47 報告列的大項（精簡輸入、少評幾個機場、換小模型）要 Shawn 決定的部分
 
 ## 之後
 
