@@ -5,15 +5,12 @@
 
 規則：**現在**是已經開工的；**下一個**輪到才寫提示詞；**之後**確定要做但還沒排；**點子箱**一行就好。
 
-## 現在（2026-11-10 這一批，互不撞檔）
+## 現在
 
-| 代號 | 做什麼 | 模型 | 只動 |
-| --- | --- | --- | --- |
-| HD44 | `http_get` 加大小上限（S1 的 L27） | Opus 中 | `src/hongthai/sources/__init__.py`、測試 |
-| HD45 | `build.yml` 拆成 build／publish 兩個 job（S1 的 L25） | Fable 5.2 | `.github/workflows/build.yml`、README、`docs/cloudflare-trigger.md` |
-| HD46 | 回測校準報告：燈號等級對實際取消／延誤（10/18 起） | Opus 高 | `tools/calibration_report.py`、`report/`、測試 |
-| HD47 | AI 評論成本：量每段 token、提高快取命中、`DAILY_CAP` | Opus 高 | `src/hongthai/ai/`、`tools/ai_cost.py`、測試 |
-| HW25 | 網頁程式不寫死 `/hongthai` 路徑（搬家的前置，畫面不變） | Fable 5.2 | Duado `site/hongthai/` |
+（2026-11-10 那一批 HD44–HD47、HW25 都合併了；下一批等 Shawn 回 pending 的題目）
+
+- 觀察：HD47 上線後用 `python -m tools.ai_cost --from 2026-11-11 --breakdown --calibrate-as after` 驗快取命中與每次成本
+- `events.yml` 比照 HD45 拆 build／publish（HD45 的建議；每小時跑、也同時拿金鑰與可寫的 token）；`longrange.yml` 優先度低
 
 ## 下一個
 
