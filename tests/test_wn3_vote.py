@@ -392,7 +392,9 @@ def test_airport_text_blend_only_outside_japan_korea(blended):
     assert "不能引用這段的任何數字" in lines[i] and "不能說是哪個模式說的" in lines[i]
     assert lines[i + 1].startswith("- 1. ") and "平均風 43.7 節、估算陣風 61.2 節" in lines[i + 1]
     assert len(list(takewhile(lambda x: x.startswith("- "), lines[i + 1 :]))) == 20
-    assert lines[i + 21].startswith("[rule] 規則燈怎麼算")
+    assert lines[i + 21].startswith("提醒：")  # HD47：規則燈說明移到最前面（共用前綴）
+    assert text.startswith("[rule] 規則燈怎麼算") and text.shared.startswith("[rule] 規則燈怎麼算")
+    assert plain.shared == text.shared  # 拿掉那段重生時共用前綴不變（照樣命中快取）
     assert "[multi]" not in plain and "61.2" not in plain and "43.7" not in plain
     # 一般的模式明細沒有它、投票句含它那一票、規則說明多一句
     assert "Google 的新一代" not in text and "WeatherNext" not in text

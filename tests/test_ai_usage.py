@@ -166,7 +166,7 @@ def timed_model(delay: float, fail_first: bool = False):
     lock = threading.Lock()
 
     def evaluate(text, *, client=None, timeout=60):
-        icao = text.splitlines()[0]
+        icao = getattr(text, "own", text).splitlines()[0]
         t0 = time.monotonic()
         time.sleep(delay)
         with lock:

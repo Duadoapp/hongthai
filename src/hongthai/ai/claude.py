@@ -9,6 +9,9 @@
 - 提示快取（HD26）：`system` 送成一個 text block（內容就是 `SYSTEM`，一個字不改）加
   `cache_control: ephemeral`（預設 5 分鐘 TTL）。Opus 5.5 最小可快取長度 512 token，`SYSTEM` 不到時
   API 不報錯、只是不快取（`cacheWrite`／`cacheRead` 一直是 0）
+- 第二個快取斷點（HD47）：`text` 是 `prompt.Prompt` 時，user 訊息送兩個 text block——共用前綴
+  （`Prompt.shared`＋換行，規則燈說明，同一報每個機場一樣）加 `cache_control`、機場自己的資料
+  （`Prompt.own`）不加；兩塊接起來就是 `str(text)`。一般字串照舊送一整段
 - 每次有回應（成功或失敗）都取 `usage`（`usage_of`）：成功時放在回傳的 `usage`、失敗時在
   `AiError.usage`，給戰績與 `timing/`（`ai/usage.py`）
 - 錯誤訊息（HD30）：HTTP 錯誤取 API 回的 `{"error": {"type", "message"}}` → `"<type>: <message>"`
@@ -23,12 +26,23 @@ import anthropic
 
 from .config import CLAUDE_EFFORT, MAX_TOKENS, MODELS, TIMEOUT_S
 from .parse import AiError, exception_text, parse_response, transport_error, with_response
-from .prompt import SYSTEM
+from .prompt import SYSTEM, Prompt
 from .usage import as_count
 
 TIMEOUT = TIMEOUT_S["claude"]
 # 系統提示當快取前綴（HD26）；每次送同一個 list，內容與 `SYSTEM` 完全相同
 SYSTEM_BLOCKS = [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
+
+
+def user_content(text: str) -> str | list[dict]:
+    """user 訊息的 `content`（HD47）：`Prompt` → 共用前綴（加 `cache_control`）＋機場資料兩個
+    block；一般字串照舊。"""
+    if not isinstance(text, Prompt):
+        return text
+    return [
+        {"type": "text", "text": f"{text.shared}\n", "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": text.own},
+    ]
 
 
 def make_client() -> anthropic.Anthropic:
@@ -50,7 +64,7 @@ def evaluate(
             max_tokens=MAX_TOKENS,
             system=SYSTEM_BLOCKS,
             output_config={"effort": CLAUDE_EFFORT},
-            messages=[{"role": "user", "content": text}],
+            messages=[{"role": "user", "content": user_content(text)}],
         )
     except anthropic.APITimeoutError as e:  # 是 APIConnectionError 的子類別，要先接
         raise transport_error("timeout", exception_text(e)) from e

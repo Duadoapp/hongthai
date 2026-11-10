@@ -67,13 +67,15 @@ PRICES: dict[str, list[tuple[str | None, dict[str, float | None]]]] = {
 }
 
 MAX_AIRPORTS = 20  # 每報最多評幾個機場
-# 每天（UTC）每個模型最多呼叫幾次；0 代表不限（開發期間，2026-10-19 定案；
-# 正式推廣前再評估，恢復時改成 80 之類的數字即可）
-DAILY_CAP = 0
+# 每天（UTC）每個模型最多呼叫幾次；0 代表不限（HD11 開發期間）。HD47（2026-11-10）改成 160：平常一天
+# 約 38 次、颱風時 4 報 × 20 個＝80 次，留重試、WN3 重生與手動 build 的空間；是 PAT 外洩時無限次觸發
+# build 的最後防線（S1 的 L26）。到上限記 `daily_cap`、不呼叫
+DAILY_CAP = 160
 # 每個模型幾條並行。Gemini 4 條時撞過 429、降到 2（HD6）；HD12 升回 3 再觀察，429 回來就降回 2
 PARALLEL = {"claude": 4, "gemini": 3}
-# 每報第一個機場先單獨評完再開線（HD26，把系統提示寫進快取）。只開 Claude：Gemini 4 隱含快取最小
-# 4,096 token，SYSTEM 不到，先評一個沒有好處、504 時還拖慢備援
+# 每報第一個機場先單獨評完再開線（HD26，把系統提示寫進快取；HD47 起共用前綴每一種各先評一個）。
+# 只開 Claude：Gemini 4 隱含快取最小 4,096 token，SYSTEM＋規則燈說明（HD47 的共用前綴）約 3,800
+# 還是不到，先評一個沒有好處、504 時還拖慢備援
 WARMUP = {"claude": True, "gemini": False}
 
 LEVELS = ("low", "medium", "high")

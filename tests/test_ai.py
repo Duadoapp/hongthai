@@ -321,16 +321,16 @@ def test_airport_text_models_and_vote_hd14():
     i = next(i for i, ln in enumerate(lines) if ln.startswith("1. "))
     assert "模式：等級 high、投票（強風）：5 個模式中 3 個認為高 → high、" in lines[i]
     assert lines[i + 1 : i + 6] == [
-        "  - [ifs] 歐洲模式：陣風 50 節、側風 20 節、rain6hMm —、ptype —、visibilityM —、"
-        "等級 high（wind high、rain —、snow —、fog —）",
-        "  - [gfs] 美國模式：陣風 49 節、側風 10 節、rain6hMm —、ptype —、visibilityM —、"
-        "等級 high（wind high、rain —、snow —、fog —）",
+        # HD47：這個機場每格都沒資料的欄位不列（這裡只有一格有模式明細）
+        "  - [ifs] 歐洲模式：陣風 50 節、側風 20 節、等級 high（wind high）",
+        "  - [gfs] 美國模式：陣風 49 節、側風 10 節、等級 high（wind high）",
         "  - [ifs-ens] 歐洲系集：p49Kt 40% → 投 high（只投高）",
         "  - [aifs] 歐洲 AI 模式：陣風 43.4 節（估）、側風 20 節、rain6hMm 3.1 mm、ptype rain、"
-        "visibilityM —、等級 medium（wind medium、rain low、snow low、fog —）",
-        "  - [aigfs] 美國 AI 模式：陣風 14 節（估）、側風 —、rain6hMm 0.4 mm、ptype —、"
-        "visibilityM —、等級 low（wind low、rain low、snow —、fog —）",
+        "等級 medium（wind medium、rain low、snow low）",
+        "  - [aigfs] 美國 AI 模式：陣風 14 節（估）、rain6hMm 0.4 mm、"
+        "等級 low（wind low、rain low）",
     ]
+    assert "當地時間；模式明細不列這個機場每一格都沒有資料的欄位）：" in text
     # HD16 的三個沒資料（Open-Meteo 失敗那一報）：照樣列、寫無資料
     assert lines[i + 6 : i + 9] == [
         "  - [icon] 德國模式：無資料",
@@ -962,7 +962,7 @@ def fake_model(
 
     def evaluate(text, *, client=None, timeout=60):
         with lock:
-            calls.append(text.splitlines()[0])
+            calls.append(getattr(text, "own", text).splitlines()[0])
         if delay:
             time.sleep(delay)
         if exc:
@@ -1073,9 +1073,42 @@ def test_duel_nothing_selected_still_reports_missing_keys(tmp_path):
     assert res["source"]["ok"] is False and res["source"]["errors"] == {"claude": "no_api_key"}
 
 
-def test_duel_no_daily_cap_by_default(tmp_path):
-    """開發期間 `DAILY_CAP=0` 不限（HD11）：超過 80 次照常呼叫，次數檔照常累加。"""
-    assert config.DAILY_CAP == 0 and ai_run.DAILY_CAP == 0
+def test_duel_daily_cap_160_hd47(tmp_path):
+    """HD47：每個模型每天 160 次。到上限後記 `daily_cap`、不呼叫、`sources.ai.errors` 記
+    `daily_cap`（HD11 之前的行為）；UTC 隔天換一個次數檔、從 0 算起。"""
+    assert config.DAILY_CAP == 160 and ai_run.DAILY_CAP == 160
+    path = tmp_path / "ai" / "calls-2026-10-19.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"claude": 159, "gemini": 160}), "utf-8")
+    cl, ge = fake_model(), fake_model()
+    ev = {"claude": cl, "gemini": ge}
+    res = ai_run.evaluate_all(duel_doc(2, 0), None, NOW, tmp_path, evaluators=ev)
+    claude_lights = [res["airports"][f"RC{i:02d}"]["claude"] for i in range(2)]
+    assert sorted(x["status"] for x in claude_lights) == ["error", "ok"]
+    assert [x.get("error") for x in claude_lights if x["status"] == "error"] == ["daily_cap"]
+    assert all(res["airports"][f"RC{i:02d}"]["gemini"]["error"] == "daily_cap" for i in range(2))
+    assert len(cl.calls) == 1 and ge.calls == []  # 到上限的不呼叫
+    assert json.loads(path.read_text("utf-8")) == {"claude": 160, "gemini": 160}
+    assert res["source"]["calls"] == {"claude": 1, "gemini": 0}
+    assert res["source"]["errors"] == {"claude": "daily_cap", "gemini": "daily_cap"}
+    assert res["source"]["ok"] is True  # Claude 有一個成功
+    rows = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))
+    assert {r["gemini"]["status"] for r in rows if r["airport"].startswith("RC")} == {"error"}
+    # 隔天（UTC）歸零
+    later = NOW + timedelta(days=1)
+    res = ai_run.evaluate_all(duel_doc(2, 0), None, later, tmp_path, evaluators=ev)
+    assert all(
+        res["airports"][f"RC{i:02d}"][k]["status"] == "ok" for i in range(2) for k in config.KEYS
+    )
+    assert json.loads((tmp_path / "ai" / "calls-2026-10-20.json").read_text("utf-8")) == {
+        "claude": 2,
+        "gemini": 2,
+    }
+
+
+def test_duel_no_daily_cap_when_zero(tmp_path, monkeypatch):
+    """`DAILY_CAP=0` 不限（HD11 開發期間；HD47 起預設 160）：超過 80 次照常呼叫、次數檔照常累加。"""
+    monkeypatch.setattr(ai_run, "DAILY_CAP", 0)
     path = tmp_path / "ai" / "calls-2026-10-19.json"
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps({"claude": 79, "gemini": 80}), "utf-8")
@@ -1672,7 +1705,7 @@ def region_model(primary, backup, *, clock=None, took=0.0, locs=("global", "us")
     def evaluate(text, *, client=None, timeout=60):
         loc = client.location
         with lock:
-            sent.append((text.splitlines()[0], loc))
+            sent.append((getattr(text, "own", text).splitlines()[0], loc))
             seq = seqs[loc]
             code = seq[min(n[loc], len(seq) - 1)]
             n[loc] += 1
@@ -1812,9 +1845,9 @@ def test_airport_text_openmeteo_hd16(monkeypatch):
     assert "投票（強風）：6 個模式中 4 個認為高 → high" in lines[i]
     assert lines[i + 6 : i + 9] == [
         "  - [icon] 德國模式：陣風 50.7 節、側風 13.1 節、rain6hMm 1.2 mm、ptype rain、"
-        "visibilityM —、等級 high（wind high、rain low、snow low、fog —）",
-        "  - [jma] 日本模式：陣風 51.4 節（估）、側風 —、rain6hMm 2.4 mm、ptype rain、"
-        "visibilityM —、等級 high（wind high、rain low、snow low、fog —）",
+        "等級 high（wind high、rain low、snow low）",
+        "  - [jma] 日本模式：陣風 51.4 節（估）、rain6hMm 2.4 mm、ptype rain、"
+        "等級 high（wind high、rain low、snow low）",
         "  - [wn2-ens] Google 的 AI 系集：成員中位數陣風 48.6 節（估）、"
         "估算陣風達 high 門檻的成員比例 62% → 投 high（只投高）",
     ]

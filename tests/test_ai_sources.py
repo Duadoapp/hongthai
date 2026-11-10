@@ -188,8 +188,7 @@ def test_airport_text_hidden_or_unknown_model_flagged():
     ap = airport("RCKH", lv(0, "high", 19))
     ap["slots"][0]["model"] = _models_slot(["ifs", "zz"])
     assert unlabeled(prompt.airport_text(ap, RUN)) == [
-        "  - [zz] zz：陣風 40 節、側風 —、"
-        "rain6hMm —、ptype —、visibilityM —、等級 medium（wind medium、rain —、snow —、fog —）"
+        "  - [zz] zz：陣風 40 節、等級 medium（wind medium）"
     ]
 
 

@@ -5,7 +5,9 @@
 - 每日上限：`history/ai/calls-<YYYY-MM-DD>.json`（UTC 日期，`{"claude": n, "gemini": n}`）記每個模型
   今天呼叫了幾次；到 `DAILY_CAP` 之後的機場記 `error: "daily_cap"`、不呼叫。每次呼叫（成功或失敗）
   都算一次，開始呼叫前就先記。`DAILY_CAP` 是 0（或負數）代表不限：不檢查、不會有 `daily_cap`，
-  次數檔照常累加（開發期間，HD11）
+  次數檔照常累加（開發期間，HD11）。HD47 起是 160（每個模型每天；PAT 外洩時無限次觸發 build 的
+  最後防線），到上限後的行為照 HD11 之前：`error: "daily_cap"`、不呼叫、`sources.ai.errors` 記
+  `daily_cap`；UTC 隔天換一個次數檔，從 0 算起
 - 沒被選的機場：兩顆燈 `status: "skipped"`、`level: "low"`、`comment` 固定四語（`NO_RISK`）
 - 符合條件但排在 `MAX_AIRPORTS` 之後的機場：兩顆燈 `status: "error"`、`error: "run_cap"`
   （不能寫「沒看到明顯風險」，那些機場可能是中級）
@@ -32,7 +34,8 @@
   `<模型>Location`（`geminiLocation`：這一報最後送出的請求用的區域）
 - 提示快取（HD26）：`WARMUP` 是 `True` 的模型（Claude）**第一個機場先單獨評完**（寫進快取），
   再開 `PARALLEL` 條線評其他的；第一個失敗也照樣開線。Gemini 照舊直接開線。只改送出的順序，
-  每個機場送的內容不變
+  每個機場送的內容不變。HD47：共用前綴（`prompt.Prompt.shared`，規則燈說明）有兩種（有沒有
+  多模式綜合），**每一種的第一個機場**都先單獨評完（依序，最多兩個），再開線評其他的
 - token 紀錄（HD26，`ai/usage.py`）：戰績每筆真的送出的呼叫多 `usage`（有回應的那次的 token 數，
   沒拿到回應是 `null`；重試過的是第二次的）；`result()["usage"]` 是各模型這一報的合計（加
   `calls`：有回應的次數）、`result()["costUsd"]` 是估計費用，`build.run_ai` 寫進 `timing/` 的 `ai`
@@ -311,6 +314,19 @@ class Regions:
 # ---- 流程 ----
 
 
+def warmups(items: list[tuple[str, str]]) -> list[str]:
+    """先單獨評的機場（HD26、HD47）：共用前綴（`prompt.Prompt.shared`；一般字串當同一種）每一種的
+    第一個，依原本的順序。"""
+    seen: set[str | None] = set()
+    out = []
+    for icao, text in items:
+        shared = getattr(text, "shared", None)
+        if shared not in seen:
+            seen.add(shared)
+            out.append(icao)
+    return out
+
+
 class Duel:
     """一報的 AI 對決。`run()` 在 `build._call` 的預算執行緒裡跑；超時時主執行緒呼叫
     `result(timed_out=True)`。`result()` 只算一次（之後回傳同一份），算的時候寫每日次數與戰績檔。"""
@@ -378,9 +394,13 @@ class Duel:
             return
         self.regions[key] = Regions(key, mod, client)
         items = list(texts.items())
-        # 第一個先單獨評完，把系統提示寫進快取（HD26，只有 Claude）；失敗也照樣開線
-        if items and WARMUP.get(key):
-            self._one(key, mod, *items.pop(0))
+        # 第一個先單獨評完，把系統提示寫進快取（HD26，只有 Claude）；失敗也照樣開線。HD47：
+        # 共用前綴每一種的第一個都先評（`warmups`）
+        if WARMUP.get(key):
+            first = warmups(items)
+            items = [it for it in items if it[0] not in first]
+            for icao in first:
+                self._one(key, mod, icao, texts[icao])
         with ThreadPoolExecutor(PARALLEL[key], thread_name_prefix=f"ai-{key}") as ex:
             for icao, text in items:
                 ex.submit(self._one, key, mod, icao, text)
