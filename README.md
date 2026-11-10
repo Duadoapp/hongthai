@@ -1201,6 +1201,10 @@ Duado HW14）：
 - `sources.<名稱>.seconds`、`bytes`；`sources.ecmwf.ensembleOk`／`ensembleError`（只有系集失敗時）；
   `sources.flights`
 - `sources.<名稱>.error` 多一個值 `"timeout"`：超過時間預算被放棄（這時 `seconds` 是預算）
+- `sources.<名稱>.error` 多一個值 `"too_large"`（HD44）：`http_get` 的單一回應超過上限（`max_bytes`，算解壓縮後的
+  大小；有 `Content-Length` 而且已經超過就不讀），關掉連線、**不重試**；log 印網址（超過 200 字截斷）、上限與已讀
+  bytes，已讀的照算進 `bytes`。預設上限 `sources.MAX_BYTES`，GRIB 下載（GFS、AIGFS、GEFS 的 `Range`、NOMADS
+  GRIB filter）另外傳比較大的上限；數字與實測見 `sources/__init__.py`
 - `sources.ecmwf.mirror`：HRES 實際從哪裡下載，`"aws"`／`"ecmwf"`／`"google"`
 - `sources.gfs.mirror`（H10）：GFS 最後從哪裡下載，`"aws"`（AWS 開放資料鏡像）／`"nomads"`
 - `sources.ecmwf.reusedFrom`、`sources.gfs.reusedFrom`：這次失敗、模式資料沿用之前的結果時，抄的
