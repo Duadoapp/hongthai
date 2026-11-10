@@ -146,8 +146,10 @@ Open-Meteo、`voting=False`；UKMO 是 CC BY-SA 4.0，不放）：數字與 `lev
 CMA 的能見度照存 `visibilityM`，不進 `levels.fog`／`level`（2026-10-25 主對話定案）
 
 WeatherNext 3（HD15，`wn3`）：`config.WN3_MODE` 是 `vote`（預設，HD43）或 `observe` 時才在
-`MODELS` 裡。數字是逐時的成員中位數（p50）10 米風，同 JMA GSM 估算陣風（`wn3_for_slot`），雨量照投；
-沒有降水型態（不投雪）、沒有能見度。那筆多 `windKtP90`（格內最大的 p90 平均風，給報告看離散）。
+`MODELS` 裡。數字是逐時的成員中位數（p50）10 米風，同 JMA GSM 估算陣風（`wn3_for_slot`），雨量照投
+（同其他有雨量、沒有降水型態的模式的門檻；Zarr 的逐時雨量 HD49 起才有，讀不到時 `rain6hMm` null、
+雨不投）；沒有降水型態（不投雪）、沒有能見度（不投霧）。那筆多 `windKtP90`（格內最大的 p90 平均風，
+給報告看離散）。
 HD43 `vote`：投一票（`WN3_VOTING`，預設投），build 記憶體裡那筆和其他模式一樣完整（投票、3 小時格、
 模式沿用的重算、AI 都用它），**寫出去之前**由 `public_slots` 換成只有 `{"id": "wn3",
 "valuesHidden": true}`；日本、南韓的機場（`config.WN3_EXCLUDED_REGIONS`）build 不給資料（等級全

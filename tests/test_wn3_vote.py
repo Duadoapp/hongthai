@@ -320,6 +320,7 @@ def test_vote_build_hides_values_everywhere(workspace, monkeypatch, airports, ca
         "bytesProcessed": 4_000_000_000,
         "bytesBilled": 4_000_000_000,
         "mode": "vote",
+        "rain": True,  # HD49
     }
     # 機場頁（3 小時格）也一樣
     rctp = json.loads((ws / "public" / "airports" / "tpe.json").read_text("utf-8"))
@@ -538,3 +539,136 @@ def test_bad_format_log_has_no_response_text_for_blend_airports(blended, tmp_pat
     logs = "\n".join(r.getMessage() for r in caplog.records)
     assert "AI claude RCTP 失敗：bad_format［bad_format:-:-:not_json］" in logs
     assert "61.2" not in logs
+
+
+# ---- HD49：雨量 ----
+
+# 手造的雨量：每小時 12.37 mm → 6 小時 74.22 → `rain6hMm` 74.2（≥ 60 → 雨高）。風很小（只有雨投高）
+RAIN_H, RAIN_6H = 12.37, 74.2
+RAIN_SECRETS = ("12.37", "74.2", "74.22")
+
+
+def _rain_data(airports, run=RUN, zarr=False):
+    """`zarr`：Zarr 讀到的樣子（風每 6 小時、其他小時只有雨量）；否則每小時都有風
+    （同 BigQuery）。"""
+    hours = []
+    for h in range(1, 145):
+        windy = not zarr or h % 6 == 0
+        hours.append(
+            (h, 8.0 if windy else None, 7.0 if windy else None, 10.0 if windy else None, RAIN_H)
+        )
+    return wn3.Wn3Data(
+        run,
+        {
+            a.icao: [
+                wn3.Wn3Hour(
+                    run + timedelta(hours=h), w, m, p, 90.0 if w is not None else None, r, None
+                )
+                for h, w, m, p, r in hours
+            ]
+            for a in airports
+        },
+        "zarr" if zarr else "bigquery",
+        rain=True,
+    )
+
+
+@pytest.mark.parametrize("zarr", [False, True])
+def test_wn3_rain_votes_and_public_has_no_values(airports, zarr):
+    aps = [a for a in airports if a.icao in ("RCTP", "RJTT")]
+    out = _assemble(aps, _rain_data(aps, zarr=zarr))
+    by = _by(out)
+    s = by["RCTP"]["slots"][0]
+    e = next(x for x in s["model"]["models"] if x["id"] == "wn3")
+    assert e["rain6hMm"] == RAIN_6H and e["ptype"] is None
+    assert (e["levels"]["rain"], e["levels"]["snow"], e["levels"]["fog"]) == ("high", None, None)
+    assert e["levels"]["wind"] == "low" and e["level"] == "high"
+    # WN3 是唯一有資料的模式：雨的投票＝高，整格模式層高、主因是雨
+    assert s["model"]["level"] == "high" and s["causes"] == ["rain"]
+    # 日韓照舊沒有 WN3
+    rjtt = next(x for x in by["RJTT"]["slots"][0]["model"]["models"] if x["id"] == "wn3")
+    assert rjtt["rain6hMm"] is None and rjtt["level"] is None
+    build.hide_wn3(out)
+    text = json.dumps(out, ensure_ascii=False)
+    assert not any(x in text for x in RAIN_SECRETS)
+    assert _wn3_entries(_by(out)["RCTP"]) == [HIDDEN] * 20
+
+
+def test_zarr_shaped_points_round_trip(airports):
+    """Zarr 的逐時檔（6 的倍數以外的小時風是 null、只有雨量）寫進 `points/` 再讀回來一樣；
+    算出來的格和直接用的一樣。"""
+    aps = [a for a in airports if a.icao == "RCTP"]
+    data = _rain_data(aps, zarr=True)
+    doc = wn3report.points_doc(data)
+    assert doc["airports"]["RCTP"][0] == [
+        "2026-10-17T19:00:00Z",
+        None,
+        None,
+        None,
+        None,
+        RAIN_H,
+        None,
+    ]
+    back = wn3report.data_from_points(json.loads(json.dumps(doc)), RUN)
+    assert back.points == data.points and wn3.has_rain(back)
+    start = RUN + timedelta(hours=6)
+    a = assess.wn3_for_slot(back.points["RCTP"], start, start + timedelta(hours=6))
+    assert a["rain6hMm"] == RAIN_6H and a["windKt"] == 8.0
+
+
+def test_sources_wn3_rain_fields(airports):
+    """`sources.wn3` 的 `rain`／`rainError`（HD49）：只有布林與錯誤碼，沒有任何數值。"""
+    aps = [a for a in airports if a.icao == "RCTP"]
+    ok = _rain_data(aps, zarr=True)
+    assert build._wn3_extra(ok)["rain"] is True and "rainError" not in build._wn3_extra(ok)
+    no = _data(aps)
+    no.via, no.rain, no.rain_error = "zarr", False, "rain_timeout"
+    d = build._wn3_extra(no)
+    assert (d["rain"], d["rainError"]) == (False, "rain_timeout")
+    assert not any(x in json.dumps(d) for x in SECRETS + RAIN_SECRETS)
+    # 從 `points/` 讀回來的（沒查）：看裡面有沒有雨量
+    exists = build._wn3_private_extra(wn3report.PrivateResult(RUN, "exists", ok))
+    assert exists["rain"] is True and "bytes" not in exists
+    dry = wn3.Wn3Data(RUN, {"RCTP": [wn3.Wn3Hour(RUN, 8.0, 7.0, 10.0, 0.0, None)]}, "zarr")
+    assert build._wn3_private_extra(wn3report.PrivateResult(RUN, "exists", dry))["rain"] is False
+    queried = build._wn3_private_extra(wn3report.PrivateResult(RUN, "written", no, queried=True))
+    assert (queried["rain"], queried["rainError"]) == (False, "rain_timeout")
+
+
+def test_check_wn3_blocks_rain_numbers(airports):
+    """AI：多模式綜合那段多了雨量數字，`wn3_numbers` 算進去，含那個數字的句子被擋。"""
+    aps = [a for a in airports if a.icao == "RCTP"]
+    doc = _assemble(aps, _rain_data(aps))
+    a = _by(doc)["RCTP"]
+    text = prompt.airport_text(a, doc["generatedAt"])
+    assert "6 小時雨量 74.2 毫米" in text
+    nums = prompt.wn3_numbers(a, doc["generatedAt"])
+    assert 74 in nums
+    sents = {
+        lang: [{"text": "預估 6 小時雨量 74 毫米。", "src": ["multi"]}] for lang in ai_config.LANGS
+    }
+    with pytest.raises(parse.Wn3Leak) as e:
+        parse.check_wn3(sents, nums)
+    assert e.value.tag == "wn3/number"
+    sents = {lang: [{"text": "雨量約 74.2 毫米。", "src": ["multi"]}] for lang in ai_config.LANGS}
+    with pytest.raises(parse.Wn3Leak):
+        parse.check_wn3(sents, nums)
+
+
+def test_archived_rain_doc_still_reads(tmp_path, airports):
+    """搬到公開 `history/` 的那份（`public_doc`）多了雨量數字：格式只是原本的
+    `rain6hMm`／`levels.rain` 有值；`tools/report_29w.py` 讀新舊兩種檔都不壞。"""
+    from test_report_29w import rpt
+
+    aps = [a for a in airports if a.icao == "RCTP"]
+    new = wn3private.public_doc(wn3report.report_doc(_rain_data(aps, zarr=True), aps, {}, "vote"))
+    old = wn3private.public_doc(wn3report.report_doc(_data(aps), aps, {}, "vote"))
+    row = new["airports"]["RCTP"][0]
+    assert set(row) == set(old["airports"]["RCTP"][0])  # 欄位不變
+    assert (row["rain6hMm"], row["levels"]["rain"]) == (RAIN_6H, "high")
+    d = tmp_path / "ev"
+    for run, doc in ((RUN, new), (RUN - timedelta(hours=6), old)):
+        doc = {**doc, "run": iso_run() if run == RUN else "2026-10-17T12:00:00Z"}
+        wn3report.write_report(wn3private.report_path(d, run), doc)
+    runs = rpt.load_wn3(d, ["RCTP"])
+    assert len(runs) == 2 and all(len(r.airports["RCTP"]) == 20 for r in runs)

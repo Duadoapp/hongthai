@@ -213,9 +213,11 @@ def test_bytes_limit_code():
 # ---- Zarr（本機造一個同結構的小網格）----
 
 
-def stats_dataset(tmp_path, leads=range(1, 127), low=(16.0, 135.0)):
+def stats_dataset(tmp_path, leads=range(1, 127), low=(16.0, 135.0), rain=None):
     """同統計 Zarr 的維度與變數名：`lead_time`（timedelta）、`lat_0p1`、`lon_0p1`（0–360）；
-    風 p50 ＝ 10 m/s（RCTP 那格 12）、海平面氣壓 1010 hPa 加一個低壓（每小時往西 0.1°）。"""
+    風 p50 ＝ 10 m/s（RCTP 那格 12）、海平面氣壓 1010 hPa 加一個低壓（每小時往西 0.1°）。
+    `rain`（HD49）：給了才有 `total_precipitation_1hr_mean`（m）——RCTP 那格每小時 `rain`、
+    其他 0。"""
     lats = np.round(np.arange(10.0, 30.01, 0.1), 1)
     lons = np.round(np.arange(115.0, 140.01, 0.1), 1)
     lt = np.array([np.timedelta64(h, "h") for h in leads]).astype("timedelta64[ns]")
@@ -230,17 +232,19 @@ def stats_dataset(tmp_path, leads=range(1, 127), low=(16.0, 135.0)):
             4000 * np.exp(-((lats[:, None] - la) ** 2 + (lons[None, :] - lo) ** 2) / 2)
         ).astype("float32")
     dims = ("lead_time", "lat_0p1", "lon_0p1")
-    ds = xr.Dataset(
-        {
-            "wind_speed_10m_p50": (dims, p50),
-            "wind_speed_10m_mean": (dims, p50 - 1),
-            "wind_speed_10m_p90": (dims, p50 + 5),
-            "u_component_of_wind_10m_mean": (dims, np.full(shape, 0.0, "float32")),
-            "v_component_of_wind_10m_mean": (dims, np.full(shape, -9.0, "float32")),
-            "mean_sea_level_pressure_mean": (dims, msl),
-        },
-        coords={"lead_time": lt, "lat_0p1": lats, "lon_0p1": lons},
-    )
+    data_vars = {
+        "wind_speed_10m_p50": (dims, p50),
+        "wind_speed_10m_mean": (dims, p50 - 1),
+        "wind_speed_10m_p90": (dims, p50 + 5),
+        "u_component_of_wind_10m_mean": (dims, np.full(shape, 0.0, "float32")),
+        "v_component_of_wind_10m_mean": (dims, np.full(shape, -9.0, "float32")),
+        "mean_sea_level_pressure_mean": (dims, msl),
+    }
+    if rain is not None:
+        tp = np.zeros(shape, dtype="float32")
+        tp[:, i, j] = rain
+        data_vars[wn3.ZARR_RAIN_VAR] = (dims, tp)
+    ds = xr.Dataset(data_vars, coords={"lead_time": lt, "lat_0p1": lats, "lon_0p1": lons})
     path = tmp_path / "predictions.zarr"
     ds.to_zarr(
         path,
@@ -273,13 +277,167 @@ def test_zarr_fallback_six_hourly_winds_no_rain(tmp_path, airports):
     assert rctp[0].wind_kt == round(12 * KT_PER_MS, 2) and data.points["RCKH"][0].wind_kt == round(
         10 * KT_PER_MS, 2
     )
-    assert rctp[0].wdir == 0.0 and rctp[0].precip_mm is None  # 北風；Zarr 備援沒有雨量
+    assert rctp[0].wdir == 0.0 and rctp[0].precip_mm is None  # 北風；這份 Zarr 沒有雨量變數
+    assert (data.rain, data.rain_error) == (False, "zarr_no_rain")  # HD49：只有風
     # 一報讀的量（未壓縮、一個 chunk 一整張）：5 個風的變數 × 21 個時間 × 201 × 251 × 4 bytes
     wind = 5 * 21 * 201 * 251 * 4
     assert sorted(data.mslp) == [RUN + timedelta(hours=h) for h in range(6, 127, 6)]
     g = data.mslp[RUN + timedelta(hours=6)]
     assert g.values.min() == pytest.approx(97000, abs=1)
     assert data.bytes_downloaded == wind + 21 * 201 * 251 * 4
+
+
+# ---- Zarr 的逐時雨量（HD49）----
+
+RAIN_START, RAIN_END = utc(2026, 10, 20, 6), utc(2026, 10, 25, 6)  # 提前 6–126 小時
+
+
+def _zarr_fetch(aps, ds, start=RAIN_START, end=RAIN_END):
+    return wn3.fetch(
+        aps,
+        RUN,
+        start,
+        end,
+        client=FakeClient(),
+        open_stats=lambda run: ds,
+        env={"WN3_VIA": "zarr"},
+    )
+
+
+def test_rain_leads_cover_slot_hours():
+    assert wn3.rain_leads(6, 126) == list(range(7, 127))  # 第一格 (6, 12] 從 7 起
+    assert wn3.rain_leads(1, 132) == list(range(1, 133))  # 起點在起報或更早
+    assert wn3.rain_leads(12, 12) == []
+
+
+def test_zarr_hourly_rain_sums_like_bigquery(tmp_path, airports):
+    """逐時雨量（m）→ 每小時 mm（同 BigQuery 的 `_hour`）→ 格內 (from, to] 加總（同一個
+    `wn3_for_slot`）：Zarr 與 BigQuery 算出來的 `rain6hMm` 一樣。"""
+    aps = _airports(airports, "RCTP", "RCKH")
+    ds = stats_dataset(tmp_path, rain=0.0025)  # 每小時 2.5 mm
+    data = _zarr_fetch(aps, ds)
+    assert (data.rain, data.rain_error) == (True, None)
+    rctp = data.points["RCTP"]
+    # 6–126 小時：風每 6 小時、雨 7–126 每小時 → 121 筆，6 的倍數以外的小時沒有風
+    assert [h.valid for h in rctp] == [RUN + timedelta(hours=h) for h in range(6, 127)]
+    assert rctp[0].precip_mm is None and rctp[0].wind_kt == round(12 * KT_PER_MS, 2)
+    assert rctp[1].precip_mm == 2.5 and rctp[1].wind_kt is None and rctp[1].wdir is None
+    assert data.points["RCKH"][1].precip_mm == 0.0
+    # 讀的量：風 5 個變數 × 21 個時效＋雨 120 個時效，每個一整張（這份小網格 201 × 251）
+    assert data.bytes_downloaded == (5 * 21 + 120) * 201 * 251 * 4
+
+    bq = wn3.parse_rows(_rows(aps, 6, 126, tp=0.0025), aps, RUN)
+    for k in range(20):
+        start = RAIN_START + timedelta(hours=6 * k)
+        end = start + timedelta(hours=6)
+        z = assess.wn3_for_slot(rctp, start, end)
+        b = assess.wn3_for_slot(bq["RCTP"], start, end)
+        assert z["rain6hMm"] == b["rain6hMm"] == 15.0, k
+        assert z["windKt"] == round(12 * KT_PER_MS, 1)  # 風照舊（格頭尾兩個 6 小時點）
+    assert (
+        assess.wn3_for_slot(data.points["RCKH"], RAIN_START, RAIN_START + timedelta(hours=6))[
+            "rain6hMm"
+        ]
+        == 0.0
+    )
+
+
+def test_zarr_rain_missing_hours_same_rule_as_bigquery(tmp_path, airports):
+    """缺幾個小時：格內有的小時照加（同 BigQuery 那條路的 `rain_sum`）；整格都沒有是 None。"""
+    aps = _airports(airports, "RCTP")
+    missing = {8, 9} | set(range(13, 19))  # (6, 12] 缺 2 小時、(12, 18] 全缺
+    leads = [h for h in range(1, 127) if h not in missing]
+    data = _zarr_fetch(aps, stats_dataset(tmp_path, leads=leads, rain=0.001))
+    assert data.rain is True
+    bq = wn3.parse_rows(
+        [
+            {**r, "forecast": [f for f in r["forecast"] if f["hours"] not in missing]}
+            for r in _rows(aps, 6, 126, tp=0.001)
+        ],
+        aps,
+        RUN,
+    )
+    for pts in (data.points["RCTP"], bq["RCTP"]):
+        first = assess.wn3_for_slot(pts, RAIN_START, RAIN_START + timedelta(hours=6))
+        second = assess.wn3_for_slot(
+            pts, RAIN_START + timedelta(hours=6), RAIN_START + timedelta(hours=12)
+        )
+        assert (first["rain6hMm"], second["rain6hMm"]) == (4.0, None)
+
+
+def test_zarr_rain_not_hourly_keeps_wind(tmp_path, airports):
+    """時間軸只有 6 的倍數（沒有逐時）：不拿每 6 小時那一個小時硬湊，雨當沒有、風照用。"""
+    aps = _airports(airports, "RCTP")
+    ds = stats_dataset(tmp_path, leads=range(6, 127, 6), rain=0.001)
+    data = _zarr_fetch(aps, ds)
+    assert (data.rain, data.rain_error) == (False, "zarr_not_hourly")
+    assert all(h.precip_mm is None for h in data.points["RCTP"])
+    assert len(data.points["RCTP"]) == 21 and data.points["RCTP"][0].wind_kt is not None
+
+
+def test_zarr_rain_read_failure_keeps_wind(tmp_path, airports, monkeypatch, caplog):
+    aps = _airports(airports, "RCTP")
+    ds = stats_dataset(tmp_path, rain=0.001)
+
+    def forbidden(da, leads, pts):
+        raise OSError("Forbidden: gs://bucket/path 0.001")
+
+    monkeypatch.setattr(wn3, "_rain_batch", forbidden)
+    caplog.set_level("INFO")
+    data = _zarr_fetch(aps, ds)
+    assert (data.via, data.rain, data.rain_error) == ("zarr", False, "http_403")
+    assert all(h.precip_mm is None for h in data.points["RCTP"])
+    assert data.points["RCTP"][0].wind_kt == round(12 * KT_PER_MS, 2)
+    assert data.bytes_downloaded == 5 * 21 * 201 * 251 * 4  # 雨一批都沒讀到
+    assert "http_403" in caplog.text and "Forbidden" not in caplog.text  # 日誌只有錯誤碼
+
+
+def test_zarr_rain_timeout_keeps_wind(tmp_path, airports, monkeypatch):
+    """雨量自己的期限（`RAIN_TIMEOUT_S`）到了：沒讀完的批放棄、雨當沒有，風照用。"""
+    import threading
+
+    aps = _airports(airports, "RCTP")
+    ds = stats_dataset(tmp_path, rain=0.001)
+    release = threading.Event()
+
+    def slow(da, leads, pts):
+        release.wait(5)
+        return np.zeros((len(leads), 1))
+
+    monkeypatch.setattr(wn3, "_rain_batch", slow)
+    monkeypatch.setattr(wn3, "RAIN_TIMEOUT_S", 0.2)
+    try:
+        data = _zarr_fetch(aps, ds)
+    finally:
+        release.set()
+    assert (data.rain, data.rain_error) == (False, "rain_timeout")
+    assert all(h.precip_mm is None for h in data.points["RCTP"])
+    assert len(data.points["RCTP"]) == 21
+
+
+def test_zarr_rain_cancelled_by_budget_stops(tmp_path, airports, monkeypatch):
+    """整個來源被預算放棄（`budget.Cancelled`）：照樣往外丟（不吞掉），沒開始的批不再讀。"""
+    from hongthai import budget
+
+    aps = _airports(airports, "RCTP")
+    ds = stats_dataset(tmp_path, rain=0.001)
+    calls = []
+
+    def batch(da, leads, pts):
+        calls.append(leads)
+        return np.zeros((len(leads), 1))
+
+    def cancel():  # 第一批讀完之後，主執行緒發現已經被放棄
+        if calls:
+            raise budget.Cancelled()
+
+    monkeypatch.setattr(wn3, "_rain_batch", batch)
+    monkeypatch.setattr(wn3, "RAIN_WORKERS", 1)
+    li, lj = wn3._point_index(ds, aps)
+    monkeypatch.setattr(wn3, "check_cancelled", cancel)
+    with pytest.raises(budget.Cancelled):
+        wn3.zarr_rain(ds, list(range(7, 127)), li, lj)
+    assert len(calls) < 20
 
 
 def test_zarr_missing_run_retries_previous(tmp_path, airports):
@@ -548,14 +706,15 @@ def test_env_switches_at_import():
 def test_budget_and_workflow_timeout():
     """HD15 加 wn3 120 秒：總和 1785 秒；HD29 加 swic 45 秒，總和 1830 秒（30.5 分鐘）；HD38 加
     tdx 45 秒、HD34 加 cwaTyphoon 15＋jmaTyphoon 20 秒，總和 1910 秒（約 31.8 分鐘），
-    `build.yml` 那一步 2026-10-25 起 45 分鐘、job 55 分鐘（之前 32／42，總和已逼近 32 分鐘）。"""
+    `build.yml` 那一步 2026-10-25 起 45 分鐘、job 55 分鐘（之前 32／42，總和已逼近 32 分鐘）。
+    HD49：wn3 多 90 秒讀逐時雨量（120 → 210），總和 2000 秒（約 33.3 分鐘）。"""
     from conftest import ROOT
 
     from hongthai import build
 
-    assert build.BUDGET_S["wn3"] == 120 and build.BUDGET_S["swic"] == 45
+    assert build.BUDGET_S["wn3"] == 120 + wn3.RAIN_TIMEOUT_S and build.BUDGET_S["swic"] == 45
     assert (build.BUDGET_S["cwaTyphoon"], build.BUDGET_S["jmaTyphoon"]) == (15, 20)
-    assert sum(build.BUDGET_S.values()) == 1910
+    assert sum(build.BUDGET_S.values()) == 2000
     yml = (ROOT / ".github" / "workflows" / "build.yml").read_text("utf-8")
     assert "timeout-minutes: 45" in yml and "timeout-minutes: 55" in yml
     assert sum(build.BUDGET_S.values()) / 60 < 45

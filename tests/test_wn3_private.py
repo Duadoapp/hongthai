@@ -312,6 +312,7 @@ def test_private_build_latest_has_no_wn3_values_and_logs_are_clean(
         "bytesProcessed": 3_100_000_000,
         "bytesBilled": 3_100_000_000,
         "mode": "private",
+        "rain": True,  # HD49：BigQuery 有雨量
     }
     # 公開的地方（Pages、data 分支的整個 checkout）一個數字都沒有、也沒有事件檔
     public = [p for d in ("public", "data") for p in (ws / d).rglob("*") if p.is_file()]

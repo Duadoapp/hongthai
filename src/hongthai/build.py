@@ -213,8 +213,9 @@ BUDGET_S: dict[str, float] = {
     # 併在預報那個請求（請求數不變，回應約 0.6 → 1.6 MB）
     "openmeteo": 90,
     # HD15：WeatherNext 3，BigQuery 一個查詢（失敗退 GCS Zarr）＋事件期間的海平面氣壓；核准前每報
-    # 幾秒就 `http_403`。`report-only`（預設）只在 5 天前那一報落在事件期間時才跑
-    "wn3": 120,
+    # 幾秒就 `http_403`。`report-only`（預設）只在 5 天前那一報落在事件期間時才跑。HD49 加 90 秒：
+    # Zarr 多讀逐時雨量（`wn3.RAIN_TIMEOUT_S`，超過只放棄雨量、風照用），120 → 210
+    "wn3": 210,
     "tracks": 150,  # HD21：颱風路徑，只在事件期間；ECMWF 路徑產品約 1.3 MB＋解析三個模式的氣壓場
     "taf": 45,  # TAF 與 METAR 同一個來源，各一個請求
     "hko": 30,
@@ -356,7 +357,8 @@ class Timing:
     - 每個來源：`{"run", "source", "ok", "error", "seconds", "bytes"}`，ecmwf、gfs、aifs、aigfs
       （HD14）多 `mirror`；openmeteo（HD16）多 `calls`（Open-Meteo 的加權呼叫次數，失敗是 null）；
       wn3（HD15）多 `mode`、`via`（`bigquery`／`zarr`）、`estimateBytes`（BigQuery dry run）、
-      `bytesBilled`、`stored`（HD15b `private`、HD43 `vote`：`written`／`exists`／`previous`）
+      `bytesBilled`、`stored`（HD15b `private`、HD43 `vote`：`written`／`exists`／`previous`）、
+      `rain`／`rainError`（HD49：雨量有沒有讀到、讀不到的錯誤碼）
     - 分享預覽圖（HD1）：`{"run", "source": "og", "ok", "error", "seconds", "bytes": <圖的總大小>}`
     - AI 對決（HD5）：`{"run", "source": "ai", "ok", "error", "seconds", "bytes": 0,
       "calls": {"claude": n, "gemini": n}, "usage": {...}, "costUsd": {"claude": x, "gemini": y},
@@ -399,7 +401,17 @@ class Timing:
         if name in ("openmeteo", "tdx"):  # tdx：HD38（每月計數看 `history/tdx/`，不看這裡）
             fields["calls"] = st.get("calls")
         if name == "wn3":  # HD15；`stored`：HD15b `private`、HD43 `vote`
-            keys = ("mode", "via", "estimateBytes", "bytesBilled", "stored", "bqError", "zarrError")
+            keys = (
+                "mode",
+                "via",
+                "estimateBytes",
+                "bytesBilled",
+                "stored",
+                "bqError",
+                "zarrError",
+                "rain",  # HD49
+                "rainError",
+            )
             for k in keys:
                 fields[k] = st.get(k)
         self.write(**fields)
@@ -482,7 +494,8 @@ def _openmeteo_extra(om: openmeteo.OpenMeteoData) -> dict:
 
 def _wn3_extra(w: wn3.Wn3Data) -> dict:
     """`sources.wn3`（HD15）：哪一報、走哪條路、BigQuery 的估計／實際掃描量與計費量、Zarr 讀的量；
-    BigQuery 失敗退到 Zarr 時 `bqError`、海平面氣壓讀不到時 `mslpError`。"""
+    BigQuery 失敗退到 Zarr 時 `bqError`、海平面氣壓讀不到時 `mslpError`。HD49：`rain`（雨量有沒有
+    讀到）、讀不到時 `rainError`（只有錯誤碼）。"""
     d: dict[str, object] = {
         "run": iso(w.run),
         "via": w.via,
@@ -495,6 +508,9 @@ def _wn3_extra(w: wn3.Wn3Data) -> dict:
         d["bqError"] = w.bq_error
     if w.mslp_error:
         d["mslpError"] = w.mslp_error
+    d["rain"] = wn3.has_rain(w) if w.rain is None else w.rain
+    if w.rain_error:
+        d["rainError"] = w.rain_error
     return d
 
 
@@ -506,6 +522,8 @@ def _wn3_private_extra(r: wn3report.PrivateResult) -> dict:
     d: dict[str, object] = {"run": iso(r.run), "stored": r.stored}
     if r.data is not None and r.queried:
         d.update(_wn3_extra(r.data))
+    elif r.data is not None:  # HD49：從 `points/` 讀回來的，看裡面有沒有雨量
+        d["rain"] = wn3.has_rain(r.data)
     if r.latest_error:
         d["latestError"] = r.latest_error
     if r.data is not None and wn3_mode() == "vote":
