@@ -212,16 +212,19 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
     （不投霧）
   - **日本、南韓的 15 個機場**（`airports.json` 的 `region` 是 `okinawa`、`japan`、`korea`，
     `config.WN3_EXCLUDED_REGIONS`）投票與 AI 都**不含** WN3，`models[]` 也沒有它那筆
-  - `latest.json`、機場頁、`data` 分支、Pages、分享圖都**沒有** WN3 的數值與它自己的等級：每格 `models[]` 那筆只有
-    `{"id": "wn3", "valuesHidden": true}`；`model.vote` 的票數照實算（含 WN3，推得出它投了什麼可以接受，門檻照舊
-    公開）。build 記憶體裡那筆是完整的（投票、模式沿用的重算、3 小時格、AI 都用），寫出去之前才換掉
-    （`build.hide_wn3`、`assess.public_slots`）
+  - `latest.json`、機場頁、`data` 分支、Pages、分享圖都**沒有** WN3 的數值與分項等級：每格 `models[]` 那筆只有
+    `{"id": "wn3", "valuesHidden": true, "level": "low"|"medium"|"high"|null}`——**HD48（2026-11-11 Shawn 定案）起
+    公開它自己的整體等級**（`level`，就是它投票用的那個：風、雨、雪、霧四類取最高，不另外算），分項 `levels`、數字、
+    `run` 照舊不公開；`model.vote` 的票數照實算（含 WN3，推得出它投了什麼可以接受，門檻照舊公開）。build 記憶體裡
+    那筆是完整的（投票、模式沿用的重算、3 小時格、AI 都用），寫出去之前才換掉（`build.hide_wn3`、
+    `assess.public_slots`）。`WN3_PUBLIC_LEVEL=0`（repo Variable）關掉：那筆回到只有 `{"id", "valuesHidden"}`、
+    頂層沒有 `levelPublic`，和 HD43 一樣
   - AI 拿得到 WN3（「多模式綜合」那段，`ai/prompt.py`），但不准寫出數值、不准歸因（程式檢查＋重生，下面「AI 對決」）
   - 起報超過 121 小時（任何讀法下都是 CC BY 4.0）照舊每天搬進 `data` 分支的 `history/wn3/`
   `WN3_VOTING=0`：照樣藏值、只旁觀。`private`（HD15b）：只寫私人 bucket、`latest.json` 只有 `sources.wn3` 的
   中繼資料、不投票。`report-only`：只在事件期間抓 5 天前那一報寫 `history/events/<id>/wn3/` 與路徑檔。`observe`
-  會**公開數值**，要 Google 書面同意才能切（目前不能用）。HD15c 的 R2 旁觀等級 HD43 拿掉了。兩個開關都是環境變數
-  （Actions 的 repo Variables `WN3_MODE`、`WN3_VOTING`），預設值在 `src/hongthai/config.py`；**repo Variable
+  會**公開數值**，要 Google 書面同意才能切（目前不能用）。HD15c 的 R2 旁觀等級 HD43 拿掉了。三個開關都是環境變數
+  （Actions 的 repo Variables `WN3_MODE`、`WN3_VOTING`、`WN3_PUBLIC_LEVEL`），預設值在 `src/hongthai/config.py`；**repo Variable
   `WN3_MODE` 要沒設或設 `vote`**
 - **Open-Meteo 失敗或逾時**：這一報沒有這三票（三筆全 `null`、不算分母，其他照 5 票算），`sources.openmeteo.ok:
   false`＋`error`，整報照出；**也不沿用舊資料**（和 `ecmwf`／`gfs`／`aifs`／`aigfs` 的沿用不同：不想把 24 小時前
@@ -2258,11 +2261,15 @@ HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**�
 
 - **`WN3_MODE=vote`（預設，HD43，2026-10-28；網頁是 Duado HW24）**：只加欄位、不改名——
   - 頂層 `models[]` 第 12 筆（接在 `cma` 後面）`{"id": "wn3", "name": {四語都是 "Google WeatherNext 3"},
-    "voting": true, "votesOnlyHigh": false, "valuesHidden": true}`；**`valuesHidden` 是新欄位**（只有這筆有）：
-    網頁那列不顯示數字、也不顯示它自己的高低。`WN3_VOTING=0` 時 `voting: false`
+    "voting": true, "votesOnlyHigh": false, "valuesHidden": true, "levelPublic": true}`；**`valuesHidden` 是新欄位**
+    （只有這筆有）：網頁那列不顯示數字。**`levelPublic` 是 HD48 的新欄位**（網頁是 Duado HW26）：有它時那列畫每格
+    它自己的高／中／低（`level`）；沒有這個欄位的舊資料（或 `WN3_PUBLIC_LEVEL=0`）照 HW24 不畫高低。
+    `WN3_VOTING=0` 時 `voting: false`
   - 頂層 `runs.wn3`：這一報用的起報（ISO，WN3 這一報沒有資料是 `null`）
-  - `slots[].model.models[]` 的 `wn3` 那筆**只有** `{"id": "wn3", "valuesHidden": true}`：沒有任何數字、沒有
-    `run`、`levels`、`level`。**日本、南韓的 15 個機場**（`region` 是 `okinawa`、`japan`、`korea`）**沒有這筆**
+  - `slots[].model.models[]` 的 `wn3` 那筆**只有** `{"id": "wn3", "valuesHidden": true, "level": …}`：沒有任何數字、
+    沒有 `run`、`levels`；`level`（HD48）是它自己的整體等級 `"low"`／`"medium"`／`"high"`，這格沒資料是 `null`
+    （`WN3_PUBLIC_LEVEL=0` 時沒有這個鍵）。**日本、南韓的 15 個機場**（`region` 是 `okinawa`、`japan`、`korea`）
+    **沒有這筆**
   - `model.vote` 的票數照實算（含 WN3；日韓不含）；`model.level`、`level`、`causes`、`gap`、一致性只看綜合結果
   - 機場頁 `airports/<iata>.json` 的 `slots3h`、`slots6h` 同上
   - `sources.wn3`：`{"ok", "seconds", "mode": "vote", "run", "stored": "written"|"exists"|"previous",
@@ -2607,6 +2614,12 @@ HD15 WeatherNext 3（2026-10-20 查，**還沒核准、沒有實抓**；細節�
   都沒有 WN3 未來時段的數值，也不單獨公開它自己的高低；日本、南韓 15 個機場投票與 AI 都不含 WN3；AI（Claude、
   Gemini）拿得到但不准寫出數值或歸因（程式檢查＋重生）；`sources.wn3.attribution` 附 Section 4(b) 原文與取得管道；
   過去時段（有效時間早於現在 − 1 小時）照 CC BY 4.0（HD15b 的補抓與 121 小時後搬家照舊）
+- **2026-11-11 Shawn 定案（HD48）**：WN3 自己的高／低**要顯示**（10/28 的待決定）。範圍：只公開每格的**整體等級**
+  （`level`，高／中／低，沒資料 `null`）；分項等級（風、雨、雪、霧各自的 `levels`）、任何數值、達門檻比例照舊不公開；
+  日本、南韓 15 個機場照舊完全沒有 WN3；AI 的規則不變（不寫數值、不歸因、出處標「多模式綜合」）；`sources.wn3.attribution`
+  照舊。主對話提醒過（10/28 記）：Google 回信明說可以的是「多個模式綜合成的等級」，單一模式的等級配上公開的門檻等於
+  透露粗略範圍（例如陣風 ≥ 48 節），屬灰色地帶；Shawn 知情後決定顯示。做成開關 `WN3_PUBLIC_LEVEL`（預設開，repo
+  Variable 設 `0` 關掉，輸出回到 HD43）
 - 另外的免責（disclaimers 頁）：「not official weather forecasts, watches, or warnings」；Google Cloud 上的模型
   另有「must not … develop a similar or competing product」（指模型與輸出，HongThai 只取用預報值）
 

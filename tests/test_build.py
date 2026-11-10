@@ -319,11 +319,14 @@ def test_top_level(latest):
         "gem",  # HD33b：旁觀
         "arpege",
         "cma",
-        "wn3",  # HD43：投一票、數值不公開（`valuesHidden`）
+        "wn3",  # HD43：投一票、數值不公開（`valuesHidden`）；HD48：公開它自己的整體等級
     ]
     for m in latest["models"]:
         keys = {"id", "name", "voting", "votesOnlyHigh"}
-        assert set(m) == keys | ({"valuesHidden"} if m["id"] == "wn3" else set())
+        wn3_keys = {"valuesHidden", "levelPublic"}
+        assert set(m) == keys | (wn3_keys if m["id"] == "wn3" else set())
+        if m["id"] == "wn3":
+            assert m["valuesHidden"] is True and m["levelPublic"] is True
         assert set(m["name"]) == LANGS
         # HD16：三票都投票；HD33b 的三個是旁觀
         assert m["voting"] is (m["id"] not in ("gem", "arpege", "cma"))
@@ -530,12 +533,15 @@ def test_slot_shape(latest):
                 "gem",  # HD33b：旁觀
                 "arpege",
                 "cma",
-                # HD43：日本、南韓的機場沒有 wn3 那筆，其他機場那筆只有 id 與 `valuesHidden`
+                # HD43：日本、南韓的機場沒有 wn3 那筆，其他機場那筆只有 id、`valuesHidden` 與
+                # 它自己的整體等級（HD48，`level`）
                 *(["wn3"] if a["region"] not in ("okinawa", "japan", "korea") else []),
             ]
             for e in m["models"]:
                 if e["id"] == "wn3":
-                    assert e == {"id": "wn3", "valuesHidden": True}
+                    assert set(e) == {"id", "valuesHidden", "level"}
+                    assert e["valuesHidden"] is True
+                    assert e["level"] in ("low", "medium", "high", None)
                     continue
                 assert set(e) == MODEL_ENTRY_KEYS
                 assert e["run"] is None or ISO_Z.match(e["run"])
