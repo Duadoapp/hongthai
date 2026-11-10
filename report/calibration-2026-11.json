@@ -1,0 +1,8577 @@
+{
+ "meta": {
+  "args": {
+   "from": "2026-10-18",
+   "to": "2026-11-10",
+   "minFlights": 10
+  },
+  "dataCommit": {
+   "commit": "b8e40bc1fa2350400b12e042aef1d60f6509e8c9",
+   "subject": "data: 2026-11-10T13:11Z",
+   "committedAt": "2026-11-10T13:11:07+00:00",
+   "dirty": false
+  },
+  "toolCommit": {
+   "commit": "a0525cf77b95b03abe9d91e29f9f2c0d6ebeeda3",
+   "subject": "feat(tools): HD46 calibration report — risk levels vs actual cancellations/delays",
+   "committedAt": "2026-11-10T16:09:22+00:00",
+   "dirty": false
+  },
+  "firstRun": "2026-10-18T04:22:00Z",
+  "lastRun": "2026-11-10T13:06:00Z",
+  "runs": 120,
+  "minFlights": 10,
+  "buckets": [
+   "0–24 h",
+   "24–48 h",
+   "48–72 h",
+   "72–96 h",
+   "96–120 h"
+  ],
+  "events": [
+   {
+    "key": "c10",
+    "label": "取消率 ≥ 10%",
+    "withDelay": false,
+    "rate": 0.1
+   },
+   {
+    "key": "c25",
+    "label": "取消率 ≥ 25%",
+    "withDelay": false,
+    "rate": 0.25
+   },
+   {
+    "key": "c50",
+    "label": "取消率 ≥ 50%",
+    "withDelay": false,
+    "rate": 0.5
+   },
+   {
+    "key": "cd10",
+    "label": "取消＋延誤 ≥ 10%",
+    "withDelay": true,
+    "rate": 0.1
+   },
+   {
+    "key": "cd25",
+    "label": "取消＋延誤 ≥ 25%",
+    "withDelay": true,
+    "rate": 0.25
+   },
+   {
+    "key": "cd50",
+    "label": "取消＋延誤 ≥ 50%",
+    "withDelay": true,
+    "rate": 0.5
+   }
+  ],
+  "dedupe": "per (airport, slot, lead bucket) keep the run whose lead is closest to the bucket centre (12/36/60/84/108 h); ties keep the newer run"
+ },
+ "inventory": {
+  "airportsInSnapshots": 51,
+  "airportsWithFlights": [
+   "RCBS",
+   "RCFG",
+   "RCFN",
+   "RCKH",
+   "RCMQ",
+   "RCNN",
+   "RCQC",
+   "RCSS",
+   "RCTP",
+   "RCYU",
+   "VHHH",
+   "VMMC"
+  ],
+  "airportsWithoutFlights": [
+   "PGUM",
+   "PTRO",
+   "RJAA",
+   "RJBB",
+   "RJCC",
+   "RJFF",
+   "RJFK",
+   "RJGG",
+   "RJSS",
+   "RJTT",
+   "RKPC",
+   "RKPK",
+   "RKSI",
+   "RKSS",
+   "ROAH",
+   "ROIG",
+   "ROMY",
+   "RPLC",
+   "RPLL",
+   "RPVM",
+   "VVCR",
+   "VVDN",
+   "VVNB",
+   "VVPQ",
+   "VVTS",
+   "ZGGG",
+   "ZGOW",
+   "ZGSD",
+   "ZGSZ",
+   "ZJHK",
+   "ZJSY",
+   "ZSAM",
+   "ZSFZ",
+   "ZSHC",
+   "ZSNB",
+   "ZSPD",
+   "ZSQZ",
+   "ZSSS",
+   "ZSWZ"
+  ],
+  "snapshotOnlySlots": {
+   "RCBS": 45,
+   "RCFG": 45,
+   "RCFN": 44,
+   "RCMQ": 60,
+   "RCNN": 45,
+   "RCQC": 60,
+   "RCYU": 29
+  },
+  "forecasts": 114720,
+  "deduped": 24480,
+  "pairs": 2114,
+  "fewPairs": 236,
+  "noTruth": 22130,
+  "counts": {},
+  "airports": [
+   {
+    "icao": "RCBS",
+    "source": "tdx",
+    "firstSlot": "2026-10-24T00:00:00Z",
+    "truthLast": "2026-10-26T15:21:00Z",
+    "validSlots": 7,
+    "fewSlots": 1,
+    "earlySlots": 0,
+    "pendingSlots": 1
+   },
+   {
+    "icao": "RCFG",
+    "source": "tdx",
+    "firstSlot": "2026-10-23T18:00:00Z",
+    "truthLast": "2026-10-26T15:21:00Z",
+    "validSlots": 3,
+    "fewSlots": 6,
+    "earlySlots": 0,
+    "pendingSlots": 0
+   },
+   {
+    "icao": "RCFN",
+    "source": "tdx",
+    "firstSlot": "2026-10-24T00:00:00Z",
+    "truthLast": "2026-10-26T15:21:00Z",
+    "validSlots": 6,
+    "fewSlots": 2,
+    "earlySlots": 0,
+    "pendingSlots": 0
+   },
+   {
+    "icao": "RCKH",
+    "source": "cancellations",
+    "firstSlot": "2026-10-17T18:00:00Z",
+    "truthLast": "2026-11-10T13:06:00Z",
+    "validSlots": 95,
+    "fewSlots": 0,
+    "earlySlots": 28,
+    "pendingSlots": 1
+   },
+   {
+    "icao": "RCMQ",
+    "source": "tdx",
+    "firstSlot": "2026-10-23T18:00:00Z",
+    "truthLast": "2026-10-26T15:21:00Z",
+    "validSlots": 8,
+    "fewSlots": 3,
+    "earlySlots": 0,
+    "pendingSlots": 1
+   },
+   {
+    "icao": "RCNN",
+    "source": "tdx",
+    "firstSlot": "2026-10-23T18:00:00Z",
+    "truthLast": "2026-10-26T15:21:00Z",
+    "validSlots": 0,
+    "fewSlots": 9,
+    "earlySlots": 0,
+    "pendingSlots": 0
+   },
+   {
+    "icao": "RCQC",
+    "source": "tdx",
+    "firstSlot": "2026-10-23T18:00:00Z",
+    "truthLast": "2026-10-26T15:21:00Z",
+    "validSlots": 7,
+    "fewSlots": 4,
+    "earlySlots": 0,
+    "pendingSlots": 1
+   },
+   {
+    "icao": "RCSS",
+    "source": "cancellations",
+    "firstSlot": "2026-10-17T18:00:00Z",
+    "truthLast": "2026-11-10T13:06:00Z",
+    "validSlots": 80,
+    "fewSlots": 15,
+    "earlySlots": 24,
+    "pendingSlots": 1
+   },
+   {
+    "icao": "RCTP",
+    "source": "cancellations",
+    "firstSlot": "2026-10-16T12:00:00Z",
+    "truthLast": "2026-11-10T13:06:00Z",
+    "validSlots": 100,
+    "fewSlots": 0,
+    "earlySlots": 31,
+    "pendingSlots": 5
+   },
+   {
+    "icao": "RCYU",
+    "source": "tdx",
+    "firstSlot": "2026-10-24T06:00:00Z",
+    "truthLast": "2026-10-26T15:21:00Z",
+    "validSlots": 0,
+    "fewSlots": 5,
+    "earlySlots": 0,
+    "pendingSlots": 1
+   },
+   {
+    "icao": "VHHH",
+    "source": "cancellations",
+    "firstSlot": "2026-10-16T06:00:00Z",
+    "truthLast": "2026-11-10T13:06:00Z",
+    "validSlots": 100,
+    "fewSlots": 1,
+    "earlySlots": 7,
+    "pendingSlots": 1
+   },
+   {
+    "icao": "VMMC",
+    "source": "cancellations",
+    "firstSlot": "2026-10-17T12:00:00Z",
+    "truthLast": "2026-11-10T13:06:00Z",
+    "validSlots": 71,
+    "fewSlots": 8,
+    "earlySlots": 23,
+    "pendingSlots": 1
+   }
+  ]
+ },
+ "calibration": {
+  "c10": {
+   "low": {
+    "0–24 h": {
+     "n": 421,
+     "k": 37,
+     "rate": 0.0879,
+     "lo": 0.0644,
+     "hi": 0.1188
+    },
+    "24–48 h": {
+     "n": 412,
+     "k": 48,
+     "rate": 0.1165,
+     "lo": 0.089,
+     "hi": 0.1511
+    },
+    "48–72 h": {
+     "n": 390,
+     "k": 42,
+     "rate": 0.1077,
+     "lo": 0.0807,
+     "hi": 0.1424
+    },
+    "72–96 h": {
+     "n": 367,
+     "k": 37,
+     "rate": 0.1008,
+     "lo": 0.074,
+     "hi": 0.1359
+    },
+    "96–120 h": {
+     "n": 349,
+     "k": 31,
+     "rate": 0.0888,
+     "lo": 0.0633,
+     "hi": 0.1233
+    },
+    "all": {
+     "n": 1939,
+     "k": 195,
+     "rate": 0.1006,
+     "lo": 0.088,
+     "hi": 0.1148
+    }
+   },
+   "medium": {
+    "0–24 h": {
+     "n": 15,
+     "k": 7,
+     "rate": 0.4667,
+     "lo": 0.2481,
+     "hi": 0.6988
+    },
+    "24–48 h": {
+     "n": 18,
+     "k": 7,
+     "rate": 0.3889,
+     "lo": 0.203,
+     "hi": 0.6138
+    },
+    "48–72 h": {
+     "n": 22,
+     "k": 11,
+     "rate": 0.5,
+     "lo": 0.3072,
+     "hi": 0.6928
+    },
+    "72–96 h": {
+     "n": 23,
+     "k": 10,
+     "rate": 0.4348,
+     "lo": 0.2563,
+     "hi": 0.6319
+    },
+    "96–120 h": {
+     "n": 18,
+     "k": 8,
+     "rate": 0.4444,
+     "lo": 0.2456,
+     "hi": 0.6628
+    },
+    "all": {
+     "n": 96,
+     "k": 43,
+     "rate": 0.4479,
+     "lo": 0.3524,
+     "hi": 0.5475
+    }
+   },
+   "high": {
+    "0–24 h": {
+     "n": 28,
+     "k": 23,
+     "rate": 0.8214,
+     "lo": 0.6441,
+     "hi": 0.9212
+    },
+    "24–48 h": {
+     "n": 11,
+     "k": 11,
+     "rate": 1.0,
+     "lo": 0.7412,
+     "hi": 1.0
+    },
+    "48–72 h": {
+     "n": 10,
+     "k": 10,
+     "rate": 1.0,
+     "lo": 0.7225,
+     "hi": 1.0
+    },
+    "72–96 h": {
+     "n": 13,
+     "k": 13,
+     "rate": 1.0,
+     "lo": 0.7719,
+     "hi": 1.0
+    },
+    "96–120 h": {
+     "n": 17,
+     "k": 15,
+     "rate": 0.8824,
+     "lo": 0.6566,
+     "hi": 0.9671
+    },
+    "all": {
+     "n": 79,
+     "k": 72,
+     "rate": 0.9114,
+     "lo": 0.8282,
+     "hi": 0.9564
+    }
+   },
+   "confirmed": {
+    "0–24 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "24–48 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "48–72 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "72–96 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "96–120 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "all": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    }
+   }
+  },
+  "c25": {
+   "low": {
+    "0–24 h": {
+     "n": 421,
+     "k": 11,
+     "rate": 0.0261,
+     "lo": 0.0147,
+     "hi": 0.0462
+    },
+    "24–48 h": {
+     "n": 412,
+     "k": 19,
+     "rate": 0.0461,
+     "lo": 0.0297,
+     "hi": 0.0709
+    },
+    "48–72 h": {
+     "n": 390,
+     "k": 16,
+     "rate": 0.041,
+     "lo": 0.0254,
+     "hi": 0.0656
+    },
+    "72–96 h": {
+     "n": 367,
+     "k": 14,
+     "rate": 0.0381,
+     "lo": 0.0229,
+     "hi": 0.063
+    },
+    "96–120 h": {
+     "n": 349,
+     "k": 12,
+     "rate": 0.0344,
+     "lo": 0.0198,
+     "hi": 0.0591
+    },
+    "all": {
+     "n": 1939,
+     "k": 72,
+     "rate": 0.0371,
+     "lo": 0.0296,
+     "hi": 0.0465
+    }
+   },
+   "medium": {
+    "0–24 h": {
+     "n": 15,
+     "k": 4,
+     "rate": 0.2667,
+     "lo": 0.109,
+     "hi": 0.5195
+    },
+    "24–48 h": {
+     "n": 18,
+     "k": 7,
+     "rate": 0.3889,
+     "lo": 0.203,
+     "hi": 0.6138
+    },
+    "48–72 h": {
+     "n": 22,
+     "k": 11,
+     "rate": 0.5,
+     "lo": 0.3072,
+     "hi": 0.6928
+    },
+    "72–96 h": {
+     "n": 23,
+     "k": 9,
+     "rate": 0.3913,
+     "lo": 0.2216,
+     "hi": 0.5921
+    },
+    "96–120 h": {
+     "n": 18,
+     "k": 8,
+     "rate": 0.4444,
+     "lo": 0.2456,
+     "hi": 0.6628
+    },
+    "all": {
+     "n": 96,
+     "k": 39,
+     "rate": 0.4062,
+     "lo": 0.3135,
+     "hi": 0.5063
+    }
+   },
+   "high": {
+    "0–24 h": {
+     "n": 28,
+     "k": 22,
+     "rate": 0.7857,
+     "lo": 0.6046,
+     "hi": 0.8979
+    },
+    "24–48 h": {
+     "n": 11,
+     "k": 11,
+     "rate": 1.0,
+     "lo": 0.7412,
+     "hi": 1.0
+    },
+    "48–72 h": {
+     "n": 10,
+     "k": 10,
+     "rate": 1.0,
+     "lo": 0.7225,
+     "hi": 1.0
+    },
+    "72–96 h": {
+     "n": 13,
+     "k": 13,
+     "rate": 1.0,
+     "lo": 0.7719,
+     "hi": 1.0
+    },
+    "96–120 h": {
+     "n": 17,
+     "k": 15,
+     "rate": 0.8824,
+     "lo": 0.6566,
+     "hi": 0.9671
+    },
+    "all": {
+     "n": 79,
+     "k": 71,
+     "rate": 0.8987,
+     "lo": 0.8127,
+     "hi": 0.9478
+    }
+   },
+   "confirmed": {
+    "0–24 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "24–48 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "48–72 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "72–96 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "96–120 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "all": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    }
+   }
+  },
+  "c50": {
+   "low": {
+    "0–24 h": {
+     "n": 421,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.009
+    },
+    "24–48 h": {
+     "n": 412,
+     "k": 5,
+     "rate": 0.0121,
+     "lo": 0.0052,
+     "hi": 0.0281
+    },
+    "48–72 h": {
+     "n": 390,
+     "k": 4,
+     "rate": 0.0103,
+     "lo": 0.004,
+     "hi": 0.0261
+    },
+    "72–96 h": {
+     "n": 367,
+     "k": 4,
+     "rate": 0.0109,
+     "lo": 0.0042,
+     "hi": 0.0277
+    },
+    "96–120 h": {
+     "n": 349,
+     "k": 1,
+     "rate": 0.0029,
+     "lo": 0.0005,
+     "hi": 0.016
+    },
+    "all": {
+     "n": 1939,
+     "k": 14,
+     "rate": 0.0072,
+     "lo": 0.0043,
+     "hi": 0.0121
+    }
+   },
+   "medium": {
+    "0–24 h": {
+     "n": 15,
+     "k": 2,
+     "rate": 0.1333,
+     "lo": 0.0374,
+     "hi": 0.3788
+    },
+    "24–48 h": {
+     "n": 18,
+     "k": 3,
+     "rate": 0.1667,
+     "lo": 0.0584,
+     "hi": 0.3922
+    },
+    "48–72 h": {
+     "n": 22,
+     "k": 6,
+     "rate": 0.2727,
+     "lo": 0.1315,
+     "hi": 0.4815
+    },
+    "72–96 h": {
+     "n": 23,
+     "k": 4,
+     "rate": 0.1739,
+     "lo": 0.0698,
+     "hi": 0.3714
+    },
+    "96–120 h": {
+     "n": 18,
+     "k": 4,
+     "rate": 0.2222,
+     "lo": 0.09,
+     "hi": 0.4522
+    },
+    "all": {
+     "n": 96,
+     "k": 19,
+     "rate": 0.1979,
+     "lo": 0.1305,
+     "hi": 0.2886
+    }
+   },
+   "high": {
+    "0–24 h": {
+     "n": 28,
+     "k": 15,
+     "rate": 0.5357,
+     "lo": 0.3581,
+     "hi": 0.7047
+    },
+    "24–48 h": {
+     "n": 11,
+     "k": 9,
+     "rate": 0.8182,
+     "lo": 0.523,
+     "hi": 0.9486
+    },
+    "48–72 h": {
+     "n": 10,
+     "k": 7,
+     "rate": 0.7,
+     "lo": 0.3968,
+     "hi": 0.8922
+    },
+    "72–96 h": {
+     "n": 13,
+     "k": 9,
+     "rate": 0.6923,
+     "lo": 0.4237,
+     "hi": 0.8732
+    },
+    "96–120 h": {
+     "n": 17,
+     "k": 12,
+     "rate": 0.7059,
+     "lo": 0.4687,
+     "hi": 0.8672
+    },
+    "all": {
+     "n": 79,
+     "k": 52,
+     "rate": 0.6582,
+     "lo": 0.5485,
+     "hi": 0.7533
+    }
+   },
+   "confirmed": {
+    "0–24 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "24–48 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "48–72 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "72–96 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "96–120 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "all": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    }
+   }
+  },
+  "cd10": {
+   "low": {
+    "0–24 h": {
+     "n": 421,
+     "k": 75,
+     "rate": 0.1781,
+     "lo": 0.1446,
+     "hi": 0.2176
+    },
+    "24–48 h": {
+     "n": 412,
+     "k": 91,
+     "rate": 0.2209,
+     "lo": 0.1835,
+     "hi": 0.2634
+    },
+    "48–72 h": {
+     "n": 390,
+     "k": 86,
+     "rate": 0.2205,
+     "lo": 0.1822,
+     "hi": 0.2643
+    },
+    "72–96 h": {
+     "n": 367,
+     "k": 79,
+     "rate": 0.2153,
+     "lo": 0.1763,
+     "hi": 0.2601
+    },
+    "96–120 h": {
+     "n": 349,
+     "k": 70,
+     "rate": 0.2006,
+     "lo": 0.1619,
+     "hi": 0.2457
+    },
+    "all": {
+     "n": 1939,
+     "k": 401,
+     "rate": 0.2068,
+     "lo": 0.1894,
+     "hi": 0.2254
+    }
+   },
+   "medium": {
+    "0–24 h": {
+     "n": 15,
+     "k": 11,
+     "rate": 0.7333,
+     "lo": 0.4805,
+     "hi": 0.891
+    },
+    "24–48 h": {
+     "n": 18,
+     "k": 10,
+     "rate": 0.5556,
+     "lo": 0.3372,
+     "hi": 0.7544
+    },
+    "48–72 h": {
+     "n": 22,
+     "k": 13,
+     "rate": 0.5909,
+     "lo": 0.3873,
+     "hi": 0.7674
+    },
+    "72–96 h": {
+     "n": 23,
+     "k": 13,
+     "rate": 0.5652,
+     "lo": 0.3681,
+     "hi": 0.7437
+    },
+    "96–120 h": {
+     "n": 18,
+     "k": 12,
+     "rate": 0.6667,
+     "lo": 0.4375,
+     "hi": 0.8372
+    },
+    "all": {
+     "n": 96,
+     "k": 59,
+     "rate": 0.6146,
+     "lo": 0.5146,
+     "hi": 0.7057
+    }
+   },
+   "high": {
+    "0–24 h": {
+     "n": 28,
+     "k": 27,
+     "rate": 0.9643,
+     "lo": 0.8229,
+     "hi": 0.9937
+    },
+    "24–48 h": {
+     "n": 11,
+     "k": 11,
+     "rate": 1.0,
+     "lo": 0.7412,
+     "hi": 1.0
+    },
+    "48–72 h": {
+     "n": 10,
+     "k": 10,
+     "rate": 1.0,
+     "lo": 0.7225,
+     "hi": 1.0
+    },
+    "72–96 h": {
+     "n": 13,
+     "k": 13,
+     "rate": 1.0,
+     "lo": 0.7719,
+     "hi": 1.0
+    },
+    "96–120 h": {
+     "n": 17,
+     "k": 16,
+     "rate": 0.9412,
+     "lo": 0.7302,
+     "hi": 0.9895
+    },
+    "all": {
+     "n": 79,
+     "k": 77,
+     "rate": 0.9747,
+     "lo": 0.9123,
+     "hi": 0.993
+    }
+   },
+   "confirmed": {
+    "0–24 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "24–48 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "48–72 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "72–96 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "96–120 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "all": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    }
+   }
+  },
+  "cd25": {
+   "low": {
+    "0–24 h": {
+     "n": 421,
+     "k": 13,
+     "rate": 0.0309,
+     "lo": 0.0181,
+     "hi": 0.0521
+    },
+    "24–48 h": {
+     "n": 412,
+     "k": 26,
+     "rate": 0.0631,
+     "lo": 0.0434,
+     "hi": 0.0909
+    },
+    "48–72 h": {
+     "n": 390,
+     "k": 23,
+     "rate": 0.059,
+     "lo": 0.0396,
+     "hi": 0.0869
+    },
+    "72–96 h": {
+     "n": 367,
+     "k": 21,
+     "rate": 0.0572,
+     "lo": 0.0377,
+     "hi": 0.0859
+    },
+    "96–120 h": {
+     "n": 349,
+     "k": 18,
+     "rate": 0.0516,
+     "lo": 0.0329,
+     "hi": 0.08
+    },
+    "all": {
+     "n": 1939,
+     "k": 101,
+     "rate": 0.0521,
+     "lo": 0.0431,
+     "hi": 0.0629
+    }
+   },
+   "medium": {
+    "0–24 h": {
+     "n": 15,
+     "k": 6,
+     "rate": 0.4,
+     "lo": 0.1982,
+     "hi": 0.6425
+    },
+    "24–48 h": {
+     "n": 18,
+     "k": 8,
+     "rate": 0.4444,
+     "lo": 0.2456,
+     "hi": 0.6628
+    },
+    "48–72 h": {
+     "n": 22,
+     "k": 12,
+     "rate": 0.5455,
+     "lo": 0.3466,
+     "hi": 0.7308
+    },
+    "72–96 h": {
+     "n": 23,
+     "k": 10,
+     "rate": 0.4348,
+     "lo": 0.2563,
+     "hi": 0.6319
+    },
+    "96–120 h": {
+     "n": 18,
+     "k": 9,
+     "rate": 0.5,
+     "lo": 0.2903,
+     "hi": 0.7097
+    },
+    "all": {
+     "n": 96,
+     "k": 45,
+     "rate": 0.4688,
+     "lo": 0.3721,
+     "hi": 0.5678
+    }
+   },
+   "high": {
+    "0–24 h": {
+     "n": 28,
+     "k": 26,
+     "rate": 0.9286,
+     "lo": 0.7735,
+     "hi": 0.9802
+    },
+    "24–48 h": {
+     "n": 11,
+     "k": 11,
+     "rate": 1.0,
+     "lo": 0.7412,
+     "hi": 1.0
+    },
+    "48–72 h": {
+     "n": 10,
+     "k": 10,
+     "rate": 1.0,
+     "lo": 0.7225,
+     "hi": 1.0
+    },
+    "72–96 h": {
+     "n": 13,
+     "k": 13,
+     "rate": 1.0,
+     "lo": 0.7719,
+     "hi": 1.0
+    },
+    "96–120 h": {
+     "n": 17,
+     "k": 16,
+     "rate": 0.9412,
+     "lo": 0.7302,
+     "hi": 0.9895
+    },
+    "all": {
+     "n": 79,
+     "k": 76,
+     "rate": 0.962,
+     "lo": 0.8942,
+     "hi": 0.987
+    }
+   },
+   "confirmed": {
+    "0–24 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "24–48 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "48–72 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "72–96 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "96–120 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "all": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    }
+   }
+  },
+  "cd50": {
+   "low": {
+    "0–24 h": {
+     "n": 421,
+     "k": 1,
+     "rate": 0.0024,
+     "lo": 0.0004,
+     "hi": 0.0133
+    },
+    "24–48 h": {
+     "n": 412,
+     "k": 10,
+     "rate": 0.0243,
+     "lo": 0.0132,
+     "hi": 0.0441
+    },
+    "48–72 h": {
+     "n": 390,
+     "k": 7,
+     "rate": 0.0179,
+     "lo": 0.0087,
+     "hi": 0.0366
+    },
+    "72–96 h": {
+     "n": 367,
+     "k": 7,
+     "rate": 0.0191,
+     "lo": 0.0093,
+     "hi": 0.0388
+    },
+    "96–120 h": {
+     "n": 349,
+     "k": 5,
+     "rate": 0.0143,
+     "lo": 0.0061,
+     "hi": 0.0331
+    },
+    "all": {
+     "n": 1939,
+     "k": 30,
+     "rate": 0.0155,
+     "lo": 0.0109,
+     "hi": 0.022
+    }
+   },
+   "medium": {
+    "0–24 h": {
+     "n": 15,
+     "k": 4,
+     "rate": 0.2667,
+     "lo": 0.109,
+     "hi": 0.5195
+    },
+    "24–48 h": {
+     "n": 18,
+     "k": 3,
+     "rate": 0.1667,
+     "lo": 0.0584,
+     "hi": 0.3922
+    },
+    "48–72 h": {
+     "n": 22,
+     "k": 8,
+     "rate": 0.3636,
+     "lo": 0.1973,
+     "hi": 0.5705
+    },
+    "72–96 h": {
+     "n": 23,
+     "k": 5,
+     "rate": 0.2174,
+     "lo": 0.0966,
+     "hi": 0.419
+    },
+    "96–120 h": {
+     "n": 18,
+     "k": 5,
+     "rate": 0.2778,
+     "lo": 0.125,
+     "hi": 0.5087
+    },
+    "all": {
+     "n": 96,
+     "k": 25,
+     "rate": 0.2604,
+     "lo": 0.1831,
+     "hi": 0.3562
+    }
+   },
+   "high": {
+    "0–24 h": {
+     "n": 28,
+     "k": 18,
+     "rate": 0.6429,
+     "lo": 0.4583,
+     "hi": 0.7929
+    },
+    "24–48 h": {
+     "n": 11,
+     "k": 10,
+     "rate": 0.9091,
+     "lo": 0.6226,
+     "hi": 0.9838
+    },
+    "48–72 h": {
+     "n": 10,
+     "k": 8,
+     "rate": 0.8,
+     "lo": 0.4902,
+     "hi": 0.9433
+    },
+    "72–96 h": {
+     "n": 13,
+     "k": 11,
+     "rate": 0.8462,
+     "lo": 0.5776,
+     "hi": 0.9567
+    },
+    "96–120 h": {
+     "n": 17,
+     "k": 13,
+     "rate": 0.7647,
+     "lo": 0.5274,
+     "hi": 0.9045
+    },
+    "all": {
+     "n": 79,
+     "k": 60,
+     "rate": 0.7595,
+     "lo": 0.6546,
+     "hi": 0.8403
+    }
+   },
+   "confirmed": {
+    "0–24 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "24–48 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "48–72 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "72–96 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "96–120 h": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    },
+    "all": {
+     "n": 0,
+     "k": 0,
+     "rate": null,
+     "lo": null,
+     "hi": null
+    }
+   }
+  }
+ },
+ "calibrationFew4": {
+  "c10": {
+   "low": {
+    "n": 2068,
+    "k": 210,
+    "rate": 0.1015,
+    "lo": 0.0893,
+    "hi": 0.1153
+   },
+   "medium": {
+    "n": 111,
+    "k": 48,
+    "rate": 0.4324,
+    "lo": 0.3441,
+    "hi": 0.5253
+   },
+   "high": {
+    "n": 90,
+    "k": 82,
+    "rate": 0.9111,
+    "lo": 0.8343,
+    "hi": 0.9543
+   },
+   "confirmed": {
+    "n": 0,
+    "k": 0,
+    "rate": null,
+    "lo": null,
+    "hi": null
+   }
+  },
+  "c25": {
+   "low": {
+    "n": 2068,
+    "k": 77,
+    "rate": 0.0372,
+    "lo": 0.0299,
+    "hi": 0.0463
+   },
+   "medium": {
+    "n": 111,
+    "k": 44,
+    "rate": 0.3964,
+    "lo": 0.3103,
+    "hi": 0.4894
+   },
+   "high": {
+    "n": 90,
+    "k": 81,
+    "rate": 0.9,
+    "lo": 0.8208,
+    "hi": 0.9465
+   },
+   "confirmed": {
+    "n": 0,
+    "k": 0,
+    "rate": null,
+    "lo": null,
+    "hi": null
+   }
+  },
+  "c50": {
+   "low": {
+    "n": 2068,
+    "k": 19,
+    "rate": 0.0092,
+    "lo": 0.0059,
+    "hi": 0.0143
+   },
+   "medium": {
+    "n": 111,
+    "k": 24,
+    "rate": 0.2162,
+    "lo": 0.1498,
+    "hi": 0.3016
+   },
+   "high": {
+    "n": 90,
+    "k": 62,
+    "rate": 0.6889,
+    "lo": 0.5872,
+    "hi": 0.7751
+   },
+   "confirmed": {
+    "n": 0,
+    "k": 0,
+    "rate": null,
+    "lo": null,
+    "hi": null
+   }
+  },
+  "cd10": {
+   "low": {
+    "n": 2068,
+    "k": 429,
+    "rate": 0.2074,
+    "lo": 0.1905,
+    "hi": 0.2255
+   },
+   "medium": {
+    "n": 111,
+    "k": 66,
+    "rate": 0.5946,
+    "lo": 0.5016,
+    "hi": 0.6813
+   },
+   "high": {
+    "n": 90,
+    "k": 87,
+    "rate": 0.9667,
+    "lo": 0.9065,
+    "hi": 0.9886
+   },
+   "confirmed": {
+    "n": 0,
+    "k": 0,
+    "rate": null,
+    "lo": null,
+    "hi": null
+   }
+  },
+  "cd25": {
+   "low": {
+    "n": 2068,
+    "k": 106,
+    "rate": 0.0513,
+    "lo": 0.0426,
+    "hi": 0.0616
+   },
+   "medium": {
+    "n": 111,
+    "k": 50,
+    "rate": 0.4505,
+    "lo": 0.3611,
+    "hi": 0.5431
+   },
+   "high": {
+    "n": 90,
+    "k": 86,
+    "rate": 0.9556,
+    "lo": 0.8912,
+    "hi": 0.9826
+   },
+   "confirmed": {
+    "n": 0,
+    "k": 0,
+    "rate": null,
+    "lo": null,
+    "hi": null
+   }
+  },
+  "cd50": {
+   "low": {
+    "n": 2068,
+    "k": 35,
+    "rate": 0.0169,
+    "lo": 0.0122,
+    "hi": 0.0234
+   },
+   "medium": {
+    "n": 111,
+    "k": 30,
+    "rate": 0.2703,
+    "lo": 0.1964,
+    "hi": 0.3595
+   },
+   "high": {
+    "n": 90,
+    "k": 70,
+    "rate": 0.7778,
+    "lo": 0.6815,
+    "hi": 0.8513
+   },
+   "confirmed": {
+    "n": 0,
+    "k": 0,
+    "rate": null,
+    "lo": null,
+    "hi": null
+   }
+  }
+ },
+ "confusion": {
+  "c10:risky": {
+   "0–24 h": {
+    "hits": 30,
+    "falseAlarms": 13,
+    "misses": 37,
+    "correctNegatives": 384,
+    "precision": 0.6977,
+    "precisionLo": 0.5489,
+    "precisionHi": 0.814,
+    "recall": 0.4478
+   },
+   "24–48 h": {
+    "hits": 18,
+    "falseAlarms": 11,
+    "misses": 48,
+    "correctNegatives": 364,
+    "precision": 0.6207,
+    "precisionLo": 0.44,
+    "precisionHi": 0.7731,
+    "recall": 0.2727
+   },
+   "48–72 h": {
+    "hits": 21,
+    "falseAlarms": 11,
+    "misses": 42,
+    "correctNegatives": 348,
+    "precision": 0.6562,
+    "precisionLo": 0.4831,
+    "precisionHi": 0.7959,
+    "recall": 0.3333
+   },
+   "72–96 h": {
+    "hits": 23,
+    "falseAlarms": 13,
+    "misses": 37,
+    "correctNegatives": 330,
+    "precision": 0.6389,
+    "precisionLo": 0.4757,
+    "precisionHi": 0.7752,
+    "recall": 0.3833
+   },
+   "96–120 h": {
+    "hits": 23,
+    "falseAlarms": 12,
+    "misses": 31,
+    "correctNegatives": 318,
+    "precision": 0.6571,
+    "precisionLo": 0.4915,
+    "precisionHi": 0.7917,
+    "recall": 0.4259
+   },
+   "all": {
+    "hits": 115,
+    "falseAlarms": 60,
+    "misses": 195,
+    "correctNegatives": 1744,
+    "precision": 0.6571,
+    "precisionLo": 0.5841,
+    "precisionHi": 0.7234,
+    "recall": 0.371
+   }
+  },
+  "c10:high": {
+   "0–24 h": {
+    "hits": 23,
+    "falseAlarms": 5,
+    "misses": 44,
+    "correctNegatives": 392,
+    "precision": 0.8214,
+    "precisionLo": 0.6441,
+    "precisionHi": 0.9212,
+    "recall": 0.3433
+   },
+   "24–48 h": {
+    "hits": 11,
+    "falseAlarms": 0,
+    "misses": 55,
+    "correctNegatives": 375,
+    "precision": 1.0,
+    "precisionLo": 0.7412,
+    "precisionHi": 1.0,
+    "recall": 0.1667
+   },
+   "48–72 h": {
+    "hits": 10,
+    "falseAlarms": 0,
+    "misses": 53,
+    "correctNegatives": 359,
+    "precision": 1.0,
+    "precisionLo": 0.7225,
+    "precisionHi": 1.0,
+    "recall": 0.1587
+   },
+   "72–96 h": {
+    "hits": 13,
+    "falseAlarms": 0,
+    "misses": 47,
+    "correctNegatives": 343,
+    "precision": 1.0,
+    "precisionLo": 0.7719,
+    "precisionHi": 1.0,
+    "recall": 0.2167
+   },
+   "96–120 h": {
+    "hits": 15,
+    "falseAlarms": 2,
+    "misses": 39,
+    "correctNegatives": 328,
+    "precision": 0.8824,
+    "precisionLo": 0.6566,
+    "precisionHi": 0.9671,
+    "recall": 0.2778
+   },
+   "all": {
+    "hits": 72,
+    "falseAlarms": 7,
+    "misses": 238,
+    "correctNegatives": 1797,
+    "precision": 0.9114,
+    "precisionLo": 0.8282,
+    "precisionHi": 0.9564,
+    "recall": 0.2323
+   }
+  },
+  "c25:risky": {
+   "0–24 h": {
+    "hits": 26,
+    "falseAlarms": 17,
+    "misses": 11,
+    "correctNegatives": 410,
+    "precision": 0.6047,
+    "precisionLo": 0.4558,
+    "precisionHi": 0.7363,
+    "recall": 0.7027
+   },
+   "24–48 h": {
+    "hits": 18,
+    "falseAlarms": 11,
+    "misses": 19,
+    "correctNegatives": 393,
+    "precision": 0.6207,
+    "precisionLo": 0.44,
+    "precisionHi": 0.7731,
+    "recall": 0.4865
+   },
+   "48–72 h": {
+    "hits": 21,
+    "falseAlarms": 11,
+    "misses": 16,
+    "correctNegatives": 374,
+    "precision": 0.6562,
+    "precisionLo": 0.4831,
+    "precisionHi": 0.7959,
+    "recall": 0.5676
+   },
+   "72–96 h": {
+    "hits": 22,
+    "falseAlarms": 14,
+    "misses": 14,
+    "correctNegatives": 353,
+    "precision": 0.6111,
+    "precisionLo": 0.4486,
+    "precisionHi": 0.7522,
+    "recall": 0.6111
+   },
+   "96–120 h": {
+    "hits": 23,
+    "falseAlarms": 12,
+    "misses": 12,
+    "correctNegatives": 337,
+    "precision": 0.6571,
+    "precisionLo": 0.4915,
+    "precisionHi": 0.7917,
+    "recall": 0.6571
+   },
+   "all": {
+    "hits": 110,
+    "falseAlarms": 65,
+    "misses": 72,
+    "correctNegatives": 1867,
+    "precision": 0.6286,
+    "precisionLo": 0.5549,
+    "precisionHi": 0.6967,
+    "recall": 0.6044
+   }
+  },
+  "c25:high": {
+   "0–24 h": {
+    "hits": 22,
+    "falseAlarms": 6,
+    "misses": 15,
+    "correctNegatives": 421,
+    "precision": 0.7857,
+    "precisionLo": 0.6046,
+    "precisionHi": 0.8979,
+    "recall": 0.5946
+   },
+   "24–48 h": {
+    "hits": 11,
+    "falseAlarms": 0,
+    "misses": 26,
+    "correctNegatives": 404,
+    "precision": 1.0,
+    "precisionLo": 0.7412,
+    "precisionHi": 1.0,
+    "recall": 0.2973
+   },
+   "48–72 h": {
+    "hits": 10,
+    "falseAlarms": 0,
+    "misses": 27,
+    "correctNegatives": 385,
+    "precision": 1.0,
+    "precisionLo": 0.7225,
+    "precisionHi": 1.0,
+    "recall": 0.2703
+   },
+   "72–96 h": {
+    "hits": 13,
+    "falseAlarms": 0,
+    "misses": 23,
+    "correctNegatives": 367,
+    "precision": 1.0,
+    "precisionLo": 0.7719,
+    "precisionHi": 1.0,
+    "recall": 0.3611
+   },
+   "96–120 h": {
+    "hits": 15,
+    "falseAlarms": 2,
+    "misses": 20,
+    "correctNegatives": 347,
+    "precision": 0.8824,
+    "precisionLo": 0.6566,
+    "precisionHi": 0.9671,
+    "recall": 0.4286
+   },
+   "all": {
+    "hits": 71,
+    "falseAlarms": 8,
+    "misses": 111,
+    "correctNegatives": 1924,
+    "precision": 0.8987,
+    "precisionLo": 0.8127,
+    "precisionHi": 0.9478,
+    "recall": 0.3901
+   }
+  },
+  "c50:risky": {
+   "0–24 h": {
+    "hits": 17,
+    "falseAlarms": 26,
+    "misses": 0,
+    "correctNegatives": 421,
+    "precision": 0.3953,
+    "precisionLo": 0.2637,
+    "precisionHi": 0.5442,
+    "recall": 1.0
+   },
+   "24–48 h": {
+    "hits": 12,
+    "falseAlarms": 17,
+    "misses": 5,
+    "correctNegatives": 407,
+    "precision": 0.4138,
+    "precisionLo": 0.2551,
+    "precisionHi": 0.5926,
+    "recall": 0.7059
+   },
+   "48–72 h": {
+    "hits": 13,
+    "falseAlarms": 19,
+    "misses": 4,
+    "correctNegatives": 386,
+    "precision": 0.4062,
+    "precisionLo": 0.2552,
+    "precisionHi": 0.5774,
+    "recall": 0.7647
+   },
+   "72–96 h": {
+    "hits": 13,
+    "falseAlarms": 23,
+    "misses": 4,
+    "correctNegatives": 363,
+    "precision": 0.3611,
+    "precisionLo": 0.2248,
+    "precisionHi": 0.5243,
+    "recall": 0.7647
+   },
+   "96–120 h": {
+    "hits": 16,
+    "falseAlarms": 19,
+    "misses": 1,
+    "correctNegatives": 348,
+    "precision": 0.4571,
+    "precisionLo": 0.3047,
+    "precisionHi": 0.6181,
+    "recall": 0.9412
+   },
+   "all": {
+    "hits": 71,
+    "falseAlarms": 104,
+    "misses": 14,
+    "correctNegatives": 1925,
+    "precision": 0.4057,
+    "precisionLo": 0.3357,
+    "precisionHi": 0.4797,
+    "recall": 0.8353
+   }
+  },
+  "c50:high": {
+   "0–24 h": {
+    "hits": 15,
+    "falseAlarms": 13,
+    "misses": 2,
+    "correctNegatives": 434,
+    "precision": 0.5357,
+    "precisionLo": 0.3581,
+    "precisionHi": 0.7047,
+    "recall": 0.8824
+   },
+   "24–48 h": {
+    "hits": 9,
+    "falseAlarms": 2,
+    "misses": 8,
+    "correctNegatives": 422,
+    "precision": 0.8182,
+    "precisionLo": 0.523,
+    "precisionHi": 0.9486,
+    "recall": 0.5294
+   },
+   "48–72 h": {
+    "hits": 7,
+    "falseAlarms": 3,
+    "misses": 10,
+    "correctNegatives": 402,
+    "precision": 0.7,
+    "precisionLo": 0.3968,
+    "precisionHi": 0.8922,
+    "recall": 0.4118
+   },
+   "72–96 h": {
+    "hits": 9,
+    "falseAlarms": 4,
+    "misses": 8,
+    "correctNegatives": 382,
+    "precision": 0.6923,
+    "precisionLo": 0.4237,
+    "precisionHi": 0.8732,
+    "recall": 0.5294
+   },
+   "96–120 h": {
+    "hits": 12,
+    "falseAlarms": 5,
+    "misses": 5,
+    "correctNegatives": 362,
+    "precision": 0.7059,
+    "precisionLo": 0.4687,
+    "precisionHi": 0.8672,
+    "recall": 0.7059
+   },
+   "all": {
+    "hits": 52,
+    "falseAlarms": 27,
+    "misses": 33,
+    "correctNegatives": 2002,
+    "precision": 0.6582,
+    "precisionLo": 0.5485,
+    "precisionHi": 0.7533,
+    "recall": 0.6118
+   }
+  },
+  "cd10:risky": {
+   "0–24 h": {
+    "hits": 38,
+    "falseAlarms": 5,
+    "misses": 75,
+    "correctNegatives": 346,
+    "precision": 0.8837,
+    "precisionLo": 0.7552,
+    "precisionHi": 0.9493,
+    "recall": 0.3363
+   },
+   "24–48 h": {
+    "hits": 21,
+    "falseAlarms": 8,
+    "misses": 91,
+    "correctNegatives": 321,
+    "precision": 0.7241,
+    "precisionLo": 0.5428,
+    "precisionHi": 0.853,
+    "recall": 0.1875
+   },
+   "48–72 h": {
+    "hits": 23,
+    "falseAlarms": 9,
+    "misses": 86,
+    "correctNegatives": 304,
+    "precision": 0.7188,
+    "precisionLo": 0.5463,
+    "precisionHi": 0.8444,
+    "recall": 0.211
+   },
+   "72–96 h": {
+    "hits": 26,
+    "falseAlarms": 10,
+    "misses": 79,
+    "correctNegatives": 288,
+    "precision": 0.7222,
+    "precisionLo": 0.5601,
+    "precisionHi": 0.8415,
+    "recall": 0.2476
+   },
+   "96–120 h": {
+    "hits": 28,
+    "falseAlarms": 7,
+    "misses": 70,
+    "correctNegatives": 279,
+    "precision": 0.8,
+    "precisionLo": 0.6411,
+    "precisionHi": 0.8996,
+    "recall": 0.2857
+   },
+   "all": {
+    "hits": 136,
+    "falseAlarms": 39,
+    "misses": 401,
+    "correctNegatives": 1538,
+    "precision": 0.7771,
+    "precisionLo": 0.7099,
+    "precisionHi": 0.8325,
+    "recall": 0.2533
+   }
+  },
+  "cd10:high": {
+   "0–24 h": {
+    "hits": 27,
+    "falseAlarms": 1,
+    "misses": 86,
+    "correctNegatives": 350,
+    "precision": 0.9643,
+    "precisionLo": 0.8229,
+    "precisionHi": 0.9937,
+    "recall": 0.2389
+   },
+   "24–48 h": {
+    "hits": 11,
+    "falseAlarms": 0,
+    "misses": 101,
+    "correctNegatives": 329,
+    "precision": 1.0,
+    "precisionLo": 0.7412,
+    "precisionHi": 1.0,
+    "recall": 0.0982
+   },
+   "48–72 h": {
+    "hits": 10,
+    "falseAlarms": 0,
+    "misses": 99,
+    "correctNegatives": 313,
+    "precision": 1.0,
+    "precisionLo": 0.7225,
+    "precisionHi": 1.0,
+    "recall": 0.0917
+   },
+   "72–96 h": {
+    "hits": 13,
+    "falseAlarms": 0,
+    "misses": 92,
+    "correctNegatives": 298,
+    "precision": 1.0,
+    "precisionLo": 0.7719,
+    "precisionHi": 1.0,
+    "recall": 0.1238
+   },
+   "96–120 h": {
+    "hits": 16,
+    "falseAlarms": 1,
+    "misses": 82,
+    "correctNegatives": 285,
+    "precision": 0.9412,
+    "precisionLo": 0.7302,
+    "precisionHi": 0.9895,
+    "recall": 0.1633
+   },
+   "all": {
+    "hits": 77,
+    "falseAlarms": 2,
+    "misses": 460,
+    "correctNegatives": 1575,
+    "precision": 0.9747,
+    "precisionLo": 0.9123,
+    "precisionHi": 0.993,
+    "recall": 0.1434
+   }
+  },
+  "cd25:risky": {
+   "0–24 h": {
+    "hits": 32,
+    "falseAlarms": 11,
+    "misses": 13,
+    "correctNegatives": 408,
+    "precision": 0.7442,
+    "precisionLo": 0.5976,
+    "precisionHi": 0.8507,
+    "recall": 0.7111
+   },
+   "24–48 h": {
+    "hits": 19,
+    "falseAlarms": 10,
+    "misses": 26,
+    "correctNegatives": 386,
+    "precision": 0.6552,
+    "precisionLo": 0.4734,
+    "precisionHi": 0.8006,
+    "recall": 0.4222
+   },
+   "48–72 h": {
+    "hits": 22,
+    "falseAlarms": 10,
+    "misses": 23,
+    "correctNegatives": 367,
+    "precision": 0.6875,
+    "precisionLo": 0.5143,
+    "precisionHi": 0.8205,
+    "recall": 0.4889
+   },
+   "72–96 h": {
+    "hits": 23,
+    "falseAlarms": 13,
+    "misses": 21,
+    "correctNegatives": 346,
+    "precision": 0.6389,
+    "precisionLo": 0.4757,
+    "precisionHi": 0.7752,
+    "recall": 0.5227
+   },
+   "96–120 h": {
+    "hits": 25,
+    "falseAlarms": 10,
+    "misses": 18,
+    "correctNegatives": 331,
+    "precision": 0.7143,
+    "precisionLo": 0.5494,
+    "precisionHi": 0.8367,
+    "recall": 0.5814
+   },
+   "all": {
+    "hits": 121,
+    "falseAlarms": 54,
+    "misses": 101,
+    "correctNegatives": 1838,
+    "precision": 0.6914,
+    "precisionLo": 0.6195,
+    "precisionHi": 0.7551,
+    "recall": 0.545
+   }
+  },
+  "cd25:high": {
+   "0–24 h": {
+    "hits": 26,
+    "falseAlarms": 2,
+    "misses": 19,
+    "correctNegatives": 417,
+    "precision": 0.9286,
+    "precisionLo": 0.7735,
+    "precisionHi": 0.9802,
+    "recall": 0.5778
+   },
+   "24–48 h": {
+    "hits": 11,
+    "falseAlarms": 0,
+    "misses": 34,
+    "correctNegatives": 396,
+    "precision": 1.0,
+    "precisionLo": 0.7412,
+    "precisionHi": 1.0,
+    "recall": 0.2444
+   },
+   "48–72 h": {
+    "hits": 10,
+    "falseAlarms": 0,
+    "misses": 35,
+    "correctNegatives": 377,
+    "precision": 1.0,
+    "precisionLo": 0.7225,
+    "precisionHi": 1.0,
+    "recall": 0.2222
+   },
+   "72–96 h": {
+    "hits": 13,
+    "falseAlarms": 0,
+    "misses": 31,
+    "correctNegatives": 359,
+    "precision": 1.0,
+    "precisionLo": 0.7719,
+    "precisionHi": 1.0,
+    "recall": 0.2955
+   },
+   "96–120 h": {
+    "hits": 16,
+    "falseAlarms": 1,
+    "misses": 27,
+    "correctNegatives": 340,
+    "precision": 0.9412,
+    "precisionLo": 0.7302,
+    "precisionHi": 0.9895,
+    "recall": 0.3721
+   },
+   "all": {
+    "hits": 76,
+    "falseAlarms": 3,
+    "misses": 146,
+    "correctNegatives": 1889,
+    "precision": 0.962,
+    "precisionLo": 0.8942,
+    "precisionHi": 0.987,
+    "recall": 0.3423
+   }
+  },
+  "cd50:risky": {
+   "0–24 h": {
+    "hits": 22,
+    "falseAlarms": 21,
+    "misses": 1,
+    "correctNegatives": 420,
+    "precision": 0.5116,
+    "precisionLo": 0.3675,
+    "precisionHi": 0.6538,
+    "recall": 0.9565
+   },
+   "24–48 h": {
+    "hits": 13,
+    "falseAlarms": 16,
+    "misses": 10,
+    "correctNegatives": 402,
+    "precision": 0.4483,
+    "precisionLo": 0.2841,
+    "precisionHi": 0.6245,
+    "recall": 0.5652
+   },
+   "48–72 h": {
+    "hits": 16,
+    "falseAlarms": 16,
+    "misses": 7,
+    "correctNegatives": 383,
+    "precision": 0.5,
+    "precisionLo": 0.3363,
+    "precisionHi": 0.6637,
+    "recall": 0.6957
+   },
+   "72–96 h": {
+    "hits": 16,
+    "falseAlarms": 20,
+    "misses": 7,
+    "correctNegatives": 360,
+    "precision": 0.4444,
+    "precisionLo": 0.2954,
+    "precisionHi": 0.6042,
+    "recall": 0.6957
+   },
+   "96–120 h": {
+    "hits": 18,
+    "falseAlarms": 17,
+    "misses": 5,
+    "correctNegatives": 344,
+    "precision": 0.5143,
+    "precisionLo": 0.3557,
+    "precisionHi": 0.6701,
+    "recall": 0.7826
+   },
+   "all": {
+    "hits": 85,
+    "falseAlarms": 90,
+    "misses": 30,
+    "correctNegatives": 1909,
+    "precision": 0.4857,
+    "precisionLo": 0.4128,
+    "precisionHi": 0.5593,
+    "recall": 0.7391
+   }
+  },
+  "cd50:high": {
+   "0–24 h": {
+    "hits": 18,
+    "falseAlarms": 10,
+    "misses": 5,
+    "correctNegatives": 431,
+    "precision": 0.6429,
+    "precisionLo": 0.4583,
+    "precisionHi": 0.7929,
+    "recall": 0.7826
+   },
+   "24–48 h": {
+    "hits": 10,
+    "falseAlarms": 1,
+    "misses": 13,
+    "correctNegatives": 417,
+    "precision": 0.9091,
+    "precisionLo": 0.6226,
+    "precisionHi": 0.9838,
+    "recall": 0.4348
+   },
+   "48–72 h": {
+    "hits": 8,
+    "falseAlarms": 2,
+    "misses": 15,
+    "correctNegatives": 397,
+    "precision": 0.8,
+    "precisionLo": 0.4902,
+    "precisionHi": 0.9433,
+    "recall": 0.3478
+   },
+   "72–96 h": {
+    "hits": 11,
+    "falseAlarms": 2,
+    "misses": 12,
+    "correctNegatives": 378,
+    "precision": 0.8462,
+    "precisionLo": 0.5776,
+    "precisionHi": 0.9567,
+    "recall": 0.4783
+   },
+   "96–120 h": {
+    "hits": 13,
+    "falseAlarms": 4,
+    "misses": 10,
+    "correctNegatives": 357,
+    "precision": 0.7647,
+    "precisionLo": 0.5274,
+    "precisionHi": 0.9045,
+    "recall": 0.5652
+   },
+   "all": {
+    "hits": 60,
+    "falseAlarms": 19,
+    "misses": 55,
+    "correctNegatives": 1980,
+    "precision": 0.7595,
+    "precisionLo": 0.6546,
+    "precisionHi": 0.8403,
+    "recall": 0.5217
+   }
+  }
+ },
+ "causes": {
+  "fog:high": {
+   "c10": {
+    "n": 1,
+    "k": 1,
+    "rate": 1.0,
+    "lo": 0.2065,
+    "hi": 1.0
+   },
+   "c25": {
+    "n": 1,
+    "k": 1,
+    "rate": 1.0,
+    "lo": 0.2065,
+    "hi": 1.0
+   },
+   "c50": {
+    "n": 1,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.7935
+   },
+   "cd10": {
+    "n": 1,
+    "k": 1,
+    "rate": 1.0,
+    "lo": 0.2065,
+    "hi": 1.0
+   },
+   "cd25": {
+    "n": 1,
+    "k": 1,
+    "rate": 1.0,
+    "lo": 0.2065,
+    "hi": 1.0
+   },
+   "cd50": {
+    "n": 1,
+    "k": 1,
+    "rate": 1.0,
+    "lo": 0.2065,
+    "hi": 1.0
+   }
+  },
+  "fog:medium": {
+   "c10": {
+    "n": 10,
+    "k": 10,
+    "rate": 1.0,
+    "lo": 0.7225,
+    "hi": 1.0
+   },
+   "c25": {
+    "n": 10,
+    "k": 10,
+    "rate": 1.0,
+    "lo": 0.7225,
+    "hi": 1.0
+   },
+   "c50": {
+    "n": 10,
+    "k": 4,
+    "rate": 0.4,
+    "lo": 0.1682,
+    "hi": 0.6873
+   },
+   "cd10": {
+    "n": 10,
+    "k": 10,
+    "rate": 1.0,
+    "lo": 0.7225,
+    "hi": 1.0
+   },
+   "cd25": {
+    "n": 10,
+    "k": 10,
+    "rate": 1.0,
+    "lo": 0.7225,
+    "hi": 1.0
+   },
+   "cd50": {
+    "n": 10,
+    "k": 4,
+    "rate": 0.4,
+    "lo": 0.1682,
+    "hi": 0.6873
+   }
+  },
+  "rain:high": {
+   "c10": {
+    "n": 11,
+    "k": 9,
+    "rate": 0.8182,
+    "lo": 0.523,
+    "hi": 0.9486
+   },
+   "c25": {
+    "n": 11,
+    "k": 9,
+    "rate": 0.8182,
+    "lo": 0.523,
+    "hi": 0.9486
+   },
+   "c50": {
+    "n": 11,
+    "k": 8,
+    "rate": 0.7273,
+    "lo": 0.4343,
+    "hi": 0.9025
+   },
+   "cd10": {
+    "n": 11,
+    "k": 10,
+    "rate": 0.9091,
+    "lo": 0.6226,
+    "hi": 0.9838
+   },
+   "cd25": {
+    "n": 11,
+    "k": 10,
+    "rate": 0.9091,
+    "lo": 0.6226,
+    "hi": 0.9838
+   },
+   "cd50": {
+    "n": 11,
+    "k": 8,
+    "rate": 0.7273,
+    "lo": 0.4343,
+    "hi": 0.9025
+   }
+  },
+  "rain:medium": {
+   "c10": {
+    "n": 5,
+    "k": 4,
+    "rate": 0.8,
+    "lo": 0.3755,
+    "hi": 0.9638
+   },
+   "c25": {
+    "n": 5,
+    "k": 4,
+    "rate": 0.8,
+    "lo": 0.3755,
+    "hi": 0.9638
+   },
+   "c50": {
+    "n": 5,
+    "k": 3,
+    "rate": 0.6,
+    "lo": 0.2307,
+    "hi": 0.8824
+   },
+   "cd10": {
+    "n": 5,
+    "k": 5,
+    "rate": 1.0,
+    "lo": 0.5655,
+    "hi": 1.0
+   },
+   "cd25": {
+    "n": 5,
+    "k": 5,
+    "rate": 1.0,
+    "lo": 0.5655,
+    "hi": 1.0
+   },
+   "cd50": {
+    "n": 5,
+    "k": 3,
+    "rate": 0.6,
+    "lo": 0.2307,
+    "hi": 0.8824
+   }
+  },
+  "wind:high": {
+   "c10": {
+    "n": 67,
+    "k": 60,
+    "rate": 0.8955,
+    "lo": 0.7997,
+    "hi": 0.9485
+   },
+   "c25": {
+    "n": 67,
+    "k": 59,
+    "rate": 0.8806,
+    "lo": 0.7817,
+    "hi": 0.9382
+   },
+   "c50": {
+    "n": 67,
+    "k": 43,
+    "rate": 0.6418,
+    "lo": 0.5222,
+    "hi": 0.746
+   },
+   "cd10": {
+    "n": 67,
+    "k": 65,
+    "rate": 0.9701,
+    "lo": 0.8975,
+    "hi": 0.9918
+   },
+   "cd25": {
+    "n": 67,
+    "k": 64,
+    "rate": 0.9552,
+    "lo": 0.8764,
+    "hi": 0.9847
+   },
+   "cd50": {
+    "n": 67,
+    "k": 50,
+    "rate": 0.7463,
+    "lo": 0.6307,
+    "hi": 0.8351
+   }
+  },
+  "wind:medium": {
+   "c10": {
+    "n": 65,
+    "k": 25,
+    "rate": 0.3846,
+    "lo": 0.2759,
+    "hi": 0.5062
+   },
+   "c25": {
+    "n": 65,
+    "k": 21,
+    "rate": 0.3231,
+    "lo": 0.222,
+    "hi": 0.4439
+   },
+   "c50": {
+    "n": 65,
+    "k": 13,
+    "rate": 0.2,
+    "lo": 0.1208,
+    "hi": 0.3127
+   },
+   "cd10": {
+    "n": 65,
+    "k": 37,
+    "rate": 0.5692,
+    "lo": 0.4483,
+    "hi": 0.6824
+   },
+   "cd25": {
+    "n": 65,
+    "k": 26,
+    "rate": 0.4,
+    "lo": 0.2897,
+    "hi": 0.5214
+   },
+   "cd50": {
+    "n": 65,
+    "k": 17,
+    "rate": 0.2615,
+    "lo": 0.1702,
+    "hi": 0.3795
+   }
+  }
+ },
+ "periods": {
+  "29W:high": {
+   "c10": {
+    "n": 79,
+    "k": 72,
+    "rate": 0.9114,
+    "lo": 0.8282,
+    "hi": 0.9564
+   },
+   "c25": {
+    "n": 79,
+    "k": 71,
+    "rate": 0.8987,
+    "lo": 0.8127,
+    "hi": 0.9478
+   },
+   "c50": {
+    "n": 79,
+    "k": 52,
+    "rate": 0.6582,
+    "lo": 0.5485,
+    "hi": 0.7533
+   },
+   "cd10": {
+    "n": 79,
+    "k": 77,
+    "rate": 0.9747,
+    "lo": 0.9123,
+    "hi": 0.993
+   },
+   "cd25": {
+    "n": 79,
+    "k": 76,
+    "rate": 0.962,
+    "lo": 0.8942,
+    "hi": 0.987
+   },
+   "cd50": {
+    "n": 79,
+    "k": 60,
+    "rate": 0.7595,
+    "lo": 0.6546,
+    "hi": 0.8403
+   }
+  },
+  "29W:low": {
+   "c10": {
+    "n": 600,
+    "k": 139,
+    "rate": 0.2317,
+    "lo": 0.1997,
+    "hi": 0.2671
+   },
+   "c25": {
+    "n": 600,
+    "k": 72,
+    "rate": 0.12,
+    "lo": 0.0964,
+    "hi": 0.1484
+   },
+   "c50": {
+    "n": 600,
+    "k": 14,
+    "rate": 0.0233,
+    "lo": 0.0139,
+    "hi": 0.0388
+   },
+   "cd10": {
+    "n": 600,
+    "k": 248,
+    "rate": 0.4133,
+    "lo": 0.3746,
+    "hi": 0.4532
+   },
+   "cd25": {
+    "n": 600,
+    "k": 91,
+    "rate": 0.1517,
+    "lo": 0.1252,
+    "hi": 0.1826
+   },
+   "cd50": {
+    "n": 600,
+    "k": 30,
+    "rate": 0.05,
+    "lo": 0.0352,
+    "hi": 0.0705
+   }
+  },
+  "29W:medium": {
+   "c10": {
+    "n": 70,
+    "k": 43,
+    "rate": 0.6143,
+    "lo": 0.4972,
+    "hi": 0.7195
+   },
+   "c25": {
+    "n": 70,
+    "k": 39,
+    "rate": 0.5571,
+    "lo": 0.4408,
+    "hi": 0.6675
+   },
+   "c50": {
+    "n": 70,
+    "k": 19,
+    "rate": 0.2714,
+    "lo": 0.1812,
+    "hi": 0.3854
+   },
+   "cd10": {
+    "n": 70,
+    "k": 56,
+    "rate": 0.8,
+    "lo": 0.6918,
+    "hi": 0.877
+   },
+   "cd25": {
+    "n": 70,
+    "k": 45,
+    "rate": 0.6429,
+    "lo": 0.5259,
+    "hi": 0.745
+   },
+   "cd50": {
+    "n": 70,
+    "k": 25,
+    "rate": 0.3571,
+    "lo": 0.255,
+    "hi": 0.4741
+   }
+  },
+  "非颱風期間:low": {
+   "c10": {
+    "n": 1339,
+    "k": 56,
+    "rate": 0.0418,
+    "lo": 0.0323,
+    "hi": 0.0539
+   },
+   "c25": {
+    "n": 1339,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.0029
+   },
+   "c50": {
+    "n": 1339,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.0029
+   },
+   "cd10": {
+    "n": 1339,
+    "k": 153,
+    "rate": 0.1143,
+    "lo": 0.0983,
+    "hi": 0.1324
+   },
+   "cd25": {
+    "n": 1339,
+    "k": 10,
+    "rate": 0.0075,
+    "lo": 0.0041,
+    "hi": 0.0137
+   },
+   "cd50": {
+    "n": 1339,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.0029
+   }
+  },
+  "非颱風期間:medium": {
+   "c10": {
+    "n": 26,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.1287
+   },
+   "c25": {
+    "n": 26,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.1287
+   },
+   "c50": {
+    "n": 26,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.1287
+   },
+   "cd10": {
+    "n": 26,
+    "k": 3,
+    "rate": 0.1154,
+    "lo": 0.04,
+    "hi": 0.2898
+   },
+   "cd25": {
+    "n": 26,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.1287
+   },
+   "cd50": {
+    "n": 26,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.1287
+   }
+  }
+ },
+ "layers": {
+  "model-far:high": {
+   "c10": {
+    "n": 40,
+    "k": 38,
+    "rate": 0.95,
+    "lo": 0.835,
+    "hi": 0.9862
+   },
+   "c25": {
+    "n": 40,
+    "k": 38,
+    "rate": 0.95,
+    "lo": 0.835,
+    "hi": 0.9862
+   },
+   "c50": {
+    "n": 40,
+    "k": 28,
+    "rate": 0.7,
+    "lo": 0.5457,
+    "hi": 0.8193
+   },
+   "cd10": {
+    "n": 40,
+    "k": 39,
+    "rate": 0.975,
+    "lo": 0.8712,
+    "hi": 0.9956
+   },
+   "cd25": {
+    "n": 40,
+    "k": 39,
+    "rate": 0.975,
+    "lo": 0.8712,
+    "hi": 0.9956
+   },
+   "cd50": {
+    "n": 40,
+    "k": 32,
+    "rate": 0.8,
+    "lo": 0.6524,
+    "hi": 0.895
+   }
+  },
+  "model-far:low": {
+   "c10": {
+    "n": 1106,
+    "k": 110,
+    "rate": 0.0995,
+    "lo": 0.0832,
+    "hi": 0.1185
+   },
+   "c25": {
+    "n": 1106,
+    "k": 42,
+    "rate": 0.038,
+    "lo": 0.0282,
+    "hi": 0.0509
+   },
+   "c50": {
+    "n": 1106,
+    "k": 9,
+    "rate": 0.0081,
+    "lo": 0.0043,
+    "hi": 0.0154
+   },
+   "cd10": {
+    "n": 1106,
+    "k": 235,
+    "rate": 0.2125,
+    "lo": 0.1894,
+    "hi": 0.2376
+   },
+   "cd25": {
+    "n": 1106,
+    "k": 62,
+    "rate": 0.0561,
+    "lo": 0.044,
+    "hi": 0.0712
+   },
+   "cd50": {
+    "n": 1106,
+    "k": 19,
+    "rate": 0.0172,
+    "lo": 0.011,
+    "hi": 0.0267
+   }
+  },
+  "model-far:medium": {
+   "c10": {
+    "n": 63,
+    "k": 29,
+    "rate": 0.4603,
+    "lo": 0.3431,
+    "hi": 0.5821
+   },
+   "c25": {
+    "n": 63,
+    "k": 28,
+    "rate": 0.4444,
+    "lo": 0.3285,
+    "hi": 0.5668
+   },
+   "c50": {
+    "n": 63,
+    "k": 14,
+    "rate": 0.2222,
+    "lo": 0.1372,
+    "hi": 0.3391
+   },
+   "cd10": {
+    "n": 63,
+    "k": 38,
+    "rate": 0.6032,
+    "lo": 0.4798,
+    "hi": 0.7147
+   },
+   "cd25": {
+    "n": 63,
+    "k": 31,
+    "rate": 0.4921,
+    "lo": 0.3727,
+    "hi": 0.6124
+   },
+   "cd50": {
+    "n": 63,
+    "k": 18,
+    "rate": 0.2857,
+    "lo": 0.189,
+    "hi": 0.407
+   }
+  },
+  "model-near:high": {
+   "c10": {
+    "n": 23,
+    "k": 22,
+    "rate": 0.9565,
+    "lo": 0.7901,
+    "hi": 0.9923
+   },
+   "c25": {
+    "n": 23,
+    "k": 22,
+    "rate": 0.9565,
+    "lo": 0.7901,
+    "hi": 0.9923
+   },
+   "c50": {
+    "n": 23,
+    "k": 18,
+    "rate": 0.7826,
+    "lo": 0.581,
+    "hi": 0.9034
+   },
+   "cd10": {
+    "n": 23,
+    "k": 22,
+    "rate": 0.9565,
+    "lo": 0.7901,
+    "hi": 0.9923
+   },
+   "cd25": {
+    "n": 23,
+    "k": 22,
+    "rate": 0.9565,
+    "lo": 0.7901,
+    "hi": 0.9923
+   },
+   "cd50": {
+    "n": 23,
+    "k": 20,
+    "rate": 0.8696,
+    "lo": 0.6787,
+    "hi": 0.9546
+   }
+  },
+  "model-near:low": {
+   "c10": {
+    "n": 845,
+    "k": 96,
+    "rate": 0.1136,
+    "lo": 0.0939,
+    "hi": 0.1368
+   },
+   "c25": {
+    "n": 845,
+    "k": 37,
+    "rate": 0.0438,
+    "lo": 0.0319,
+    "hi": 0.0598
+   },
+   "c50": {
+    "n": 845,
+    "k": 11,
+    "rate": 0.013,
+    "lo": 0.0073,
+    "hi": 0.0232
+   },
+   "cd10": {
+    "n": 845,
+    "k": 183,
+    "rate": 0.2166,
+    "lo": 0.1901,
+    "hi": 0.2456
+   },
+   "cd25": {
+    "n": 845,
+    "k": 51,
+    "rate": 0.0604,
+    "lo": 0.0462,
+    "hi": 0.0785
+   },
+   "cd50": {
+    "n": 845,
+    "k": 19,
+    "rate": 0.0225,
+    "lo": 0.0144,
+    "hi": 0.0349
+   }
+  },
+  "model-near:medium": {
+   "c10": {
+    "n": 37,
+    "k": 15,
+    "rate": 0.4054,
+    "lo": 0.2635,
+    "hi": 0.5651
+   },
+   "c25": {
+    "n": 37,
+    "k": 15,
+    "rate": 0.4054,
+    "lo": 0.2635,
+    "hi": 0.5651
+   },
+   "c50": {
+    "n": 37,
+    "k": 5,
+    "rate": 0.1351,
+    "lo": 0.0591,
+    "hi": 0.2798
+   },
+   "cd10": {
+    "n": 37,
+    "k": 20,
+    "rate": 0.5405,
+    "lo": 0.3838,
+    "hi": 0.6896
+   },
+   "cd25": {
+    "n": 37,
+    "k": 17,
+    "rate": 0.4595,
+    "lo": 0.3104,
+    "hi": 0.6162
+   },
+   "cd50": {
+    "n": 37,
+    "k": 7,
+    "rate": 0.1892,
+    "lo": 0.0948,
+    "hi": 0.3421
+   }
+  },
+  "model-same:high": {
+   "c10": {
+    "n": 12,
+    "k": 11,
+    "rate": 0.9167,
+    "lo": 0.6461,
+    "hi": 0.9851
+   },
+   "c25": {
+    "n": 12,
+    "k": 11,
+    "rate": 0.9167,
+    "lo": 0.6461,
+    "hi": 0.9851
+   },
+   "c50": {
+    "n": 12,
+    "k": 9,
+    "rate": 0.75,
+    "lo": 0.4677,
+    "hi": 0.9111
+   },
+   "cd10": {
+    "n": 12,
+    "k": 11,
+    "rate": 0.9167,
+    "lo": 0.6461,
+    "hi": 0.9851
+   },
+   "cd25": {
+    "n": 12,
+    "k": 11,
+    "rate": 0.9167,
+    "lo": 0.6461,
+    "hi": 0.9851
+   },
+   "cd50": {
+    "n": 12,
+    "k": 10,
+    "rate": 0.8333,
+    "lo": 0.552,
+    "hi": 0.953
+   }
+  },
+  "model-same:low": {
+   "c10": {
+    "n": 426,
+    "k": 48,
+    "rate": 0.1127,
+    "lo": 0.086,
+    "hi": 0.1462
+   },
+   "c25": {
+    "n": 426,
+    "k": 18,
+    "rate": 0.0423,
+    "lo": 0.0269,
+    "hi": 0.0658
+   },
+   "c50": {
+    "n": 426,
+    "k": 6,
+    "rate": 0.0141,
+    "lo": 0.0065,
+    "hi": 0.0304
+   },
+   "cd10": {
+    "n": 426,
+    "k": 90,
+    "rate": 0.2113,
+    "lo": 0.1752,
+    "hi": 0.2525
+   },
+   "cd25": {
+    "n": 426,
+    "k": 25,
+    "rate": 0.0587,
+    "lo": 0.0401,
+    "hi": 0.0852
+   },
+   "cd50": {
+    "n": 426,
+    "k": 9,
+    "rate": 0.0211,
+    "lo": 0.0112,
+    "hi": 0.0397
+   }
+  },
+  "model-same:medium": {
+   "c10": {
+    "n": 19,
+    "k": 8,
+    "rate": 0.4211,
+    "lo": 0.2314,
+    "hi": 0.6372
+   },
+   "c25": {
+    "n": 19,
+    "k": 8,
+    "rate": 0.4211,
+    "lo": 0.2314,
+    "hi": 0.6372
+   },
+   "c50": {
+    "n": 19,
+    "k": 2,
+    "rate": 0.1053,
+    "lo": 0.0294,
+    "hi": 0.3139
+   },
+   "cd10": {
+    "n": 19,
+    "k": 10,
+    "rate": 0.5263,
+    "lo": 0.3171,
+    "hi": 0.7267
+   },
+   "cd25": {
+    "n": 19,
+    "k": 9,
+    "rate": 0.4737,
+    "lo": 0.2733,
+    "hi": 0.6829
+   },
+   "cd50": {
+    "n": 19,
+    "k": 4,
+    "rate": 0.2105,
+    "lo": 0.0851,
+    "hi": 0.4333
+   }
+  },
+  "official:high": {
+   "c10": {
+    "n": 28,
+    "k": 23,
+    "rate": 0.8214,
+    "lo": 0.6441,
+    "hi": 0.9212
+   },
+   "c25": {
+    "n": 28,
+    "k": 22,
+    "rate": 0.7857,
+    "lo": 0.6046,
+    "hi": 0.8979
+   },
+   "c50": {
+    "n": 28,
+    "k": 15,
+    "rate": 0.5357,
+    "lo": 0.3581,
+    "hi": 0.7047
+   },
+   "cd10": {
+    "n": 28,
+    "k": 27,
+    "rate": 0.9643,
+    "lo": 0.8229,
+    "hi": 0.9937
+   },
+   "cd25": {
+    "n": 28,
+    "k": 26,
+    "rate": 0.9286,
+    "lo": 0.7735,
+    "hi": 0.9802
+   },
+   "cd50": {
+    "n": 28,
+    "k": 18,
+    "rate": 0.6429,
+    "lo": 0.4583,
+    "hi": 0.7929
+   }
+  },
+  "official:low": {
+   "c10": {
+    "n": 414,
+    "k": 37,
+    "rate": 0.0894,
+    "lo": 0.0655,
+    "hi": 0.1208
+   },
+   "c25": {
+    "n": 414,
+    "k": 11,
+    "rate": 0.0266,
+    "lo": 0.0149,
+    "hi": 0.0469
+   },
+   "c50": {
+    "n": 414,
+    "k": 0,
+    "rate": 0.0,
+    "lo": 0.0,
+    "hi": 0.0092
+   },
+   "cd10": {
+    "n": 414,
+    "k": 73,
+    "rate": 0.1763,
+    "lo": 0.1426,
+    "hi": 0.216
+   },
+   "cd25": {
+    "n": 414,
+    "k": 13,
+    "rate": 0.0314,
+    "lo": 0.0184,
+    "hi": 0.053
+   },
+   "cd50": {
+    "n": 414,
+    "k": 1,
+    "rate": 0.0024,
+    "lo": 0.0004,
+    "hi": 0.0136
+   }
+  },
+  "official:medium": {
+   "c10": {
+    "n": 15,
+    "k": 7,
+    "rate": 0.4667,
+    "lo": 0.2481,
+    "hi": 0.6988
+   },
+   "c25": {
+    "n": 15,
+    "k": 4,
+    "rate": 0.2667,
+    "lo": 0.109,
+    "hi": 0.5195
+   },
+   "c50": {
+    "n": 15,
+    "k": 2,
+    "rate": 0.1333,
+    "lo": 0.0374,
+    "hi": 0.3788
+   },
+   "cd10": {
+    "n": 15,
+    "k": 11,
+    "rate": 0.7333,
+    "lo": 0.4805,
+    "hi": 0.891
+   },
+   "cd25": {
+    "n": 15,
+    "k": 6,
+    "rate": 0.4,
+    "lo": 0.1982,
+    "hi": 0.6425
+   },
+   "cd50": {
+    "n": 15,
+    "k": 4,
+    "rate": 0.2667,
+    "lo": 0.109,
+    "hi": 0.5195
+   }
+  }
+ },
+ "ai": {
+  "windows": 105,
+  "skipped": {
+   "claude:error": 8,
+   "claude:none": 5,
+   "gemini:error": 8,
+   "gemini:none": 5,
+   "windowNoTruth": 18,
+   "windowNotFinished": 165
+  },
+  "rows": {
+   "claude:high": {
+    "c10": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    },
+    "c25": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    },
+    "c50": {
+     "n": 17,
+     "k": 16,
+     "rate": 0.9412,
+     "lo": 0.7302,
+     "hi": 0.9895
+    },
+    "cd10": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    },
+    "cd25": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    },
+    "cd50": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    }
+   },
+   "claude:low": {
+    "c10": {
+     "n": 1,
+     "k": 1,
+     "rate": 1.0,
+     "lo": 0.2065,
+     "hi": 1.0
+    },
+    "c25": {
+     "n": 1,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.7935
+    },
+    "c50": {
+     "n": 1,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.7935
+    },
+    "cd10": {
+     "n": 1,
+     "k": 1,
+     "rate": 1.0,
+     "lo": 0.2065,
+     "hi": 1.0
+    },
+    "cd25": {
+     "n": 1,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.7935
+    },
+    "cd50": {
+     "n": 1,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.7935
+    }
+   },
+   "claude:medium": {
+    "c10": {
+     "n": 8,
+     "k": 5,
+     "rate": 0.625,
+     "lo": 0.3057,
+     "hi": 0.8632
+    },
+    "c25": {
+     "n": 8,
+     "k": 5,
+     "rate": 0.625,
+     "lo": 0.3057,
+     "hi": 0.8632
+    },
+    "c50": {
+     "n": 8,
+     "k": 4,
+     "rate": 0.5,
+     "lo": 0.2152,
+     "hi": 0.7848
+    },
+    "cd10": {
+     "n": 8,
+     "k": 5,
+     "rate": 0.625,
+     "lo": 0.3057,
+     "hi": 0.8632
+    },
+    "cd25": {
+     "n": 8,
+     "k": 5,
+     "rate": 0.625,
+     "lo": 0.3057,
+     "hi": 0.8632
+    },
+    "cd50": {
+     "n": 8,
+     "k": 4,
+     "rate": 0.5,
+     "lo": 0.2152,
+     "hi": 0.7848
+    }
+   },
+   "claude:skipped:low": {
+    "c10": {
+     "n": 66,
+     "k": 27,
+     "rate": 0.4091,
+     "lo": 0.2987,
+     "hi": 0.5295
+    },
+    "c25": {
+     "n": 66,
+     "k": 6,
+     "rate": 0.0909,
+     "lo": 0.0423,
+     "hi": 0.1845
+    },
+    "c50": {
+     "n": 66,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.055
+    },
+    "cd10": {
+     "n": 66,
+     "k": 46,
+     "rate": 0.697,
+     "lo": 0.5778,
+     "hi": 0.7945
+    },
+    "cd25": {
+     "n": 66,
+     "k": 14,
+     "rate": 0.2121,
+     "lo": 0.1308,
+     "hi": 0.3251
+    },
+    "cd50": {
+     "n": 66,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.055
+    }
+   },
+   "gemini:high": {
+    "c10": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    },
+    "c25": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    },
+    "c50": {
+     "n": 17,
+     "k": 16,
+     "rate": 0.9412,
+     "lo": 0.7302,
+     "hi": 0.9895
+    },
+    "cd10": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    },
+    "cd25": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    },
+    "cd50": {
+     "n": 17,
+     "k": 17,
+     "rate": 1.0,
+     "lo": 0.8157,
+     "hi": 1.0
+    }
+   },
+   "gemini:low": {
+    "c10": {
+     "n": 1,
+     "k": 1,
+     "rate": 1.0,
+     "lo": 0.2065,
+     "hi": 1.0
+    },
+    "c25": {
+     "n": 1,
+     "k": 1,
+     "rate": 1.0,
+     "lo": 0.2065,
+     "hi": 1.0
+    },
+    "c50": {
+     "n": 1,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.7935
+    },
+    "cd10": {
+     "n": 1,
+     "k": 1,
+     "rate": 1.0,
+     "lo": 0.2065,
+     "hi": 1.0
+    },
+    "cd25": {
+     "n": 1,
+     "k": 1,
+     "rate": 1.0,
+     "lo": 0.2065,
+     "hi": 1.0
+    },
+    "cd50": {
+     "n": 1,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.7935
+    }
+   },
+   "gemini:medium": {
+    "c10": {
+     "n": 8,
+     "k": 5,
+     "rate": 0.625,
+     "lo": 0.3057,
+     "hi": 0.8632
+    },
+    "c25": {
+     "n": 8,
+     "k": 4,
+     "rate": 0.5,
+     "lo": 0.2152,
+     "hi": 0.7848
+    },
+    "c50": {
+     "n": 8,
+     "k": 4,
+     "rate": 0.5,
+     "lo": 0.2152,
+     "hi": 0.7848
+    },
+    "cd10": {
+     "n": 8,
+     "k": 5,
+     "rate": 0.625,
+     "lo": 0.3057,
+     "hi": 0.8632
+    },
+    "cd25": {
+     "n": 8,
+     "k": 4,
+     "rate": 0.5,
+     "lo": 0.2152,
+     "hi": 0.7848
+    },
+    "cd50": {
+     "n": 8,
+     "k": 4,
+     "rate": 0.5,
+     "lo": 0.2152,
+     "hi": 0.7848
+    }
+   },
+   "gemini:skipped:low": {
+    "c10": {
+     "n": 66,
+     "k": 27,
+     "rate": 0.4091,
+     "lo": 0.2987,
+     "hi": 0.5295
+    },
+    "c25": {
+     "n": 66,
+     "k": 6,
+     "rate": 0.0909,
+     "lo": 0.0423,
+     "hi": 0.1845
+    },
+    "c50": {
+     "n": 66,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.055
+    },
+    "cd10": {
+     "n": 66,
+     "k": 46,
+     "rate": 0.697,
+     "lo": 0.5778,
+     "hi": 0.7945
+    },
+    "cd25": {
+     "n": 66,
+     "k": 14,
+     "rate": 0.2121,
+     "lo": 0.1308,
+     "hi": 0.3251
+    },
+    "cd50": {
+     "n": 66,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.055
+    }
+   },
+   "rule(ai-ok):high": {
+    "c10": {
+     "n": 14,
+     "k": 14,
+     "rate": 1.0,
+     "lo": 0.7847,
+     "hi": 1.0
+    },
+    "c25": {
+     "n": 14,
+     "k": 14,
+     "rate": 1.0,
+     "lo": 0.7847,
+     "hi": 1.0
+    },
+    "c50": {
+     "n": 14,
+     "k": 13,
+     "rate": 0.9286,
+     "lo": 0.6853,
+     "hi": 0.9873
+    },
+    "cd10": {
+     "n": 14,
+     "k": 14,
+     "rate": 1.0,
+     "lo": 0.7847,
+     "hi": 1.0
+    },
+    "cd25": {
+     "n": 14,
+     "k": 14,
+     "rate": 1.0,
+     "lo": 0.7847,
+     "hi": 1.0
+    },
+    "cd50": {
+     "n": 14,
+     "k": 14,
+     "rate": 1.0,
+     "lo": 0.7847,
+     "hi": 1.0
+    }
+   },
+   "rule(ai-ok):medium": {
+    "c10": {
+     "n": 9,
+     "k": 6,
+     "rate": 0.6667,
+     "lo": 0.3542,
+     "hi": 0.8794
+    },
+    "c25": {
+     "n": 9,
+     "k": 5,
+     "rate": 0.5556,
+     "lo": 0.2666,
+     "hi": 0.8112
+    },
+    "c50": {
+     "n": 9,
+     "k": 4,
+     "rate": 0.4444,
+     "lo": 0.1888,
+     "hi": 0.7334
+    },
+    "cd10": {
+     "n": 9,
+     "k": 6,
+     "rate": 0.6667,
+     "lo": 0.3542,
+     "hi": 0.8794
+    },
+    "cd25": {
+     "n": 9,
+     "k": 5,
+     "rate": 0.5556,
+     "lo": 0.2666,
+     "hi": 0.8112
+    },
+    "cd50": {
+     "n": 9,
+     "k": 4,
+     "rate": 0.4444,
+     "lo": 0.1888,
+     "hi": 0.7334
+    }
+   },
+   "rule:high": {
+    "c10": {
+     "n": 23,
+     "k": 23,
+     "rate": 1.0,
+     "lo": 0.8569,
+     "hi": 1.0
+    },
+    "c25": {
+     "n": 23,
+     "k": 23,
+     "rate": 1.0,
+     "lo": 0.8569,
+     "hi": 1.0
+    },
+    "c50": {
+     "n": 23,
+     "k": 22,
+     "rate": 0.9565,
+     "lo": 0.7901,
+     "hi": 0.9923
+    },
+    "cd10": {
+     "n": 23,
+     "k": 23,
+     "rate": 1.0,
+     "lo": 0.8569,
+     "hi": 1.0
+    },
+    "cd25": {
+     "n": 23,
+     "k": 23,
+     "rate": 1.0,
+     "lo": 0.8569,
+     "hi": 1.0
+    },
+    "cd50": {
+     "n": 23,
+     "k": 23,
+     "rate": 1.0,
+     "lo": 0.8569,
+     "hi": 1.0
+    }
+   },
+   "rule:low": {
+    "c10": {
+     "n": 69,
+     "k": 29,
+     "rate": 0.4203,
+     "lo": 0.3111,
+     "hi": 0.5379
+    },
+    "c25": {
+     "n": 69,
+     "k": 7,
+     "rate": 0.1014,
+     "lo": 0.05,
+     "hi": 0.1949
+    },
+    "c50": {
+     "n": 69,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.0527
+    },
+    "cd10": {
+     "n": 69,
+     "k": 49,
+     "rate": 0.7101,
+     "lo": 0.5943,
+     "hi": 0.8038
+    },
+    "cd25": {
+     "n": 69,
+     "k": 15,
+     "rate": 0.2174,
+     "lo": 0.1364,
+     "hi": 0.3282
+    },
+    "cd50": {
+     "n": 69,
+     "k": 0,
+     "rate": 0.0,
+     "lo": 0.0,
+     "hi": 0.0527
+    }
+   },
+   "rule:medium": {
+    "c10": {
+     "n": 13,
+     "k": 9,
+     "rate": 0.6923,
+     "lo": 0.4237,
+     "hi": 0.8732
+    },
+    "c25": {
+     "n": 13,
+     "k": 7,
+     "rate": 0.5385,
+     "lo": 0.2914,
+     "hi": 0.7679
+    },
+    "c50": {
+     "n": 13,
+     "k": 5,
+     "rate": 0.3846,
+     "lo": 0.1771,
+     "hi": 0.6448
+    },
+    "cd10": {
+     "n": 13,
+     "k": 10,
+     "rate": 0.7692,
+     "lo": 0.4974,
+     "hi": 0.9182
+    },
+    "cd25": {
+     "n": 13,
+     "k": 8,
+     "rate": 0.6154,
+     "lo": 0.3552,
+     "hi": 0.8229
+    },
+    "cd50": {
+     "n": 13,
+     "k": 6,
+     "rate": 0.4615,
+     "lo": 0.2321,
+     "hi": 0.7086
+    }
+   }
+  },
+  "confusion": {
+   "claude": {
+    "c10": {
+     "risky": {
+      "hits": 22,
+      "falseAlarms": 3,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.88,
+      "precisionLo": 0.7004,
+      "precisionHi": 0.9583,
+      "recall": 0.9565
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 6,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.7391
+     }
+    },
+    "c25": {
+     "risky": {
+      "hits": 22,
+      "falseAlarms": 3,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.88,
+      "precisionLo": 0.7004,
+      "precisionHi": 0.9583,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.7727
+     }
+    },
+    "c50": {
+     "risky": {
+      "hits": 20,
+      "falseAlarms": 5,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.8,
+      "precisionLo": 0.6087,
+      "precisionHi": 0.9114,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 16,
+      "falseAlarms": 1,
+      "misses": 4,
+      "correctNegatives": 5,
+      "precision": 0.9412,
+      "precisionLo": 0.7302,
+      "precisionHi": 0.9895,
+      "recall": 0.8
+     }
+    },
+    "cd10": {
+     "risky": {
+      "hits": 22,
+      "falseAlarms": 3,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.88,
+      "precisionLo": 0.7004,
+      "precisionHi": 0.9583,
+      "recall": 0.9565
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 6,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.7391
+     }
+    },
+    "cd25": {
+     "risky": {
+      "hits": 22,
+      "falseAlarms": 3,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.88,
+      "precisionLo": 0.7004,
+      "precisionHi": 0.9583,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.7727
+     }
+    },
+    "cd50": {
+     "risky": {
+      "hits": 21,
+      "falseAlarms": 4,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.84,
+      "precisionLo": 0.6535,
+      "precisionHi": 0.936,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 4,
+      "correctNegatives": 5,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.8095
+     }
+    }
+   },
+   "claude(ai-ok)": {
+    "c10": {
+     "risky": {
+      "hits": 19,
+      "falseAlarms": 3,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.8636,
+      "precisionLo": 0.6666,
+      "precisionHi": 0.9525,
+      "recall": 0.95
+     },
+     "high": {
+      "hits": 15,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.7961,
+      "precisionHi": 1.0,
+      "recall": 0.75
+     }
+    },
+    "c25": {
+     "risky": {
+      "hits": 19,
+      "falseAlarms": 3,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.8636,
+      "precisionLo": 0.6666,
+      "precisionHi": 0.9525,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 15,
+      "falseAlarms": 0,
+      "misses": 4,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.7961,
+      "precisionHi": 1.0,
+      "recall": 0.7895
+     }
+    },
+    "c50": {
+     "risky": {
+      "hits": 17,
+      "falseAlarms": 5,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.7727,
+      "precisionLo": 0.5656,
+      "precisionHi": 0.8988,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 1,
+      "misses": 3,
+      "correctNegatives": 5,
+      "precision": 0.9333,
+      "precisionLo": 0.7018,
+      "precisionHi": 0.9881,
+      "recall": 0.8235
+     }
+    },
+    "cd10": {
+     "risky": {
+      "hits": 19,
+      "falseAlarms": 3,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.8636,
+      "precisionLo": 0.6666,
+      "precisionHi": 0.9525,
+      "recall": 0.95
+     },
+     "high": {
+      "hits": 15,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.7961,
+      "precisionHi": 1.0,
+      "recall": 0.75
+     }
+    },
+    "cd25": {
+     "risky": {
+      "hits": 19,
+      "falseAlarms": 3,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.8636,
+      "precisionLo": 0.6666,
+      "precisionHi": 0.9525,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 15,
+      "falseAlarms": 0,
+      "misses": 4,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.7961,
+      "precisionHi": 1.0,
+      "recall": 0.7895
+     }
+    },
+    "cd50": {
+     "risky": {
+      "hits": 18,
+      "falseAlarms": 4,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.8182,
+      "precisionLo": 0.6148,
+      "precisionHi": 0.9269,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 15,
+      "falseAlarms": 0,
+      "misses": 3,
+      "correctNegatives": 5,
+      "precision": 1.0,
+      "precisionLo": 0.7961,
+      "precisionHi": 1.0,
+      "recall": 0.8333
+     }
+    }
+   },
+   "gemini": {
+    "c10": {
+     "risky": {
+      "hits": 22,
+      "falseAlarms": 3,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.88,
+      "precisionLo": 0.7004,
+      "precisionHi": 0.9583,
+      "recall": 0.9565
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 6,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.7391
+     }
+    },
+    "c25": {
+     "risky": {
+      "hits": 21,
+      "falseAlarms": 4,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.84,
+      "precisionLo": 0.6535,
+      "precisionHi": 0.936,
+      "recall": 0.9545
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.7727
+     }
+    },
+    "c50": {
+     "risky": {
+      "hits": 20,
+      "falseAlarms": 5,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.8,
+      "precisionLo": 0.6087,
+      "precisionHi": 0.9114,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 16,
+      "falseAlarms": 1,
+      "misses": 4,
+      "correctNegatives": 5,
+      "precision": 0.9412,
+      "precisionLo": 0.7302,
+      "precisionHi": 0.9895,
+      "recall": 0.8
+     }
+    },
+    "cd10": {
+     "risky": {
+      "hits": 22,
+      "falseAlarms": 3,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.88,
+      "precisionLo": 0.7004,
+      "precisionHi": 0.9583,
+      "recall": 0.9565
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 6,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.7391
+     }
+    },
+    "cd25": {
+     "risky": {
+      "hits": 21,
+      "falseAlarms": 4,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.84,
+      "precisionLo": 0.6535,
+      "precisionHi": 0.936,
+      "recall": 0.9545
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.7727
+     }
+    },
+    "cd50": {
+     "risky": {
+      "hits": 21,
+      "falseAlarms": 4,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.84,
+      "precisionLo": 0.6535,
+      "precisionHi": 0.936,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 17,
+      "falseAlarms": 0,
+      "misses": 4,
+      "correctNegatives": 5,
+      "precision": 1.0,
+      "precisionLo": 0.8157,
+      "precisionHi": 1.0,
+      "recall": 0.8095
+     }
+    }
+   },
+   "gemini(ai-ok)": {
+    "c10": {
+     "risky": {
+      "hits": 19,
+      "falseAlarms": 3,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.8636,
+      "precisionLo": 0.6666,
+      "precisionHi": 0.9525,
+      "recall": 0.95
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 6,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7
+     }
+    },
+    "c25": {
+     "risky": {
+      "hits": 18,
+      "falseAlarms": 4,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.8182,
+      "precisionLo": 0.6148,
+      "precisionHi": 0.9269,
+      "recall": 0.9474
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7368
+     }
+    },
+    "c50": {
+     "risky": {
+      "hits": 17,
+      "falseAlarms": 5,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.7727,
+      "precisionLo": 0.5656,
+      "precisionHi": 0.8988,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 13,
+      "falseAlarms": 1,
+      "misses": 4,
+      "correctNegatives": 5,
+      "precision": 0.9286,
+      "precisionLo": 0.6853,
+      "precisionHi": 0.9873,
+      "recall": 0.7647
+     }
+    },
+    "cd10": {
+     "risky": {
+      "hits": 19,
+      "falseAlarms": 3,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.8636,
+      "precisionLo": 0.6666,
+      "precisionHi": 0.9525,
+      "recall": 0.95
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 6,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7
+     }
+    },
+    "cd25": {
+     "risky": {
+      "hits": 18,
+      "falseAlarms": 4,
+      "misses": 1,
+      "correctNegatives": 0,
+      "precision": 0.8182,
+      "precisionLo": 0.6148,
+      "precisionHi": 0.9269,
+      "recall": 0.9474
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7368
+     }
+    },
+    "cd50": {
+     "risky": {
+      "hits": 18,
+      "falseAlarms": 4,
+      "misses": 0,
+      "correctNegatives": 1,
+      "precision": 0.8182,
+      "precisionLo": 0.6148,
+      "precisionHi": 0.9269,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 4,
+      "correctNegatives": 5,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7778
+     }
+    }
+   },
+   "rule": {
+    "c10": {
+     "risky": {
+      "hits": 32,
+      "falseAlarms": 4,
+      "misses": 29,
+      "correctNegatives": 40,
+      "precision": 0.8889,
+      "precisionLo": 0.7468,
+      "precisionHi": 0.9559,
+      "recall": 0.5246
+     },
+     "high": {
+      "hits": 23,
+      "falseAlarms": 0,
+      "misses": 38,
+      "correctNegatives": 44,
+      "precision": 1.0,
+      "precisionLo": 0.8569,
+      "precisionHi": 1.0,
+      "recall": 0.377
+     }
+    },
+    "c25": {
+     "risky": {
+      "hits": 30,
+      "falseAlarms": 6,
+      "misses": 7,
+      "correctNegatives": 62,
+      "precision": 0.8333,
+      "precisionLo": 0.6811,
+      "precisionHi": 0.9213,
+      "recall": 0.8108
+     },
+     "high": {
+      "hits": 23,
+      "falseAlarms": 0,
+      "misses": 14,
+      "correctNegatives": 68,
+      "precision": 1.0,
+      "precisionLo": 0.8569,
+      "precisionHi": 1.0,
+      "recall": 0.6216
+     }
+    },
+    "c50": {
+     "risky": {
+      "hits": 27,
+      "falseAlarms": 9,
+      "misses": 0,
+      "correctNegatives": 69,
+      "precision": 0.75,
+      "precisionLo": 0.5893,
+      "precisionHi": 0.8625,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 22,
+      "falseAlarms": 1,
+      "misses": 5,
+      "correctNegatives": 77,
+      "precision": 0.9565,
+      "precisionLo": 0.7901,
+      "precisionHi": 0.9923,
+      "recall": 0.8148
+     }
+    },
+    "cd10": {
+     "risky": {
+      "hits": 33,
+      "falseAlarms": 3,
+      "misses": 49,
+      "correctNegatives": 20,
+      "precision": 0.9167,
+      "precisionLo": 0.7817,
+      "precisionHi": 0.9713,
+      "recall": 0.4024
+     },
+     "high": {
+      "hits": 23,
+      "falseAlarms": 0,
+      "misses": 59,
+      "correctNegatives": 23,
+      "precision": 1.0,
+      "precisionLo": 0.8569,
+      "precisionHi": 1.0,
+      "recall": 0.2805
+     }
+    },
+    "cd25": {
+     "risky": {
+      "hits": 31,
+      "falseAlarms": 5,
+      "misses": 15,
+      "correctNegatives": 54,
+      "precision": 0.8611,
+      "precisionLo": 0.7134,
+      "precisionHi": 0.9392,
+      "recall": 0.6739
+     },
+     "high": {
+      "hits": 23,
+      "falseAlarms": 0,
+      "misses": 23,
+      "correctNegatives": 59,
+      "precision": 1.0,
+      "precisionLo": 0.8569,
+      "precisionHi": 1.0,
+      "recall": 0.5
+     }
+    },
+    "cd50": {
+     "risky": {
+      "hits": 29,
+      "falseAlarms": 7,
+      "misses": 0,
+      "correctNegatives": 69,
+      "precision": 0.8056,
+      "precisionLo": 0.6497,
+      "precisionHi": 0.9025,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 23,
+      "falseAlarms": 0,
+      "misses": 6,
+      "correctNegatives": 76,
+      "precision": 1.0,
+      "precisionLo": 0.8569,
+      "precisionHi": 1.0,
+      "recall": 0.7931
+     }
+    }
+   },
+   "rule(ai-ok)": {
+    "c10": {
+     "risky": {
+      "hits": 20,
+      "falseAlarms": 3,
+      "misses": 0,
+      "correctNegatives": 0,
+      "precision": 0.8696,
+      "precisionLo": 0.6787,
+      "precisionHi": 0.9546,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 6,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7
+     }
+    },
+    "c25": {
+     "risky": {
+      "hits": 19,
+      "falseAlarms": 4,
+      "misses": 0,
+      "correctNegatives": 0,
+      "precision": 0.8261,
+      "precisionLo": 0.6286,
+      "precisionHi": 0.9302,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7368
+     }
+    },
+    "c50": {
+     "risky": {
+      "hits": 17,
+      "falseAlarms": 6,
+      "misses": 0,
+      "correctNegatives": 0,
+      "precision": 0.7391,
+      "precisionLo": 0.5353,
+      "precisionHi": 0.8745,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 13,
+      "falseAlarms": 1,
+      "misses": 4,
+      "correctNegatives": 5,
+      "precision": 0.9286,
+      "precisionLo": 0.6853,
+      "precisionHi": 0.9873,
+      "recall": 0.7647
+     }
+    },
+    "cd10": {
+     "risky": {
+      "hits": 20,
+      "falseAlarms": 3,
+      "misses": 0,
+      "correctNegatives": 0,
+      "precision": 0.8696,
+      "precisionLo": 0.6787,
+      "precisionHi": 0.9546,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 6,
+      "correctNegatives": 3,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7
+     }
+    },
+    "cd25": {
+     "risky": {
+      "hits": 19,
+      "falseAlarms": 4,
+      "misses": 0,
+      "correctNegatives": 0,
+      "precision": 0.8261,
+      "precisionLo": 0.6286,
+      "precisionHi": 0.9302,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 5,
+      "correctNegatives": 4,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7368
+     }
+    },
+    "cd50": {
+     "risky": {
+      "hits": 18,
+      "falseAlarms": 5,
+      "misses": 0,
+      "correctNegatives": 0,
+      "precision": 0.7826,
+      "precisionLo": 0.581,
+      "precisionHi": 0.9034,
+      "recall": 1.0
+     },
+     "high": {
+      "hits": 14,
+      "falseAlarms": 0,
+      "misses": 4,
+      "correctNegatives": 5,
+      "precision": 1.0,
+      "precisionLo": 0.7847,
+      "precisionHi": 1.0,
+      "recall": 0.7778
+     }
+    }
+   }
+  }
+ },
+ "airports": [
+  {
+   "icao": "RCBS",
+   "validSlots": 7,
+   "events": {
+    "c10": 2,
+    "c25": 1,
+    "c50": 1,
+    "cd10": 4,
+    "cd25": 2,
+    "cd50": 1
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 33,
+      "k": 8,
+      "rate": 0.2424,
+      "lo": 0.1283,
+      "hi": 0.4102
+     },
+     "medium": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 33,
+      "k": 4,
+      "rate": 0.1212,
+      "lo": 0.0482,
+      "hi": 0.2733
+     },
+     "medium": {
+      "n": 2,
+      "k": 1,
+      "rate": 0.5,
+      "lo": 0.0945,
+      "hi": 0.9055
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 33,
+      "k": 4,
+      "rate": 0.1212,
+      "lo": 0.0482,
+      "hi": 0.2733
+     },
+     "medium": {
+      "n": 2,
+      "k": 1,
+      "rate": 0.5,
+      "lo": 0.0945,
+      "hi": 0.9055
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 33,
+      "k": 18,
+      "rate": 0.5455,
+      "lo": 0.3799,
+      "hi": 0.7016
+     },
+     "medium": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 33,
+      "k": 8,
+      "rate": 0.2424,
+      "lo": 0.1283,
+      "hi": 0.4102
+     },
+     "medium": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 33,
+      "k": 4,
+      "rate": 0.1212,
+      "lo": 0.0482,
+      "hi": 0.2733
+     },
+     "medium": {
+      "n": 2,
+      "k": 1,
+      "rate": 0.5,
+      "lo": 0.0945,
+      "hi": 0.9055
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": [
+    "說低偏高（取消10、取消25、取延25）"
+   ]
+  },
+  {
+   "icao": "RCFG",
+   "validSlots": 3,
+   "events": {
+    "c10": 1,
+    "c25": 1,
+    "c50": 1,
+    "cd10": 1,
+    "cd25": 1,
+    "cd50": 1
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 10,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2775
+     },
+     "medium": {
+      "n": 3,
+      "k": 3,
+      "rate": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 10,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2775
+     },
+     "medium": {
+      "n": 3,
+      "k": 3,
+      "rate": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 10,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2775
+     },
+     "medium": {
+      "n": 3,
+      "k": 3,
+      "rate": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 10,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2775
+     },
+     "medium": {
+      "n": 3,
+      "k": 3,
+      "rate": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 10,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2775
+     },
+     "medium": {
+      "n": 3,
+      "k": 3,
+      "rate": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 10,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2775
+     },
+     "medium": {
+      "n": 3,
+      "k": 3,
+      "rate": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": []
+  },
+  {
+   "icao": "RCFN",
+   "validSlots": 6,
+   "events": {
+    "c10": 6,
+    "c25": 6,
+    "c50": 2,
+    "cd10": 6,
+    "cd25": 6,
+    "cd50": 3
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 20,
+      "k": 20,
+      "rate": 1.0,
+      "lo": 0.8389,
+      "hi": 1.0
+     },
+     "medium": {
+      "n": 8,
+      "k": 8,
+      "rate": 1.0,
+      "lo": 0.6756,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 20,
+      "k": 20,
+      "rate": 1.0,
+      "lo": 0.8389,
+      "hi": 1.0
+     },
+     "medium": {
+      "n": 8,
+      "k": 8,
+      "rate": 1.0,
+      "lo": 0.6756,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 20,
+      "k": 6,
+      "rate": 0.3,
+      "lo": 0.1455,
+      "hi": 0.519
+     },
+     "medium": {
+      "n": 8,
+      "k": 2,
+      "rate": 0.25,
+      "lo": 0.0715,
+      "hi": 0.5907
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 20,
+      "k": 20,
+      "rate": 1.0,
+      "lo": 0.8389,
+      "hi": 1.0
+     },
+     "medium": {
+      "n": 8,
+      "k": 8,
+      "rate": 1.0,
+      "lo": 0.6756,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 20,
+      "k": 20,
+      "rate": 1.0,
+      "lo": 0.8389,
+      "hi": 1.0
+     },
+     "medium": {
+      "n": 8,
+      "k": 8,
+      "rate": 1.0,
+      "lo": 0.6756,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 20,
+      "k": 11,
+      "rate": 0.55,
+      "lo": 0.3421,
+      "hi": 0.7418
+     },
+     "medium": {
+      "n": 8,
+      "k": 2,
+      "rate": 0.25,
+      "lo": 0.0715,
+      "hi": 0.5907
+     },
+     "high": {
+      "n": 2,
+      "k": 2,
+      "rate": 1.0,
+      "lo": 0.3424,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": [
+    "說低偏高（取消10、取消25、取延25）",
+    "說中偏高（取消10、取消25、取延25）"
+   ]
+  },
+  {
+   "icao": "RCKH",
+   "validSlots": 95,
+   "events": {
+    "c10": 14,
+    "c25": 8,
+    "c50": 3,
+    "cd10": 22,
+    "cd25": 9,
+    "cd50": 4
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 388,
+      "k": 31,
+      "rate": 0.0799,
+      "lo": 0.0569,
+      "hi": 0.1112
+     },
+     "medium": {
+      "n": 11,
+      "k": 9,
+      "rate": 0.8182,
+      "lo": 0.523,
+      "hi": 0.9486
+     },
+     "high": {
+      "n": 27,
+      "k": 25,
+      "rate": 0.9259,
+      "lo": 0.7663,
+      "hi": 0.9794
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 388,
+      "k": 6,
+      "rate": 0.0155,
+      "lo": 0.0071,
+      "hi": 0.0333
+     },
+     "medium": {
+      "n": 11,
+      "k": 9,
+      "rate": 0.8182,
+      "lo": 0.523,
+      "hi": 0.9486
+     },
+     "high": {
+      "n": 27,
+      "k": 25,
+      "rate": 0.9259,
+      "lo": 0.7663,
+      "hi": 0.9794
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 388,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.0098
+     },
+     "medium": {
+      "n": 11,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.2588
+     },
+     "high": {
+      "n": 27,
+      "k": 15,
+      "rate": 0.5556,
+      "lo": 0.3731,
+      "hi": 0.7241
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 388,
+      "k": 68,
+      "rate": 0.1753,
+      "lo": 0.1407,
+      "hi": 0.2162
+     },
+     "medium": {
+      "n": 11,
+      "k": 10,
+      "rate": 0.9091,
+      "lo": 0.6226,
+      "hi": 0.9838
+     },
+     "high": {
+      "n": 27,
+      "k": 25,
+      "rate": 0.9259,
+      "lo": 0.7663,
+      "hi": 0.9794
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 388,
+      "k": 11,
+      "rate": 0.0284,
+      "lo": 0.0159,
+      "hi": 0.05
+     },
+     "medium": {
+      "n": 11,
+      "k": 9,
+      "rate": 0.8182,
+      "lo": 0.523,
+      "hi": 0.9486
+     },
+     "high": {
+      "n": 27,
+      "k": 25,
+      "rate": 0.9259,
+      "lo": 0.7663,
+      "hi": 0.9794
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 388,
+      "k": 1,
+      "rate": 0.0026,
+      "lo": 0.0005,
+      "hi": 0.0145
+     },
+     "medium": {
+      "n": 11,
+      "k": 4,
+      "rate": 0.3636,
+      "lo": 0.1517,
+      "hi": 0.6462
+     },
+     "high": {
+      "n": 27,
+      "k": 15,
+      "rate": 0.5556,
+      "lo": 0.3731,
+      "hi": 0.7241
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": [
+    "說低偏低（取消25、取延25）",
+    "說中偏高（取消10、取消25、取延25）"
+   ]
+  },
+  {
+   "icao": "RCMQ",
+   "validSlots": 8,
+   "events": {
+    "c10": 3,
+    "c25": 2,
+    "c50": 1,
+    "cd10": 5,
+    "cd25": 2,
+    "cd50": 1
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 31,
+      "k": 6,
+      "rate": 0.1935,
+      "lo": 0.0919,
+      "hi": 0.3628
+     },
+     "medium": {
+      "n": 6,
+      "k": 6,
+      "rate": 1.0,
+      "lo": 0.6097,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 3,
+      "k": 3,
+      "rate": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 31,
+      "k": 2,
+      "rate": 0.0645,
+      "lo": 0.0179,
+      "hi": 0.2072
+     },
+     "medium": {
+      "n": 6,
+      "k": 6,
+      "rate": 1.0,
+      "lo": 0.6097,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 3,
+      "k": 2,
+      "rate": 0.6667,
+      "lo": 0.2077,
+      "hi": 0.9385
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 31,
+      "k": 1,
+      "rate": 0.0323,
+      "lo": 0.0057,
+      "hi": 0.1619
+     },
+     "medium": {
+      "n": 6,
+      "k": 3,
+      "rate": 0.5,
+      "lo": 0.1876,
+      "hi": 0.8124
+     },
+     "high": {
+      "n": 3,
+      "k": 1,
+      "rate": 0.3333,
+      "lo": 0.0615,
+      "hi": 0.7923
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 31,
+      "k": 16,
+      "rate": 0.5161,
+      "lo": 0.3484,
+      "hi": 0.6803
+     },
+     "medium": {
+      "n": 6,
+      "k": 6,
+      "rate": 1.0,
+      "lo": 0.6097,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 3,
+      "k": 3,
+      "rate": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 31,
+      "k": 2,
+      "rate": 0.0645,
+      "lo": 0.0179,
+      "hi": 0.2072
+     },
+     "medium": {
+      "n": 6,
+      "k": 6,
+      "rate": 1.0,
+      "lo": 0.6097,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 3,
+      "k": 2,
+      "rate": 0.6667,
+      "lo": 0.2077,
+      "hi": 0.9385
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 31,
+      "k": 1,
+      "rate": 0.0323,
+      "lo": 0.0057,
+      "hi": 0.1619
+     },
+     "medium": {
+      "n": 6,
+      "k": 3,
+      "rate": 0.5,
+      "lo": 0.1876,
+      "hi": 0.8124
+     },
+     "high": {
+      "n": 3,
+      "k": 1,
+      "rate": 0.3333,
+      "lo": 0.0615,
+      "hi": 0.7923
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": [
+    "說中偏高（取消10、取消25、取延25）"
+   ]
+  },
+  {
+   "icao": "RCNN",
+   "validSlots": 0,
+   "events": {
+    "c10": 0,
+    "c25": 0,
+    "c50": 0,
+    "cd10": 0,
+    "cd25": 0,
+    "cd50": 0
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": []
+  },
+  {
+   "icao": "RCQC",
+   "validSlots": 7,
+   "events": {
+    "c10": 1,
+    "c25": 1,
+    "c50": 1,
+    "cd10": 4,
+    "cd25": 2,
+    "cd50": 1
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 30,
+      "k": 3,
+      "rate": 0.1,
+      "lo": 0.0346,
+      "hi": 0.2562
+     },
+     "medium": {
+      "n": 1,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.7935
+     },
+     "high": {
+      "n": 4,
+      "k": 2,
+      "rate": 0.5,
+      "lo": 0.15,
+      "hi": 0.85
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 30,
+      "k": 3,
+      "rate": 0.1,
+      "lo": 0.0346,
+      "hi": 0.2562
+     },
+     "medium": {
+      "n": 1,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.7935
+     },
+     "high": {
+      "n": 4,
+      "k": 2,
+      "rate": 0.5,
+      "lo": 0.15,
+      "hi": 0.85
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 30,
+      "k": 3,
+      "rate": 0.1,
+      "lo": 0.0346,
+      "hi": 0.2562
+     },
+     "medium": {
+      "n": 1,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.7935
+     },
+     "high": {
+      "n": 4,
+      "k": 2,
+      "rate": 0.5,
+      "lo": 0.15,
+      "hi": 0.85
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 30,
+      "k": 15,
+      "rate": 0.5,
+      "lo": 0.3315,
+      "hi": 0.6685
+     },
+     "medium": {
+      "n": 1,
+      "k": 1,
+      "rate": 1.0,
+      "lo": 0.2065,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 4,
+      "k": 4,
+      "rate": 1.0,
+      "lo": 0.5101,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 30,
+      "k": 6,
+      "rate": 0.2,
+      "lo": 0.095,
+      "hi": 0.3731
+     },
+     "medium": {
+      "n": 1,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.7935
+     },
+     "high": {
+      "n": 4,
+      "k": 4,
+      "rate": 1.0,
+      "lo": 0.5101,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 30,
+      "k": 3,
+      "rate": 0.1,
+      "lo": 0.0346,
+      "hi": 0.2562
+     },
+     "medium": {
+      "n": 1,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.7935
+     },
+     "high": {
+      "n": 4,
+      "k": 2,
+      "rate": 0.5,
+      "lo": 0.15,
+      "hi": 0.85
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": [
+    "說低偏高（取延25）"
+   ]
+  },
+  {
+   "icao": "RCSS",
+   "validSlots": 80,
+   "events": {
+    "c10": 9,
+    "c25": 8,
+    "c50": 5,
+    "cd10": 18,
+    "cd25": 9,
+    "cd50": 7
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 332,
+      "k": 17,
+      "rate": 0.0512,
+      "lo": 0.0322,
+      "hi": 0.0805
+     },
+     "medium": {
+      "n": 10,
+      "k": 10,
+      "rate": 1.0,
+      "lo": 0.7225,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 18,
+      "k": 17,
+      "rate": 0.9444,
+      "lo": 0.7424,
+      "hi": 0.9901
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 332,
+      "k": 13,
+      "rate": 0.0392,
+      "lo": 0.023,
+      "hi": 0.0658
+     },
+     "medium": {
+      "n": 10,
+      "k": 10,
+      "rate": 1.0,
+      "lo": 0.7225,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 18,
+      "k": 17,
+      "rate": 0.9444,
+      "lo": 0.7424,
+      "hi": 0.9901
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 332,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.0114
+     },
+     "medium": {
+      "n": 10,
+      "k": 9,
+      "rate": 0.9,
+      "lo": 0.5958,
+      "hi": 0.9821
+     },
+     "high": {
+      "n": 18,
+      "k": 16,
+      "rate": 0.8889,
+      "lo": 0.672,
+      "hi": 0.969
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 332,
+      "k": 61,
+      "rate": 0.1837,
+      "lo": 0.1458,
+      "hi": 0.2289
+     },
+     "medium": {
+      "n": 10,
+      "k": 10,
+      "rate": 1.0,
+      "lo": 0.7225,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 18,
+      "k": 18,
+      "rate": 1.0,
+      "lo": 0.8241,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 332,
+      "k": 17,
+      "rate": 0.0512,
+      "lo": 0.0322,
+      "hi": 0.0805
+     },
+     "medium": {
+      "n": 10,
+      "k": 10,
+      "rate": 1.0,
+      "lo": 0.7225,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 18,
+      "k": 18,
+      "rate": 1.0,
+      "lo": 0.8241,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 332,
+      "k": 8,
+      "rate": 0.0241,
+      "lo": 0.0123,
+      "hi": 0.0468
+     },
+     "medium": {
+      "n": 10,
+      "k": 10,
+      "rate": 1.0,
+      "lo": 0.7225,
+      "hi": 1.0
+     },
+     "high": {
+      "n": 18,
+      "k": 17,
+      "rate": 0.9444,
+      "lo": 0.7424,
+      "hi": 0.9901
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": [
+    "說低偏低（取消10）",
+    "說中偏高（取消10、取消25、取延25）"
+   ]
+  },
+  {
+   "icao": "RCTP",
+   "validSlots": 100,
+   "events": {
+    "c10": 6,
+    "c25": 5,
+    "c50": 3,
+    "cd10": 11,
+    "cd25": 8,
+    "cd50": 5
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 375,
+      "k": 6,
+      "rate": 0.016,
+      "lo": 0.0074,
+      "hi": 0.0345
+     },
+     "medium": {
+      "n": 28,
+      "k": 3,
+      "rate": 0.1071,
+      "lo": 0.0371,
+      "hi": 0.272
+     },
+     "high": {
+      "n": 23,
+      "k": 21,
+      "rate": 0.913,
+      "lo": 0.732,
+      "hi": 0.9758
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 375,
+      "k": 2,
+      "rate": 0.0053,
+      "lo": 0.0015,
+      "hi": 0.0192
+     },
+     "medium": {
+      "n": 28,
+      "k": 2,
+      "rate": 0.0714,
+      "lo": 0.0198,
+      "hi": 0.2265
+     },
+     "high": {
+      "n": 23,
+      "k": 21,
+      "rate": 0.913,
+      "lo": 0.732,
+      "hi": 0.9758
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 375,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.0101
+     },
+     "medium": {
+      "n": 28,
+      "k": 1,
+      "rate": 0.0357,
+      "lo": 0.0063,
+      "hi": 0.1771
+     },
+     "high": {
+      "n": 23,
+      "k": 14,
+      "rate": 0.6087,
+      "lo": 0.4079,
+      "hi": 0.7784
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 375,
+      "k": 22,
+      "rate": 0.0587,
+      "lo": 0.0391,
+      "hi": 0.0872
+     },
+     "medium": {
+      "n": 28,
+      "k": 10,
+      "rate": 0.3571,
+      "lo": 0.2071,
+      "hi": 0.5417
+     },
+     "high": {
+      "n": 23,
+      "k": 23,
+      "rate": 1.0,
+      "lo": 0.8569,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 375,
+      "k": 10,
+      "rate": 0.0267,
+      "lo": 0.0145,
+      "hi": 0.0484
+     },
+     "medium": {
+      "n": 28,
+      "k": 7,
+      "rate": 0.25,
+      "lo": 0.1268,
+      "hi": 0.4336
+     },
+     "high": {
+      "n": 23,
+      "k": 23,
+      "rate": 1.0,
+      "lo": 0.8569,
+      "hi": 1.0
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 375,
+      "k": 2,
+      "rate": 0.0053,
+      "lo": 0.0015,
+      "hi": 0.0192
+     },
+     "medium": {
+      "n": 28,
+      "k": 2,
+      "rate": 0.0714,
+      "lo": 0.0198,
+      "hi": 0.2265
+     },
+     "high": {
+      "n": 23,
+      "k": 21,
+      "rate": 0.913,
+      "lo": 0.732,
+      "hi": 0.9758
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": [
+    "說低偏低（取消10、取消25、取延25）",
+    "說中偏低（取消10、取消25、取延25）"
+   ]
+  },
+  {
+   "icao": "RCYU",
+   "validSlots": 0,
+   "events": {
+    "c10": 0,
+    "c25": 0,
+    "c50": 0,
+    "cd10": 0,
+    "cd25": 0,
+    "cd50": 0
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "medium": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": []
+  },
+  {
+   "icao": "VHHH",
+   "validSlots": 100,
+   "events": {
+    "c10": 1,
+    "c25": 0,
+    "c50": 0,
+    "cd10": 7,
+    "cd25": 0,
+    "cd50": 0
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 405,
+      "k": 3,
+      "rate": 0.0074,
+      "lo": 0.0025,
+      "hi": 0.0215
+     },
+     "medium": {
+      "n": 21,
+      "k": 2,
+      "rate": 0.0952,
+      "lo": 0.0265,
+      "hi": 0.2891
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 405,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.0094
+     },
+     "medium": {
+      "n": 21,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.1546
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 405,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.0094
+     },
+     "medium": {
+      "n": 21,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.1546
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 405,
+      "k": 28,
+      "rate": 0.0691,
+      "lo": 0.0483,
+      "hi": 0.0981
+     },
+     "medium": {
+      "n": 21,
+      "k": 6,
+      "rate": 0.2857,
+      "lo": 0.1381,
+      "hi": 0.4996
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 405,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.0094
+     },
+     "medium": {
+      "n": 21,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.1546
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 405,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.0094
+     },
+     "medium": {
+      "n": 21,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.1546
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": [
+    "說低偏低（取消10、取消25、取延25）",
+    "說中偏低（取消10、取消25、取延25）"
+   ]
+  },
+  {
+   "icao": "VMMC",
+   "validSlots": 71,
+   "events": {
+    "c10": 24,
+    "c25": 5,
+    "c50": 0,
+    "cd10": 35,
+    "cd25": 6,
+    "cd50": 0
+   },
+   "levels": {
+    "c10": {
+     "low": {
+      "n": 315,
+      "k": 101,
+      "rate": 0.3206,
+      "lo": 0.2715,
+      "hi": 0.3741
+     },
+     "medium": {
+      "n": 6,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.3903
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c25": {
+     "low": {
+      "n": 315,
+      "k": 22,
+      "rate": 0.0698,
+      "lo": 0.0466,
+      "hi": 0.1035
+     },
+     "medium": {
+      "n": 6,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.3903
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "c50": {
+     "low": {
+      "n": 315,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.012
+     },
+     "medium": {
+      "n": 6,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.3903
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd10": {
+     "low": {
+      "n": 315,
+      "k": 153,
+      "rate": 0.4857,
+      "lo": 0.431,
+      "hi": 0.5407
+     },
+     "medium": {
+      "n": 6,
+      "k": 3,
+      "rate": 0.5,
+      "lo": 0.1876,
+      "hi": 0.8124
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd25": {
+     "low": {
+      "n": 315,
+      "k": 27,
+      "rate": 0.0857,
+      "lo": 0.0596,
+      "hi": 0.1218
+     },
+     "medium": {
+      "n": 6,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.3903
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    },
+    "cd50": {
+     "low": {
+      "n": 315,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.012
+     },
+     "medium": {
+      "n": 6,
+      "k": 0,
+      "rate": 0.0,
+      "lo": 0.0,
+      "hi": 0.3903
+     },
+     "high": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     },
+     "confirmed": {
+      "n": 0,
+      "k": 0,
+      "rate": null,
+      "lo": null,
+      "hi": null
+     }
+    }
+   },
+   "flags": [
+    "說低偏高（取消10、取消25、取延25）",
+    "說中偏低（取消10、取消25、取延25）"
+   ]
+  }
+ ],
+ "misses0to24": {
+  "c10": [
+   {
+    "airport": "VMMC",
+    "from": "2026-10-18T12:00:00Z",
+    "run": "2026-10-18T05:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 25,
+    "cancelled": 4,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-19T12:00:00Z",
+    "run": "2026-10-18T22:30:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 23,
+    "cancelled": 4,
+    "delayed": 1
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-19T18:00:00Z",
+    "run": "2026-10-19T06:02:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 19,
+    "cancelled": 2,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-20T00:00:00Z",
+    "run": "2026-10-19T12:04:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 42,
+    "cancelled": 5,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-20T06:00:00Z",
+    "run": "2026-10-19T18:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 66,
+    "cancelled": 11,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-20T12:00:00Z",
+    "run": "2026-10-19T23:49:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 20,
+    "cancelled": 6,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-21T00:00:00Z",
+    "run": "2026-10-20T13:43:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 43,
+    "cancelled": 6,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-21T06:00:00Z",
+    "run": "2026-10-20T17:54:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 69,
+    "cancelled": 12,
+    "delayed": 2
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-21T12:00:00Z",
+    "run": "2026-10-20T23:15:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 24,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-21T18:00:00Z",
+    "run": "2026-10-21T04:21:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 19,
+    "cancelled": 2,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-22T00:00:00Z",
+    "run": "2026-10-21T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 74,
+    "cancelled": 13,
+    "delayed": 1
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-22T00:00:00Z",
+    "run": "2026-10-21T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 56,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-22T00:00:00Z",
+    "run": "2026-10-21T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 45,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 71,
+    "cancelled": 20,
+    "delayed": 6
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 65,
+    "cancelled": 24,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 66,
+    "cancelled": 9,
+    "delayed": 2
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-22T12:00:00Z",
+    "run": "2026-10-22T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 19,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-23T00:00:00Z",
+    "run": "2026-10-22T12:44:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 43,
+    "cancelled": 8,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-23T06:00:00Z",
+    "run": "2026-10-22T20:28:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 75,
+    "cancelled": 11,
+    "delayed": 4
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-23T12:00:00Z",
+    "run": "2026-10-23T01:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 23,
+    "cancelled": 8,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-24T06:00:00Z",
+    "run": "2026-10-23T20:28:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 70,
+    "cancelled": 15,
+    "delayed": 2
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-24T12:00:00Z",
+    "run": "2026-10-24T01:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 20,
+    "cancelled": 6,
+    "delayed": 3
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-25T00:00:00Z",
+    "run": "2026-10-24T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 23,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-25T06:00:00Z",
+    "run": "2026-10-24T20:27:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 13,
+    "cancelled": 4,
+    "delayed": 0
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-26T00:00:00Z",
+    "run": "2026-10-25T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 21,
+    "cancelled": 10,
+    "delayed": 1
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-26T06:00:00Z",
+    "run": "2026-10-25T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 13,
+    "cancelled": 5,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-27T06:00:00Z",
+    "run": "2026-10-26T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 68,
+    "cancelled": 10,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-31T06:00:00Z",
+    "run": "2026-10-30T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 63,
+    "cancelled": 9,
+    "delayed": 3
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-02T12:00:00Z",
+    "run": "2026-11-02T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 28,
+    "cancelled": 3,
+    "delayed": 2
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-03T06:00:00Z",
+    "run": "2026-11-02T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 73,
+    "cancelled": 9,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-03T12:00:00Z",
+    "run": "2026-11-03T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 15,
+    "cancelled": 2,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-04T00:00:00Z",
+    "run": "2026-11-03T13:05:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 43,
+    "cancelled": 7,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-04T06:00:00Z",
+    "run": "2026-11-03T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 73,
+    "cancelled": 14,
+    "delayed": 5
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-06T12:00:00Z",
+    "run": "2026-11-06T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 27,
+    "cancelled": 3,
+    "delayed": 2
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-09T12:00:00Z",
+    "run": "2026-11-09T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 27,
+    "cancelled": 3,
+    "delayed": 2
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-10T00:00:00Z",
+    "run": "2026-11-09T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 45,
+    "cancelled": 5,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-10T06:00:00Z",
+    "run": "2026-11-09T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 63,
+    "cancelled": 9,
+    "delayed": 1
+   }
+  ],
+  "c25": [
+   {
+    "airport": "VMMC",
+    "from": "2026-10-20T12:00:00Z",
+    "run": "2026-10-19T23:49:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 20,
+    "cancelled": 6,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-21T12:00:00Z",
+    "run": "2026-10-20T23:15:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 24,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 71,
+    "cancelled": 20,
+    "delayed": 6
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 65,
+    "cancelled": 24,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-22T12:00:00Z",
+    "run": "2026-10-22T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 19,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-23T12:00:00Z",
+    "run": "2026-10-23T01:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 23,
+    "cancelled": 8,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-24T12:00:00Z",
+    "run": "2026-10-24T01:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 20,
+    "cancelled": 6,
+    "delayed": 3
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-25T00:00:00Z",
+    "run": "2026-10-24T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 23,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-25T06:00:00Z",
+    "run": "2026-10-24T20:27:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 13,
+    "cancelled": 4,
+    "delayed": 0
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-26T00:00:00Z",
+    "run": "2026-10-25T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 21,
+    "cancelled": 10,
+    "delayed": 1
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-26T06:00:00Z",
+    "run": "2026-10-25T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 13,
+    "cancelled": 5,
+    "delayed": 0
+   }
+  ],
+  "c50": [],
+  "cd10": [
+   {
+    "airport": "VMMC",
+    "from": "2026-10-18T12:00:00Z",
+    "run": "2026-10-18T05:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 25,
+    "cancelled": 4,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-19T12:00:00Z",
+    "run": "2026-10-18T22:30:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 23,
+    "cancelled": 4,
+    "delayed": 1
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-19T18:00:00Z",
+    "run": "2026-10-19T06:02:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 19,
+    "cancelled": 2,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-20T00:00:00Z",
+    "run": "2026-10-19T12:04:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 42,
+    "cancelled": 5,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-20T06:00:00Z",
+    "run": "2026-10-19T18:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 72,
+    "cancelled": 5,
+    "delayed": 4
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-20T06:00:00Z",
+    "run": "2026-10-19T18:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 66,
+    "cancelled": 11,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-20T12:00:00Z",
+    "run": "2026-10-19T23:49:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 20,
+    "cancelled": 6,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-21T00:00:00Z",
+    "run": "2026-10-20T13:43:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 43,
+    "cancelled": 6,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-21T06:00:00Z",
+    "run": "2026-10-20T17:54:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 69,
+    "cancelled": 12,
+    "delayed": 2
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-21T12:00:00Z",
+    "run": "2026-10-20T23:15:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 24,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-21T18:00:00Z",
+    "run": "2026-10-21T04:21:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 19,
+    "cancelled": 2,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-22T00:00:00Z",
+    "run": "2026-10-21T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 74,
+    "cancelled": 13,
+    "delayed": 1
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-22T00:00:00Z",
+    "run": "2026-10-21T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 56,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "VHHH",
+    "from": "2026-10-22T00:00:00Z",
+    "run": "2026-10-21T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 267,
+    "cancelled": 2,
+    "delayed": 26
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-22T00:00:00Z",
+    "run": "2026-10-21T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 45,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 71,
+    "cancelled": 20,
+    "delayed": 6
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 65,
+    "cancelled": 24,
+    "delayed": 0
+   },
+   {
+    "airport": "RCTP",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 227,
+    "cancelled": 8,
+    "delayed": 46
+   },
+   {
+    "airport": "VHHH",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 281,
+    "cancelled": 2,
+    "delayed": 28
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 66,
+    "cancelled": 9,
+    "delayed": 2
+   },
+   {
+    "airport": "VHHH",
+    "from": "2026-10-22T12:00:00Z",
+    "run": "2026-10-22T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 217,
+    "cancelled": 1,
+    "delayed": 21
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-22T12:00:00Z",
+    "run": "2026-10-22T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 19,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "VHHH",
+    "from": "2026-10-23T00:00:00Z",
+    "run": "2026-10-22T12:44:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 287,
+    "cancelled": 28,
+    "delayed": 9
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-23T00:00:00Z",
+    "run": "2026-10-22T12:44:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 43,
+    "cancelled": 8,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-23T06:00:00Z",
+    "run": "2026-10-22T20:28:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 75,
+    "cancelled": 11,
+    "delayed": 4
+   },
+   {
+    "airport": "VHHH",
+    "from": "2026-10-23T12:00:00Z",
+    "run": "2026-10-23T01:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 225,
+    "cancelled": 21,
+    "delayed": 15
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-23T12:00:00Z",
+    "run": "2026-10-23T01:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 23,
+    "cancelled": 8,
+    "delayed": 1
+   },
+   {
+    "airport": "VHHH",
+    "from": "2026-10-24T00:00:00Z",
+    "run": "2026-10-23T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 284,
+    "cancelled": 5,
+    "delayed": 25
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-24T00:00:00Z",
+    "run": "2026-10-23T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 40,
+    "cancelled": 3,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-24T06:00:00Z",
+    "run": "2026-10-23T20:28:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 70,
+    "cancelled": 15,
+    "delayed": 2
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-24T12:00:00Z",
+    "run": "2026-10-24T01:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 20,
+    "cancelled": 6,
+    "delayed": 3
+   },
+   {
+    "airport": "RCBS",
+    "from": "2026-10-25T00:00:00Z",
+    "run": "2026-10-24T13:06:00Z",
+    "level": "low",
+    "official": null,
+    "model": "low",
+    "total": 55,
+    "cancelled": 0,
+    "delayed": 8
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-25T00:00:00Z",
+    "run": "2026-10-24T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 23,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCMQ",
+    "from": "2026-10-25T00:00:00Z",
+    "run": "2026-10-24T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 44,
+    "cancelled": 2,
+    "delayed": 4
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-25T00:00:00Z",
+    "run": "2026-10-24T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 47,
+    "cancelled": 2,
+    "delayed": 3
+   },
+   {
+    "airport": "RCBS",
+    "from": "2026-10-25T06:00:00Z",
+    "run": "2026-10-24T20:27:00Z",
+    "level": "low",
+    "official": null,
+    "model": "low",
+    "total": 49,
+    "cancelled": 0,
+    "delayed": 5
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-25T06:00:00Z",
+    "run": "2026-10-24T20:27:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 13,
+    "cancelled": 4,
+    "delayed": 0
+   },
+   {
+    "airport": "RCMQ",
+    "from": "2026-10-25T06:00:00Z",
+    "run": "2026-10-24T20:27:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 55,
+    "cancelled": 2,
+    "delayed": 8
+   },
+   {
+    "airport": "RCQC",
+    "from": "2026-10-25T06:00:00Z",
+    "run": "2026-10-24T20:27:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 45,
+    "cancelled": 4,
+    "delayed": 7
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-25T12:00:00Z",
+    "run": "2026-10-25T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 25,
+    "cancelled": 0,
+    "delayed": 4
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-25T12:00:00Z",
+    "run": "2026-10-25T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 16,
+    "cancelled": 0,
+    "delayed": 2
+   },
+   {
+    "airport": "RCTP",
+    "from": "2026-10-25T12:00:00Z",
+    "run": "2026-10-25T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 149,
+    "cancelled": 0,
+    "delayed": 15
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-26T00:00:00Z",
+    "run": "2026-10-25T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 21,
+    "cancelled": 10,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-26T00:00:00Z",
+    "run": "2026-10-25T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 46,
+    "cancelled": 3,
+    "delayed": 2
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-26T06:00:00Z",
+    "run": "2026-10-25T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 13,
+    "cancelled": 5,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-27T06:00:00Z",
+    "run": "2026-10-26T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 68,
+    "cancelled": 10,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-27T12:00:00Z",
+    "run": "2026-10-27T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 24,
+    "cancelled": 1,
+    "delayed": 3
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-28T00:00:00Z",
+    "run": "2026-10-27T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 57,
+    "cancelled": 0,
+    "delayed": 6
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-28T06:00:00Z",
+    "run": "2026-10-27T19:36:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 73,
+    "cancelled": 5,
+    "delayed": 4
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-28T12:00:00Z",
+    "run": "2026-10-28T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 27,
+    "cancelled": 0,
+    "delayed": 3
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-28T12:00:00Z",
+    "run": "2026-10-28T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 19,
+    "cancelled": 1,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-29T06:00:00Z",
+    "run": "2026-10-28T20:27:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 63,
+    "cancelled": 6,
+    "delayed": 2
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-30T06:00:00Z",
+    "run": "2026-10-29T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 67,
+    "cancelled": 2,
+    "delayed": 5
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-30T12:00:00Z",
+    "run": "2026-10-30T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 13,
+    "cancelled": 1,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-31T06:00:00Z",
+    "run": "2026-10-30T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 63,
+    "cancelled": 9,
+    "delayed": 3
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-02T06:00:00Z",
+    "run": "2026-11-01T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 72,
+    "cancelled": 2,
+    "delayed": 7
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-02T12:00:00Z",
+    "run": "2026-11-02T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 28,
+    "cancelled": 3,
+    "delayed": 2
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-11-03T06:00:00Z",
+    "run": "2026-11-02T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 53,
+    "cancelled": 2,
+    "delayed": 10
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-03T06:00:00Z",
+    "run": "2026-11-02T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 73,
+    "cancelled": 9,
+    "delayed": 1
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-11-03T12:00:00Z",
+    "run": "2026-11-03T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 10,
+    "cancelled": 0,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-03T12:00:00Z",
+    "run": "2026-11-03T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 15,
+    "cancelled": 2,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-04T00:00:00Z",
+    "run": "2026-11-03T13:05:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 43,
+    "cancelled": 7,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-04T06:00:00Z",
+    "run": "2026-11-03T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 73,
+    "cancelled": 14,
+    "delayed": 5
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-04T12:00:00Z",
+    "run": "2026-11-04T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 26,
+    "cancelled": 2,
+    "delayed": 3
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-06T06:00:00Z",
+    "run": "2026-11-05T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 77,
+    "cancelled": 2,
+    "delayed": 11
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-06T12:00:00Z",
+    "run": "2026-11-06T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 27,
+    "cancelled": 3,
+    "delayed": 2
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-11-07T00:00:00Z",
+    "run": "2026-11-06T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 52,
+    "cancelled": 2,
+    "delayed": 4
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-11-07T06:00:00Z",
+    "run": "2026-11-06T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 52,
+    "cancelled": 1,
+    "delayed": 5
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-07T12:00:00Z",
+    "run": "2026-11-07T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 26,
+    "cancelled": 2,
+    "delayed": 5
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-08T00:00:00Z",
+    "run": "2026-11-07T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 48,
+    "cancelled": 2,
+    "delayed": 3
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-08T12:00:00Z",
+    "run": "2026-11-08T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 25,
+    "cancelled": 2,
+    "delayed": 2
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-09T06:00:00Z",
+    "run": "2026-11-08T20:25:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 70,
+    "cancelled": 4,
+    "delayed": 3
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-09T12:00:00Z",
+    "run": "2026-11-09T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 27,
+    "cancelled": 3,
+    "delayed": 2
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-10T00:00:00Z",
+    "run": "2026-11-09T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 45,
+    "cancelled": 5,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-10T06:00:00Z",
+    "run": "2026-11-09T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 63,
+    "cancelled": 9,
+    "delayed": 1
+   }
+  ],
+  "cd25": [
+   {
+    "airport": "VMMC",
+    "from": "2026-10-20T12:00:00Z",
+    "run": "2026-10-19T23:49:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 20,
+    "cancelled": 6,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-21T12:00:00Z",
+    "run": "2026-10-20T23:15:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 24,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 71,
+    "cancelled": 20,
+    "delayed": 6
+   },
+   {
+    "airport": "RCSS",
+    "from": "2026-10-22T06:00:00Z",
+    "run": "2026-10-21T17:22:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 65,
+    "cancelled": 24,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-22T12:00:00Z",
+    "run": "2026-10-22T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 19,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-23T12:00:00Z",
+    "run": "2026-10-23T01:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 23,
+    "cancelled": 8,
+    "delayed": 1
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-10-24T12:00:00Z",
+    "run": "2026-10-24T01:07:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 20,
+    "cancelled": 6,
+    "delayed": 3
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-25T00:00:00Z",
+    "run": "2026-10-24T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 23,
+    "cancelled": 6,
+    "delayed": 0
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-25T06:00:00Z",
+    "run": "2026-10-24T20:27:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 13,
+    "cancelled": 4,
+    "delayed": 0
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-26T00:00:00Z",
+    "run": "2026-10-25T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 21,
+    "cancelled": 10,
+    "delayed": 1
+   },
+   {
+    "airport": "RCFN",
+    "from": "2026-10-26T06:00:00Z",
+    "run": "2026-10-25T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 13,
+    "cancelled": 5,
+    "delayed": 0
+   },
+   {
+    "airport": "VMMC",
+    "from": "2026-11-04T06:00:00Z",
+    "run": "2026-11-03T20:26:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 73,
+    "cancelled": 14,
+    "delayed": 5
+   },
+   {
+    "airport": "RCKH",
+    "from": "2026-11-07T12:00:00Z",
+    "run": "2026-11-07T01:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "low",
+    "total": 26,
+    "cancelled": 2,
+    "delayed": 5
+   }
+  ],
+  "cd50": [
+   {
+    "airport": "RCFN",
+    "from": "2026-10-26T00:00:00Z",
+    "run": "2026-10-25T13:06:00Z",
+    "level": "low",
+    "official": "low",
+    "model": "medium",
+    "total": 21,
+    "cancelled": 10,
+    "delayed": 1
+   }
+  ]
+ },
+ "phenomena": [
+  "說高的格，取消率 ≥ 25%的比例依提前時間：0–24 79%（22/28）、24–48 100%（11/11）、48–72 100%（10/10）、72–96 100%（13/13）、96–120 88%（15/17）；說低的格合計 3.7%（72/1939）",
+  "說高的格，取消＋延誤 ≥ 25%的比例依提前時間：0–24 93%（26/28）、24–48 100%（11/11）、48–72 100%（10/10）、72–96 100%（13/13）、96–120 94%（16/17）；說低的格合計 5.2%（101/1939）",
+  "0–24 小時說高、但取消率沒到 25% 的 6 格：RCKH 10/24 14:00（取消 5/78、延誤 2）、RCMQ 10/24 20:00（取消 2/13、延誤 0）、RCQC 10/24 14:00（取消 4/53、延誤 17）、RCSS 10/24 20:00（取消 2/23、延誤 5）、RCTP 10/24 14:00（取消 22/232、延誤 58）、RCTP 10/24 20:00（取消 3/147、延誤 59）",
+  "說中的格取消率 ≥ 25%合計 41%（39/96）；29W 56%（39/70）；非颱風期間 0%（0/26）",
+  "取消率 ≥ 25%的事件格（不重複）共 37 格；0–24 小時那報說低（沒到中）的 11 格（VMMC 5、RCFN 4、RCKH 1、RCSS 1），其中 4 格是官方層說低、模式層說中以上（0–30 小時以官方為準）；颱風期間說低的格取消率 ≥ 25% 12%（72/600）",
+  "非颱風期間：說高 0 筆、說中 26 筆（取消率 ≥ 25% 0 筆）、說低 1339 筆（取消率 ≥ 10% 4%（56/1339）、取消率 ≥ 25% 0%（0/1339）、取消＋延誤 ≥ 25% 1%（10/1339））",
+  "0–48 小時有官方層的格，取消率 ≥ 25%：官方層說高 79%（22/28）；同一批格模式層說高 92%（11/12）",
+  "RCKH（KHH）：說中偏高（取消10、取消25、取延25）（說低時取消率 ≥ 10% 8%（31/388），全部機場 10.1%；說中時取消率 ≥ 25% 82%（9/11），全部機場 41%）",
+  "RCSS（TSA）：說中偏高（取消10、取消25、取延25）（說低時取消率 ≥ 10% 5%（17/332），全部機場 10.1%；說中時取消率 ≥ 25% 100%（10/10），全部機場 41%）",
+  "RCTP（TPE）：說中偏低（取消10、取消25、取延25）（說低時取消率 ≥ 10% 2%（6/375），全部機場 10.1%；說中時取消率 ≥ 25% 7%（2/28），全部機場 41%）",
+  "VHHH（HKG）：說中偏低（取消10、取消25、取延25）（說低時取消率 ≥ 10% 1%（3/405），全部機場 10.1%；說中時取消率 ≥ 25% 0%（0/21），全部機場 41%）",
+  "VMMC（MFM）：說低偏高（取消10、取消25、取延25）；說中偏低（取消10、取消25、取延25）（說低時取消率 ≥ 10% 32%（101/315），全部機場 10.1%；說中時取消率 ≥ 25% 0%（0/6），全部機場 41%）",
+  "每報每機場（105 個窗；兩個 AI 都有評的窗、取消率 ≥ 25%）：規則燈 說高 14 窗、有事件 100%、抓到 74%；Claude 說高 15 窗、有事件 100%、抓到 79%；Gemini 說高 14 窗、有事件 100%、抓到 74%",
+  "說高的格依原因（取消率 ≥ 25%）：風 88%（59/67）、雨 82%（9/11）、霧 100%（1/1）",
+  "113 個有效格的取消統計在格結束前就定了（`asOf` < `to`），其中 11 格是取消率 ≥ 25%的事件；這些格的延誤數不可靠",
+  "班次少的門檻 10 班 → 4 班：說高的格取消率 ≥ 25% 90%（71/79） → 90%（81/90）"
+ ]
+}

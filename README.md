@@ -498,6 +498,25 @@ python tools/gust_factor_report.py ../hongthai-data --days 7
 偏差中位數（模式 − METAR，節）、平均比值；(2) `history/gustfactor/` 每個機場 IFS、GFS 各自的中位數、合併
 中位數與樣本數，最後一行全部機場合併（G 目前只用 IFS，HD19；GFS 與合併是對照）。
 
+回測校準報告（HD46，`tools/calibration_report.py`；純讀、只用標準函式庫，不改 `assess.py`、門檻、每報的輸出）：
+「說高／中／低的時候，實際上各有多少比例真的大量取消或延誤」。
+
+```sh
+git fetch --depth 1 origin +refs/heads/data:refs/remotes/origin/data
+git worktree add ../hongthai-data origin/data
+python -m tools.calibration_report --archive ../hongthai-data --from 2026-10-18 --to 2026-11-10 \
+  --out report/calibration-2026-11.md --json report/calibration-2026-11.json
+```
+
+- 讀 `history/<時間>.json`（`--from`／`--to` 是 `generatedAt` 的 UTC 日期，含兩端）、`history/cancellations/`（桃園、
+  松山、高雄、香港、澳門）、事件保存的 TDX 逐班紀錄（其他台灣機場，只有事件期間）、`history/ai/`（快照沒有 `ai` 時）；
+  不讀私人 bucket。沒有航班資料的機場列在盤點、不算
+- 事件六種並列：一格（UTC 6 小時，依表定）取消率 ≥ 10%／25%／50%、（取消＋延誤）÷ 表定 ≥ 10%／25%／50%；表定少於
+  `--min-flights`（預設 10）班的格不進主要的表，另附 4 班的對照
+- 提前時間分 0–24／…／96–120 小時；同一個（機場、格、提前時間段）只取提前時間最靠近那段中間的一報（去重）；
+  比例附 Wilson 95% 區間。報告開頭寫資料截止時間、`data` 分支與工具的 commit，做法細節在工具開頭的 docstring
+- 這次的結果：`report/calibration-2026-11.md`（與 `.json`）
+
 中央氣象署的資料需要授權碼，從環境變數 `CWA_API_KEY` 讀；沒設定時氣象署標
 `sources.cwa.ok=false, error="no_api_key"`，其他照出。**不要把授權碼寫進程式或 repo。**
 
@@ -667,6 +686,7 @@ H10（2026-10-18）之後：
 - `src/hongthai/typhoons.py`：颱風地圖 `typhoons.json`（HD34，下面「颱風地圖」）；兩個官方來源的抓取與解析在
   `src/hongthai/sources/typhoon.py`；「幾點進暴風圈」的推算在 `src/hongthai/stormentry.py`（HD41，下面「進暴風圈時間」）
 - `tools/report_29w.py`：颱風 29W 的驗證報告（HD22，下面「事件保存」）
+- `tools/calibration_report.py`：回測校準報告（HD46，燈號等級對實際取消／延誤；上面「怎麼跑」）
 - `tools/ai_cost.py`：AI 對決的 token 用量、快取命中率與估計費用（HD26，下面「AI 對決」）
 - `src/hongthai/og.py`：分享預覽圖（HD1，下面「分享預覽圖」）；字型子集在 `assets/fonts/`，
   重做腳本 `tools/make_font_subset.py`
