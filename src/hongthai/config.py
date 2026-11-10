@@ -164,7 +164,7 @@ MODELS: tuple[Model, ...] = (
         {
             "zh-TW": "歐洲系集",
             "zh-HK": "歐洲系集",
-            "zh-CN": "欧洲系集",
+            "zh-CN": "欧洲集合预报",
             "en": "ECMWF ensemble",
         },
         votes_only_high=True,
@@ -209,7 +209,7 @@ MODELS: tuple[Model, ...] = (
         {
             "zh-TW": "Google WeatherNext 2 系集",
             "zh-HK": "Google WeatherNext 2 系集",
-            "zh-CN": "Google WeatherNext 2 系集",
+            "zh-CN": "Google WeatherNext 2 集合预报",
             "en": "Google WeatherNext 2 ensemble",
         },
         votes_only_high=True,
