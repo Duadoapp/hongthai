@@ -45,7 +45,9 @@ AI 對決（HD5，`ai/`）：組好 `latest.json`、模式沿用之後，在寫�
 走 `_call("ai", …)`、預算 `BUDGET_S["ai"]`；兩個模型平行呼叫，超時的機場記 `error: "timeout"`。
 AI 失敗不影響 `latest.json` 其他內容：頂層 `ai`、每個機場的 `ai`、`sources.ai` 一定會有
 （細節見 `ai/run.py`）。每日呼叫次數與對決戰績寫在 `--archive` 的 `history/ai/`
-（不進 Pages、不進 `latest.json`）。
+（不進 Pages、不進 `latest.json`）。HD50：先照時段決定這一報評不評（`ai/schedule.py`：
+早上那報評、晚上那報有颱風而且有高才評、`--ai on|off` 強制），不評的那報沿用上一份的 AI 燈；
+`typhoons.json` 因此在 AI 之前寫（`write_typhoons` 回傳組好的內容給 `run_ai`）。
 
 時間預算（H7）：每個來源（含航班）在 daemon 執行緒裡跑，最多等 `BUDGET_S` 秒；超過就記
 `sources.<名稱> = {"ok": false, "error": "timeout", "seconds": <預算>}`、不等它，繼續下一個來源
@@ -135,6 +137,7 @@ from . import (
     wn3report,
 )
 from .ai import run as ai
+from .ai import schedule as ai_schedule
 from .config import (
     MODELS,
     Airport,
@@ -396,6 +399,8 @@ class Timing:
             fields["usage"] = st.get("usage")  # HD26
             fields["costUsd"] = st.get("costUsd")
             fields["errorMessages"] = st.get("errorMessages")  # HD30
+            if st.get("skipped"):  # HD50：不評的那報（`off_schedule`／`disabled`）
+                fields["skipped"] = st["skipped"]
         if name in ("openmeteo", "tdx"):  # tdx：HD38（每月計數看 `history/tdx/`，不看這裡）
             fields["calls"] = st.get("calls")
         if name == "wn3":  # HD15；`stored`：HD15b `private`、HD43 `vote`
@@ -1272,9 +1277,13 @@ def run(
     timing: Timing | None = None,
     events_path: Path | None = None,
     airport_out: dict[str, dict] | None = None,
+    ai_mode: str = "auto",
+    ai_slot: datetime | None = None,
 ) -> dict:
     """抓、判讀、寫 `--archive`，回傳 `latest.json` 的內容。給了 `airport_out` 時把機場頁的 3 小時
-    格（HD35，`airport_files`）放進去（`{iata 小寫: 內容}`），由 `publish` 寫進 Pages。"""
+    格（HD35，`airport_files`）放進去（`{iata 小寫: 內容}`），由 `publish` 寫進 Pages。
+    `ai_mode`、`ai_slot`（HD50）：`--ai` 與這一報的時段（`slot_of`，沒給就用 `now` 算），
+    見 `run_ai`。"""
     regions = load_regions(airports_path)
     airports = load_airports(airports_path)
     confirmed = load_confirmed(confirmed_path)
@@ -1438,7 +1447,18 @@ def run(
                 **inputs,
             )
         )
-    run_ai(latest, previous_latest(archive, pages_url), now, history, timing)
+    # HD50：先寫 `typhoons.json`（AI 要看這一報有沒有颱風），再跑 AI
+    storms = write_typhoons(
+        archive,
+        ct,
+        jt,
+        status,
+        now,
+        airports_path.with_name(typhoons.NAMES_FILENAME),
+        airports,
+    )
+    prev_latest = previous_latest(archive, pages_url)
+    run_ai(latest, prev_latest, now, history, timing, ai_slot or slot_of(now), ai_mode, storms)
     hide_wn3(latest)  # HD43：AI 評完才藏（AI 要 WN3 的數字），之後才寫檔、發布、畫分享圖
 
     stamp = f"{now:%Y%m%dT%H%M}Z"
@@ -1470,15 +1490,6 @@ def run(
         _dump(raw_dir / f"{now:%H%M}Z-openmeteo.json", om.raw, compact=True)
     _dump(history / f"{stamp}.json", latest, compact=True)
     _dump(archive / "latest.json", latest, compact=True)
-    write_typhoons(
-        archive,
-        ct,
-        jt,
-        status,
-        now,
-        airports_path.with_name(typhoons.NAMES_FILENAME),
-        airports,
-    )
     if events_path is not None:
         event_snapshots(events_path, history, now, history / f"{stamp}.json")
     return latest
@@ -1492,8 +1503,9 @@ def write_typhoons(
     now: datetime,
     names_path: Path | None = None,
     airports: Sequence[Airport] = (),
-) -> None:
+) -> dict | None:
     """`--archive` 的 `typhoons.json`（HD34，`typhoons.build`；`publish()` 再複製到發布目錄）。
+    回傳組好的內容（HD50 的 AI 排程看有沒有颱風；組不出來是 None）。
     `airports` 給「幾點進暴風圈」的 `entries`（HD41）。
     `names_path` 是颱風名稱對照表（HD34c，`airports.json` 旁邊的 `typhoon_names.json`）。HD34d：
     `--archive`（`data` 分支）根目錄的 `typhoon_names.json` 優先（`typhoons.read_names`）；有名字
@@ -1506,6 +1518,7 @@ def write_typhoons(
         if names_doc is None:
             log.error("颱風名稱對照表 %s 讀不了，名稱照來源給的", names_path)
     table = typhoons.names_table(names_doc) if names_doc is not None else None
+    doc = None
     try:
         previous = typhoons.read_previous(archive)
         unknown: typhoons.Unknown = []
@@ -1533,6 +1546,7 @@ def write_typhoons(
         )
     except Exception:  # 保險：颱風地圖不能讓 build 失敗
         log.exception("typhoons.json 寫不了")
+    return doc
 
 
 def track_events(events_path: Path | None, now: datetime) -> list[Event]:
@@ -1655,26 +1669,45 @@ def gust_factors(
 
 
 def run_ai(
-    latest: dict, prev: dict | None, now: datetime, history: Path, timing: Timing | None = None
+    latest: dict,
+    prev: dict | None,
+    now: datetime,
+    history: Path,
+    timing: Timing | None = None,
+    slot: datetime | None = None,
+    mode: str = "auto",
+    storms: dict | None = None,
 ) -> None:
     """AI 對決（HD5）：在 `BUDGET_S["ai"]` 秒內評，結果寫進 `latest`（頂層 `ai`、
     `airports[].ai`、`sources.ai`），寫一行耗時紀錄（`source: "ai"`）。任何失敗都不丟例外、
-    不動 `latest` 其他內容。"""
+    不動 `latest` 其他內容。
+
+    HD50：先照時段決定這一報評不評（`ai/schedule.py`；`slot` 是這一報的時段 `slot_of`、沒給就用
+    `now` 算，`mode` 是 `--ai`，`storms` 是這一報的 `typhoons.json`）。不評的那報沿用上一份 `prev`
+    的 AI 燈、不呼叫、不寫戰績與每日次數；頂層 `ai` 都多 `schedule`。"""
     status: dict[str, dict] = {}
     t0 = time.monotonic()
+    sched = None
     try:
-        duel = ai.Duel(latest, prev, now, history, budget_s=BUDGET_S["ai"])
-        _call("ai", duel.run, status)
-        result = duel.result(timed_out=status["ai"].get("error") == "timeout")
+        sched = ai_schedule.plan(slot or slot_of(now), mode, latest, storms, SLOTS)
+        if sched["evaluated"]:
+            duel = ai.Duel(latest, prev, now, history, budget_s=BUDGET_S["ai"])
+            _call("ai", duel.run, status)
+            result = duel.result(timed_out=status["ai"].get("error") == "timeout")
+        else:
+            result = ai_schedule.skipped_result(latest, prev, sched)
+            status["ai"] = {"ok": True, "seconds": round(time.monotonic() - t0, 1)}
     except Exception as e:  # 保險：AI 不能讓 build 失敗
         log.exception("AI 對決失敗")
         status["ai"] = {"ok": False, "error": e.__class__.__name__}
         result = ai.fallback(latest, "network")
+    if sched is not None:
+        result["ai"] = {**result["ai"], "schedule": sched}
     src = result["source"]
     seconds = status.get("ai", {}).get("seconds", round(time.monotonic() - t0, 1))
     source = {"ok": src["ok"], "seconds": seconds, **{k: v for k, v in src.items() if k != "ok"}}
     ai.apply(latest, result, source)
-    log.info("AI 對決：%s", source)
+    log.info("AI 對決（%s）：%s", sched and sched["reason"], source)
     if timing is not None:  # token 合計、估計費用、錯誤訊息只進 timing/，`latest.json` 不加
         extra = {k: result.get(k) for k in ("usage", "costUsd", "errorMessages")}  # HD26、HD30
         timing.source("ai", {**source, **extra}, budget.Context())
@@ -1799,6 +1832,13 @@ def main(argv: list[str] | None = None) -> int:
         default="manual",
         help="誰觸發的（HD25）：schedule／cloudflare 這個時段已經出過就跳過，manual 一律照跑",
     )
+    ap.add_argument(
+        "--ai",
+        choices=ai_schedule.MODES,
+        default="auto",
+        help="AI 評論（HD50）：auto 照時段（早上那報評、晚上那報有颱風而且有高才評），"
+        "on 一律評、off 一律不評",
+    )
     args = ap.parse_args(argv)
 
     logging.basicConfig(
@@ -1841,6 +1881,8 @@ def main(argv: list[str] | None = None) -> int:
                 timing=timing,
                 events_path=args.events,
                 airport_out=airport_docs,
+                ai_mode=args.ai,
+                ai_slot=slot or slot_of(started),
             )
         produced = True
         publish(args.out, args.archive, latest, now, airport_docs)
