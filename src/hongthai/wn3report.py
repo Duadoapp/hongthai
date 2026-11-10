@@ -381,7 +381,8 @@ def observe_private(
 
 def points_doc(data: wn3.Wn3Data) -> dict:
     """投票用的逐時數字（只進私人 bucket `points/`）：每小時一列
-    `[有效時間, p50, 平均, p90, 風向, 雨量, 溫度]`（同 `Wn3Hour`）。"""
+    `[有效時間, p50, 平均, p90, 風向, 雨量, 溫度]`（同 `Wn3Hour`）。Zarr 讀的（HD49）：6 的倍數的
+    時效有風，其他小時風是 null、只有雨量；雨量讀不到時只有每 6 小時的列、雨量 null（同以前）。"""
     return {
         "model": "wn3",
         "run": iso(data.run),

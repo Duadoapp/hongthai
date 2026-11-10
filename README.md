@@ -207,7 +207,9 @@ Shawn 2026-10-19 定案。模式層從「HRES、GFS 取較高（加系集撐高�
     另外把逐時數字存 `points/<起報>.json`；同一報之後的 build 從 `points/` 讀、不再查 BigQuery；最新一報還查不到時
     用私人 bucket 裡前一報的（`sources.wn3.stored: "previous"`、`latestError`）
   - 接在 HD33b 的三個旁觀模式後面（第 12 筆）；數字是逐時的 64 成員**中位數（p50）**10 米風，沒有陣風 → 同 JMA
-    GSM 用平均風 × G 估算；雨量照投；沒有降水型態（不投雪）與能見度
+    GSM 用平均風 × G 估算；雨量照投（HD49 起 Zarr 也讀逐時雨量，同其他有雨量、沒有降水型態的模式的門檻：
+    6 小時 ≥ 60 mm 高、≥ 30 mm 中；讀不到時只投風，`sources.wn3.rain: false`）；沒有降水型態（不投雪）與能見度
+    （不投霧）
   - **日本、南韓的 15 個機場**（`airports.json` 的 `region` 是 `okinawa`、`japan`、`korea`，
     `config.WN3_EXCLUDED_REGIONS`）投票與 AI 都**不含** WN3，`models[]` 也沒有它那筆
   - `latest.json`、機場頁、`data` 分支、Pages、分享圖都**沒有** WN3 的數值與分項等級：每格 `models[]` 那筆只有
@@ -411,7 +413,7 @@ Shawn 2026-10-23、2026-10-25 00:35 定案（Duado spec 第 16 節「颱風期�
   | `icon` | Open-Meteo 逐時，ICON global 0–78 小時原生 1 小時 | `false` |
   | `jma` | Open-Meteo 逐時，但雨量是每 6 小時一個值平均攤到 6 個小時、風是內插的（metadata `jma_gsm` 的 `temporal_resolution_seconds` 21600） | `true` |
   | `wn2-ens` | Open-Meteo `temporal_resolution=native`，每 6 小時 | `true` |
-  | `wn3`（`observe` 才有） | 只讀 6 小時整的步長（`wn3.STEP_H`） | `true` |
+  | `wn3`（`observe` 才有） | 風只讀 6 小時整的步長（`wn3.STEP_H`）；雨量逐時（HD49），但整筆照 6 小時格放 | `true` |
   | `gem`、`arpege`（HD33b 旁觀） | Open-Meteo 逐時，原生 1 小時（metadata `cmc_gem_gdps_15km`、`meteofrance_arpege_world025` 的 `temporal_resolution_seconds` 3600；ARPEGE 約 102 小時後沒有） | `false` |
   | `cma`（HD33b 旁觀） | Open-Meteo 逐時，原生 3 小時（metadata `cma_grapes_global` 10800；3 小時格各有一個原生值） | `false` |
 
@@ -576,7 +578,7 @@ H10（2026-10-18）之後：
 | aifs（ECMWF AIFS Single，HD14；鏡像同 ecmwf） | 180 | 55（2026-10-20，66 MB，從 ECMWF 入口；AWS 回 503） |
 | aigfs（NOAA AIGFS，HD14；只有 AWS） | 120 | 38（2026-10-20，51 MB） |
 | openmeteo（ICON、JMA GSM、WeatherNext 2 系集，HD16；HD33b 的三個旁觀模式併在預報那個請求；兩個請求、各 60 秒逾時、不重試） | 90 | 約 2–3（2026-10-20 雲端開發機，預報 632 KB／1.0 秒、系集 3 個變數時 1.6 MB／1.2 秒；只抓風速約 560 KB）。HD33b 後（2026-10-25 00:08Z 實抓）預報 1.4 MB、系集 0.56 MB，連 6 個 metadata 共 3.9 秒；旁觀模式的 metadata 在 60 秒後就不問（`runError` 記 `skipped`） |
-| wn3（Google WeatherNext 3，HD15；BigQuery 一個查詢，失敗退 GCS Zarr；事件期間加讀海平面氣壓。HD15b `private`：私人 bucket 查兩次、寫一次，同一報已經有就不查 BigQuery；排在算完 G 之後。HD43 `vote`：同 `private`，再寫一個逐時檔 `points/`（51 個機場約 0.6 MB）；同一報已經有就讀它（約 0.6 MB、30 秒逾時）不查 BigQuery） | 120 | 還沒核准、沒實測（核准前幾秒就 `http_403`） |
+| wn3（Google WeatherNext 3，HD15；BigQuery 一個查詢，失敗退 GCS Zarr；事件期間加讀海平面氣壓。HD15b `private`：私人 bucket 查兩次、寫一次，同一報已經有就不查 BigQuery；排在算完 G 之後。HD43 `vote`：同 `private`，再寫一個逐時檔 `points/`（51 個機場約 2 MB）；同一報已經有就讀它（30 秒逾時）不查 BigQuery。HD49：Zarr 多讀逐時雨量，最多 90 秒，超過只放棄雨量） | 210 | 還沒核准、沒實測（核准前幾秒就 `http_403`） |
 | taf（含 METAR） | 45 | 幾秒 |
 | hko、smg | 各 30 | 幾秒 |
 | cwa | 45 | 幾秒 |
@@ -596,7 +598,8 @@ H10（2026-10-18）之後：
   GRIB 解析有全域鎖），程式結束時不等它
 - 總和 1785 秒（29.75 分鐘；HD3 加 nws 30 秒、HD1 加 og 60 秒、HD5 加 ai 180 秒、HD12 ai 再加 60 秒、HD14 加
   aifs 180＋aigfs 120 秒、HD21 加 tracks 150 秒、HD9 加 jma 45 秒、HD16 加 openmeteo 90 秒、HD15 加 wn3 120 秒；
-  HD29 加 swic 45 秒、HD38 加 tdx 45 秒、HD34 加 cwaTyphoon 15＋jmaTyphoon 20 秒，總和 1910 秒，約 31.8 分鐘），
+  HD29 加 swic 45 秒、HD38 加 tdx 45 秒、HD34 加 cwaTyphoon 15＋jmaTyphoon 20 秒，總和 1910 秒，約 31.8 分鐘；
+  HD49 wn3 再加 90 秒（逐時雨量），總和 2000 秒，約 33.3 分鐘），
   Actions「產生 latest.json」那一步上限 45 分鐘、整個 job 55 分鐘（2026-10-25 前 32／42：HD38＋HD34 後總和 1,910 秒逼近 32 分鐘，Shawn 同意放寬；HD15 前 30／40、HD16 前 28／38、HD21 前
   25／35、HD14 前是 20／30、HD12 前 18／28、HD5 前 15／25）。HD21 事件期間 gfs、aigfs、aifs
   多抓的海平面氣壓（每個步長約 1.0／1.0／0.5 MB，三個共約 52 MB）算在它們自己的預算裡
@@ -2297,8 +2300,11 @@ HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**�
   - `model.vote` 的票數照實算（含 WN3；日韓不含）；`model.level`、`level`、`causes`、`gap`、一致性只看綜合結果
   - 機場頁 `airports/<iata>.json` 的 `slots3h`、`slots6h` 同上
   - `sources.wn3`：`{"ok", "seconds", "mode": "vote", "run", "stored": "written"|"exists"|"previous",
-    "attribution"}`，這一報有查（`written`）時再加 `via`、`bytes`、`estimateBytes`、`bytesProcessed`、
+    "attribution", "rain"}`，這一報有查（`written`）時再加 `via`、`bytes`、`estimateBytes`、`bytesProcessed`、
     `bytesBilled`（同下）；`previous`（最新一報還查不到、用私人 bucket 裡前一報的）時多 `latestError`（錯誤碼）。
+    `rain`（HD49）：這一報的 WN3 有沒有雨量（`true`／`false`；`exists` 看 `points/` 裡有沒有），有查而且 Zarr 的雨量
+    讀不到時多 `rainError`（只有錯誤碼：`zarr_no_rain`、`zarr_not_hourly`、`zarr_empty`、`rain_timeout`、`http_403`、
+    例外類別名），風照用、雨不投。`history/timing/` 的 wn3 那行也多 `rain`、`rainError`。
     `attribution` 是 GDM 即時資料條款 Section 4(b) 的固定標註原文，前面加取得管道：
     `"Google WeatherNext 3 via Google BigQuery. © 2024-6 Google LLC, whose machine learning models were used to
     create the experimental data made available under the following licence terms
@@ -2315,8 +2321,8 @@ HD15（2026-10-20，Google WeatherNext 3；`schema` 維持 `1`，**只加值**�
   `r2`、`r2Files`、`r2Bytes` HD43 拿掉了
 - **`WN3_MODE=report-only`**：`latest.json` 唯一的變化是事件期間、5 天前那一報落在期間內的報多
   `sources.wn3`：`{"ok", "seconds", "mode": "report-only", "run", "via": "bigquery"|"zarr", "bytes",
-  "estimateBytes", "bytesProcessed", "bytesBilled"}`，BigQuery 失敗退到 Zarr 時多 `bqError`、氣壓讀不到時
-  多 `mslpError`；失敗時 `ok: false`、`error`（核准前 `http_403`）、`mode`。頂層 `models`、`runs`、每格
+  "estimateBytes", "bytesProcessed", "bytesBilled", "rain"}`，BigQuery 失敗退到 Zarr 時多 `bqError`、氣壓讀不到時
+  多 `mslpError`、雨量讀不到時多 `rainError`（HD49）；失敗時 `ok: false`、`error`（核准前 `http_403`）、`mode`。頂層 `models`、`runs`、每格
   `models[]` 都**沒有** `wn3`
 - **`WN3_MODE=observe`**（**公開數值**，Google 書面同意公開數值後才能切；欄位到時再經 Shawn 轉 Duado）：
   - 頂層 `models[]` 多第 9 筆 `{"id": "wn3", "name": {四語都是 "Google WeatherNext 3"}, "voting": false}`
@@ -2568,11 +2574,21 @@ HD15 WeatherNext 3（2026-10-20 查，**還沒核准、沒有實抓**；細節�
 
   回 51 個機場附近 1–4 格 × 121 小時（Python 取最近那格）。掃描量見上面「已知的保守假設」（分割一天約 1 TB
   的上限、靠叢集才會小；`maximum_bytes_billed` 8 GB 保底不收錢）
-- Zarr 備援只讀每 6 小時的風（p50、平均、p90、平均 u／v），**沒有雨量**（逐時雨量要 120 張全球圖）。一報
+- Zarr 讀每 6 小時的風（p50、平均、p90、平均 u／v）。一報
   21 個時間 × 5 個變數 × 一張全球 25.9 MB ≈ **2.7 GB 未壓縮**（壓縮後估 1 GB 上下）；路徑用的平均海平面氣壓
   21 張 ≈ 545 MB 未壓縮。若 Google 的 Zarr 有分片（sharding）、內層 chunk 小，逐點索引只抓有機場的那幾塊，
   會小很多——核准後第一報看 `sources.wn3.bytes`。成員路徑（`<報>-wn3-ens.json`）一報要讀 64 × 20 張全球、
   上百 GB，不做
+- **Zarr 的逐時雨量**（HD49，2026-11-11 Shawn 定案「要加，build 多約 1 分鐘可以」；`wn3.zarr_rain`）：
+  `total_precipitation_1hr_mean`（m，前 1 小時；公開的 Statistics Colab 列的變數與單位，`lead_time` 逐時
+  1–360、chunk `(1, 1801, 3600)`），只讀投票窗要的時效（每格 (from, to] 的小時：`vote` 約 1–132、`report-only`
+  7–126 這類），m → mm 用 BigQuery 那條路同一個 `_hour`、加總用同一個 `assess.wn3_for_slot`（缺的小時照
+  BigQuery 的規則：有的照加、整格沒有是 null）。一報約 120–132 張全球 ≈ **3.1–3.4 GB 未壓縮**（雨量多半是 0，
+  壓縮後估 0.5–1 GB）；6 個時效一批、4 批並行（zarr 一批內的 chunk 自己也並行抓），最多 90 秒
+  （`RAIN_TIMEOUT_S`，來源預算 120 → 210 秒）。變數不在、時間軸不是逐時、讀失敗或超時：**風照用、雨當沒有**
+  （`sources.wn3.rain: false`＋`rainError`）。`points/` 變成每小時一列（6 的倍數以外的小時風是 null、只有雨量，
+  約 0.6 → 2 MB），`observe/`／`history/wn3/` 的格式不變（`rain6hMm`、`levels.rain` 從 null 變成有值）。
+  **核准後第一報看 `sources.wn3.seconds`、`bytes`、`rain`**
 - **匿名試讀（2026-10-20 12:2xZ，雲端開發機）**：`gs://weathernext3_spatial/` 與
   `gs://weathernext3_statistics_spatial/` 列目錄、讀 `zarr.json` 都被拒——`curl
   "https://storage.googleapis.com/storage/v1/b/weathernext3_spatial/o?maxResults=5"` 回 `401`「Anonymous

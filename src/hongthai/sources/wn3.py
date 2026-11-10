@@ -24,9 +24,10 @@ allowlist（2026-10-20 19:04 送出，5–7 個工作天），沒核准前查詢
   （Pa）等。**沒有陣風、能見度、降水型態、降雪**。叢集欄位文件沒寫
 - **GCS Zarr**（備援）：統計 `gs://weathernext3_statistics_spatial/weathernext_3_0_0_statistics/zarr/
   2026_to_present/<YYYYMMDD_HHhr_XX_preds>/predictions.zarr/`（Zarr v3），維度 `lead_time`
-  （1–360 小時，timedelta）、`lat_0p1`（1801）、`lon_0p1`（3600，**0–360**），變數名同 BigQuery
-  （`<變數>_p50`）；範例裡的 chunk 是**一個時間一整張全球**（1 × 1801 × 3600 float32 ≈ 25.9 MB
-  未壓縮）。64 個成員的原始資料在 `gs://weathernext3_spatial/`（requester pays，一個成員一個
+  （1–360 小時，timedelta，**逐時**）、`lat_0p1`（1801）、`lon_0p1`（3600，**0–360**），變數名同
+  BigQuery（`<變數>_p50`；雨量 `total_precipitation_1hr_mean`，m，前 1 小時，2026-11-11 查公開的
+  Statistics Colab 確認）；範例裡的 chunk 是**一個時間一整張全球**（1 × 1801 × 3600 float32 ≈
+  25.9 MB 未壓縮）。64 個成員的原始資料在 `gs://weathernext3_spatial/`（requester pays，一個成員一個
   6 小時一張全球，讀成員路徑一報要上百 GB，不做）
 - 發布時間（dissemination schedule）：主報 BigQuery 在起報後約 8 小時 10 分、GCS 7 小時 45 分（±15
   分鐘，偶爾 ±60 分鐘以上）→ `latest_run` 取「現在 − 8 小時 10 分 − 20 分鐘」以前最近的主報，
@@ -40,8 +41,13 @@ allowlist（2026-10-20 19:04 送出，5–7 個工作天），沒核准前查詢
 - BigQuery 每個查詢先 dry run 記下估計的掃描量（`estimateBytes`；叢集裁切前的上限），再用
   `maximum_bytes_billed`＝`BQ_MAX_BYTES`（8 GB）真的查：超過 BigQuery 直接拒絕、不收錢
   （`bq_bytes_limit`），退到 Zarr。每月免費 1 TB ÷（一天 4 報 × 31 天）≈ 8 GB
-- Zarr 備援只讀每 6 小時的風（p50、p90、平均 u／v，`ZARR_WIND_VARS`），不讀雨量（逐時要 120 張
-  全球圖）；路徑用的平均海平面氣壓也是每 6 小時一張
+- Zarr 讀每 6 小時的風（p50、p90、平均 u／v，`ZARR_WIND_VARS`）＋**逐時雨量**（HD49，
+  `ZARR_RAIN_VAR`，`zarr_rain`）：每個格 (from, to] 的 6 個小時，m → mm 與 BigQuery 同一個 `_hour`、
+  加總同一個 `assess.wn3_for_slot`（所以 `rain6hMm` 只有一套算法）。一報約 120–132 個時效、每個
+  一張全球 chunk（約 26 MB 未壓縮、約 3.4 GB 合計；壓縮後實際下載量看第一報的 `bytes`）。分批
+  （`RAIN_BATCH_H` 個時效一批）、`RAIN_WORKERS` 條並行讀，最多 `RAIN_TIMEOUT_S` 秒；變數不在、
+  時間軸不是逐時、讀失敗或超時都是**風照用、雨當沒有**（`Wn3Data.rain` false＋`rain_error`
+  錯誤碼）。路徑用的平均海平面氣壓每 6 小時一張
 """
 
 from __future__ import annotations
@@ -50,6 +56,7 @@ import logging
 import os
 import time
 from collections.abc import Callable, Sequence
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -104,6 +111,11 @@ ZARR_WIND_VARS = (
     "v_component_of_wind_10m_mean",
 )
 ZARR_MSLP_VAR = "mean_sea_level_pressure_mean"
+# HD49：逐時雨量（m，前 1 小時；BigQuery 那條路的同名欄位）。一個時效一張全球 chunk，分批並行讀
+ZARR_RAIN_VAR = "total_precipitation_1hr_mean"
+RAIN_TIMEOUT_S = 90  # 雨量最多讀這麼久，超過就放棄（風照用、`rain_timeout`）
+RAIN_BATCH_H = 6  # 一批幾個時效（一個 6 小時格）；批與批之間檢查取消與期限
+RAIN_WORKERS = 4  # 幾批同時讀（zarr 一批裡的 chunk 自己也會並行抓）
 
 
 class Wn3Error(SourceError):
@@ -124,7 +136,8 @@ def via_mode(env: dict[str, str] | None = None) -> str:
 @dataclass
 class Wn3Hour:
     """一個小時（`valid` 是有效時間）：10 米風 p50、平均、p90（節）、平均風向、前 1 小時雨量
-    （平均，mm）、2 米溫度（平均，°C）。Zarr 備援沒有雨量與溫度（None）。"""
+    （平均，mm）、2 米溫度（平均，°C）。Zarr 沒有溫度；風只有 6 的倍數的時效有，其他小時只有雨量
+    （HD49；雨量讀不到時只有每 6 小時的風）。"""
 
     valid: datetime
     wind_kt: float | None
@@ -156,6 +169,14 @@ class Wn3Data:
     bq_error: str | None = None  # BigQuery 失敗、退到 Zarr 的原因
     mslp: dict[datetime, Grid] = field(default_factory=dict)  # 有效時間 → 平均海平面氣壓（Pa）
     mslp_error: str | None = None
+    # HD49：雨量有沒有讀到（BigQuery 一律 True）；Zarr 讀不到時 `rain_error` 是錯誤碼
+    rain: bool | None = None
+    rain_error: str | None = None
+
+
+def has_rain(data: Wn3Data) -> bool:
+    """任一機場任一小時有雨量（`points/` 讀回來的那報用這個判斷 `sources.wn3.rain`）。"""
+    return any(h.precip_mm is not None for hours in data.points.values() for h in hours)
 
 
 # ---- 認證與時次 ----
@@ -415,12 +436,103 @@ def _chunk_bytes(da, lat_idx: Sequence[int], lon_idx: Sequence[int], box: bool =
     return n * clat * clon * da.dtype.itemsize
 
 
+def rain_leads(h0: int, h1: int) -> list[int]:
+    """逐時雨量要讀的時效：格是 (from, to]，所以 `h0` 是 6 的倍數（窗的起點在起報之後）時從
+    `h0 + 1` 起；`h0` 是 1（`lead_window` 把起報或更早的起點夾成 1）時從 1 起。"""
+    first = h0 + 1 if h0 % STEP_H == 0 else h0
+    return list(range(max(1, first), h1 + 1))
+
+
+@dataclass
+class RainRead:
+    """`zarr_rain` 的結果：時效 → 每個機場的雨量（m，原始值；換算交給 `_hour`）、估計讀的未壓縮
+    bytes（讀完的批才算）、錯誤碼（None＝全部讀到）。有錯誤時 `values` 是空的（雨當沒有）。"""
+
+    values: dict[int, np.ndarray]
+    size: int
+    error: str | None
+
+
+def _rain_batch(da, leads: Sequence[int], pts: dict) -> np.ndarray:
+    tds = [np.timedelta64(h, "h") for h in leads]
+    out = da.sel(lead_time=tds).isel(pts)
+    return np.asarray(out.transpose("lead_time", "pt").values, dtype=float)
+
+
+def _rain_code(e: Exception) -> str:
+    if isinstance(e, PermissionError) or str(e).startswith("Forbidden"):
+        return "http_403"
+    code = getattr(e, "code", None)
+    return f"http_{code}" if isinstance(code, int) else e.__class__.__name__
+
+
+def zarr_rain(
+    ds,
+    leads: Sequence[int],
+    li: np.ndarray,
+    lj: np.ndarray,
+    timeout: float | None = None,
+    workers: int | None = None,
+) -> RainRead:
+    """逐時雨量（`ZARR_RAIN_VAR`）的這些時效 → 每個機場（HD49）。分成 `RAIN_BATCH_H` 個時效一批、
+    `workers`（預設 `RAIN_WORKERS`）條並行讀，主執行緒每秒檢查一次 `check_cancelled` 與 `timeout`
+    （預設 `RAIN_TIMEOUT_S`）。
+
+    錯誤碼（只有錯誤碼，日誌不印任何數值）：`zarr_no_rain`（沒有這個變數）、`zarr_empty`（沒有
+    要的時效）、`zarr_not_hourly`（時間軸只有 6 的倍數，沒有逐時）、`rain_timeout`、或讀的那一批的
+    錯誤（`http_403`、例外類別名）。被取消（`Cancelled`）照樣往外丟，沒讀完的批不再開始。"""
+    if ZARR_RAIN_VAR not in ds:
+        return RainRead({}, 0, "zarr_no_rain")
+    have = _leads(ds, leads)
+    if not have:
+        return RainRead({}, 0, "zarr_empty")
+    if all(h % STEP_H == 0 for h in have) and len(have) < len(leads):
+        return RainRead({}, 0, "zarr_not_hourly")
+    import xarray as xr  # 延後載入
+
+    da = ds[ZARR_RAIN_VAR]
+    pts = {"lat_0p1": xr.DataArray(li, dims="pt"), "lon_0p1": xr.DataArray(lj, dims="pt")}
+    per_lead = _chunk_bytes(da, li, lj)
+    batches = [have[k : k + RAIN_BATCH_H] for k in range(0, len(have), RAIN_BATCH_H)]
+    deadline = time.monotonic() + (RAIN_TIMEOUT_S if timeout is None else timeout)
+    n_workers = RAIN_WORKERS if workers is None else workers
+    pool = ThreadPoolExecutor(max_workers=max(1, n_workers), thread_name_prefix="wn3-rain")
+    futures = {pool.submit(_rain_batch, da, b, pts): b for b in batches}
+    values: dict[int, np.ndarray] = {}
+    size = 0
+    error: str | None = None
+    try:
+        pending = set(futures)
+        while pending and error is None:
+            check_cancelled()
+            left = deadline - time.monotonic()
+            if left <= 0:
+                error = "rain_timeout"
+                break
+            done, pending = wait(pending, timeout=min(1.0, left), return_when=FIRST_COMPLETED)
+            for f in done:
+                exc = f.exception()
+                if exc is not None:
+                    error = _rain_code(exc) if isinstance(exc, Exception) else "rain_cancelled"
+                    break
+                batch = futures[f]
+                size += len(batch) * per_lead
+                for k, h in enumerate(batch):
+                    values[h] = f.result()[k]
+    finally:
+        # 沒開始的批不再開始；正在讀的那幾批讀完就結束（Python 停不了執行緒）
+        pool.shutdown(wait=False, cancel_futures=True)
+        add_bytes(size)
+    return RainRead({} if error else values, size, error)
+
+
 def zarr_points(
-    ds, run: datetime, h0: int, h1: int, airports: Sequence[Airport]
-) -> tuple[dict[str, list[Wn3Hour]], int]:
-    """統計 Zarr 的每 6 小時風（`ZARR_WIND_VARS`）→ 每個機場；回傳（資料, 估計讀的未壓縮 bytes）。
-    用逐點索引，Zarr 只抓有機場的 chunk（範例裡一個 chunk 是一整張全球，就是每個時間一張）。
-    沒有雨量與溫度。"""
+    ds, run: datetime, h0: int, h1: int, airports: Sequence[Airport], rain: bool = True
+) -> tuple[dict[str, list[Wn3Hour]], int, RainRead | None]:
+    """統計 Zarr 的每 6 小時風（`ZARR_WIND_VARS`）＋逐時雨量（`zarr_rain`，HD49；`rain=False` 不讀）
+    → 每個機場；回傳（資料, 估計讀的未壓縮 bytes（風＋雨）, 雨量的結果）。用逐點索引，Zarr 只抓
+    有機場的 chunk（範例裡一個 chunk 是一整張全球，就是每個時間一張）。雨量讀不到時只有風（同
+    HD49 以前），讀到時每小時一筆（6 的倍數以外的小時風是 None）。沒有溫度。"""
     import xarray as xr  # 延後載入
 
     leads = _leads(ds, [h for h in range(h0, h1 + 1) if h % STEP_H == 0])
@@ -442,12 +554,21 @@ def zarr_points(
         cols[var] = np.asarray(da.transpose("lead_time", "pt").values, dtype=float)
         size += len(tds) * _chunk_bytes(ds[var], li, lj)
     add_bytes(size)
+    rr = zarr_rain(ds, rain_leads(h0, h1), li, lj) if rain else None
+    rain_vals = rr.values if rr is not None else {}
+    if rr is not None:
+        size += rr.size
+    wind_at = {h: k for k, h in enumerate(leads)}
     out: dict[str, list[Wn3Hour]] = {}
     for n, a in enumerate(airports):
-        out[a.icao] = [
-            _hour(run, h, {var: cols[var][k, n] for var in cols}) for k, h in enumerate(leads)
-        ]
-    return out, size
+        rows = []
+        for h in sorted(set(leads) | set(rain_vals)):
+            rec = {var: cols[var][wind_at[h], n] for var in cols} if h in wind_at else {}
+            if h in rain_vals:
+                rec[ZARR_RAIN_VAR] = rain_vals[h][n]
+            rows.append(_hour(run, h, rec))
+        out[a.icao] = rows
+    return out, size, rr
 
 
 def zarr_mslp(ds, run: datetime, leads: Sequence[int]) -> tuple[dict[datetime, Grid], int]:
@@ -515,6 +636,7 @@ def fetch(
             break
         if any(res.points.values()):
             data = Wn3Data(r, res.points, "bigquery", 0, res.estimate, res.processed, res.billed)
+            data.rain = True
             break
         log.warning("WeatherNext 3 BigQuery %s 沒有資料（還沒發布？）", iso(r))
         bq_error = "no_rows"
@@ -529,7 +651,7 @@ def fetch(
             try:
                 ds = open_stats(r)
                 h0, h1 = lead_window(r, start, end)
-                points, size = zarr_points(ds, r, h0, h1, airports)
+                points, size, rr = zarr_points(ds, r, h0, h1, airports)
             except Wn3Error as e:
                 if e.code == "zarr_not_found" and r is not runs[-1]:
                     continue
@@ -537,6 +659,10 @@ def fetch(
                 fields = {"bqError": bq_error, "zarrError": e.code}
                 raise Wn3Error(f"BigQuery：{bq_error}；Zarr：{e}", code, fields) from e
             data = Wn3Data(r, points, "zarr", size, bq_error=bq_error)
+            if rr is not None:
+                data.rain, data.rain_error = rr.error is None, rr.error
+                if rr.error:
+                    log.warning("WeatherNext 3 的雨量讀不到（%s），只用風", rr.error)
             break
     assert data is not None
     data.points = {a.icao: data.points.get(a.icao, []) for a in airports}
@@ -553,10 +679,12 @@ def fetch(
             log.warning("WeatherNext 3 的海平面氣壓讀不到（%s）：%s", e.code, e)
             data.mslp_error = e.code
     log.info(
-        "WeatherNext 3 %s：%s，%d 個機場有資料，掃描 %s／計費 %s bytes、讀 Zarr %d bytes，%.1f 秒",
+        "WeatherNext 3 %s：%s，%d 個機場有資料，雨量 %s，掃描 %s／計費 %s bytes、讀 Zarr %d bytes，"
+        "%.1f 秒",
         iso(data.run),
         data.via,
         sum(bool(v) for v in data.points.values()),
+        "有" if data.rain else f"沒有（{data.rain_error}）",
         data.bytes_processed,
         data.bytes_billed,
         data.bytes_downloaded,

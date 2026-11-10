@@ -1772,6 +1772,7 @@ def test_timing_written_per_source_as_it_goes(workspace, monkeypatch, airports):
     assert set(wn_line) == {
         *("run", "source", "ok", "error", "seconds", "bytes"),
         *("mode", "via", "estimateBytes", "bytesBilled", "stored", "bqError", "zarrError"),
+        *("rain", "rainError"),  # HD49
     }
     assert (wn_line["error"], wn_line["mode"]) == ("no_credentials", "vote")
     ap_line = lines[18]  # HD35：機場頁的 3 小時格
@@ -2698,6 +2699,7 @@ def test_wn3_report_only_not_in_latest(workspace, monkeypatch, airports):
         "bytesProcessed": 3_000_000_000,
         "bytesBilled": 3_000_000_000,
         "mode": "report-only",
+        "rain": True,  # HD49
     }
     path = workspace / "data" / "history" / "events" / "29W" / "wn3" / "20261013T0600Z.json"
     doc = json.loads(path.read_text("utf-8"))
