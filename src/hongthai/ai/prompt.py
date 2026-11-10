@@ -489,13 +489,17 @@ UNLABELED = ("機場：", "資料時間：", "每格（", "提醒：")
 
 
 def _hidden_entries(slot: dict) -> list[dict]:
-    """一格裡數值不公開的模式（HD43 的 WN3）有資料的那幾筆（build 記憶體裡還是完整的）。"""
+    """一格裡數值不公開的模式（HD43 的 WN3）有資料的那幾筆（build 記憶體裡還是完整的）。已經換成
+    公開樣子的那筆（`valuesHidden`，HD48 起有 `level`、沒有數字）不算有資料。"""
     m = slot.get("model")
     entries = m.get("models") if isinstance(m, dict) else None
     return [
         e
         for e in entries or []
-        if isinstance(e, dict) and e.get("id") in HIDDEN_MODELS and e.get("level") is not None
+        if isinstance(e, dict)
+        and e.get("id") in HIDDEN_MODELS
+        and e.get("level") is not None
+        and not e.get("valuesHidden")
     ]
 
 

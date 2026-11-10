@@ -74,8 +74,9 @@ WeatherNext 3（HD15，`sources/wn3.py`、`wn3report.py`）：模式由 `config.
 （`wn3report.observe_vote`：最新的主報 → 整份寫進私人 bucket＋逐時數字存 `points/`，同一報已經有就
 從 `points/` 讀），資料交給 `assemble` 投票（日本、南韓的機場不給，`config.wn3_allowed`）。記憶體裡
 `models[]` 的 `wn3` 那筆是完整的（投票、模式沿用的重算、3 小時格、AI 都用），**寫出去之前**
-（`hide_wn3`、`airport_files`）換成只有 `{"id": "wn3", "valuesHidden": true}`、日韓的整筆拿掉；
-`sources.wn3` 只有中繼資料＋`attribution`；頂層 `models[]` 那筆多 `valuesHidden: true`。
+（`hide_wn3`、`airport_files`）換成只有 `{"id": "wn3", "valuesHidden": true}`（HD48 起再加它自己
+的整體等級 `level`，`WN3_PUBLIC_LEVEL` 可關）、日韓的整筆拿掉；`sources.wn3` 只有中繼資料＋
+`attribution`；頂層 `models[]` 那筆多 `valuesHidden: true`（HD48 再加 `levelPublic: true`）。
 `private`（HD15b）：同樣在算完 G 之後跑（`wn3report.observe_private`，同一報已經有就不查），
 `latest.json` 只有 `sources.wn3` 的中繼資料（`run`、`stored`、`via`、掃描量、秒數，不放任何預報值或
 等級）、不進 `models[]`／`slots`、不投票、不寫事件檔與路徑檔（補抓見 `wn3report.backfill`）。
@@ -515,7 +516,8 @@ def _wn3_private_extra(r: wn3report.PrivateResult) -> dict:
 
 def hide_wn3(latest: dict) -> None:
     """寫出去之前（HD43）：每個機場每格 `models[]` 換成公開的樣子（`assess.public_slots`：
-    `valuesHidden` 的模式只留 id、WN3 在日本、南韓的機場拿掉）。記憶體裡的投票結果不動。"""
+    `valuesHidden` 的模式只留 id（HD48：再加它自己的整體等級）、WN3 在日本、南韓的機場拿掉）。
+    記憶體裡的投票結果不動。"""
     for a in latest.get("airports") or []:
         assess.public_slots(a.get("slots") or [], str(a.get("region") or ""))
 
@@ -968,8 +970,10 @@ def assemble(
                 "name": m.name,
                 "voting": m.voting,
                 "votesOnlyHigh": m.votes_only_high,
-                # HD43：每格那筆沒有數值（網頁那列不顯示數字也不顯示它自己的高低）
+                # HD43：每格那筆沒有數值（網頁那列不顯示數字）；HD48：`levelPublic` 時那筆多它
+                # 自己的整體等級（網頁畫高／中／低；沒有這個欄位的舊資料照 HW24 不畫）
                 **({"valuesHidden": True} if m.values_hidden else {}),
+                **({"levelPublic": True} if m.values_hidden and m.level_public else {}),
             }
             for m in MODELS
         ],
