@@ -601,7 +601,10 @@ def test_wn3_rain_votes_and_public_has_no_values(airports, zarr):
     build.hide_wn3(out)
     text = json.dumps(out, ensure_ascii=False)
     assert not any(x in text for x in RAIN_SECRETS)
-    assert _wn3_entries(_by(out)["RCTP"]) == [HIDDEN] * 20
+    # HD48：公開那筆只多整體等級，沒有雨量與分項
+    pub = _wn3_entries(_by(out)["RCTP"])
+    assert len(pub) == 20 and all(set(x) == {"id", "valuesHidden", "level"} for x in pub)
+    assert pub[0] == {**HIDDEN, "level": "high"}
 
 
 def test_zarr_shaped_points_round_trip(airports):
