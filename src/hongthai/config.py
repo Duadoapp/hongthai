@@ -74,7 +74,9 @@ class Model:
     模式在 3 小時格用包住它的 6 小時格的值、標 `sixHourly`（`assess.merge_3h`）；
     `ai`：`False` 的不放進給 AI 短評的文字（HD33b：三個旁觀模式不給，改 AI 提示要另外決定）；
     `values_hidden`：公開的檔（`latest.json`、機場頁）每格那筆只留 `{"id", "valuesHidden": true}`，
-    數字與它自己的等級只在 build 的記憶體裡算投票、給 AI（HD43 的 WeatherNext 3）。"""
+    數字與它自己的等級只在 build 的記憶體裡算投票、給 AI（HD43 的 WeatherNext 3）；
+    `level_public`：`values_hidden` 的那筆另外公開它自己的**整體等級**（`level`，HD48），分項
+    `levels` 與數字照舊不公開。"""
 
     id: str
     name: dict[str, str]
@@ -84,6 +86,7 @@ class Model:
     three_hourly: bool = False
     ai: bool = True
     values_hidden: bool = False
+    level_public: bool = False
 
 
 # HD15：Google WeatherNext 3（`sources/wn3.py`）的兩個開關，環境變數可以覆寫（`build.yml` 不設就是
@@ -92,7 +95,8 @@ class Model:
 # （附出處與實驗性聲明，Google 2026-10-28 第三封回信）。日本、南韓不給豁免。
 # - `vote`（預設，HD43，2026-10-28 Shawn 定案）：每報照 `private` 抓最新的主報、整份（含數值與
 #   等級）寫進私人 bucket，同時把每格的等級交給投票（**一票**，只算進綜合燈號）；`latest.json` 每格
-#   `models[]` 的 `wn3` 那筆只有 `{"id": "wn3", "valuesHidden": true}`（`hide_values`），日本、
+#   `models[]` 的 `wn3` 那筆只有 `{"id": "wn3", "valuesHidden": true, "level": …}`（HD48 起多它自己
+#   的整體等級，`WN3_PUBLIC_LEVEL`；`assess.public_entries`），日本、
 #   南韓的機場（`WN3_EXCLUDED_REGIONS`）沒有這筆、不投票、AI 也不給。起報超過 121 小時照舊搬進
 #   `data` 分支的 `history/wn3/`
 # - `private`（HD15b）：同上但不投票，`latest.json` 只有 `sources.wn3` 的中繼資料
@@ -105,6 +109,9 @@ WN3_MODES = ("vote", "private", "observe", "report-only")
 WN3_MODE_DEFAULT = "vote"
 # HD43：預設投票（`vote` 模式）；`WN3_VOTING=0` 時照樣藏值、只旁觀
 WN3_VOTING_DEFAULT = True
+# HD48（2026-11-11 Shawn 定案）：`vote` 模式公開 WN3 每格自己的整體等級（`level`，高／中／低／
+# null），分項等級與數值照舊不公開；`WN3_PUBLIC_LEVEL=0`（repo Variable）關掉＝輸出和 HD43 一樣
+WN3_PUBLIC_LEVEL_DEFAULT = True
 # HD43：投票與 AI 都不含 WN3 的地區（`airports.json` 的 `region`）：沖繩、日本、南韓共 15 個機場
 WN3_EXCLUDED_REGIONS = frozenset({"okinawa", "japan", "korea"})
 
@@ -120,6 +127,12 @@ def wn3_voting(env: dict[str, str] | None = None) -> bool:
     """`WN3_VOTING=1`（或 `0`）覆寫 `WN3_VOTING_DEFAULT`。"""
     v = (os.environ if env is None else env).get("WN3_VOTING", "").strip()
     return WN3_VOTING_DEFAULT if v not in ("0", "1") else v == "1"
+
+
+def wn3_public_level(env: dict[str, str] | None = None) -> bool:
+    """`WN3_PUBLIC_LEVEL=1`（或 `0`）覆寫 `WN3_PUBLIC_LEVEL_DEFAULT`（HD48）。"""
+    v = (os.environ if env is None else env).get("WN3_PUBLIC_LEVEL", "").strip()
+    return WN3_PUBLIC_LEVEL_DEFAULT if v not in ("0", "1") else v == "1"
 
 
 def wn3_allowed(region: str) -> bool:
@@ -141,6 +154,8 @@ WN3_MODEL = Model(
     # 公開的檔不放數值與它自己的等級
     ai=wn3_mode() == "observe",
     values_hidden=wn3_mode() == "vote",
+    # HD48：公開的那筆多它自己的整體等級（只在 `vote`；`observe` 本來就全部公開）
+    level_public=wn3_mode() == "vote" and wn3_public_level(),
 )
 
 # 之後加模式只改這裡＋一個來源檔（HD15 `wn3` 只在 `vote`、`observe` 模式才在這裡，見上面）

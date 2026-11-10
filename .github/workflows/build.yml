@@ -99,11 +99,13 @@ jobs:
           GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
           # WeatherNext 3（HD15）用同一把服務帳號（上面兩個）；開關是 repo 的 Variables（不是 secret），
           # 沒設就是 src/hongthai/config.py 的預設（HD43 起 WN3_MODE=vote、WN3_VOTING 投；設成 private
-          # 會變回只旁觀、不投票）。
+          # 會變回只旁觀、不投票）。WN3_PUBLIC_LEVEL（HD48）沒設就公開 WN3 每格自己的整體等級，設 0 關掉
+          # （輸出和 HD43 一樣）。
           # WN3_BQ_TABLE 沒設就用 <GOOGLE_CLOUD_PROJECT>.weathernext_3.weathernext_3_0_0_0p1deg；
           # WN3_PRIVATE_BUCKET（HD15b 隱形旁觀的私人 bucket）沒設就用 <GOOGLE_CLOUD_PROJECT>-wn3-private
           WN3_MODE: ${{ vars.WN3_MODE }}
           WN3_VOTING: ${{ vars.WN3_VOTING }}
+          WN3_PUBLIC_LEVEL: ${{ vars.WN3_PUBLIC_LEVEL }}
           WN3_BQ_TABLE: ${{ vars.WN3_BQ_TABLE }}
           WN3_PRIVATE_BUCKET: ${{ vars.WN3_PRIVATE_BUCKET }}
           # WN3_VIA：auto（預設，BigQuery 失敗退 Zarr）／zarr（不查 BigQuery）／bigquery（不退 Zarr）

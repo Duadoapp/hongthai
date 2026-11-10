@@ -72,7 +72,8 @@ def test_excluded_regions_are_the_15_japan_korea_airports(airports):
 def test_public_entries_hide_values_and_drop_japan_korea():
     full = {"id": "wn3", "run": "x", "windKt": 43.7, "gustKt": 61.2, "levels": {}, "level": "high"}
     other = {"id": "ifs", "gustKt": 50.0, "level": "high"}
-    assert assess.public_entries([other, full], "taiwan") == [other, HIDDEN]
+    # HD48：公開的那筆多它自己的整體等級（`level`），分項 `levels` 與數字照舊不公開
+    assert assess.public_entries([other, full], "taiwan") == [other, {**HIDDEN, "level": "high"}]
     assert assess.public_entries([other, full], "japan") == [other]
     assert assess.values_hidden() == {"wn3"}
 
@@ -107,6 +108,7 @@ def test_wn3_votes_outside_japan_korea(airports):
         "voting": True,
         "votesOnlyHigh": False,
         "valuesHidden": True,
+        "levelPublic": True,  # HD48
     }
     # 其他模式都沒資料：桃園只有 WN3 一票（估算陣風 61.2 ≥ 48 → 高）；日韓沒有票
     s = by["RCTP"]["slots"][0]
@@ -119,9 +121,11 @@ def test_wn3_votes_outside_japan_korea(airports):
     # 記憶體裡那筆是完整的（投票、AI 用）；寫出去之前才藏
     e = _wn3_entries(by["RCTP"])[0]
     assert (e["windKt"], e["gustKt"], e["level"]) == (43.7, 61.2, "high")
+    levels = [x["level"] for x in _wn3_entries(by["RCTP"])]
     build.hide_wn3(out)
     by = _by(out)
-    assert _wn3_entries(by["RCTP"]) == [HIDDEN] * 20
+    # HD48：只留 id、`valuesHidden` 與投票用的那個整體等級
+    assert _wn3_entries(by["RCTP"]) == [{**HIDDEN, "level": lv} for lv in levels]
     assert all(_wn3_entries(by[icao]) == [] for icao in JP_KR)
     assert by["RCTP"]["slots"][0]["model"]["vote"]["total"] == 1  # 票數照實（含 WN3）
     text = json.dumps(out, ensure_ascii=False)
@@ -300,7 +304,12 @@ def test_vote_build_hides_values_everywhere(workspace, monkeypatch, airports, ca
     by = _by(out)
     assert out["models"][-1]["valuesHidden"] is True and out["runs"]["wn3"] == iso_run()
     for a in out["airports"]:
-        want = [] if a["region"] in WN3_EXCLUDED_REGIONS else [HIDDEN] * 20
+        # HD48：其他模式都沒資料，WN3 那筆的 `level` 就是這格模式層投票的結果
+        want = (
+            []
+            if a["region"] in WN3_EXCLUDED_REGIONS
+            else [{**HIDDEN, "level": s["model"]["vote"]["level"]} for s in a["slots"]]
+        )
         assert _wn3_entries(a) == want, a["icao"]
     assert by["RCTP"]["slots"][0]["model"]["vote"]["total"] == 1
     assert by["RCTP"]["slots"][0]["level"] == "high"
@@ -323,8 +332,9 @@ def test_vote_build_hides_values_everywhere(workspace, monkeypatch, airports, ca
     }
     # 機場頁（3 小時格）也一樣
     rctp = json.loads((ws / "public" / "airports" / "tpe.json").read_text("utf-8"))
-    assert _wn3_entries(rctp, "slots3h") == [HIDDEN] * 24
-    assert _wn3_entries(rctp, "slots6h") == [HIDDEN] * 8
+    for k, n in (("slots3h", 24), ("slots6h", 8)):
+        want = [{**HIDDEN, "level": s["model"]["vote"]["level"]} for s in rctp[k]]
+        assert _wn3_entries(rctp, k) == want and len(want) == n
     hnd = json.loads((ws / "public" / "airports" / "hnd.json").read_text("utf-8"))
     assert _wn3_entries(hnd, "slots3h") == [] and _wn3_entries(hnd, "slots6h") == []
 

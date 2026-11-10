@@ -150,8 +150,8 @@ WeatherNext 3（HD15，`wn3`）：`config.WN3_MODE` 是 `vote`（預設，HD43�
 沒有降水型態（不投雪）、沒有能見度。那筆多 `windKtP90`（格內最大的 p90 平均風，給報告看離散）。
 HD43 `vote`：投一票（`WN3_VOTING`，預設投），build 記憶體裡那筆和其他模式一樣完整（投票、3 小時格、
 模式沿用的重算、AI 都用它），**寫出去之前**由 `public_slots` 換成只有 `{"id": "wn3",
-"valuesHidden": true}`；日本、南韓的機場（`config.WN3_EXCLUDED_REGIONS`）build 不給資料（等級全
-null、不算票），寫出去時整筆拿掉
+"valuesHidden": true}`，HD48 起再加它自己的整體等級 `level`（`WN3_PUBLIC_LEVEL` 可關）；日本、
+南韓的機場（`config.WN3_EXCLUDED_REGIONS`）build 不給資料（等級全 null、不算票），寫出去時整筆拿掉
 """
 
 from __future__ import annotations
@@ -880,16 +880,30 @@ def values_hidden() -> frozenset[str]:
     return frozenset(m.id for m in MODELS if m.values_hidden)
 
 
+def level_public() -> frozenset[str]:
+    """`values_hidden` 但公開它自己整體等級的模式（`Model.level_public`，HD48 的 WN3）。"""
+    return frozenset(m.id for m in MODELS if m.values_hidden and m.level_public)
+
+
 def public_entries(entries: Sequence[dict], region: str) -> list[dict]:
     """`models[]` → 公開的樣子（HD43）：`values_hidden` 的模式那筆只留 `{"id", "valuesHidden":
-    true}`（沒有任何數字、`levels`、`level`、`run`）；WN3 在日本、南韓的機場整筆拿掉。"""
-    hidden = values_hidden()
+    true}`（沒有任何數字、`levels`、`run`）；HD48：`level_public` 的再加 `level`——就是那筆投票用
+    的整體等級（`model_entry` 的 `level`，四類 `levels` 取最高，不另外算），不是 low／medium／high
+    的一律 null。WN3 在日本、南韓的機場整筆拿掉。"""
+    hidden, with_level = values_hidden(), level_public()
     out = []
     for e in entries:
         mid = e.get("id")
         if mid == WN3_ID and not wn3_allowed(region):
             continue
-        out.append({"id": mid, "valuesHidden": True} if mid in hidden else e)
+        if mid not in hidden:
+            out.append(e)
+            continue
+        pub: dict = {"id": mid, "valuesHidden": True}
+        if mid in with_level:
+            lv = e.get("level")
+            pub["level"] = lv if lv in LEVELS else None
+        out.append(pub)
     return out
 
 
