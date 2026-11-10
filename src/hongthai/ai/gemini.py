@@ -18,7 +18,9 @@
   `<回答>+<思考>`），給戰績的 `detail`
 - 快取（HD26）：靠 Vertex 的**隱含快取**（預設開、不用改送法；Gemini 4 最小 4,096 token，同樣前綴
   命中時 `cached_content_token_count` > 0），`system_instruction` 每次一樣就是前綴。不做顯式
-  context caching（`CachedContent` 要多一次呼叫、按小時收儲存費）
+  context caching（`CachedContent` 要多一次呼叫、按小時收儲存費）。HD47 把規則燈說明移到最前面之後，
+  共用前綴（`SYSTEM`＋規則燈說明）估計約 3,800 token，還是不到 4,096，照樣不會命中；`contents` 送
+  `str(text)`（`prompt.Prompt` 的全文，順序和 Claude 一樣）
 - 每次有回應（成功或失敗）都取 `usage_metadata` 的四個數（`usage_of`）：成功時放在回傳的 `usage`、
   失敗時在 `AiError.usage`，給戰績與 `timing/`（`ai/usage.py`）
 - 錯誤訊息（HD30）：HTTP 錯誤取 `errors.APIError` 的 `status`／`message` → `"<status>: <message>"`
@@ -92,7 +94,9 @@ def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = 
         http_options=types.HttpOptions(timeout=int(timeout * 1000)),  # 毫秒
     )
     try:
-        resp = client.models.generate_content(model=MODELS["gemini"], contents=text, config=config)
+        resp = client.models.generate_content(
+            model=MODELS["gemini"], contents=str(text), config=config
+        )
     except errors.APIError as e:
         raise transport_error(f"http_{e.code}", status_message(e)) from e
     except (httpx.TimeoutException, requests.Timeout) as e:

@@ -33,6 +33,13 @@ HD43（WeatherNext 3 投一票，Shawn 2026-10-28 定案）：`vote` 模式時 W
 不能引用數字、不能說是哪個模式；模式名不寫。投票句照 `model.vote`（含 WN3 那票）。程式檢查在
 `parse.check_wn3`：`wn3_numbers` 是那段獨有的整數。`airport_text(..., wn3=False)` 是拿掉那段的
 版本（重生用）。
+
+HD47（成本）：送出的提示詞分兩塊（`Prompt`）——**共用前綴**（`shared_text`：規則燈門檻說明，同一報
+每個機場都一樣，只分「有沒有多模式綜合」兩種）排在最前面，Claude 在它後面放第二個快取斷點；
+**機場自己的資料**（`own`）排在後面，最後是三行「提醒」（原本就在最後，「上面資料」的說法不變）。
+內容和 HD47 之前一樣，只換順序；`str(Prompt)` 是兩塊接起來的全文（WN3 違規檢查、測試照舊用全文）。
+純格式的精簡：模式明細不列「這個機場每一格都沒有資料」的欄位（例如歐洲模式的 visibilityM、
+美國 AI 模式的 ptype；每格標題那行寫明），其他欄位、數字、小數位都不變。
 """
 
 from __future__ import annotations
@@ -46,6 +53,24 @@ from ..og import slot_text
 from ..timeutil import parse_time
 from .config import BLEND_SOURCE, BLEND_SOURCES, HIDDEN_MODELS, MODEL_SOURCES, SOURCES
 from .parse import integers, round_half_up
+
+
+class Prompt(str):
+    """一個機場送給模型的文字（HD47）：值是 `shared + "\n" + own` 的全文（所以照樣可以當字串比對、
+    算整數），另外記兩塊：`shared` 是同一報共用的前綴（Claude 在它後面放快取斷點）、`own` 是這個
+    機場自己的資料。"""
+
+    shared: str
+    own: str
+
+    def __new__(cls, shared: str, own: str) -> Prompt:
+        obj = super().__new__(cls, f"{shared}\n{own}")
+        obj.shared, obj.own = shared, own
+        return obj
+
+    def __reduce__(self) -> tuple:  # 複製、pickle 時保留兩塊
+        return (Prompt, (self.shared, self.own))
+
 
 # 模式的白話名（HD14；短評裡也照這樣寫）
 MODEL_TEXT = {
@@ -282,7 +307,30 @@ def _vote(m: dict, models: list[dict]) -> str:
     )
 
 
-def _model_entry(e: dict, ec: dict) -> str:
+# 模式明細裡「整個機場每格都沒資料就不列」的欄位（HD47，純格式）；陣風一定列
+OPTIONAL_FIELDS = ("crosswindKt", "rain6hMm", "ptype", "visibilityM")
+LEVEL_CAUSES = ("wind", "rain", "snow", "fog")
+
+
+def empty_fields(slots: list[dict]) -> dict[str, frozenset[str]]:
+    """每個模式（id）在這個機場**每一格**都是 `None` 的欄位（`OPTIONAL_FIELDS` 與
+    `levels.<種類>`）；那個模式哪一格都沒出現或都沒資料（`level` 是 `None`）的不算。"""
+    seen: dict[str, set[str]] = {}
+    for s in slots:
+        for e in _models(s.get("model")):
+            if e.get("level") is None:
+                continue
+            lv = e.get("levels") if isinstance(e.get("levels"), dict) else {}
+            have = {f for f in OPTIONAL_FIELDS if e.get(f) is not None}
+            have |= {f"levels.{c}" for c in LEVEL_CAUSES if lv.get(c) is not None}
+            mid = str(e.get("id"))
+            seen.setdefault(mid, set()).update(have)
+    every = {*OPTIONAL_FIELDS, *(f"levels.{c}" for c in LEVEL_CAUSES)}
+    return {mid: frozenset(every - have) for mid, have in seen.items()}
+
+
+def _model_entry(e: dict, ec: dict, skip: frozenset[str] = frozenset()) -> str:
+    """`skip`：這個模式在這個機場每格都沒資料、不列的欄位（HD47，`empty_fields`）。"""
     mid = str(e.get("id"))
     name = f"{tag(mid)} {MODEL_TEXT.get(mid, mid)}"
     if mid in non_voting():  # HD16
@@ -302,12 +350,15 @@ def _model_entry(e: dict, ec: dict) -> str:
         )
     if e.get("level") is None:
         return f"  - {name}：無資料"
-    levels = "、".join(f"{c} {lv.get(c) or '—'}" for c in ("wind", "rain", "snow", "fog"))
-    return (
-        f"  - {name}：陣風 {gust}、側風 {_kt(e.get('crosswindKt'))}、"
-        f"rain6hMm {_num(e.get('rain6hMm'), ' mm')}、ptype {e.get('ptype') or '—'}、"
-        f"visibilityM {_num(e.get('visibilityM'), ' 公尺')}、等級 {e.get('level')}（{levels}）"
-    )
+    levels = "、".join(f"{c} {lv.get(c) or '—'}" for c in LEVEL_CAUSES if f"levels.{c}" not in skip)
+    fields = {
+        "crosswindKt": f"側風 {_kt(e.get('crosswindKt'))}",
+        "rain6hMm": f"rain6hMm {_num(e.get('rain6hMm'), ' mm')}",
+        "ptype": f"ptype {e.get('ptype') or '—'}",
+        "visibilityM": f"visibilityM {_num(e.get('visibilityM'), ' 公尺')}",
+    }
+    parts = [f"陣風 {gust}", *(v for f, v in fields.items() if f not in skip)]
+    return f"  - {name}：{'、'.join(parts)}、等級 {e.get('level')}（{levels}）"
 
 
 def _models(m: object) -> list[dict]:
@@ -333,10 +384,11 @@ def _model(m: dict | None) -> str:
     )
 
 
-def _model_lines(m: object) -> list[str]:
-    """`models[]` 每個模式一行（接在那一格後面）。"""
+def _model_lines(m: object, empty: dict[str, frozenset[str]] | None = None) -> list[str]:
+    """`models[]` 每個模式一行（接在那一格後面）；`empty` 是 `empty_fields` 的結果。"""
     ec = m.get("ec") if isinstance(m, dict) and isinstance(m.get("ec"), dict) else {}
-    return [_model_entry(e, ec) for e in _models(m)]
+    empty = empty or {}
+    return [_model_entry(e, ec, empty.get(str(e.get("id")), frozenset())) for e in _models(m)]
 
 
 def _causes(slot: dict) -> str:
@@ -346,7 +398,7 @@ def _causes(slot: dict) -> str:
     return "causes " + "、".join(f"{c}（{CAUSE_TEXT.get(c, c)}）" for c in causes)
 
 
-def slot_line(i: int, slot: dict, tz: str) -> str:
+def slot_line(i: int, slot: dict, tz: str, empty: dict[str, frozenset[str]] | None = None) -> str:
     try:
         when = slot_text(slot, tz)
     except (KeyError, TypeError, ValueError, AttributeError):
@@ -359,7 +411,7 @@ def slot_line(i: int, slot: dict, tz: str) -> str:
         f"{_official(slot.get('official'))}｜{_model(slot.get('model'))}｜"
         f"{rule} 官方與模式落差 {gap}"
     )
-    return "\n".join([line, *_model_lines(slot.get("model"))])
+    return "\n".join([line, *_model_lines(slot.get("model"), empty)])
 
 
 def rules_text(th: Thresholds | None = None, blend: bool = False) -> str:
@@ -413,13 +465,22 @@ def rules_text(th: Thresholds | None = None, blend: bool = False) -> str:
             "模式層的霧最高只到 medium；要到 high 得是官方真的報霧或低雲）",
             "- 每格的等級＝強風與三類取最高；causes 是達到 medium 以上的種類（高的在前），"
             "第一個是主因；只看模式時同級的雨排在霧前面（模式的低能見度常是大雨造成的）",
-            "提醒：短評要說出主要是哪種天氣造成：強風／側風、大雨／雷雨、大雪／結冰、濃霧／低雲。",
-            "提醒：每一句只陳述上面資料說了什麼、不自行延伸推論，src 列那一句用到的段落前面的"
-            "方括號代號。",
-            "提醒：短評裡請用白話，不要照抄上面的欄位名"
-            "（EC、GFS、p29Kt、p49Kt、TAF、METAR 這些）。",
         ]
     )
+
+
+# 機場資料最後的提醒（HD47 前接在規則燈說明後面；規則燈說明移到最前面當共用前綴之後，提醒留在最後）
+REMINDERS = (
+    "提醒：短評要說出主要是哪種天氣造成：強風／側風、大雨／雷雨、大雪／結冰、濃霧／低雲。",
+    "提醒：每一句只陳述上面資料說了什麼、不自行延伸推論，src 列那一句用到的段落前面的方括號代號。",
+    "提醒：短評裡請用白話，不要照抄上面的欄位名（EC、GFS、p29Kt、p49Kt、TAF、METAR 這些）。",
+)
+
+
+def shared_text(blend: bool = False) -> str:
+    """同一報每個機場都一樣的前綴（HD47）：規則燈怎麼算。只依 `blend`（這個機場的投票含數值不公開
+    的模式）分兩種。"""
+    return rules_text(blend=blend)
 
 
 # 精簡文字裡不標來源的行（HD40）：表頭、每格的標題與給模型的提醒；其他每一行都以 `[代號]` 開頭，
@@ -487,10 +548,11 @@ def wn3_numbers(airport: dict, generated_at: str) -> frozenset[int]:
     return frozenset(mine - integers(airport_text(airport, generated_at, wn3=False)))
 
 
-def airport_text(airport: dict, generated_at: str, wn3: bool = True) -> str:
+def airport_text(airport: dict, generated_at: str, wn3: bool = True) -> Prompt:
     """一個機場給模型看的精簡文字（`airport` 是 `latest.json` 的 `airports[]` 一筆）；每一段資料前面
     有來源代號（`tag`，HD40），模型每句短評的 `src` 就是這些代號。`wn3=False`：不放多模式綜合那段
-    （HD43，WN3 違規兩次後重生用）。"""
+    （HD43，WN3 違規兩次後重生用；共用前綴不變，照樣命中快取）。回傳 `Prompt`（HD47）：共用的規則燈
+    說明在前、機場自己的資料在後。"""
     tz = airport.get("tz") or "UTC"
     z = ZoneInfo(tz)
     gen = parse_time(generated_at)
@@ -548,10 +610,12 @@ def airport_text(airport: dict, generated_at: str, wn3: bool = True) -> str:
             note = (c.get("note") or {}).get("zh-TW") or ""
             lines.append(f"- 當地 {_local(c.get('from'), z)}–{_local(c.get('to'), z)} {note}")
     slots = [s for s in airport.get("slots") or [] if isinstance(s, dict)]
-    lines.append(f"每格（{len(slots)} 格、每格 6 小時、當地時間）：")
-    lines += [slot_line(i, s, tz) for i, s in enumerate(slots, 1)]
+    empty = empty_fields(slots)
+    omit = "；模式明細不列這個機場每一格都沒有資料的欄位" if any(empty.values()) else ""
+    lines.append(f"每格（{len(slots)} 格、每格 6 小時、當地時間{omit}）：")
+    lines += [slot_line(i, s, tz, empty) for i, s in enumerate(slots, 1)]
     blend = has_blend(airport)
     if blend and wn3:
         lines += multi_lines(airport)
-    lines.append(rules_text(blend=blend))
-    return "\n".join(lines)
+    lines += REMINDERS
+    return Prompt(shared_text(blend), "\n".join(lines))
