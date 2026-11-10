@@ -1,6 +1,7 @@
 # HongThai 主對話須知
 
 給之後接手這個 repo 的 Claude 主對話（HongThai 專用對話）讀的一頁。先讀這份，再讀 `README.md`。
+做什麼、先做什麼看 `docs/roadmap.md`（2026-11-10 起）；還沒回答的題目在 Duado repo `docs/pending.md` 的「HongTai」段。
 這份不放任何金鑰或個資。
 
 ## 這個 repo 做什麼
