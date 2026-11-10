@@ -1073,7 +1073,7 @@ def test_all_sources_fail_still_outputs(workspace, monkeypatch):
     monkeypatch.setattr(build.typhoon, "fetch_cwa", REAL_FETCH_CWA)  # 沒設授權碼
     monkeypatch.setattr(build.typhoon, "fetch_jma", _boom)
     monkeypatch.delenv("CWA_API_KEY", raising=False)
-    assert build.main([]) == 0
+    assert build.main(["--ai", "on"]) == 0  # HD50：用真的時間，AI 固定評
     out = json.loads((workspace / "public" / "latest.json").read_text("utf-8"))
     assert {
         k: v["ok"] for k, v in out["sources"].items() if k not in ("flights", "tdx", "ai")

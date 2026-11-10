@@ -66,6 +66,16 @@ PRICES: dict[str, list[tuple[str | None, dict[str, float | None]]]] = {
     ],
 }
 
+# ---- 哪幾報要評（HD50，Shawn 2026-11-11 00:51 定案；`ai/schedule.py`）----
+# 用 UTC 小時代表 `build.SLOTS` 裡的時段（照 `build.slot_of` 算這一報屬於哪個時段，
+# 排程晚到、手動按的也一樣）：`always` 每天都評（1＝01:05Z，台灣早上 09:05 那報）；
+# `typhoonHigh` 只在「有颱風（`typhoons.json` 的 `storms` 有還沒結束的），而且有機場的
+# 規則燈綜合等級是高」時評（13＝13:05Z，台灣 21:05 那報）。其他時段不評、沿用上一份。
+# 改回一天四報：`{"always": (1, 8, 13, 20), "typhoonHigh": ()}`
+SCHEDULE: dict[str, tuple[int, ...]] = {"always": (1,), "typhoonHigh": (13,)}
+# 不評的那報沿用上一份 AI 燈的期限：上一份的 `evaluatedAt` 超過這麼多小時就不沿用（`off_schedule`）
+CARRY_MAX_AGE_H = 26
+
 MAX_AIRPORTS = 20  # 每報最多評幾個機場
 # 每天（UTC）每個模型最多呼叫幾次；0 代表不限（HD11 開發期間）。HD47（2026-11-10）改成 160：平常一天
 # 約 38 次、颱風時 4 報 × 20 個＝80 次，留重試、WN3 重生與手動 build 的空間；是 PAT 外洩時無限次觸發

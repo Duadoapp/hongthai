@@ -925,7 +925,8 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
   免責四語是固定字串（`ai/config.py` 的 `DISCLAIMER`）；網頁燈的標題用 `models` 顯示模型名，鍵名
   `claude`／`gemini` 換模型版本也不改
 - `airports[].ai`：`{ "evaluatedAt", "claude": <燈>, "gemini": <燈> }`，每個機場都有
-  - `evaluatedAt`：這一報的時間（＝`generatedAt`）；兩顆燈都是 `error` 時 `null`（`skipped` 也填時間）
+  - `evaluatedAt`：這一報的時間（＝`generatedAt`）；兩顆燈都是 `error` 時 `null`（`skipped` 也填時間）。
+    HD50 起不評的那報沿用上一份，這裡是**原本評估的時間**（見下面 `ai.schedule`）
   - `<燈>`：`{ "status", "level", "comment", "model", "sentences" }`，`error` 時多 `"error"`（`sentences` 是 HD40 加的，見下一段）
     - `status: "ok"`：`level` 是 `low`／`medium`／`high`，`comment` 是四語短評（以 zh-TW 為準、其他三語是
       忠實翻譯，中文每語最多 300 字、en 最多 800 字；HD5 是四語都 400，HD6 放寬）
@@ -937,7 +938,10 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
       閘道逾時；`http_503`／`http_504` 快回的重試一次仍失敗、或等了 15 秒以上才回的才記，其他碼不重試，HD17、HD23）、`network`、
       `daily_cap`（那個模型今天（UTC）已經呼叫到每日上限 160 次，HD47；HD11 到 HD47 之間不限、不會出現）；**規格以外多三個**：`run_cap`（符合條件但排在這一報前 20 個
       之後，沒評；不寫「沒看到明顯風險」，因為可能是中級）、`refusal`（模型拒答或被安全過濾擋下）、
-      `bad_wording`（HD6：格式對但短評用字違規，見「AI 對決」的「用字規則與檢查」）
+      `bad_wording`（HD6：格式對但短評用字違規，見「AI 對決」的「用字規則與檢查」）；HD50 再多兩個（不評的那報，
+      見「AI 對決」的「哪幾報評」）：`off_schedule`（這一報不評，上一份沒有可以沿用的：沒有上一份、那個機場上一份沒有 `ai`、
+      上一份的 `evaluatedAt` 是 `null` 或超過 26 小時）、`stale`（上一份那顆是「沒看到明顯風險」或等級比這一報的規則燈低，
+      而這一報規則燈已經是中以上）。網頁對不認得的代碼一律顯示「資料不足」
     - `sentences`（HD40，2026-10-27；只加欄位，其他欄位不改）：`status: "ok"` 時是四語逐句短評與每句的來源代號
       `{ "zh-TW": [ { "text": "…", "src": ["taf", "ifs"] }, … ], "zh-HK": […], "zh-CN": […], "en": […] }`——四語句數一樣、
       同一個位置的 `src` 一樣（代號與順序都一樣），`src` 至少一個、都在 `ai/config.py` 的 `SOURCES` 裡；`comment` 照舊，
@@ -972,6 +976,12 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
   `ok: false` 時照其他來源的慣例多一個 `error`（`"claude:no_api_key,gemini:no_api_key"` 這種）。
   HD43：這一報有機場拿到「多模式綜合」那段時多 `wn3Retries`、`wn3Dropped`（`{"claude": n, "gemini": n}`，
   因 WN3 違規重生的次數、其中拿掉那段重生的次數；只有次數，不記違規內容）
+- HD50（2026-11-11，只加欄位）：頂層 `ai` 多 `schedule`：`{ "evaluated": true|false, "reason", "nextSlot" }`。
+  `reason`：`morning`（早上 09:05 那報，01:05Z 時段）、`typhoon_high`（21:05 那報、有颱風而且有高）、`off_schedule`
+  （其他時段）、`forced`（手動 build 選 `ai: on`）、`disabled`（手動 build 選 `ai: off`）；`nextSlot` 是這一報的時段之後
+  下一個照平常規則會評的時段（ISO，現在就是下一個 01:05Z）。不評的那報 `sources.ai` 是
+  `{ "ok": true, "seconds", "calls": { "claude": 0, "gemini": 0 }, "skipped": "off_schedule" }`（`ai: off` 是
+  `"skipped": "disabled"`），沒有 `errors`、`geminiLocation`；評的那報 `sources.ai` 和之前一樣、沒有 `skipped`
 
 HD8（2026-10-19，第五階段新天氣種類；欄位名定案，Shawn 轉給 Duado 寫進 spec 第 16 節；`schema` 維持 `1`，
 既有欄位不改名、不改型別、不拿掉）：
@@ -1909,6 +1919,23 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   同機場同 `from` 的格 `level` 不同（「等級有變」，`unknown` 和 `low` 互換也算）。依「5 天內最高等級
   （已確認 > 高 > 中 > 低）、再依第一個達到那級的格早的」排序，**每報最多評 20 個**；其他機場兩顆 AI 燈
   直接寫「沒看到明顯風險」、不呼叫（`skipped`）；符合條件但排在 20 個之後的記 `error: "run_cap"`
+- **哪幾報評**（HD50，Shawn 2026-11-11 00:51 定案；`ai/schedule.py`，設定 `config.SCHEDULE`）：平常 Claude、Gemini
+  **只評台灣早上那一報**（09:05，01:05Z 那個時段）；**有颱風而且有高**時多評晚上那一報（21:05，13:05Z 那個時段）。
+  「有颱風」＝這一報的 `typhoons.json` 的 `storms` 有還沒結束的颱風（減弱或結束的在 `ended`、範圍外的在 `outOfRange`，
+  都不算）；「有高」＝任一機場的規則燈綜合等級（5 天內最高，`select.max_level`，選機場用的同一個）是高（已確認也算）。
+  04:25、16:25 那兩報不評。「時段」照 `build.slot_of`（同「這個時段已經出過就跳過」，HD25），排程晚到、Worker
+  與 GitHub 都觸發、手動按的都一樣；手動 build 的 `workflow_dispatch` 多一個輸入 `ai`（`auto` 預設，照時段；`on` 一律評；
+  `off` 一律不評），排程與 Worker 都是 `auto`。改回一天四報只要把 `config.SCHEDULE` 改成
+  `{"always": (1, 8, 13, 20), "typhoonHigh": ()}`。
+  - **不評的那報**：不呼叫、不寫戰績與每日次數，每個機場**沿用上一份 `latest.json` 的 `ai`**（兩顆燈與原本的
+    `evaluatedAt`，網頁照樣顯示「評估於〈時間〉」）。沒有上一份、那個機場上一份沒有 `ai`、上一份的 `evaluatedAt`
+    是 `null`（兩顆都 `error`，沒有時間不能判斷新舊）或超過 26 小時（`config.CARRY_MAX_AGE_H`）→ 兩顆
+    `error: "off_schedule"`；上一份那顆是「沒看到明顯風險」（`skipped`）或等級比這一報的規則燈低（已確認當高比），
+    而這一報規則燈已經是中以上 → 那顆 `error: "stale"`（不讓舊的「沒風險」掛在亮燈的機場上）；上一份是 `error`
+    的照樣沿用。`timing/` 的 `ai` 那行 `calls` 全 0、`costUsd` 0、多 `skipped`
+  - **費用估計**（HD47 後每次 Claude 約 US$0.098、Gemini 約 US$0.040，12/1 起約 US$0.081；平常每報約 9 個機場）：
+    平常約 US$38／月（12/1 起約 US$49）；颱風而且有高的日子每天約 US$7（2 報 × 最多 20 個機場 × 兩家）。
+    HD50 之前一天四報約 US$150–188／月
 - **給模型看什麼**（`ai/prompt.py`）：那個機場的精簡文字（不丟整段 JSON）——機場名、時區、METAR、TAF 原文、
   生效中的警報、已確認停飛，20 格每格的當地時段、等級、依據、官方（TAF 平均風／陣風、側風、警報）、
   模式（EC／GFS 陣風、側風、`p29Kt`／`p49Kt`）、一致性、落差，單位一律節、機率用百分比；另附規則燈的
@@ -1950,7 +1977,7 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
     一報 20 個機場兩家合計約多 US$0.4。上線後用 `tools/ai_cost.py` 比 HD40 前後的實際數字
 - **免責**：頂層 `ai.disclaimer`「AI 評論僅供參考，以航空公司與機場公告為準」（四語）
 - **保險**（`ai/config.py`）：每報最多評 20 個機場；每天（UTC）每個模型的呼叫上限 `DAILY_CAP` **160 次**
-  （HD47，2026-11-10；HD11 起開發期間是 0＝不限）：平常一天約 38 次、颱風時 4 報 × 20 個＝80 次，留重試、WN3 重生與
+  （HD47，2026-11-10；HD11 起開發期間是 0＝不限）：平常一天約 38 次（HD50 起平常一天約 9 次、颱風而且有高 2 報 × 20 個＝40 次）、颱風時 4 報 × 20 個＝80 次，留重試、WN3 重生與
   手動 build 的空間，是 PAT 外洩時無限次觸發 build 的最後防線。到上限之後的機場記 `daily_cap`、不呼叫，
   `sources.ai.errors` 記 `daily_cap`（網頁照 HD11 之前的顯示）；重試、WN3 重生也算次數、到上限就不做；UTC 隔天換一個
   次數檔、從 0 算起。`history/ai/calls-<日期>.json` 記每個模型今天呼叫幾次（成功失敗都算）；
