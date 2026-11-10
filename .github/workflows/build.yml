@@ -21,6 +21,11 @@ on:
         type: choice
         options: [manual, cloudflare]
         default: manual
+      ai:
+        description: "AI 評論（HD50）：auto 照時段（早上 09:05 那報評；21:05 那報有颱風而且有高才評，其他不評）；on 一律評；off 一律不評"
+        type: choice
+        options: [auto, "on", "off"]
+        default: auto
 
 # S1 L25（HD45）：頂層只給讀；兩個 job 各自宣告。
 # - build：拿來源與 AI 的 secrets，token 只能讀——相依套件被動手腳時拿不到可寫 repo 的 token 與 Pages 的 OIDC token
@@ -112,7 +117,9 @@ jobs:
           # HD25：GitHub 排程是 schedule、Worker 帶 cloudflare、手動按的是 manual。前兩個這個時段已經出過就
           # 跳過（不產生 public/latest.json，publish 的 Pages 那一步自動不跑；推 data 分支只推 timing/ 那一行 skip）
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
-        run: python -m hongthai.build --out public --archive data --trigger "$TRIGGER"
+          # HD50：AI 評論照時段（auto）；手動按的可以選 on／off。排程與 Worker 不帶這個輸入＝auto
+          AI_MODE: ${{ inputs.ai || 'auto' }}
+        run: python -m hongthai.build --out public --archive data --trigger "$TRIGGER" --ai "$AI_MODE"
 
       # HD45：data 分支的變更包成 patch 給 publish 推（這個 job 的 token 只能讀）。worktree 裡可能有刪檔、搬檔，
       # 所以 `git add -A` 後整份 diff（--binary、不偵測改名：刪＋加，套用最單純）；base 是取出時的 commit（還沒有
