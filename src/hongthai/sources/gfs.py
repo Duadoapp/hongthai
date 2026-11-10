@@ -75,7 +75,7 @@ from ..config import Airport
 from ..grib import read_points, wind_dir_from_uv, wind_speed_kt
 from ..timeutil import floor_6h, hours_between
 from ..units import ms_to_kt
-from . import SourceError, http_get
+from . import GRIB_MAX_BYTES, SourceError, http_get
 
 log = logging.getLogger("hongthai")
 
@@ -264,7 +264,7 @@ def download_ranges(
     with path.open("wb") as f:
         for a, b in ranges:
             rng = f"bytes={a}-{'' if b is None else b}"
-            r = http_get(url, headers={"Range": rng}, error=error)
+            r = http_get(url, headers={"Range": rng}, error=error, max_bytes=GRIB_MAX_BYTES)
             body = r.content
             if r.status_code != 206 or not (body.startswith(b"GRIB") and body.endswith(b"7777")):
                 raise error(f"{url} {rng}：HTTP {r.status_code}，不是 GRIB", "not_grib")
@@ -321,7 +321,7 @@ def _fetch_nomads(
     """NOMADS GRIB filter：一個涵蓋全部機場的框（`subregion`），裁好區域的小檔。"""
     time.sleep(1)
     params = {"dir": run_dir(run), "file": file_name(run, fh), **PARAMS, **subregion(airports)}
-    r = http_get(FILTER_URL, params=params, error=GfsError)
+    r = http_get(FILTER_URL, params=params, error=GfsError, max_bytes=GRIB_MAX_BYTES)
     path = tmp / f"gfs-nomads-f{fh:03d}.grib2"
     path.write_bytes(r.content)
     return parse_file(path, airports), len(r.content)
