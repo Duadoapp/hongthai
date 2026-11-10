@@ -656,7 +656,7 @@ H10（2026-10-18）之後：
 - `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR、颱風現報與逐班航班紀錄
   （HD31，逐班轉換在 `src/hongthai/flights_log.py`；HD32 起多 TDX 台灣機場，`src/hongthai/sources/tdx.py`）
   （`.github/workflows/events.yml`）；推 `data` 分支用
-  `tools/push_data.sh`（`build.yml` 也用）
+  `tools/push_data.sh`（`build.yml` 的 publish job 也用）
 - `cloudflare/trigger/`：Cloudflare 排程 Worker（HD25，上面「排程」），自己一份 `package.json` 與 lock，
   不動 repo 根目錄；`npm test` 測 cron → workflow 的對照（CI 只在 `cloudflare/` 有變動時跑）
 - `src/hongthai/tracks.py`：颱風路徑抽取（HD21）：ECMWF 路徑產品（BUFR）與從海平面氣壓找中心
@@ -1777,7 +1777,7 @@ WN2 這一個請求（51 個機場）：1 個變數 × 64 個成員 ÷ 10 × max
     Single Runs API 對照 GEM：`_previous_day1` 等於提前 24–47 小時的那一報
   - 合併後 Shawn 手動跑一次、10/27 定稿前再跑一次（第二次只補新的小時）。**`openmeteo-ukmo.jsonl` 是 CC BY-SA 4.0**
     （UK Met Office 的條款，下面「資料來源與授權」），用到 UKMO 數字的報告也要同樣標
-- **推 `data` 分支**：每小時和每天四次的主 build 可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
+- **推 `data` 分支**：每小時和每天四次的主 build（HD45 起是它的 publish job）可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
   `git pull --rebase origin data` 再推，失敗重試 3 次（間隔 20 秒）。兩邊寫的檔不重疊，不會衝突
 - 實際停飛照舊用 `history/cancellations/`（不用另外存）
 - **驗證報告**（HD22，`tools/report_29w.py`；只讀上面這些檔（含 `flights/`）與 `history/cancellations/`、`history/ai/`，不改任何
@@ -2279,6 +2279,39 @@ HD43 改成 WN3 投一票（上面 `vote`），**等級不再單獨公開**，R2
    <https://duadoapp.github.io/hongthai/latest.json> 確認
 
 之後每天 UTC 01:05、08:25、13:05、20:25（台北／香港 09:05、16:25、21:05、04:25）自動跑（下面「排程」）。
+
+### build／publish 兩個 job（S1 L25，HD45）
+
+`build.yml` 以前是一個 job 同時拿 AI 與來源的金鑰、可寫 repo 的 token、Pages 部署的 OIDC token——三樣都有用途，但相依套件被動手腳時
+一次全拿到。HD45 起拆成兩個 job，頂層 `permissions` 只有 `contents: read`：
+
+| job | secrets | token 權限 | 做什麼 |
+| --- | --- | --- | --- |
+| `build` | 來源與 AI 的全部（`CWA_API_KEY`、`ANTHROPIC_API_KEY`、`GOOGLE_*`、`TDX_*`） | `contents: read` | 裝套件、取出 `data` 分支（只讀）、跑 `python -m hongthai.build`，把結果包成兩個 artifact |
+| `publish`（`needs: build`） | 沒有 | `contents: write`、`pages: write`、`id-token: write`，`environment: github-pages` | 下載 artifact → 推 `data` 分支 → 發布 Pages。**不裝 Python 套件、不執行這個 repo 的 Python 程式** |
+
+兩個 job 之間只靠 artifact（都只留 **1 天**）：
+
+- `data-changes`：`base`（build 取出 `data` 時的 commit，還沒有 `data` 分支時是空的）、`data.patch`（worktree 裡 `git add -A` 之後的
+  `git diff --cached --binary`，新增、修改、刪除都在裡面）、`tree`（加完之後的樹）。publish 在 `base` 那個 commit 上套用 patch（同一棵樹，
+  一定套得上）、核對樹和 `tree` 一樣，再照舊交給 `tools/push_data.sh`（commit、rebase 到遠端最新的 `data`、重試）——build 期間
+  `events.yml`／`longrange.yml` 先推了 `data` 的情況和以前一樣靠 rebase（`.jsonl` 的 `merge=union` 也一樣）。用 patch 不用 bundle：
+  `data` 是深度 1 取出的，bundle 要對方先有前一個 commit 而且掛在某個 ref 上才收；patch 是純文字、套用前後各有一道檢查
+- `github-pages`：`public/` 整個目錄（`upload-pages-artifact` 在 build 上傳，publish 的 `deploy-pages` 直接用；只有 `public/latest.json`
+  存在時才有）
+
+**公開 repo 的 artifact 登入 GitHub 就能下載**，所以裡面只能有本來就要公開的檔：`data.patch` 就是接著要推上公開 `data` 分支的內容、
+`github-pages` 就是接著要發布的網站。WeatherNext 3 未來時段的數值只在 build 的記憶體與私人 bucket（`wn3private.py` 直接走 GCS API、
+不落地），寫進 `data/`、`public/` 之前已經藏掉（`build.hide_wn3`），所以不會進 artifact。**不要在 build job 加別的 `upload-artifact`
+（例如除錯用的暫存檔）**。
+
+其他行為照舊：這個時段出過就跳過時，publish 照跑（只推 `history/timing/` 那一行 skip）、Pages 那一步是灰的；`python -m hongthai.build`
+失敗時改發布上一份、build job 標紅，publish 照樣推 `data` 與發布；`concurrency: build` 掛在整個 run，兩個 job 之間不會被另一次 build
+插隊。artifact 的 `base`／`tree` 在 publish 先檢查格式（40 個十六進位字元）才用。`tests/test_workflow_build.py`（不連網）檢查這些界線，
+並拿本機的 git repo 把打包與還原那兩段 shell 實際跑一遍。
+
+還有的風險：build job 被動手腳時仍然可以決定「要發布什麼內容」（改 `latest.json`、往 `data` 分支塞檔），也拿得到 AI 與來源的金鑰；
+拆開之後它拿不到的是可寫 repo 的 token（改不了 `main`、workflow、其他分支）與 Pages 的 OIDC token。`longrange.yml`、`events.yml` 還沒拆。
 
 ### 排程（HD25）
 

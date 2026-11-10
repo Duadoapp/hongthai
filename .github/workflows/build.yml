@@ -22,11 +22,15 @@ on:
         options: [manual, cloudflare]
         default: manual
 
+# S1 L25（HD45）：頂層只給讀；兩個 job 各自宣告。
+# - build：拿來源與 AI 的 secrets，token 只能讀——相依套件被動手腳時拿不到可寫 repo 的 token 與 Pages 的 OIDC token
+# - publish：拿可寫 repo 的 token 與 Pages 的 OIDC token，沒有來源與 AI 的 secrets、不裝套件、不跑這個 repo 的 Python
+# 兩個 job 之間只靠 artifact 傳：data 分支的變更（patch）與 Pages 目錄。公開 repo 的 artifact 登入就能下載，所以
+# 裡面只能有本來就要公開的檔（README「WeatherNext 3」：未來時段的數值只寫私人 bucket，不落地到 data/、public/）
 permissions:
-  contents: write # 把歷史紀錄推到 data 分支
-  pages: write
-  id-token: write
+  contents: read
 
+# 整個 run（兩個 job）同一組：build 與 publish 之間不會被另一次 build 插隊推 data
 concurrency:
   group: build
   cancel-in-progress: false
@@ -34,12 +38,14 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04 # ubuntu-latest 2026-10-19 起換成 26.04；eccodes 與 Python 套件在新版確認過再換
-    timeout-minutes: 55 # 「產生 latest.json」45 分鐘＋其他步驟（2026-10-25 前 42、HD15 前 40、HD16 前 38、HD21 前 35、HD14 前 30、HD12 前 28）；排程間隔至少 4.5 小時，不會重疊
+    timeout-minutes: 55 # 「產生 latest.json」45 分鐘＋其他步驟（2026-10-25 前 42、HD15 前 40、HD16 前 38、HD21 前 35、HD14 前 30、HD12 前 28）；HD45 起推 data 與 Pages 在 publish（另外 15 分鐘）；排程間隔至少 4.5 小時，不會重疊
+    permissions:
+      contents: read
     env:
       PYTHONPATH: src # S1 M5：不 pip install 專案本身
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    outputs:
+      packed: ${{ steps.pack.outputs.packed }}
+      pages: ${{ steps.pack.outputs.pages }}
     steps:
       # HD25：job 開始的時間（含排隊等 concurrency），timing/ 的 startedAt、delayMinutes 用
       - name: 記開始時間
@@ -102,29 +108,116 @@ jobs:
           TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
           TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
           # HD25：GitHub 排程是 schedule、Worker 帶 cloudflare、手動按的是 manual。前兩個這個時段已經出過就
-          # 跳過（不產生 public/latest.json，下面兩步 Pages 自動不跑；推 data 分支只推 timing/ 那一行 skip）
+          # 跳過（不產生 public/latest.json，publish 的 Pages 那一步自動不跑；推 data 分支只推 timing/ 那一行 skip）
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || inputs.trigger || 'manual' }}
         run: python -m hongthai.build --out public --archive data --trigger "$TRIGGER"
 
-      - name: 推 data 分支
+      # HD45：data 分支的變更包成 patch 給 publish 推（這個 job 的 token 只能讀）。worktree 裡可能有刪檔、搬檔，
+      # 所以 `git add -A` 後整份 diff（--binary、不偵測改名：刪＋加，套用最單純）；base 是取出時的 commit（還沒有
+      # data 分支時是空的），tree 是加完之後的樹，publish 套用後要對得上。被砍或失敗時已寫的 history/timing/ 照樣包
+      - name: 包 data 分支的變更
+        id: pack
         if: always()
-        working-directory: data
-        # events.yml（HD20，每小時）也會推 data 分支：先 rebase 到遠端最新的、失敗重試 3 次
-        run: ../tools/push_data.sh data
+        env:
+          OUT: ${{ runner.temp }}/data-changes
+          HAS_PAGES: ${{ hashFiles('public/latest.json') != '' }}
+        run: |
+          set -eu
+          mkdir -p "$OUT"
+          cd data
+          git add -A
+          git rev-parse --verify --quiet HEAD > "$OUT/base" || : > "$OUT/base"
+          git write-tree > "$OUT/tree"
+          git -c core.quotePath=false diff --cached --binary --full-index --no-renames --no-color \
+            --no-ext-diff --no-textconv > "$OUT/data.patch"
+          git diff --cached --shortstat
+          ls -l "$OUT"
+          echo "packed=true" >> "$GITHUB_OUTPUT"
+          echo "pages=$HAS_PAGES" >> "$GITHUB_OUTPUT"
 
-      - name: 上傳 Pages artifact
+      - name: 上傳 data 變更（artifact，留 1 天）
+        if: always() && steps.pack.outputs.packed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: data-changes
+          path: ${{ runner.temp }}/data-changes
+          if-no-files-found: error
+          retention-days: 1
+
+      # 名稱 github-pages（deploy-pages 預設找這個）；這一步不需要 pages 權限，只是一般的 artifact
+      - name: 上傳 Pages artifact（留 1 天）
         if: hashFiles('public/latest.json') != ''
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: public
-
-      - name: 發布到 GitHub Pages
-        id: deploy
-        if: hashFiles('public/latest.json') != ''
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+          retention-days: 1
 
       - name: 流程失敗時標紅
         if: steps.build.outcome != 'success'
         run: |
           echo "::error::python -m hongthai.build 失敗（已改發布上一份 latest.json，或沒有可發布的）"
           exit 1
+
+  # HD45：只做發布。沒有來源與 AI 的 secrets、不裝 Python 套件、不執行這個 repo 的 Python 程式；
+  # artifact 的內容當資料處理（base、tree 先檢查格式，patch 只用 git apply 套在 data 的 worktree 裡）
+  publish:
+    needs: build
+    # build 失敗（改發布上一份）或被砍時照樣推已寫的 data（原本「推 data 分支」的 if: always()）
+    if: always() && needs.build.outputs.packed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15 # 平常約 1–2 分鐘；推 data 最多重試 4 次（各隔 20 秒）、deploy-pages 自己最多等 10 分鐘
+    permissions:
+      contents: write # 把歷史紀錄推到 data 分支
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      # 只用裡面的 tools/push_data.sh 與 git 的設定（推 data 用的 token）；Python 程式取出來但不執行
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: 下載 data 變更
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: data-changes
+          path: ${{ runner.temp }}/data-changes
+
+      # 在 build 取出時的那個 commit 上還原 build 的 worktree（同一棵樹，patch 一定套得上），之後照舊交給
+      # push_data.sh：commit、rebase 到遠端最新的 data（build 期間 events.yml／longrange.yml 先推的）、重試
+      - name: 還原 data 分支的變更
+        env:
+          IN: ${{ runner.temp }}/data-changes
+        run: |
+          set -eu
+          base=$(cat "$IN/base")
+          tree=$(cat "$IN/tree")
+          if ! [[ "$tree" =~ ^[0-9a-f]{40}$ && "$base" =~ ^([0-9a-f]{40})?$ ]]; then
+            echo "::error::artifact 的 base／tree 格式不對"
+            exit 1
+          fi
+          if [ -n "$base" ]; then
+            git fetch --depth=1 origin "$base"
+            git worktree add -B data data "$base"
+          else
+            git worktree add --orphan -b data data
+          fi
+          cd data
+          if [ -s "$IN/data.patch" ]; then
+            git apply --index --binary --whitespace=nowarn "$IN/data.patch"
+          fi
+          if [ "$(git write-tree)" != "$tree" ]; then
+            echo "::error::套用 patch 之後的樹和 build 的不一樣"
+            exit 1
+          fi
+          git diff --cached --shortstat
+
+      - name: 推 data 分支
+        working-directory: data
+        # events.yml（HD20，每小時）也會推 data 分支：先 rebase 到遠端最新的、失敗重試 3 次
+        run: ../tools/push_data.sh data
+
+      - name: 發布到 GitHub Pages
+        id: deploy
+        if: needs.build.outputs.pages == 'true'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

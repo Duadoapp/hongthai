@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 把 data 分支 worktree（目前目錄）的變更 commit 並推上去（HD20）。
-# build.yml（每天四次）和 events.yml（每小時）可能同時推，所以推之前先 rebase 到遠端最新的 data，
+# build.yml（每天四次，HD45 起在 publish job：先把 build job 的 patch 套回 worktree 再呼叫這支）和
+# events.yml（每小時）可能同時推，所以推之前先 rebase 到遠端最新的 data，
 # 失敗（被別人先推、網路）重試 3 次、間隔 20 秒。兩邊寫的檔案不重疊，rebase 不會衝突；
 # 萬一衝突就放棄這次 rebase、下一輪重來。
 set -u

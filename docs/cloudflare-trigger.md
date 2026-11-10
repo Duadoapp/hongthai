@@ -76,7 +76,9 @@ npx wrangler secret put GITHUB_TOKEN
 - 下一個整點 07 分過後，GitHub → hongthai → **Actions → events**，最新一筆的事件是 `workflow_dispatch`
   （GitHub 自己排的是 `schedule`），log 的「每小時 METAR、颱風現報與航班」第一行是 `觸發：cloudflare`
 - 下一個 build 時段過後，**Actions → build** 有一筆 `workflow_dispatch`；如果 GitHub 的排程後來也到了，那一筆
-  「產生 latest.json」印「這個時段 HH:MMZ 已經在 … 出過，跳過」，Pages 那兩步是灰的（skipped）
+  build job 的「產生 latest.json」印「這個時段 HH:MMZ 已經在 … 出過，跳過」、「上傳 Pages artifact」是灰的（skipped），
+  publish job 照跑（只推 `history/timing/` 那一行）、「發布到 GitHub Pages」是灰的（HD45 起拆成 build／publish 兩個 job，
+  README「build／publish 兩個 job」）
 - `data` 分支 `history/timing/<YYYY-MM>.jsonl`：每報 `start` 那行有 `trigger`、`slot`（排定時間）、`startedAt`
   （job 開始）、`delayMinutes`，看 Worker 準不準；跳過的是 `source: "skip"` 那行
 
