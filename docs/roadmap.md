@@ -5,16 +5,11 @@
 
 規則：**現在**是已經開工的；**下一個**輪到才寫提示詞；**之後**確定要做但還沒排；**點子箱**一行就好。
 
-## 現在（2026-11-11）
+## 現在
 
-| 代號 | 做什麼 | 模型 | 只動 |
-| --- | --- | --- | --- |
-| HD48 | 公開 WN3 自己的整體等級（`level`，沒有數值） | Opus 高 | `assess.public_slots`、`build.hide_wn3`、`config`、測試、README |
-| HD49 | WN3 加雨量（讀 Zarr 逐時雨量） | Opus 高 | `sources/wn3.py`、`wn3report.py`、`wn3private.py`、測試、README |
-| HD50 | AI 評論平常一天 1 報、有颱風而且有高時 2 報 | Opus 高 | `src/hongthai/ai/`、`build.py` 的 `run_ai`、`build.yml` 的手動輸入 |
-| HW26 | 網頁模式表顯示 WN3 的等級（HD48 合併後開） | Opus 中 | Duado `site/hongthai/`、`hongthai.*` 語系鍵 |
+（2026-11-11 那一批 HD48、HD49、HD50、HW26 都合併了；沒有進行中的工作）
 
-- 觀察：HD47 上線後用 `python -m tools.ai_cost --from 2026-11-11 --breakdown --calibrate-as after` 驗快取命中與每次成本
+- 觀察：AI 評論改成一天 1 報後的實際月費（`python -m tools.ai_cost --from 2026-11-11`）
 
 ## 下一個
 
