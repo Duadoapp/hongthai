@@ -74,7 +74,9 @@ npx wrangler secret put GITHUB_TOKEN
 ## 3. 確認有在動
 
 - 下一個整點 07 分過後，GitHub → hongthai → **Actions → events**，最新一筆的事件是 `workflow_dispatch`
-  （GitHub 自己排的是 `schedule`），log 的「每小時 METAR、颱風現報與航班」第一行是 `觸發：cloudflare`
+  （GitHub 自己排的是 `schedule`），collect job 的 log「每小時 METAR、颱風現報與航班」第一行是 `觸發：cloudflare`；
+  有新資料時 publish job 接著推 `data`，沒有時 publish 是灰的（HD51 起拆成 collect／publish 兩個 job，
+  README「events 的 collect／publish 兩個 job」）
 - 下一個 build 時段過後，**Actions → build** 有一筆 `workflow_dispatch`；如果 GitHub 的排程後來也到了，那一筆
   build job 的「產生 latest.json」印「這個時段 HH:MMZ 已經在 … 出過，跳過」、「上傳 Pages artifact」是灰的（skipped），
   publish job 照跑（只推 `history/timing/` 那一行）、「發布到 GitHub Pages」是灰的（HD45 起拆成 build／publish 兩個 job，

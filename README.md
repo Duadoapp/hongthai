@@ -681,7 +681,7 @@ H10（2026-10-18）之後：
 - `src/hongthai/events.py`：事件保存（HD20）：每報快照、一次性搬運、每小時 METAR、颱風現報與逐班航班紀錄
   （HD31，逐班轉換在 `src/hongthai/flights_log.py`；HD32 起多 TDX 台灣機場，`src/hongthai/sources/tdx.py`）
   （`.github/workflows/events.yml`）；推 `data` 分支用
-  `tools/push_data.sh`（`build.yml` 的 publish job 也用）
+  `tools/push_data.sh`（`build.yml`、`events.yml` 的 publish job 都用）
 - `cloudflare/trigger/`：Cloudflare 排程 Worker（HD25，上面「排程」），自己一份 `package.json` 與 lock，
   不動 repo 根目錄；`npm test` 測 cron → workflow 的對照（CI 只在 `cloudflare/` 有變動時跑）
 - `src/hongthai/tracks.py`：颱風路徑抽取（HD21）：ECMWF 路徑產品（BUFR）與從海平面氣壓找中心
@@ -1817,7 +1817,7 @@ WN2 這一個請求（51 個機場）：1 個變數 × 64 個成員 ÷ 10 × max
     Single Runs API 對照 GEM：`_previous_day1` 等於提前 24–47 小時的那一報
   - 合併後 Shawn 手動跑一次、10/27 定稿前再跑一次（第二次只補新的小時）。**`openmeteo-ukmo.jsonl` 是 CC BY-SA 4.0**
     （UK Met Office 的條款，下面「資料來源與授權」），用到 UKMO 數字的報告也要同樣標
-- **推 `data` 分支**：每小時和每天四次的主 build（HD45 起是它的 publish job）可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
+- **推 `data` 分支**：每小時（HD51 起是 `events.yml` 的 publish job）和每天四次的主 build（HD45 起是它的 publish job）可能同時推，兩邊都用 `tools/push_data.sh`：commit 後
   `git pull --rebase origin data` 再推，失敗重試 3 次（間隔 20 秒）。兩邊寫的檔不重疊，不會衝突
 - 實際停飛照舊用 `history/cancellations/`（不用另外存）
 - **驗證報告**（HD22，`tools/report_29w.py`；只讀上面這些檔（含 `flights/`）與 `history/cancellations/`、`history/ai/`，不改任何
@@ -2400,7 +2400,32 @@ HD43 改成 WN3 投一票（上面 `vote`），**等級不再單獨公開**，R2
 並拿本機的 git repo 把打包與還原那兩段 shell 實際跑一遍。
 
 還有的風險：build job 被動手腳時仍然可以決定「要發布什麼內容」（改 `latest.json`、往 `data` 分支塞檔），也拿得到 AI 與來源的金鑰；
-拆開之後它拿不到的是可寫 repo 的 token（改不了 `main`、workflow、其他分支）與 Pages 的 OIDC token。`longrange.yml`、`events.yml` 還沒拆。
+拆開之後它拿不到的是可寫 repo 的 token（改不了 `main`、workflow、其他分支）與 Pages 的 OIDC token。`longrange.yml` 還沒拆
+（它沒有任何 secret，只有可寫的 token）。
+
+### events 的 collect／publish 兩個 job（HD51）
+
+`events.yml`（每小時）比照上面拆開，頂層 `permissions` 只有 `contents: read`：
+
+| job | secrets | token 權限 | 做什麼 |
+| --- | --- | --- | --- |
+| `collect` | `GOOGLE_SERVICE_ACCOUNT_JSON`、`GOOGLE_CLOUD_PROJECT`、`CWA_API_KEY`、`TDX_*` | `contents: read` | 裝套件、取出 `data` 分支（只讀）、跑每小時那支與勾選的 backfill，最後把 `data` worktree 的變更包成 artifact |
+| `publish`（`needs: collect`） | 沒有 | `contents: write` | 下載 artifact → 套 patch、核對樹 → `tools/push_data.sh events`。**不裝 Python 套件、不執行這個 repo 的 Python 程式** |
+
+- artifact 只有一個 `data-changes`（`base`、`tree`、`data.patch`，和 build 的同一種包法，留 **1 天**）。現在不在事件期間，一天只有 00Z 那次
+  有變更（WeatherNext 3 搬家，2026-11-08～13 實測每次 4 個檔、patch 約 1.4 MB）；事件期間每小時多 METAR、颱風現報與航班紀錄
+  （估計幾十到幾百 KB），手動 backfill 視補了多少
+- **沒有變更就不包、publish 不起來**（期間外 `hourly` 印一行就結束、或這個小時沒有新資料）：「包 data 分支的變更」印「沒有新檔案」，
+  「上傳 data 變更」與整個 publish job 是灰的，run 綠。以前是 `push_data.sh` 印「沒有新檔案」不推
+- 以前就是一次 run 最後推一次（一個 commit `events: <UTC 時間>`，每小時那支和勾選的 backfill 的變更都在裡面），現在也是；
+  時間是 publish 推的時候，比以前晚十幾秒
+- collect 有步驟失敗：不包、publish 不起來、run 紅（以前失敗之後的「推 data 分支」也不會跑）。publish 推失敗：run 紅，這個小時的
+  資料下個小時再存（METAR、航班紀錄去重，颱風現報存當時最新的）
+- `concurrency: events`（不取消進行中的）掛在整個 run；手動 backfill 的 `timeout-minutes: 90` 在 collect，publish 另外 10 分鐘
+- artifact 登入 GitHub 就能下載，裡面只有接著要推上公開 `data` 分支的內容：WeatherNext 3 只有起報超過 121 小時的報（`wn3-archive`）
+  與補抓時有效時間已過 1 小時的格（`backfill-tracks`，`clippedAt`）會寫進 `data/`；補抓下載的暫存檔在系統暫存目錄
+  （`tempfile.TemporaryDirectory`，不在 `data/`、也不在 artifact 的路徑），跑完就刪。**不要在 collect job 加別的 `upload-artifact`**
+- `tests/test_workflow_events.py`（不連網）檢查這些界線、手動輸入與各步驟的 `if:`，並拿本機的 git repo 把打包與還原實際跑一遍
 
 ### 排程（HD25）
 
