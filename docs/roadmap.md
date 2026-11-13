@@ -9,14 +9,13 @@
 
 | 代號 | 做什麼 | 模型 | 只動 |
 | --- | --- | --- | --- |
-| HD51 | `events.yml` 比照 HD45 拆 collect／publish | Fable 5.2 | `.github/workflows/events.yml`、`tests/test_workflows.py`、README |
 | （擬稿） | 颱風薔琵驗證頁與 FB 貼文：Shawn 逐句看稿中；定稿後開 HW27（`duado.app/hongthai/report/29w`） | — | — |
 
 - 觀察：AI 評論改成一天 1 報後的實際月費（`python -m tools.ai_cost --from 2026-11-11`）
 
 ## 下一個
 
-1. `longrange.yml` 比照 HD45 拆（優先度低，等 HD51 的建議）
+1. `longrange.yml` 比照 HD45 拆（優先度低；HD51 11/14 已合併）
 2. **改名 HongTai＋搬到 `hongtai.app`**（Duado spec 第 16 節「改名與獨立網域」）：**Shawn 11/11 決定先不買網域，往後排**。順序：
    HW25（前置）→ Duado 總指揮加建置目標與轉送 → 改名、副標題（HW，編號到時再排）、canonical、sitemap、隱私頁 → HD48 分享圖上的名稱與網址 →
    `duado.app/hongthai/...` 301 → Search Console、送 sitemap
