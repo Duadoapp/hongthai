@@ -56,16 +56,27 @@ on:
         type: boolean
         default: false
 
+# HD51（比照 build.yml 的 HD45，S1 L25）：頂層只給讀；兩個 job 各自宣告。
+# - collect：拿來源的 secrets（Google 服務帳號、CWA、TDX），token 只能讀——相依套件被動手腳時拿不到可寫 repo 的 token
+# - publish：拿可寫 repo 的 token，沒有來源的 secrets、不裝套件、不跑這個 repo 的 Python
+# 兩個 job 之間只靠一個 artifact 傳 data 分支的變更（patch）。公開 repo 的 artifact 登入就能下載，所以裡面只能有
+# 本來就要推上 data 的檔（WeatherNext 3 只有起報超過 121 小時的報、與補抓時有效時間已過 1 小時的格會寫進 data/；
+# 下載用的暫存目錄在系統的 /tmp、跑完就刪，不在 artifact 的路徑裡）。不要在 collect job 加別的 upload-artifact
 permissions:
-  contents: write # 推 data 分支
+  contents: read
 
+# 整個 run（兩個 job）同一組：collect 與 publish 之間不會被另一次 events 插隊
 concurrency:
   group: events
   cancel-in-progress: false
 
 jobs:
-  events:
+  collect:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      packed: ${{ steps.pack.outputs.packed }}
     timeout-minutes: 90 # 每小時的只要 1 分鐘；手動 backfill-tracks 每報約 1 分鐘下載＋解析，WN3 每報一個 BigQuery 查詢＋最多 20 張氣壓；HD15b 起 29W 事件期間每報都補（約 30 報，HD15b 前 45、HD15 前 30、HD20 是 10）
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -156,6 +167,85 @@ jobs:
             echo "不是 00Z，不搬 WeatherNext 3"
           fi
 
+      # HD51：data 分支的變更包成 patch 給 publish 推（這個 job 的 token 只能讀）。和 build.yml 的「包 data 分支的變更」
+      # 同一種包法：`git add -A` 後整份 diff（--binary、不偵測改名）、base 是取出時的 commit、tree 是加完之後的樹。
+      # 和原本「推 data 分支」一樣沒有 if：前面有步驟失敗就不包、不推、run 標紅。沒有變更（期間外、或這個小時沒有新
+      # 資料）印一行就結束：不上傳、publish 不起來（原本是 push_data.sh 印「沒有新檔案」不推）
+      - name: 包 data 分支的變更
+        id: pack
+        env:
+          OUT: ${{ runner.temp }}/data-changes
+        run: |
+          set -eu
+          cd data
+          git add -A
+          if git diff --cached --quiet; then
+            echo "沒有新檔案"
+            echo "packed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$OUT"
+          git rev-parse --verify HEAD > "$OUT/base"
+          git write-tree > "$OUT/tree"
+          git -c core.quotePath=false diff --cached --binary --full-index --no-renames --no-color \
+            --no-ext-diff --no-textconv > "$OUT/data.patch"
+          git diff --cached --shortstat
+          ls -l "$OUT"
+          echo "packed=true" >> "$GITHUB_OUTPUT"
+
+      - name: 上傳 data 變更（artifact，留 1 天）
+        if: steps.pack.outputs.packed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: data-changes
+          path: ${{ runner.temp }}/data-changes
+          if-no-files-found: error
+          retention-days: 1
+
+  # HD51：只做發布。沒有來源的 secrets、不裝 Python 套件、不執行這個 repo 的 Python 程式；
+  # artifact 的內容當資料處理（base、tree 先檢查格式，patch 只用 git apply 套在 data 的 worktree 裡）。
+  # collect 失敗（needs 沒過）或沒有變更（packed 不是 true）就不起來
+  publish:
+    needs: collect
+    if: needs.collect.outputs.packed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10 # 平常約 15–20 秒；推 data 最多重試 4 次（各隔 20 秒）
+    permissions:
+      contents: write # 推 data 分支
+    steps:
+      # 只用裡面的 tools/push_data.sh 與 git 的設定（推 data 用的 token）；Python 程式取出來但不執行
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: 下載 data 變更
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: data-changes
+          path: ${{ runner.temp }}/data-changes
+
+      # 在 collect 取出時的那個 commit 上還原 collect 的 worktree（同一棵樹，patch 一定套得上），之後照舊交給
+      # push_data.sh：commit、rebase 到遠端最新的 data（collect 期間 build.yml／longrange.yml 先推的）、重試
+      - name: 還原 data 分支的變更
+        env:
+          IN: ${{ runner.temp }}/data-changes
+        run: |
+          set -eu
+          base=$(cat "$IN/base")
+          tree=$(cat "$IN/tree")
+          if ! [[ "$tree" =~ ^[0-9a-f]{40}$ && "$base" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::artifact 的 base／tree 格式不對"
+            exit 1
+          fi
+          git fetch --depth=1 origin "$base"
+          git worktree add -B data data "$base"
+          cd data
+          git apply --index --binary --whitespace=nowarn "$IN/data.patch"
+          if [ "$(git write-tree)" != "$tree" ]; then
+            echo "::error::套用 patch 之後的樹和 collect 的不一樣"
+            exit 1
+          fi
+          git diff --cached --shortstat
+
       - name: 推 data 分支
         working-directory: data
+        # build.yml（publish job）、longrange.yml 也會推 data 分支：先 rebase 到遠端最新的、失敗重試 3 次
         run: ../tools/push_data.sh events
