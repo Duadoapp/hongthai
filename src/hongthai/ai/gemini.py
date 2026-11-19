@@ -9,10 +9,12 @@
   （和主要區域一樣也當關掉）。什麼時候切過去由 `run.py` 決定（`config.FALLBACK_AFTER`），
   用同一把服務帳號
 
-- `max_output_tokens` 3000、`temperature` 0.3、回應要求 JSON（`response_mime_type`）
+- `max_output_tokens` 6000（`config.GEMINI_MAX_TOKENS`）、`temperature` 0.3、
+  回應要求 JSON（`response_mime_type`）
 - 思考：`thinking_level` LOW（`config.GEMINI_THINKING_LEVEL`）、`include_thoughts=False`。
   Gemini 4 的思考關不掉、不接受 `thinking_budget`（送了回 400）、不支援 MINIMAL，LOW 是最低（HD6）
-- 單次請求逾時 45 秒（`config.TIMEOUT_S`，HD23 前 60 秒）；SDK 沒設 `retry_options` 就不重試
+- 單次請求逾時 90 秒（`config.TIMEOUT_S`；HD23 前 60 秒、HD23 起 45 秒、
+  2026-11-20 換 Neon 後 90 秒）；SDK 沒設 `retry_options` 就不重試
 - `finish_reason` 是 `MAX_TOKENS`（被截斷）→ `bad_format`；安全過濾之類擋下 → `refusal`
 - 拿到回應之後的失敗都附 `finish_reason` 與輸出 token 數（`candidates_token_count`，有思考時寫成
   `<回答>+<思考>`），給戰績的 `detail`
@@ -40,7 +42,7 @@ from google.auth import exceptions as auth_exceptions
 from google.genai import errors, types
 from google.oauth2 import service_account
 
-from .config import ENV, GEMINI_THINKING_LEVEL, MAX_TOKENS, MODELS, TEMPERATURE, TIMEOUT_S
+from .config import ENV, GEMINI_MAX_TOKENS, GEMINI_THINKING_LEVEL, MODELS, TEMPERATURE, TIMEOUT_S
 from .parse import AiError, exception_text, parse_response, transport_error, with_response
 from .prompt import SYSTEM
 from .usage import as_count
@@ -86,7 +88,7 @@ def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = 
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM,
         temperature=TEMPERATURE,
-        max_output_tokens=MAX_TOKENS,
+        max_output_tokens=GEMINI_MAX_TOKENS,
         response_mime_type="application/json",
         thinking_config=types.ThinkingConfig(
             thinking_level=types.ThinkingLevel(GEMINI_THINKING_LEVEL), include_thoughts=False

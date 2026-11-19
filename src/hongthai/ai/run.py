@@ -12,7 +12,8 @@
 - 符合條件但排在 `MAX_AIRPORTS` 之後的機場：兩顆燈 `status: "error"`、`error: "run_cap"`
   （不能寫「沒看到明顯風險」，那些機場可能是中級）
 - 時間預算（`budget_s`，`build.BUDGET_S["ai"]`）：單次請求逾時每模型各自（`TIMEOUT_S`：
-  Claude 60、Gemini 45 秒，HD23），取它與剩下時間的小者；剩下時間不到該模型逾時＋5 秒
+  Claude 60、Gemini 90 秒
+  （HD23 是 45，2026-11-20 起 90）），取它與剩下時間的小者；剩下時間不到該模型逾時＋5 秒
   （`SEND_MIN_LEFT_S`）就不再送新請求、記 `error: "timeout"`（HD23；以前是不到 0.1 秒才不送）。
   `build` 那邊超過預算時呼叫 `result(timed_out=True)`，還沒評完的機場記 `error: "timeout"`，
   排隊中的不再呼叫，已經送出的請求最晚在預算到時結束，回來的結果不再採用
