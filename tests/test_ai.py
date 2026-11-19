@@ -1930,7 +1930,9 @@ def test_good_wording_hd16():
 
 
 def test_retry_429_constants():
-    assert config.RETRY_429_WAIT_S == {"gemini": 5.0}  # Claude 不重試 429
+    assert config.RETRY_429_WAIT_S == {"gemini": 20.0}  # Claude 不重試 429
+    assert config.RETRY_429_TIMES == 2
+    assert config.ALT_MODEL == {"gemini": "gemini-4-argon"}
     assert "http_429" not in config.RETRY_CODES
     assert config.PARALLEL == {"claude": 4, "gemini": 3}  # 不降並行
 
@@ -1944,11 +1946,11 @@ def test_gemini_429_waits_then_retries(tmp_path, monkeypatch):
     assert g["seconds"] >= 0.2  # 等的時間算在這筆裡
 
 
-def test_gemini_429_twice_retried_once(tmp_path, monkeypatch):
+def test_gemini_429_retried_twice_at_most(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {"gemini": 0.0})
     ge = seq_model("http_429")
     g = _gemini_row(tmp_path, ge)
-    assert len(ge.timeouts) == 2  # 只重試一次
+    assert len(ge.timeouts) == 3  # 最多重試兩次
     assert g["light"]["error"] == "http_429" and g["detail"] == "http_429:-:-:retried"
 
 
@@ -1974,3 +1976,145 @@ def test_claude_429_not_retried(tmp_path, monkeypatch):
     ev = {"claude": cl, "gemini": fake_model()}
     ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, evaluators=ev)
     assert len(cl.timeouts) == 1
+
+
+# ---- 2026-11-20：重試完還是失敗，改用 Argon 評一次 ----
+
+
+def alt_model(*outcomes: str | None, alt: str | None = None):
+    """主要模型依序回 `outcomes`（同 `seq_model`）；`model=` 有給（換模型）時回 `alt`。記下每次
+    用的模型（`None` 是主要模型）。"""
+    models: list[str | None] = []
+    lock = threading.Lock()
+
+    def evaluate(text, *, client=None, timeout=60, model=None):
+        with lock:
+            n = sum(m is None for m in models)
+            models.append(model)
+        code = alt if model else outcomes[min(n, len(outcomes) - 1)]
+        if code:
+            raise AiError(code)
+        return ok_result("high")
+
+    return SimpleNamespace(make_client=object, evaluate=evaluate, models=models)
+
+
+def _alt_on(monkeypatch):
+    monkeypatch.setattr(ai_run, "ALT_MODEL", {"gemini": "gemini-4-argon"})
+    monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {"gemini": 0.0})
+
+
+def test_alt_after_429_retries(tmp_path, monkeypatch):
+    _alt_on(monkeypatch)
+    ge = alt_model("http_429")
+    g = _gemini_row(tmp_path, ge)
+    assert ge.models == [None, None, None, "gemini-4-argon"]  # 兩次重試後換 Argon
+    assert g["status"] == "ok" and "detail" not in g and g["calls"] == 4
+    assert g["light"]["model"] == "gemini-4-argon"
+
+
+def test_alt_after_other_error(tmp_path, monkeypatch):
+    """429 以外的錯（例如格式錯）不重試，直接換 Argon。"""
+    _alt_on(monkeypatch)
+    ge = alt_model("bad_format")
+    g = _gemini_row(tmp_path, ge)
+    assert ge.models == [None, "gemini-4-argon"] and g["light"]["model"] == "gemini-4-argon"
+
+
+def test_alt_fails_too(tmp_path, monkeypatch):
+    _alt_on(monkeypatch)
+    ge = alt_model("http_504", alt="http_429")
+    g = _gemini_row(tmp_path, ge)
+    assert ge.models == [None, None, "gemini-4-argon"]  # 504 重試一次、再換 Argon
+    assert g["light"]["error"] == "http_429" and g["light"]["model"] == "gemini-4-argon"
+    assert g["detail"] == "http_429:-:-:retried:alt"
+
+
+def test_alt_not_needed_when_ok(tmp_path, monkeypatch):
+    _alt_on(monkeypatch)
+    ge = alt_model(None)
+    g = _gemini_row(tmp_path, ge)
+    assert ge.models == [None] and g["light"]["model"] == config.MODELS["gemini"]
+
+
+@pytest.mark.parametrize("code", ["no_api_key", "http_401", "http_403"])
+def test_alt_skipped_for_auth_errors(tmp_path, monkeypatch, code):
+    _alt_on(monkeypatch)
+    ge = alt_model(code)
+    _gemini_row(tmp_path, ge)
+    assert ge.models == [None]
+
+
+def test_alt_skipped_when_budget_short(tmp_path, monkeypatch):
+    _alt_on(monkeypatch)
+    ge = alt_model("bad_format")
+    g = _gemini_row(tmp_path, ge, budget_s=99)
+    assert ge.models == [None] and g["detail"] == "bad_format:-:-"
+
+
+def test_alt_only_for_gemini(tmp_path, monkeypatch):
+    _alt_on(monkeypatch)
+    cl = alt_model("bad_format")
+    ev = {"claude": cl, "gemini": fake_model()}
+    ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, evaluators=ev)
+    assert cl.models == [None]
+
+
+def test_gemini_evaluate_passes_model(monkeypatch):
+    """`gemini.evaluate(model=...)` 送那個 model id；沒給用 `MODELS["gemini"]`。"""
+    seen: list[str] = []
+
+    class Models:
+        def generate_content(self, *, model, contents, config):
+            seen.append(model)
+            raise genai_errors.APIError(429, {"error": {"code": 429, "message": "quota"}})
+
+    client = SimpleNamespace(models=Models())
+    for m in (None, "gemini-4-argon"):
+        with pytest.raises(AiError):
+            gemini.evaluate("x", client=client, model=m)
+    assert seen == [config.MODELS["gemini"], "gemini-4-argon"]
+
+
+def test_alt_not_counted_for_regions(tmp_path, monkeypatch):
+    """Argon 那次的成敗不算 Neon 備援區域的連續次數：Neon 每次 `timeout`、Argon 每次成功，
+    連續 3 次以後照樣切備援區域（審查 #195 必修）。"""
+    _alt_on(monkeypatch)
+    ge = region_model(["timeout"], [None])
+    calls: list[str | None] = []
+    orig = ge.evaluate
+
+    def evaluate(text, *, client=None, timeout=60, model=None):
+        calls.append(model)
+        if model:
+            return ok_result("high")
+        return orig(text, client=client, timeout=timeout)
+
+    ge.evaluate = evaluate
+    _region_run(tmp_path, monkeypatch, ge, 5)
+    assert _where(ge)[:3] == ["global"] * 3
+    assert "us" in _where(ge)  # 3 次 Neon timeout 之後切到備援
+
+
+def test_alt_keeps_primary_usage(tmp_path, monkeypatch):
+    """Neon 有回應的內容錯（有計費）→ 換 Argon：Neon 那次的 token 也進合計（審查 #195 必修）。"""
+    _alt_on(monkeypatch)
+    n = {"i": 0}
+
+    def evaluate(text, *, client=None, timeout=60, model=None):
+        n["i"] += 1
+        u = {"input": 100, "output": 6000 if not model else 500}
+        if not model:
+            e = AiError("bad_format")
+            e.usage = u
+            raise e
+        return ok_result("high") | {"usage": u}
+
+    ge = SimpleNamespace(make_client=object, evaluate=evaluate)
+    ev = {"claude": fake_model(), "gemini": ge}
+    res = ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, evaluators=ev)
+    rows = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))
+    assert n["i"] == 2
+    assert rows[0]["gemini"]["model"] == "gemini-4-argon"  # 戰績記實際評的模型
+    assert "model" not in rows[0]["claude"]
+    assert res["usage"]["gemini"]["calls"] == 2  # Neon 那次（有回應）也算進合計

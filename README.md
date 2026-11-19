@@ -922,8 +922,9 @@ HD3（2026-10-19）加的（只加值、不加欄位，既有欄位不改名、�
 HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 Duado spec 第 16 節；既有欄位不改名、不改型別）：
 
 - 頂層 `ai`：`{ "disclaimer": { 四語 }, "models": { "claude": "claude-opus-5-5", "gemini": "gemini-4-neon" } }`。
-  免責四語是固定字串（`ai/config.py` 的 `DISCLAIMER`）；網頁燈的標題用 `models` 顯示模型名，鍵名
-  `claude`／`gemini` 換模型版本也不改
+  免責四語是固定字串（`ai/config.py` 的 `DISCLAIMER`）；`models` 是平常用的模型，鍵名
+  `claude`／`gemini` 換模型版本也不改。**每顆燈的 `model` 是實際評的模型**，2026-11-20 起 Gemini 換模型
+  （`ALT_MODEL`）時是 `gemini-4-argon`、和頂層不同；網頁照燈上的 `model` 顯示名稱，沒有才用頂層
 - `airports[].ai`：`{ "evaluatedAt", "claude": <燈>, "gemini": <燈> }`，每個機場都有
   - `evaluatedAt`：這一報的時間（＝`generatedAt`）；兩顆燈都是 `error` 時 `null`（`skipped` 也填時間）。
     HD50 起不評的那報沿用上一份，這裡是**原本評估的時間**（見下面 `ai.schedule`）
@@ -1987,16 +1988,27 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   送新請求、記 `timeout`（HD23；以前是不到 0.1 秒才不送）；整個 AI 步驟預算 240 秒（`BUDGET_S["ai"]`；HD12 前 180 秒，
   HD11 後第一報 178.2 秒頂到預算），兩個模型**平行**呼叫、每個模型的並行數 Claude 4 條、Gemini 3 條
   （`config.PARALLEL`；HD6 時 4 條撞過 429、降到 2；HD12 升回 3 再觀察；2026-11-20 Neon 的 429 回來了，降回 2 條會超過
-  預算，改成 429 等 5 秒重試一次、維持 3 條，見下一點），超過的機場記
+  預算，改成 429 等 20 秒重試最多 2 次、再不行換 Argon，維持 3 條，見下一點），超過的機場記
   `timeout`。AI 失敗不影響 `latest.json` 其他內容
 - **`http_503`／`http_504` 只重試一次**（HD17，Shawn 2026-10-20 定案；`ai/run.py`，`config.RETRY_CODES`）：
   閘道沒回應（Vertex 閘道逾時）不是模型回了壞東西、也不計費，所以同一個請求、不改內容再送一次；只在**剩餘預算
   ≥ 70 秒**（`config.RETRY_MIN_LEFT_S`，一次請求逾時 60 秒）時重試，不夠就照舊記 `http_504`。重試也算一次呼叫
   （`sources.ai.calls`、次數檔都加 1；到每日上限就不重試）。重試成功就是 `ok`；重試仍失敗記第二次的
   代碼、戰績 `detail` 後面加 `:retried`（例如 `"http_504:-:-:retried"`），`seconds` 是兩次合計。
-  **Gemini 的 `http_429` 等 5 秒再重試一次**（2026-11-20 Shawn 決定；`config.RETRY_429_WAIT_S`，只有 Gemini）：
-  11/20 手動 build Neon 3 條並行 10 筆有 5 筆一回來就是 429（逾時拉長後沒有逾時了）；條件同上（第一次快失敗、
-  剩餘預算夠、沒到每日上限），等的 5 秒算在 `seconds` 裡，預算到了就不等。Claude 的 429 照舊不重試。
+  **Gemini 的 `http_429` 等 20 秒再重試，最多 2 次**（2026-11-20 Shawn 決定；`config.RETRY_429_WAIT_S`、
+  `RETRY_429_TIMES`，只有 Gemini）：11/20 手動 build Neon 3 條並行 10 筆有 5 筆一回來就是 429（逾時拉長後
+  沒有逾時了）；先試等 5 秒重試一次，第二次 build 8 筆 429 只救回 2 筆（4/10），改成 20 秒、2 次。條件同上
+  （每次都是快失敗、剩餘預算夠、沒到每日上限），等的時間算在 `seconds` 裡，預算到了就不等。Claude 的 429
+  照舊不重試。
+  **重試完還是失敗就改用 Gemini 4 Argon 評一次**（同一天 Shawn 決定；`config.ALT_MODEL`）：WN3 違規與
+  `no_api_key`／`http_401`／`http_403`／`daily_cap`（`ALT_SKIP`）以外的任何錯都換；條件同重試、也算一次呼叫。
+  燈的 `model` 是實際評的模型（`gemini-4-argon`，網頁照燈上的 `model` 顯示名稱），戰績 `detail` 尾巴加
+  `:alt`（換了還是失敗才有 `detail`），戰績那筆多 `"model": "gemini-4-argon"`（成功也有）。Neon 那次的
+  token（內容錯也有計費）照 WN3 重生的做法加進 `usage` 合計；Argon 那次的成敗不算 Neon 備援區域的連續次數。
+  費用估算照 Neon 的單價算（Argon 比較便宜，估計值偏高）。**時間預算**：剩不到該模型逾時＋5／＋10 秒
+  （Gemini 95／100 秒）就不再送新請求、重試或換模型，所以 240 秒裡大約前 140 秒才送得出去；Neon 全面 429
+  時每個機場約 55–75 秒（3 次快失敗＋等 40 秒＋Argon）、等的時候佔著一條線，3 條線約評得到 6–9 個機場，
+  其他記 `timeout`；Neon 本身逾時（90 秒）或慢回的 504 再換 Argon，一個機場可以佔一條線約 2 分鐘。
   `http_400`、`bad_format`、`bad_wording`、`refusal`、`timeout` 都**不重試**。程式兩個模型共用，Claude 的 5xx 很少見，
   但一樣適用。起因是 2026-10-19T18:07Z 那報（HD13 合併後第一報）：Gemini 4 個 `http_504`（RCFG、RCKH、ROIG、
   ZSQZ），每個都卡 57 秒才回，依字母順序 3 條並行時 RCFG／RCKH、ROIG／ZSQZ 幾乎同時送，偏向是負載相關（前一報是

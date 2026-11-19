@@ -27,8 +27,14 @@
   （該模型逾時＋10 秒）、沒到每日上限時；重試也算一次呼叫（次數檔、`calls` 都加 1）。重試仍失敗
   記第二次的錯誤、`detail` 後面加 `:retried`；`seconds` 是兩次合計。等了 15 秒以上才回的
   （閘道逾時）不重試，`detail` 後面加 `:slow`。`http_429` 只有 `RETRY_429_WAIT_S` 列出的
-  模型（Gemini）重試：快失敗時先等那麼多秒（5 秒；預算到了就不等、不重試）再送一次，條件與標記
-  同上（慢回的 429 不重試、也不標 `:slow`；2026-11-20）。其他錯誤都不重試
+  模型（Gemini）重試：快失敗時先等那麼多秒（20 秒；預算到了就不等、不重試）再送，最多
+  `RETRY_429_TIMES`（2）次，條件與標記同上（慢回的 429 不重試、也不標 `:slow`；2026-11-20）。
+  其他錯誤都不重試
+- 換模型（2026-11-20）：`ALT_MODEL` 列出的模型（Gemini：Neon → Argon）重試完還是失敗（`ALT_SKIP`
+  與 WN3 違規以外的任何錯），同一個機場改用那個模型評一次（條件同重試：剩餘預算、每日上限，
+  也算一次呼叫）；燈的 `model` 是實際評的模型，`detail` 尾巴加 `:alt`，戰績那筆多 `model`
+  （成功也有）。主要模型那次的 token 照 WN3 重生的做法加進 `usage` 合計；換模型那次的成敗不算
+  主要模型的備援區域連續次數
 - 備援區域（HD23，`Regions`）：模組有 `locations()` 的模型（Gemini）記這一報主要區域連續幾次
   `FALLBACK_CODES`（`http_503`／`http_504`／`timeout`；成功或其他錯誤歸零），到
   `FALLBACK_AFTER`（3）次之後的請求（含重試）改用備援區域的 client（第一次要用時才建立，
@@ -70,6 +76,8 @@ from types import ModuleType
 
 from . import claude, gemini, prompt, select, usage
 from .config import (
+    ALT_MODEL,
+    ALT_SKIP,
     CONTENT_ERRORS,
     DAILY_CAP,
     DISCLAIMER,
@@ -81,6 +89,7 @@ from .config import (
     MODELS,
     NO_RISK,
     PARALLEL,
+    RETRY_429_TIMES,
     RETRY_429_WAIT_S,
     RETRY_CODES,
     RETRY_FAST_FAIL_S,
@@ -174,9 +183,16 @@ _UNSENT = object()  # 沒送出的呼叫：戰績不寫 `usage`（送出但沒�
 
 
 def _outcome(
-    light: dict, detail: str | None, seconds: float | None, used: object, message: str | None
+    light: dict,
+    detail: str | None,
+    seconds: float | None,
+    used: object,
+    message: str | None,
+    default_model: str | None = None,
 ) -> dict:
     out = {"status": light["status"], "level": light["level"]}
+    if light.get("model") and light["model"] != default_model:  # 換模型評的（2026-11-20）
+        out["model"] = light["model"]
     if detail:
         out["detail"] = detail
     if message:  # HD30
@@ -215,7 +231,12 @@ def record(
         "rule": {"maxLevel": best, "firstFrom": first},
         **{
             k: _outcome(
-                lights[k], details.get(k), seconds.get(k), usages.get(k, _UNSENT), messages.get(k)
+                lights[k],
+                details.get(k),
+                seconds.get(k),
+                usages.get(k, _UNSENT),
+                messages.get(k),
+                MODELS[k],
             )
             for k in KEYS
         },
@@ -483,8 +504,9 @@ class Duel:
         numbers: frozenset[int] | None,
         timeout: float,
     ) -> tuple[dict, AiError | None, bool, dict | None, str]:
-        """送一次（閘道快失敗時同一個請求重試一次，HD17、HD23；Gemini 的 429 等幾秒再重試一次）
-        →（燈, `AiError`, 備援, `usage`, `detail` 的尾巴 `:slow`／`:retried`）。"""
+        """送一次（閘道快失敗時同一個請求重試一次，HD17、HD23；Gemini 的 429 等 20 秒重試最多兩次，
+        還是失敗換 `ALT_MODEL` 評一次）→（燈, `AiError`, 備援, `usage`, `detail` 的尾巴
+        `:slow`／`:retried`／`:alt`）。"""
         t0 = time.monotonic()
         light, err, backup, used = self._send(key, mod, icao, text, timeout, numbers)
         tag = ""
@@ -495,17 +517,34 @@ class Duel:
                 log.info("AI %s %s %s，重試一次", key, icao, err.code)
                 light, err, backup, used = self._send(key, mod, icao, text, retry, numbers)
                 tag = ":retried"
-        elif (
+        elif err and err.code == "http_429" and key in RETRY_429_WAIT_S:  # 2026-11-20
+            sent = t0
+            for _ in range(RETRY_429_TIMES):
+                if time.monotonic() - sent >= RETRY_FAST_FAIL_S:  # 慢回的 429 不重試
+                    break
+                if self.stop.wait(RETRY_429_WAIT_S[key]):  # 等一下；預算到了（stop）就不重試
+                    break
+                if (retry := self._retry_timeout(key)) is None:
+                    break
+                log.info("AI %s %s http_429，等 %s 秒後重試", key, icao, RETRY_429_WAIT_S[key])
+                sent = time.monotonic()
+                light, err, backup, used = self._send(key, mod, icao, text, retry, numbers)
+                tag = ":retried"
+                if not (err and err.code == "http_429"):
+                    break
+        alt = ALT_MODEL.get(key)
+        if (
             err
-            and err.code == "http_429"
-            and key in RETRY_429_WAIT_S
-            and time.monotonic() - t0 < RETRY_FAST_FAIL_S
-            and not self.stop.wait(RETRY_429_WAIT_S[key])  # 等一下；預算到了（stop）就不重試
+            and alt
+            and not isinstance(err, Wn3Leak)  # WN3 違規由 `_one` 重生（HD43）
+            and err.code not in ALT_SKIP
             and (retry := self._retry_timeout(key)) is not None
-        ):  # 額度用完：等幾秒再送一次（2026-11-20）
-            log.info("AI %s %s http_429，等 %s 秒重試一次", key, icao, RETRY_429_WAIT_S[key])
-            light, err, backup, used = self._send(key, mod, icao, text, retry, numbers)
-            tag = ":retried"
+        ):  # 換模型評一次（2026-11-20）
+            log.info("AI %s %s %s，改用 %s 評一次", key, icao, err.code, alt)
+            with self.lock:  # 主要模型那次的 token（有回應的照樣計費）照 WN3 重生的做法加進合計
+                self.dropped_usage[key].append(used)
+            light, err, backup, used = self._send(key, mod, icao, text, retry, numbers, alt)
+            tag += ":alt"
         return light, err, backup, used, tag
 
     def _send(
@@ -516,12 +555,17 @@ class Duel:
         text: str,
         timeout: float,
         numbers: frozenset[int] | None = None,
+        model: str | None = None,
     ) -> tuple[dict, AiError | None, bool, dict | None]:
-        """選區域、送一次、記結果 →（燈, 失敗時的 `AiError`, 是不是用備援區域, `usage`）。"""
+        """選區域、送一次、記結果 →（燈, 失敗時的 `AiError`, 是不是用備援區域, `usage`）。
+        `model` 給了就用那個模型（`ALT_MODEL`），燈的 `model` 也寫它。"""
         regions = self.regions[key]
         client, backup = regions.pick()
-        light, err, used = self._call(key, mod, client, icao, text, timeout, backup, numbers)
-        regions.note(backup, light.get("error"))
+        light, err, used = self._call(key, mod, client, icao, text, timeout, backup, numbers, model)
+        if not model:  # 換模型那次的成敗不算主要模型的區域（HD23 的連續次數）
+            regions.note(backup, light.get("error"))
+        if model:
+            light = {**light, "model": model}
         return light, err, backup, used
 
     def _count(self, key: str) -> bool:
@@ -556,13 +600,19 @@ class Duel:
         timeout: float,
         backup: bool = False,
         numbers: frozenset[int] | None = None,
+        model: str | None = None,
     ) -> tuple[dict, AiError | None, dict | None]:
         """送一次請求 → (燈, 失敗時的 `AiError`, `usage`：沒拿到回應是 `None`)。`numbers`：多模式
         綜合那段獨有的整數（HD43；None＝這次沒有那段，`check_wn3`）。"""
         t0 = time.monotonic()
         where = f"（備援 {self.regions[key].backup}）" if backup else ""
+        if model:
+            where += f"（{model}）"
         try:
-            res = mod.evaluate(text, client=client, timeout=timeout)
+            if model:
+                res = mod.evaluate(text, client=client, timeout=timeout, model=model)
+            else:
+                res = mod.evaluate(text, client=client, timeout=timeout)
             try:
                 check_wn3(res["sentences"], numbers)
             except AiError as e:

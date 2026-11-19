@@ -80,10 +80,17 @@ def make_client(location: str | None = None) -> genai.Client:
     )
 
 
-def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = TIMEOUT) -> dict:
+def evaluate(
+    text: str,
+    *,
+    client: genai.Client | None = None,
+    timeout: float = TIMEOUT,
+    model: str | None = None,
+) -> dict:
     """一個機場的精簡文字 → `{"level", "comment", "sentences", "usage"}`；失敗丟 `AiError`，
     這裡不重試（快回的 `http_503`／`http_504` 由 `run.py` 重試一次、切備援區域也在 `run.py`，
-    HD17、HD23）。"""
+    HD17、HD23）。`model` 給了就用那個模型（Neon 失敗時 `run.py` 改用 Argon，2026-11-20），
+    沒給用 `MODELS["gemini"]`。"""
     client = client or make_client()
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM,
@@ -97,7 +104,7 @@ def evaluate(text: str, *, client: genai.Client | None = None, timeout: float = 
     )
     try:
         resp = client.models.generate_content(
-            model=MODELS["gemini"], contents=str(text), config=config
+            model=model or MODELS["gemini"], contents=str(text), config=config
         )
     except errors.APIError as e:
         raise transport_error(f"http_{e.code}", status_message(e)) from e
