@@ -96,7 +96,7 @@
     機場公告為準」。記「對決戰績」：用停飛統計回頭比較規則、Opus、Argon 誰事前比較準，11/18 看第一份，
     之後再決定要不要公開。金鑰：HongThai 專屬的 Anthropic 金鑰與 Google 服務帳號，各設每月上限 30 美元，
     不跟 Duado 共用，只放 Actions secrets（`ANTHROPIC_API_KEY`、`GOOGLE_SERVICE_ACCOUNT_JSON`＝JSON 整份原文、
-    `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`＝`global`）。模型 `claude-opus-5-5`、`gemini-4-neon`（Vertex）。
+    `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`＝`global`）。模型 `claude-opus-5-5`、`gemini-4-argon`（Vertex）。
     保險：每日上限開發期間不限（`DAILY_CAP=0`），正式推廣前再評估；每報 20 個機場、不重試、180 秒預算不變；兩模型平行。提示詞
     `docs/prompts/2026-10-19-HD5-ai-duel.md`。短評用字規則（不出現內部代號、四語照 Duado 語系規則、不寫英文
     等級字、統一「停飛風險」；違規記 `bad_wording`）見 `docs/prompts/2026-10-19-HD6-ai-wording.md`
