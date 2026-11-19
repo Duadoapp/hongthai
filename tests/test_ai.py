@@ -2074,3 +2074,47 @@ def test_gemini_evaluate_passes_model(monkeypatch):
         with pytest.raises(AiError):
             gemini.evaluate("x", client=client, model=m)
     assert seen == [config.MODELS["gemini"], "gemini-4-argon"]
+
+
+def test_alt_not_counted_for_regions(tmp_path, monkeypatch):
+    """Argon 那次的成敗不算 Neon 備援區域的連續次數：Neon 每次 `timeout`、Argon 每次成功，
+    連續 3 次以後照樣切備援區域（審查 #195 必修）。"""
+    _alt_on(monkeypatch)
+    ge = region_model(["timeout"], [None])
+    calls: list[str | None] = []
+    orig = ge.evaluate
+
+    def evaluate(text, *, client=None, timeout=60, model=None):
+        calls.append(model)
+        if model:
+            return ok_result("high")
+        return orig(text, client=client, timeout=timeout)
+
+    ge.evaluate = evaluate
+    _region_run(tmp_path, monkeypatch, ge, 5)
+    assert _where(ge)[:3] == ["global"] * 3
+    assert "us" in _where(ge)  # 3 次 Neon timeout 之後切到備援
+
+
+def test_alt_keeps_primary_usage(tmp_path, monkeypatch):
+    """Neon 有回應的內容錯（有計費）→ 換 Argon：Neon 那次的 token 也進合計（審查 #195 必修）。"""
+    _alt_on(monkeypatch)
+    n = {"i": 0}
+
+    def evaluate(text, *, client=None, timeout=60, model=None):
+        n["i"] += 1
+        u = {"input": 100, "output": 6000 if not model else 500}
+        if not model:
+            e = AiError("bad_format")
+            e.usage = u
+            raise e
+        return ok_result("high") | {"usage": u}
+
+    ge = SimpleNamespace(make_client=object, evaluate=evaluate)
+    ev = {"claude": fake_model(), "gemini": ge}
+    res = ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, evaluators=ev)
+    rows = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))
+    assert n["i"] == 2
+    assert rows[0]["gemini"]["model"] == "gemini-4-argon"  # 戰績記實際評的模型
+    assert "model" not in rows[0]["claude"]
+    assert res["usage"]["gemini"]["calls"] == 2  # Neon 那次（有回應）也算進合計

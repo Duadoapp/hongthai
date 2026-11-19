@@ -32,8 +32,9 @@
   其他錯誤都不重試
 - 換模型（2026-11-20）：`ALT_MODEL` 列出的模型（Gemini：Neon → Argon）重試完還是失敗（`ALT_SKIP`
   與 WN3 違規以外的任何錯），同一個機場改用那個模型評一次（條件同重試：剩餘預算、每日上限，
-  也算一次呼叫）；燈的 `model` 是實際評的模型，`detail` 尾巴加 `:alt`（成功就沒有 `detail`，
-  看燈的 `model`）
+  也算一次呼叫）；燈的 `model` 是實際評的模型，`detail` 尾巴加 `:alt`，戰績那筆多 `model`
+  （成功也有）。主要模型那次的 token 照 WN3 重生的做法加進 `usage` 合計；換模型那次的成敗不算
+  主要模型的備援區域連續次數
 - 備援區域（HD23，`Regions`）：模組有 `locations()` 的模型（Gemini）記這一報主要區域連續幾次
   `FALLBACK_CODES`（`http_503`／`http_504`／`timeout`；成功或其他錯誤歸零），到
   `FALLBACK_AFTER`（3）次之後的請求（含重試）改用備援區域的 client（第一次要用時才建立，
@@ -182,9 +183,16 @@ _UNSENT = object()  # 沒送出的呼叫：戰績不寫 `usage`（送出但沒�
 
 
 def _outcome(
-    light: dict, detail: str | None, seconds: float | None, used: object, message: str | None
+    light: dict,
+    detail: str | None,
+    seconds: float | None,
+    used: object,
+    message: str | None,
+    default_model: str | None = None,
 ) -> dict:
     out = {"status": light["status"], "level": light["level"]}
+    if light.get("model") and light["model"] != default_model:  # 換模型評的（2026-11-20）
+        out["model"] = light["model"]
     if detail:
         out["detail"] = detail
     if message:  # HD30
@@ -223,7 +231,12 @@ def record(
         "rule": {"maxLevel": best, "firstFrom": first},
         **{
             k: _outcome(
-                lights[k], details.get(k), seconds.get(k), usages.get(k, _UNSENT), messages.get(k)
+                lights[k],
+                details.get(k),
+                seconds.get(k),
+                usages.get(k, _UNSENT),
+                messages.get(k),
+                MODELS[k],
             )
             for k in KEYS
         },
@@ -528,6 +541,8 @@ class Duel:
             and (retry := self._retry_timeout(key)) is not None
         ):  # 換模型評一次（2026-11-20）
             log.info("AI %s %s %s，改用 %s 評一次", key, icao, err.code, alt)
+            with self.lock:  # 主要模型那次的 token（有回應的照樣計費）照 WN3 重生的做法加進合計
+                self.dropped_usage[key].append(used)
             light, err, backup, used = self._send(key, mod, icao, text, retry, numbers, alt)
             tag += ":alt"
         return light, err, backup, used, tag
@@ -547,7 +562,8 @@ class Duel:
         regions = self.regions[key]
         client, backup = regions.pick()
         light, err, used = self._call(key, mod, client, icao, text, timeout, backup, numbers, model)
-        regions.note(backup, light.get("error"))
+        if not model:  # 換模型那次的成敗不算主要模型的區域（HD23 的連續次數）
+            regions.note(backup, light.get("error"))
         if model:
             light = {**light, "model": model}
         return light, err, backup, used
