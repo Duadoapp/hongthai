@@ -26,7 +26,9 @@
   只在第一次**花不到 `RETRY_FAST_FAIL_S`（15 秒）就失敗**、剩餘預算 ≥ `RETRY_MIN_LEFT_S`
   （該模型逾時＋10 秒）、沒到每日上限時；重試也算一次呼叫（次數檔、`calls` 都加 1）。重試仍失敗
   記第二次的錯誤、`detail` 後面加 `:retried`；`seconds` 是兩次合計。等了 15 秒以上才回的
-  （閘道逾時）不重試，`detail` 後面加 `:slow`。其他錯誤都不重試
+  （閘道逾時）不重試，`detail` 後面加 `:slow`。`http_429` 只有 `RETRY_429_WAIT_S` 列出的
+  模型（Gemini）重試：快失敗時先等那麼多秒（5 秒；預算到了就不等、不重試）再送一次，條件與標記
+  同上（慢回的 429 不重試、也不標 `:slow`；2026-11-20）。其他錯誤都不重試
 - 備援區域（HD23，`Regions`）：模組有 `locations()` 的模型（Gemini）記這一報主要區域連續幾次
   `FALLBACK_CODES`（`http_503`／`http_504`／`timeout`；成功或其他錯誤歸零），到
   `FALLBACK_AFTER`（3）次之後的請求（含重試）改用備援區域的 client（第一次要用時才建立，
@@ -79,6 +81,7 @@ from .config import (
     MODELS,
     NO_RISK,
     PARALLEL,
+    RETRY_429_WAIT_S,
     RETRY_CODES,
     RETRY_FAST_FAIL_S,
     RETRY_MIN_LEFT_S,
@@ -480,8 +483,8 @@ class Duel:
         numbers: frozenset[int] | None,
         timeout: float,
     ) -> tuple[dict, AiError | None, bool, dict | None, str]:
-        """送一次（閘道快失敗時同一個請求重試一次，HD17、HD23）→（燈, `AiError`, 備援, `usage`,
-        `detail` 的尾巴 `:slow`／`:retried`）。"""
+        """送一次（閘道快失敗時同一個請求重試一次，HD17、HD23；Gemini 的 429 等幾秒再重試一次）
+        →（燈, `AiError`, 備援, `usage`, `detail` 的尾巴 `:slow`／`:retried`）。"""
         t0 = time.monotonic()
         light, err, backup, used = self._send(key, mod, icao, text, timeout, numbers)
         tag = ""
@@ -492,6 +495,17 @@ class Duel:
                 log.info("AI %s %s %s，重試一次", key, icao, err.code)
                 light, err, backup, used = self._send(key, mod, icao, text, retry, numbers)
                 tag = ":retried"
+        elif (
+            err
+            and err.code == "http_429"
+            and key in RETRY_429_WAIT_S
+            and time.monotonic() - t0 < RETRY_FAST_FAIL_S
+            and not self.stop.wait(RETRY_429_WAIT_S[key])  # 等一下；預算到了（stop）就不重試
+            and (retry := self._retry_timeout(key)) is not None
+        ):  # 額度用完：等幾秒再送一次（2026-11-20）
+            log.info("AI %s %s http_429，等 %s 秒重試一次", key, icao, RETRY_429_WAIT_S[key])
+            light, err, backup, used = self._send(key, mod, icao, text, retry, numbers)
+            tag = ":retried"
         return light, err, backup, used, tag
 
     def _send(
