@@ -1604,7 +1604,7 @@ def test_hd23_constants():
     assert config.RETRY_FAST_FAIL_S == 15
     assert config.SEND_MIN_LEFT_S == {"claude": 65, "gemini": 95}
     assert (config.FALLBACK_AFTER, config.FALLBACK_GIVE_UP) == (3, 2)
-    assert config.FALLBACK_CODES == ("http_503", "http_504", "timeout")
+    assert config.FALLBACK_CODES == ("http_503", "http_504", "timeout", "http_429")
 
 
 @pytest.mark.parametrize("code", ["http_503", "http_504"])
@@ -1750,10 +1750,10 @@ def test_fallback_after_three_504_hd23(tmp_path, monkeypatch, clock):
 
 
 def test_fallback_timeouts_and_reset_hd23(tmp_path, monkeypatch):
-    """`timeout` 也算；中間有成功（或其他錯誤）就歸零。（429 這裡不重試，序列才對得上）"""
+    """`timeout` 也算；中間有成功（或其他錯誤）就歸零。"""
     monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {})
     ge = region_model(
-        ["timeout", "timeout", None, "http_429", "timeout", "timeout", "timeout"], [None]
+        ["timeout", "timeout", None, "http_400", "timeout", "timeout", "timeout"], [None]
     )
     res, rows = _region_run(tmp_path, monkeypatch, ge, 8)
     assert _where(ge) == ["global"] * 7 + ["us"]
@@ -2118,3 +2118,12 @@ def test_alt_keeps_primary_usage(tmp_path, monkeypatch):
     assert rows[0]["gemini"]["model"] == "gemini-4-argon"  # 戰績記實際評的模型
     assert "model" not in rows[0]["claude"]
     assert res["usage"]["gemini"]["calls"] == 2  # Neon 那次（有回應）也算進合計
+
+
+def test_fallback_after_three_429(tmp_path, monkeypatch):
+    """2026-11-20：主要區域連續 3 次 429 也換備援區域（429 不重試時）。"""
+    monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {})
+    ge = region_model(["http_429"], [None])
+    res, rows = _region_run(tmp_path, monkeypatch, ge, 5)
+    assert _where(ge) == ["global"] * 3 + ["us"] * 2
+    assert rows["RC03"]["status"] == rows["RC04"]["status"] == "ok"

@@ -36,11 +36,11 @@
   （成功也有）。主要模型那次的 token 照 WN3 重生的做法加進 `usage` 合計；換模型那次的成敗不算
   主要模型的備援區域連續次數
 - 備援區域（HD23，`Regions`）：模組有 `locations()` 的模型（Gemini）記這一報主要區域連續幾次
-  `FALLBACK_CODES`（`http_503`／`http_504`／`timeout`；成功或其他錯誤歸零），到
-  `FALLBACK_AFTER`（3）次之後的請求（含重試）改用備援區域的 client（第一次要用時才建立，
-  同一把服務帳號）；備援回 `http_404` 或連續 `FALLBACK_GIVE_UP`（2）次失敗（`CONTENT_ERRORS`
-  不算）就不再用、退回主要區域。用備援失敗的 `detail` 最後加 `:fallback`；`sources.ai` 多
-  `<模型>Location`（`geminiLocation`：這一報最後送出的請求用的區域）
+  `FALLBACK_CODES`（`http_503`／`http_504`／`timeout`／`http_429`（2026-11-20 加）；成功或其他
+  錯誤歸零），到 `FALLBACK_AFTER`（3）次之後的請求（含重試）改用備援區域的 client（第一次要用
+  時才建立，同一把服務帳號）；備援回 `http_404` 或連續 `FALLBACK_GIVE_UP`（2）次失敗
+  （`CONTENT_ERRORS` 不算）就不再用、退回主要區域。用備援失敗的 `detail` 最後加 `:fallback`；
+  `sources.ai` 多 `<模型>Location`（`geminiLocation`：這一報最後送出的請求用的區域）
 - 提示快取（HD26）：`WARMUP` 是 `True` 的模型（Claude）**第一個機場先單獨評完**（寫進快取），
   再開 `PARALLEL` 條線評其他的；第一個失敗也照樣開線。Gemini 照舊直接開線。只改送出的順序，
   每個機場送的內容不變。HD47：共用前綴（`prompt.Prompt.shared`，規則燈說明）有兩種（有沒有
