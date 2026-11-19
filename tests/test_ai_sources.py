@@ -391,7 +391,7 @@ OLD_ERROR = {
     "status": "error",
     "level": None,
     "comment": None,
-    "model": "gemini-4-argon",
+    "model": "gemini-4-neon",
     "error": "bad_format",
 }
 

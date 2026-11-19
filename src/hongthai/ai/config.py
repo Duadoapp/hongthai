@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from ..config import MODELS as WEATHER_MODELS
 
-MODELS = {"claude": "claude-opus-5-5", "gemini": "gemini-4-argon"}
+MODELS = {"claude": "claude-opus-5-5", "gemini": "gemini-4-neon"}
 KEYS = tuple(MODELS)  # `latest.json` 的鍵名（模型換版不用改鍵名）
 
 # 每個模型要的環境變數；少任一個就 `no_api_key`、不呼叫
@@ -55,14 +55,16 @@ PRICES: dict[str, list[tuple[str | None, dict[str, float | None]]]] = {
     # Claude Opus 5.5（Claude API；cacheWrite 是 5 分鐘 TTL，1 小時是 8）：
     # https://platform.claude.com/docs/en/build-with-claude/prompt-caching（2026-10-21 查）
     "claude": [(None, {"input": 4.0, "output": 20.0, "cacheWrite": 5.0, "cacheRead": 0.20})],
-    # Gemini 4 Argon（Vertex AI Standard、global 端點；output 是 "response and reasoning"，
-    # 思考算 output。非 global（備援的 `us`）貴 10%：促銷 2.2／11／0.11、之後 4.4／22／0.22，
-    # 這裡一律用 global 估）：https://cloud.google.com/vertex-ai/generative-ai/pricing
-    # （2026-10-21 查）。到 2026-11-30 是促銷價（"Promotional pricing provided through 50%
-    # credits back on net spend"），12/1 起回原價。隱含快取沒有寫入費與儲存費
+    # 2026-11-18（含）以前是 Gemini 4 Argon（Vertex AI Standard、global 端點；
+    # output 是 "response and reasoning"，思考算 output；到 2026-11-30 是促銷價 2／10／0.10）：
+    # https://cloud.google.com/vertex-ai/generative-ai/pricing（2026-10-21 查）。
+    # 2026-11-19 起換 Gemini 4 Neon（2026-11-18 GA，model id `gemini-4-neon`，global／us／eu）：
+    # 官方公告的 API 價 input 3、output 15、cached input 0.15
+    # （9to5google、TestingCatalog 2026-11-18；Vertex 價目頁這次沒讀到，之後對一次）。
+    # 隱含快取沒有寫入費與儲存費
     "gemini": [
-        ("2026-11-30", {"input": 2.0, "output": 10.0, "cacheRead": 0.10}),
-        (None, {"input": 4.0, "output": 20.0, "cacheRead": 0.20}),
+        ("2026-11-18", {"input": 2.0, "output": 10.0, "cacheRead": 0.10}),
+        (None, {"input": 3.0, "output": 15.0, "cacheRead": 0.15}),
     ],
 }
 
