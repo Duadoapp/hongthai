@@ -933,7 +933,7 @@ HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 
     - `status: "skipped"`（沒被選、不呼叫）：`level: "low"`，`comment` 固定四語「沒看到明顯風險」
       （zh-HK「未見明顯風險」、zh-CN「未见明显风险」、en「No notable risk seen」）
     - `status: "error"`：`level: null`、`comment: null`，`error` 是代碼：`no_api_key`（沒設金鑰）、`timeout`
-      （單次請求逾時——Claude 60、Gemini 45 秒，HD23——、整個 AI 步驟 240 秒到了，或剩下的預算不夠送一次）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
+      （單次請求逾時——Claude 60、Gemini 90 秒（HD23 是 45，2026-11-20 起 90）——、整個 AI 步驟 240 秒到了，或剩下的預算不夠送一次）、`bad_format`（回應不是規定的 JSON、等級不對、四語有缺、
       超過字數上限、被 `max_tokens` 截斷）、`http_<碼>`（API 回錯誤，例如 `http_429`；`http_504` 是 Vertex
       閘道逾時；`http_503`／`http_504` 快回的重試一次仍失敗、或等了 15 秒以上才回的才記，其他碼不重試，HD17、HD23）、`network`、
       `daily_cap`（那個模型今天（UTC）已經呼叫到每日上限 160 次，HD47；HD11 到 HD47 之間不限、不會出現）；**規格以外多三個**：`run_cap`（符合條件但排在這一報前 20 個
@@ -1982,7 +1982,7 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   `sources.ai.errors` 記 `daily_cap`（網頁照 HD11 之前的顯示）；重試、WN3 重生也算次數、到上限就不做；UTC 隔天換一個
   次數檔、從 0 算起。`history/ai/calls-<日期>.json` 記每個模型今天呼叫幾次（成功失敗都算）；
   另有 Anthropic workspace 每月硬上限（原 30 美元，2026-10-21 為了撐過颱風調到 100）、GCP 30 美元預算警示（在平台上設）；格式不對、逾時、API 錯誤都記 `error`、**不重試**（兩個 SDK
-  的自動重試都關掉；唯一例外是快回的 `http_503`／`http_504` 重試一次，見下一條）；單次請求逾時 Claude 60、Gemini 45 秒
+  的自動重試都關掉；唯一例外是快回的 `http_503`／`http_504` 重試一次，見下一條）；單次請求逾時 Claude 60、Gemini 90 秒（HD23 是 45，2026-11-20 換 Neon 後 90）
   （`config.TIMEOUT_S`，HD23 前都是 60）；剩下的預算不到該模型逾時＋5 秒（`config.SEND_MIN_LEFT_S`：65／50 秒）就不再
   送新請求、記 `timeout`（HD23；以前是不到 0.1 秒才不送）；整個 AI 步驟預算 240 秒（`BUDGET_S["ai"]`；HD12 前 180 秒，
   HD11 後第一報 178.2 秒頂到預算），兩個模型**平行**呼叫、每個模型的並行數 Claude 4 條、Gemini 3 條
@@ -2004,8 +2004,9 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   `global` 端點故障、不是負載）。HD17 的重試在慢 504 上反而把預算吃光，所以改成：
   - 第一次**花不到 15 秒**（`config.RETRY_FAST_FAIL_S`）就回 503／504 才重試（瞬間故障，重試便宜）；等了 15 秒以上
     才失敗的（閘道逾時）**不重試**，直接記，戰績 `detail` 後面加 `:slow`（例如 `"http_504:-:-:slow"`）。重試的剩餘
-    預算門檻跟著逾時走：該模型逾時＋10 秒（`config.RETRY_MIN_LEFT_S`：Claude 70、Gemini 55）
+    預算門檻跟著逾時走：該模型逾時＋10 秒（`config.RETRY_MIN_LEFT_S`：Claude 70、Gemini 100；HD23 時是 55）
   - Gemini 單次逾時 45 秒：成功的請求實測 7–30 秒；57 秒才回的閘道 504 會變成 45 秒的 `timeout`（一樣是失敗、省 12 秒）
+  - 2026-11-20 換 Gemini 4 Neon 後 Gemini 逾時改 90 秒、`max_output_tokens` 改 6000（`GEMINI_MAX_TOKENS`）：Neon 成功的請求 26–43 秒、思考 LOW 也用 2,300–2,700 token，11/19 手動 build 在 45 秒／3000 token 下 11 次只成功 5 次
   - **備援區域**：同一報 Gemini 在主要區域（`GOOGLE_CLOUD_LOCATION`）**連續** 3 次（`config.FALLBACK_AFTER`）
     `http_503`／`http_504`／`timeout`（依結果回來的順序；成功或其他錯誤歸零，重試也算一次），之後的 Gemini 請求
     （含重試）改送備援區域 `GOOGLE_CLOUD_LOCATION_FALLBACK`（沒設是 `us`；空字串或和主要一樣＝關掉），備援的 client

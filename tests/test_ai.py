@@ -864,7 +864,7 @@ def test_gemini_request_and_parse():
     assert kw["model"] == "gemini-4-neon" and kw["contents"] == "文字"
     cfg = kw["config"]
     assert cfg.system_instruction == prompt.SYSTEM
-    assert (cfg.temperature, cfg.max_output_tokens) == (0.3, 3000)
+    assert (cfg.temperature, cfg.max_output_tokens) == (0.3, 6000)
     assert cfg.response_mime_type == "application/json"
     assert cfg.http_options.timeout == 30_000
     # Gemini 4 只接受 thinking_level（送 thinking_budget 回 400），LOW 是最低
@@ -1237,20 +1237,20 @@ def test_duel_request_timeout_and_budget_guard(tmp_path):
 
     ev = {k: model(k) for k in seen}
     ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, budget_s=100, evaluators=ev)
-    assert seen == {"claude": [60], "gemini": [45]}
-    # 還剩 54 秒：Gemini（45＋5）照送、Claude（60＋5）不送
+    assert seen == {"claude": [60], "gemini": [90]}
+    # 還剩 70 秒：Claude（60＋5）照送、Gemini（90＋5，2026-11-20 起）不送
     later = duel_doc(1, 0)
     later["generatedAt"] = "2026-10-19T08:25:00Z"
-    res = ai_run.evaluate_all(later, None, NOW, tmp_path, budget_s=54, evaluators=ev)
-    assert seen == {"claude": [60], "gemini": [45, 45]}
-    assert res["airports"]["RC00"]["claude"]["error"] == "timeout"
-    assert res["source"]["calls"] == {"claude": 0, "gemini": 1}
+    res = ai_run.evaluate_all(later, None, NOW, tmp_path, budget_s=70, evaluators=ev)
+    assert seen == {"claude": [60, 60], "gemini": [90]}
+    assert res["airports"]["RC00"]["gemini"]["error"] == "timeout"
+    assert res["source"]["calls"] == {"claude": 1, "gemini": 0}
     rows = json.loads((tmp_path / "ai" / "2026-10-19.json").read_text("utf-8"))
-    assert rows[-1]["claude"] == {"status": "error", "level": None}  # 沒送：沒有 seconds
+    assert rows[-1]["gemini"] == {"status": "error", "level": None}  # 沒送：沒有 seconds
     # 只剩 10 秒：兩個都不送（HD23 前是逾時縮成 10 秒照送）
     later["generatedAt"] = "2026-10-19T14:25:00Z"
     res = ai_run.evaluate_all(later, None, NOW, tmp_path, budget_s=10, evaluators=ev)
-    assert seen == {"claude": [60], "gemini": [45, 45]}
+    assert seen == {"claude": [60, 60], "gemini": [90]}
     assert res["source"]["calls"] == {"claude": 0, "gemini": 0}
     assert res["source"]["errors"] == {"claude": "timeout", "gemini": "timeout"}
 
@@ -1519,7 +1519,7 @@ def _gemini_row(tmp_path, ge, **kwargs) -> dict:
 
 def test_retry_504_then_ok_hd17(tmp_path):
     assert config.RETRY_CODES == ("http_503", "http_504")
-    assert config.RETRY_MIN_LEFT_S == {"claude": 70, "gemini": 55}  # 該模型逾時＋10（HD23）
+    assert config.RETRY_MIN_LEFT_S == {"claude": 70, "gemini": 100}  # 該模型逾時＋10（HD23）
     ge = seq_model("http_504", None, delay=0.1)
     g = _gemini_row(tmp_path, ge)
     assert len(ge.timeouts) == 2
@@ -1554,16 +1554,16 @@ def test_no_retry_other_errors_hd17(tmp_path, code):
 
 
 def test_no_retry_when_budget_short_hd17(tmp_path):
-    """剩餘預算不到 Gemini 逾時＋10（55 秒，HD23；HD17 是 70 秒）不重試，照舊記 `http_504`
-    （沒有 `:retried`）。54 秒還夠送第一次（45＋5）。"""
+    """剩餘預算不到 Gemini 逾時＋10（100 秒；HD23 是 55、HD17 是 70 秒）不重試，照舊記 `http_504`
+    （沒有 `:retried`）。99 秒還夠送第一次（90＋5）。"""
     ge = seq_model("http_504", None)
-    g = _gemini_row(tmp_path, ge, budget_s=54)
+    g = _gemini_row(tmp_path, ge, budget_s=99)
     assert len(ge.timeouts) == 1
     assert g["light"]["error"] == "http_504" and g["detail"] == "http_504:-:-" and g["calls"] == 1
     # 預算夠：重試的逾時也取 `TIMEOUT_S` 與剩下時間的小者
     ge = seq_model("http_504", None)
-    assert _gemini_row(tmp_path, ge, budget_s=100)["status"] == "ok"
-    assert ge.timeouts == [config.TIMEOUT_S["gemini"]] * 2 == [45, 45]
+    assert _gemini_row(tmp_path, ge, budget_s=250)["status"] == "ok"
+    assert ge.timeouts == [config.TIMEOUT_S["gemini"]] * 2 == [90, 90]
 
 
 def test_no_retry_past_daily_cap_hd17(tmp_path, monkeypatch):
@@ -1600,9 +1600,9 @@ def clock(monkeypatch):
 
 
 def test_hd23_constants():
-    assert config.TIMEOUT_S == {"claude": 60, "gemini": 45}
+    assert config.TIMEOUT_S == {"claude": 60, "gemini": 90}
     assert config.RETRY_FAST_FAIL_S == 15
-    assert config.SEND_MIN_LEFT_S == {"claude": 65, "gemini": 50}
+    assert config.SEND_MIN_LEFT_S == {"claude": 65, "gemini": 95}
     assert (config.FALLBACK_AFTER, config.FALLBACK_GIVE_UP) == (3, 2)
     assert config.FALLBACK_CODES == ("http_503", "http_504", "timeout")
 
@@ -1635,12 +1635,12 @@ def test_retry_slow_second_still_retried_hd23(tmp_path, clock):
     assert _gemini_row(tmp_path, ge)["detail"] == "http_429:-:-"
 
 
-def test_gemini_timeout_45(monkeypatch):
-    """Gemini 單次 45 秒（client 與請求都是）、Claude 60 秒。"""
-    assert gemini.TIMEOUT == 45 and claude.TIMEOUT == 60
+def test_gemini_timeout_90(monkeypatch):
+    """Gemini 單次 90 秒（client 與請求都是；2026-11-20 起，HD23 是 45）、Claude 60 秒。"""
+    assert gemini.TIMEOUT == 90 and claude.TIMEOUT == 60
     fake = FakeGenai(_gresp(_resp()))
     gemini.evaluate("文字", client=fake)
-    assert fake.calls[0]["config"].http_options.timeout == 45_000
+    assert fake.calls[0]["config"].http_options.timeout == 90_000
     fa = FakeAnthropic(_msg(_resp()))
     claude.evaluate("文字", client=fa)
     assert fa.options == [{"timeout": 60, "max_retries": 0}]
@@ -1648,8 +1648,8 @@ def test_gemini_timeout_45(monkeypatch):
     gemini.make_client()
     gemini.make_client("us")
     assert [(m["location"], m["http_options"].timeout) for m in made] == [
-        ("global", 45_000),
-        ("us", 45_000),
+        ("global", 90_000),
+        ("us", 90_000),
     ]
     assert all(m["vertexai"] and m["project"] == "p" for m in made)
 

@@ -18,13 +18,17 @@ ENV = {
 
 # 兩個模型的思考 token 都算在輸出上限裡（HD6）：四語短評本身約 600–900 token，其他留給思考
 MAX_TOKENS = 3000
+# Gemini 4 Neon（2026-11-19 起）思考 LOW 也常用掉 2,300–2,700 token，3000 會把四語
+# 短評截斷（11/19 手動 build 11 次有 2 次）；Gemini 另給 6000（Claude 照舊 3000）
+GEMINI_MAX_TOKENS = 6000
 TEMPERATURE = 0.3  # 只有 Gemini 用：Claude Opus 5.5 不接受 temperature（送了回 400）
 CLAUDE_EFFORT = "low"  # Opus 5.5 的思考關不掉、算在 max_tokens 裡；用 low 留空間給四語短評
 # Gemini 4 只接受 `thinking_level`（送 `thinking_budget` 回 400），不支援 MINIMAL；LOW 是最低
 GEMINI_THINKING_LEVEL = "LOW"
-# 單次請求逾時，每個模型各自（HD23）：Gemini 成功的請求實測 7–30 秒，45 秒夠；
-# Vertex 閘道卡 57 秒才回的 504 會變成 45 秒的 `timeout`（一樣是失敗、省 12 秒）
-TIMEOUT_S = {"claude": 60, "gemini": 45}
+# 單次請求逾時，每個模型各自（HD23）：Argon 成功的請求實測 7–30 秒，45 秒夠；
+# Gemini 4 Neon（2026-11-19 起）成功的請求 26–43 秒、45 秒時 4／11 次被切成 504 DEADLINE_EXCEEDED，
+# 2026-11-20 產品負責人決定拉長到 90 秒試看看（AI 步驟整體預算照舊）
+TIMEOUT_S = {"claude": 60, "gemini": 90}
 # 只重試一次的錯誤（HD17）：閘道沒回應，不是模型回了壞東西、也不計費；同一個請求、不改內容。
 # 429、400、`bad_format`、`bad_wording`、`refusal`、`timeout` 都不重試
 RETRY_CODES = ("http_503", "http_504")
