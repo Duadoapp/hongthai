@@ -339,15 +339,15 @@ def test_cost_with_fake_prices(prices):
 
 
 def test_real_prices_hd26():
-    """單價表（2026-10-21 查）：Opus 5.5、Argon global（11/30 前促銷價）。"""
+    """單價表：Opus 5.5（2026-10-21 查）；Gemini 到 11/19 是 Argon global 促銷價，11/20 起 Neon。"""
     assert usage.price("claude", "2026-10-21") == {
         "input": 4.0,
         "output": 20.0,
         "cacheWrite": 5.0,
         "cacheRead": 0.20,
     }
-    assert usage.price("gemini", "2026-11-30") == {"input": 2.0, "output": 10.0, "cacheRead": 0.10}
-    assert usage.price("gemini", "2026-12-01") == {"input": 4.0, "output": 20.0, "cacheRead": 0.20}
+    assert usage.price("gemini", "2026-11-18") == {"input": 2.0, "output": 10.0, "cacheRead": 0.10}
+    assert usage.price("gemini", "2026-11-19") == {"input": 3.0, "output": 15.0, "cacheRead": 0.15}
     assert set(config.PRICES) == set(config.MODELS)
 
 

@@ -391,7 +391,7 @@ def test_ai_shape(latest):
             "zh-CN": "AI 评论仅供参考，以航空公司与机场公告为准",
             "en": "AI commentary is for reference only; follow airline and airport announcements.",
         },
-        "models": {"claude": "claude-opus-5-5", "gemini": "gemini-4-argon"},
+        "models": {"claude": "claude-opus-5-5", "gemini": "gemini-4-neon"},
     }
     errors = {"no_api_key", "timeout", "bad_format", "network", "daily_cap", "run_cap", "refusal"}
     statuses = set()
@@ -399,7 +399,7 @@ def test_ai_shape(latest):
         ai = a["ai"]
         assert set(ai) == {"evaluatedAt", "claude", "gemini"}
         assert ai["evaluatedAt"] is None or ISO_Z.match(ai["evaluatedAt"])
-        for key, model in (("claude", "claude-opus-5-5"), ("gemini", "gemini-4-argon")):
+        for key, model in (("claude", "claude-opus-5-5"), ("gemini", "gemini-4-neon")):
             light = ai[key]
             statuses.add(light["status"])
             assert light["model"] == model
@@ -1856,7 +1856,7 @@ def test_build_ai_no_api_key(workspace, monkeypatch, airports):
     src = out["sources"]["ai"]
     assert src["ok"] is False and src["calls"] == {"claude": 0, "gemini": 0}
     assert src["error"] == "claude:no_api_key,gemini:no_api_key"
-    assert out["ai"]["models"] == {"claude": "claude-opus-5-5", "gemini": "gemini-4-argon"}
+    assert out["ai"]["models"] == {"claude": "claude-opus-5-5", "gemini": "gemini-4-neon"}
     # 戰績檔與每日次數在 data 分支，不在 Pages
     hist = workspace / "data" / "history" / "ai"
     assert sorted(p.name for p in hist.iterdir()) == ["2026-10-18.json", "calls-2026-10-18.json"]
