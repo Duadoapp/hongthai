@@ -532,7 +532,7 @@ AI 對決（HD5，下面「AI 對決」）的金鑰也只從環境變數讀：
 | `ANTHROPIC_API_KEY` | Claude Console「HongThai」Workspace 的金鑰 |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | GCP 服務帳號金鑰 **JSON 整份原文**（不是 base64；程式 `json.loads` 後直接用，不寫到磁碟） |
 | `GOOGLE_CLOUD_PROJECT` | GCP 專案 ID |
-| `GOOGLE_CLOUD_LOCATION` | `global`（Gemini 4 Argon 只開 global、us、eu） |
+| `GOOGLE_CLOUD_LOCATION` | `global`（Gemini 4 Neon 只開 global、us、eu；2026-11-19 前是 Argon） |
 | `GOOGLE_CLOUD_LOCATION_FALLBACK` | 選填（HD23）：Gemini 備援區域，沒設是 `us`、空字串＝關掉；`build.yml` 目前沒帶，用預設 |
 
 少任一個時那個模型記 `error: "no_api_key"`、不呼叫，另一個照跑；本機沒設就是兩個都 `no_api_key`，
@@ -822,7 +822,7 @@ H10（2026-10-18）之後：
   "sources": { "ecmwf": { "ok": true }, "gfs": { "ok": true }, "taf": { "ok": true }, "hko": { "ok": true }, "cwa": { "ok": false, "error": "no_api_key" }, "ai": { "ok": true, "seconds": 41.7, "calls": { "claude": 12, "gemini": 12 }, "errors": { "gemini": "bad_format" } } },
   "ai": {
     "disclaimer": { "zh-TW": "AI 評論僅供參考，以航空公司與機場公告為準", "zh-HK": "AI 評論僅供參考，以航空公司及機場公告為準", "zh-CN": "AI 评论仅供参考，以航空公司与机场公告为准", "en": "AI commentary is for reference only; follow airline and airport announcements." },
-    "models": { "claude": "claude-opus-5-5", "gemini": "gemini-4-argon" }
+    "models": { "claude": "claude-opus-5-5", "gemini": "gemini-4-neon" }
   },
   "regions": [
     { "id": "taiwan", "name": { "zh-TW": "台灣", "zh-HK": "台灣", "zh-CN": "台湾", "en": "Taiwan" } },
@@ -853,7 +853,7 @@ H10（2026-10-18）之後：
         "evaluatedAt": "2026-10-18T08:10:00Z",
         "claude": { "status": "ok", "level": "medium", "comment": { "zh-TW": "…", "zh-HK": "…", "zh-CN": "…", "en": "…" }, "model": "claude-opus-5-5",
                     "sentences": { "zh-TW": [ { "text": "…", "src": ["vote"] }, { "text": "…", "src": ["taf", "ifs"] } ], "zh-HK": [ … ], "zh-CN": [ … ], "en": [ … ] } },
-        "gemini": { "status": "error", "level": null, "comment": null, "model": "gemini-4-argon", "error": "bad_format", "sentences": null }
+        "gemini": { "status": "error", "level": null, "comment": null, "model": "gemini-4-neon", "error": "bad_format", "sentences": null }
       }
     }
   ]
@@ -921,7 +921,7 @@ HD3（2026-10-19）加的（只加值、不加欄位，既有欄位不改名、�
 
 HD5（2026-10-19，AI 對決「三顆燈」，第四階段）加的欄位（照 Duado spec 第 16 節；既有欄位不改名、不改型別）：
 
-- 頂層 `ai`：`{ "disclaimer": { 四語 }, "models": { "claude": "claude-opus-5-5", "gemini": "gemini-4-argon" } }`。
+- 頂層 `ai`：`{ "disclaimer": { 四語 }, "models": { "claude": "claude-opus-5-5", "gemini": "gemini-4-neon" } }`。
   免責四語是固定字串（`ai/config.py` 的 `DISCLAIMER`）；網頁燈的標題用 `models` 顯示模型名，鍵名
   `claude`／`gemini` 換模型版本也不改
 - `airports[].ai`：`{ "evaluatedAt", "claude": <燈>, "gemini": <燈> }`，每個機場都有
@@ -1912,7 +1912,7 @@ WN2 這一個請求（51 個機場）：1 個變數 × 64 個成員 ÷ 10 × max
 ## AI 對決
 
 HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈——**規則**（現有等級）、**Claude**
-（`claude-opus-5-5`）、**Gemini**（`gemini-4-argon`，Vertex AI）。兩個 AI 各自讀該機場的全部數據，
+（`claude-opus-5-5`）、**Gemini**（`gemini-4-neon`，Vertex AI）。兩個 AI 各自讀該機場的全部數據，
 給自己的等級（低／中／高）與一段短評，像評論員；數據照舊全部保留給讀者。程式在 `src/hongthai/ai/`。
 
 - **只評哪些機場**（`ai/select.py`）：未來 5 天任一格 `level` 是中／高／已確認，或和上一份 `latest.json`
@@ -2124,7 +2124,7 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   en 短評長度 318–400 字（關島剛好 400）、中文 127–192 字——en 被 HD5 的 400 字上限擋下應是大宗，所以 en
   放寬到 800、中文 300；另外 `max_tokens` 加到 3000、Gemini 思考設最低，防思考吃掉輸出上限而被截斷。
   之後失敗的原因直接看戰績檔的 `detail`（見下面「對決戰績」）
-- **Gemini 的 `http_429`**：`gemini-4-argon` 走 `global` endpoint 的 Standard PayGo，**沒有可以在 GCP
+- **Gemini 的 `http_429`**：`gemini-4-neon` 走 `global` endpoint 的 Standard PayGo，**沒有可以在 GCP
   申請提高的每專案每分鐘請求數配額**：吞吐量是**組織層級的用量級距（usage tier）**，依整個組織過去 30 天
   在 Vertex AI（Agent Platform）的花費自動調整（Tier 1：花費 10–250 美元，Pro／Argon 優先吞吐量
   500,000 TPM；Tier 2：250–2,000 美元，1,000,000 TPM；以上類推），超過的流量有空閒容量時照樣服務，
