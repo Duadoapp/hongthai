@@ -861,7 +861,7 @@ def test_gemini_request_and_parse():
     fake = FakeGenai(_gresp(_resp()))
     assert gemini.evaluate("文字", client=fake, timeout=30)["level"] == "high"
     kw = fake.calls[0]
-    assert kw["model"] == "gemini-4-argon" and kw["contents"] == "文字"
+    assert kw["model"] == "gemini-4-neon" and kw["contents"] == "文字"
     cfg = kw["config"]
     assert cfg.system_instruction == prompt.SYSTEM
     assert (cfg.temperature, cfg.max_output_tokens) == (0.3, 3000)
@@ -988,7 +988,7 @@ def test_duel_output_structure(tmp_path):
     )
     assert res["ai"] == {
         "disclaimer": config.DISCLAIMER,
-        "models": {"claude": "claude-opus-5-5", "gemini": "gemini-4-argon"},
+        "models": {"claude": "claude-opus-5-5", "gemini": "gemini-4-neon"},
     }
     assert set(res["ai"]["disclaimer"]) == set(LANGS)
     risky = res["airports"]["RC00"]
@@ -1005,7 +1005,7 @@ def test_duel_output_structure(tmp_path):
             "status": "error",
             "level": None,
             "comment": None,
-            "model": "gemini-4-argon",
+            "model": "gemini-4-neon",
             "error": "bad_format",
             "sentences": None,
         },

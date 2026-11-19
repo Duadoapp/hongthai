@@ -3,7 +3,7 @@
 環境變數：
 - `GOOGLE_SERVICE_ACCOUNT_JSON`：服務帳號金鑰 JSON 整份原文（不是 base64）；用 `json.loads` 讀、
   交給 `service_account.Credentials.from_service_account_info`，不寫到磁碟
-- `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`（`global`；Argon 只開 global、us、eu）
+- `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`（`global`；Neon 只開 global、us、eu）
 少任一個或 JSON 讀不了 → `no_api_key`。
 - `GOOGLE_CLOUD_LOCATION_FALLBACK`（HD23，選填）：備援區域，沒設是 `us`、設成空字串＝關掉
   （和主要區域一樣也當關掉）。什麼時候切過去由 `run.py` 決定（`config.FALLBACK_AFTER`），
