@@ -1544,7 +1544,7 @@ def test_retry_second_error_recorded_hd17(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "code", ["http_429", "http_400", "http_500", "bad_format", "bad_wording", "refusal", "timeout"]
+    "code", ["http_400", "http_500", "bad_format", "bad_wording", "refusal", "timeout"]
 )
 def test_no_retry_other_errors_hd17(tmp_path, code):
     ge = seq_model(code, None)
@@ -1750,7 +1750,8 @@ def test_fallback_after_three_504_hd23(tmp_path, monkeypatch, clock):
 
 
 def test_fallback_timeouts_and_reset_hd23(tmp_path, monkeypatch):
-    """`timeout` 也算；中間有成功（或其他錯誤）就歸零。"""
+    """`timeout` 也算；中間有成功（或其他錯誤）就歸零。（429 這裡不重試，序列才對得上）"""
+    monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {})
     ge = region_model(
         ["timeout", "timeout", None, "http_429", "timeout", "timeout", "timeout"], [None]
     )
@@ -1923,3 +1924,53 @@ def test_good_wording_hd16():
         "of 51 kt and the Google AI ensemble agrees; disruption risk High.",
     }
     assert parse.parse_response(_resp(comment=comment))["comment"] == comment
+
+
+# ---- 2026-11-20：Gemini 的 429 等幾秒再重試一次 ----
+
+
+def test_retry_429_constants():
+    assert config.RETRY_429_WAIT_S == {"gemini": 5.0}  # Claude 不重試 429
+    assert "http_429" not in config.RETRY_CODES
+    assert config.PARALLEL == {"claude": 4, "gemini": 3}  # 不降並行
+
+
+def test_gemini_429_waits_then_retries(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {"gemini": 0.2})
+    ge = seq_model("http_429", None)
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 2 and g["calls"] == 2  # 重試也算一次呼叫
+    assert g["status"] == "ok" and "detail" not in g
+    assert g["seconds"] >= 0.2  # 等的時間算在這筆裡
+
+
+def test_gemini_429_twice_retried_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {"gemini": 0.0})
+    ge = seq_model("http_429")
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 2  # 只重試一次
+    assert g["light"]["error"] == "http_429" and g["detail"] == "http_429:-:-:retried"
+
+
+def test_gemini_429_no_retry_when_budget_short(tmp_path, monkeypatch):
+    """剩餘預算不到 Gemini 逾時＋10（100 秒）不重試，同 503／504。"""
+    monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {"gemini": 0.0})
+    ge = seq_model("http_429", None)
+    g = _gemini_row(tmp_path, ge, budget_s=99)
+    assert len(ge.timeouts) == 1 and g["detail"] == "http_429:-:-" and g["calls"] == 1
+
+
+def test_gemini_429_no_retry_past_daily_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {"gemini": 0.0})
+    monkeypatch.setattr(ai_run, "DAILY_CAP", 1)
+    ge = seq_model("http_429", None)
+    g = _gemini_row(tmp_path, ge)
+    assert len(ge.timeouts) == 1 and g["detail"] == "http_429:-:-"
+
+
+def test_claude_429_not_retried(tmp_path, monkeypatch):
+    monkeypatch.setattr(ai_run, "RETRY_429_WAIT_S", {"gemini": 0.0})
+    cl = seq_model("http_429", None)
+    ev = {"claude": cl, "gemini": fake_model()}
+    ai_run.evaluate_all(duel_doc(1, 0), None, NOW, tmp_path, evaluators=ev)
+    assert len(cl.timeouts) == 1
