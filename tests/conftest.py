@@ -18,6 +18,14 @@ def utc(*args) -> datetime:
     return datetime(*args, tzinfo=UTC)
 
 
+@pytest.fixture(autouse=True)
+def _no_alt_model(monkeypatch):
+    """換模型（2026-11-20，`ALT_MODEL`）預設關著，免得每個失敗的測試都多送一次；要測的測試自己打開。"""
+    from hongthai.ai import run as ai_run
+
+    monkeypatch.setattr(ai_run, "ALT_MODEL", {})
+
+
 @pytest.fixture
 def airports():
     from hongthai.config import load_airports
