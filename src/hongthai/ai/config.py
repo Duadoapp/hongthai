@@ -58,7 +58,9 @@ SEND_MIN_LEFT_S = {k: t + 5 for k, t in TIMEOUT_S.items()}
 # `FALLBACK_CODES`，之後的請求改用備援區域；備援回 `http_404`（模型不在該區）或連續
 # `FALLBACK_GIVE_UP` 次失敗就不再用、退回主要區域
 FALLBACK_AFTER = 3
-FALLBACK_CODES = ("http_503", "http_504", "timeout")
+# 2026-11-20 加 `http_429`：第三次手動 build Neon 與換用的 Argon 在主要區域全部 429（0/10），
+# 區域端點的容量各自算，連續 3 次 429 就換備援區域試（照建議，未問）
+FALLBACK_CODES = ("http_503", "http_504", "timeout", "http_429")
 FALLBACK_GIVE_UP = 2
 # 這些錯代表區域有回應、只是模型的回答不能用：不算區域失敗，連續次數歸零
 CONTENT_ERRORS = ("bad_format", "bad_wording", "refusal")

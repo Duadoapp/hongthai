@@ -2024,7 +2024,8 @@ HD5（第四階段，Shawn 2026-10-18／19 定案）：每個機場三顆燈—�
   - Gemini 單次逾時 45 秒：成功的請求實測 7–30 秒；57 秒才回的閘道 504 會變成 45 秒的 `timeout`（一樣是失敗、省 12 秒）
   - 2026-11-20 換 Gemini 4 Neon 後 Gemini 逾時改 90 秒、`max_output_tokens` 改 6000（`GEMINI_MAX_TOKENS`）：Neon 成功的請求 26–43 秒、思考 LOW 也用 2,300–2,700 token，11/19 手動 build 在 45 秒／3000 token 下 11 次只成功 5 次
   - **備援區域**：同一報 Gemini 在主要區域（`GOOGLE_CLOUD_LOCATION`）**連續** 3 次（`config.FALLBACK_AFTER`）
-    `http_503`／`http_504`／`timeout`（依結果回來的順序；成功或其他錯誤歸零，重試也算一次），之後的 Gemini 請求
+    `http_503`／`http_504`／`timeout`／`http_429`（429 是 2026-11-20 加的：那天第三次手動 build Neon 與換用的 Argon
+    在主要區域全部 429，區域端點的容量各自算；依結果回來的順序；成功或其他錯誤歸零，重試也算一次），之後的 Gemini 請求
     （含重試）改送備援區域 `GOOGLE_CLOUD_LOCATION_FALLBACK`（沒設是 `us`；空字串或和主要一樣＝關掉），備援的 client
     第一次要用才建、同一把服務帳號。備援回 `http_404`（模型不在那一區）、連續 2 次失敗（`config.FALLBACK_GIVE_UP`；
     `bad_format`、`bad_wording`、`refusal` 是回答不能用、不算區域失敗）或 client 建不了，就不再用、退回主要區域，
