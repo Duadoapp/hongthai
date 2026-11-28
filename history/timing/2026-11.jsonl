@@ -2635,3 +2635,25 @@
 {"run": "2026-11-27T20:25:00Z", "source": "og", "ok": true, "error": null, "seconds": 1.8, "bytes": 731207}
 {"run": "2026-11-27T20:25:00Z", "source": "done", "ok": true, "seconds": 299.2}
 {"run": "2026-11-27T21:54:00Z", "source": "skip", "ok": true, "seconds": 0, "trigger": "schedule", "slot": "2026-11-27T20:25:00Z", "startedAt": "2026-11-27T21:53:15Z", "delayMinutes": 88.2, "generatedAt": "2026-11-27T20:25:00Z"}
+{"run": "2026-11-28T01:06:00Z", "source": "start", "ok": true, "seconds": 0, "commit": "9ab1d96", "trigger": "cloudflare", "slot": "2026-11-28T01:05:00Z", "startedAt": "2026-11-28T01:05:12Z", "delayMinutes": 0.2}
+{"run": "2026-11-28T01:06:00Z", "source": "ecmwf", "ok": true, "error": null, "seconds": 172.6, "bytes": 104840924, "mirror": "ecmwf"}
+{"run": "2026-11-28T01:06:00Z", "source": "gfs", "ok": true, "error": null, "seconds": 12.9, "bytes": 79359483, "mirror": "aws"}
+{"run": "2026-11-28T01:06:00Z", "source": "aifs", "ok": true, "error": null, "seconds": 56.8, "bytes": 40554476, "mirror": "ecmwf"}
+{"run": "2026-11-28T01:06:00Z", "source": "aigfs", "ok": true, "error": null, "seconds": 8.8, "bytes": 49853084, "mirror": "aws"}
+{"run": "2026-11-28T01:06:00Z", "source": "openmeteo", "ok": true, "error": null, "seconds": 3.9, "bytes": 1958587, "calls": 504.9}
+{"run": "2026-11-28T01:06:00Z", "source": "taf", "ok": true, "error": null, "seconds": 0.8, "bytes": 92170}
+{"run": "2026-11-28T01:06:00Z", "source": "hko", "ok": true, "error": null, "seconds": 2.7, "bytes": 517}
+{"run": "2026-11-28T01:06:00Z", "source": "cwa", "ok": true, "error": null, "seconds": 1.3, "bytes": 14606}
+{"run": "2026-11-28T01:06:00Z", "source": "smg", "ok": true, "error": null, "seconds": 2.1, "bytes": 2181}
+{"run": "2026-11-28T01:06:00Z", "source": "nws", "ok": true, "error": null, "seconds": 0.2, "bytes": 6330}
+{"run": "2026-11-28T01:06:00Z", "source": "jma", "ok": true, "error": null, "seconds": 3.2, "bytes": 290199}
+{"run": "2026-11-28T01:06:00Z", "source": "cwaTyphoon", "ok": true, "error": null, "seconds": 0.6, "bytes": 11347}
+{"run": "2026-11-28T01:06:00Z", "source": "jmaTyphoon", "ok": true, "error": null, "seconds": 0.0, "bytes": 2}
+{"run": "2026-11-28T01:06:00Z", "source": "swic", "ok": true, "error": null, "seconds": 0.9, "bytes": 1076776}
+{"run": "2026-11-28T01:06:00Z", "source": "flights", "ok": true, "error": null, "seconds": 14.6, "bytes": 1185789}
+{"run": "2026-11-28T01:06:00Z", "source": "tdx", "ok": true, "error": null, "seconds": 2.0, "bytes": 1716905, "calls": 1}
+{"run": "2026-11-28T01:06:00Z", "source": "wn3", "ok": true, "error": null, "seconds": 30.1, "bytes": 6276124800, "mode": "vote", "via": "zarr", "estimateBytes": null, "bytesBilled": null, "stored": "written", "bqError": "bq_bytes_limit", "zarrError": null, "rain": true, "rainError": null}
+{"run": "2026-11-28T01:06:00Z", "source": "airports3h", "ok": true, "error": null, "seconds": 0.8, "bytes": 6656137, "files": 51, "mismatches": 0}
+{"run": "2026-11-28T01:06:00Z", "source": "ai", "ok": true, "error": null, "seconds": 143.6, "bytes": 0, "calls": {"claude": 10, "gemini": 13}, "usage": {"claude": {"input": 160284, "output": 12836, "cacheRead": 44100, "cacheWrite": 6295, "calls": 10}, "gemini": {"input": 140986, "output": 6082, "thinking": 19679, "cacheRead": null, "calls": 9}}, "costUsd": {"claude": 0.938151, "gemini": 0.809373}, "errorMessages": {"claude": null, "gemini": "RESOURCE_EXHAUSTED: Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details."}}
+{"run": "2026-11-28T01:06:00Z", "source": "og", "ok": true, "error": null, "seconds": 2.2, "bytes": 731875}
+{"run": "2026-11-28T01:06:00Z", "source": "done", "ok": true, "seconds": 461.0}
